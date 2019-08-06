@@ -15,20 +15,20 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('.'))
-sys.path.insert(1, os.path.abspath('../../'))
+#sys.path.insert(1, os.path.abspath('../../'))
 
+import filter_functions
 
 # -- Project information -----------------------------------------------------
 
 project = 'filter_functions'
-copyright = '2019, Tobias Hangleiter'
-author = 'Tobias Hangleiter'
+copyright = '2019, Quantum Technology Group, RWTH Aachen University'
+author = 'Quantum Technology Group, RWTH Aachen University'
 
 # The short X.Y version
-version = ''
+version = filter_functions.__version__
 # The full version, including alpha/beta/rc tags
-release = ''
-
+release = filter_functions.__version__
 
 # -- General configuration ---------------------------------------------------
 
@@ -42,21 +42,27 @@ release = ''
 extensions = [
     'nbsphinx',
     'sphinx.ext.mathjax',
-    #'IPython.sphinxext.ipython_console_highlighting',
-    #'IPython.sphinxext.ipython_directive',
-    #'matplotlib.sphinxext.only_directives',
-    #'matplotlib.sphinxext.plot_directive',
-    #'matplotlib.sphinxext.mathmpl',
-    'sphinx.ext.autodoc',
     'sphinx.ext.todo',
-    'sphinx.ext.doctest',
     'sphinx.ext.autosummary',
     'numpydoc',
     'sphinx.ext.extlinks',
     'sphinx.ext.viewcode',
     'sphinx.ext.ifconfig',
-    'sphinx.ext.napoleon'
+    'sphinx.ext.napoleon',
+    #'sphinxcontrib.apidoc',
+    #'IPython.sphinxext.ipython_console_highlighting',
+    #'IPython.sphinxext.ipython_directive',
+    #'matplotlib.sphinxext.only_directives',
+    #'matplotlib.sphinxext.plot_directive',
+    #'matplotlib.sphinxext.mathmpl',
+    #'sphinx.ext.autodoc',
+    #'sphinx.ext.doctest',
 ]
+
+# Apidoc config
+apidoc_module_dir = '../../filter_functions'
+apidoc_excluded_paths = ['../tests']
+apidoc_separate_modules = True
 
 # Numpydoc settings
 numpydoc_show_inherited_class_members = False
@@ -93,9 +99,9 @@ language = None
 exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
 # Execute notebooks when building the documentation only if no outputs
-# are present. Set the execution time-out per cell to 60 s
+# are present. Set the execution time-out per cell to 120 s
 nbsphinx_execute = 'auto'
-nbsphinx_timeout = 60
+nbsphinx_timeout = 120
 
 nbsphinx_execute_arguments = [
     "--InlineBackend.figure_formats={'svg', 'pdf'}",
@@ -192,7 +198,7 @@ latex_paper_size = 'a4paper'
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'filter_functions.tex', 'filter\\_functions Documentation',
-     'Tobias Hangleiter', 'manual'),
+     'Quantum Technology Group, RWTH Aachen University', 'manual'),
 ]
 
 # This is all from the numpy doc conf.py

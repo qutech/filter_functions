@@ -21,7 +21,6 @@
 This module tests the concatenation functionality for PulseSequence's.
 """
 
-import os
 import string
 from itertools import product
 from random import sample
@@ -33,8 +32,6 @@ from numpy.random import choice, randint, randn
 import filter_functions as ff
 from filter_functions.util import P_np, get_sample_frequencies, tensor
 from tests import testutil
-
-is_ci = os.environ.get('GITLAB_CI') == 'true'
 
 
 class ConcatenationTest(testutil.TestCase):
@@ -238,7 +235,6 @@ class ConcatenationTest(testutil.TestCase):
         self.assertArrayAlmostEqual(CPMG_concat_1._F, CPMG._F, rtol=1e-10)
         self.assertArrayAlmostEqual(CPMG_concat_2._F, CPMG._F, rtol=1e-10)
 
-    @testutil.cond_decorator(is_ci, pytest.mark.skip(reason="CI hangs"))
     def test_concatenate_split_cnot(self):
         """Split up cnot and concatenate the parts."""
         c_opers, c_coeffs, dt = (testutil.subspace_opers, testutil.c_coeffs,

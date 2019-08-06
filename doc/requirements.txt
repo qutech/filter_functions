@@ -3,3 +3,5 @@ nbsphinx
 ipykernel
 numpydoc
 sphinx_rtd_theme
+jupyter_client
+ipython

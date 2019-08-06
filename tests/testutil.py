@@ -87,8 +87,9 @@ def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg',
     if dd_type == 'cpmg':
         delta = np.array([0] + [(l - 0.5)/n for l in range(1, n+1)])
     elif dd_type == 'udd':
-        delta = np.array([0] + [np.sin(np.pi*l/(2*n + 2))**2
-                         for l in range(1, n+1)])
+        delta = np.array(
+            [0] + [np.sin(np.pi*l/(2*n + 2))**2 for l in range(1, n+1)]
+        )
 
     if pulse_type == 'primitive':
         tau_p = tau_pi
@@ -109,18 +110,6 @@ def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg',
 
     H = [[qt.sigmax()/2, s]]
     return H, np.diff(t)
-
-
-def cond_decorator(flag: bool, decorator):
-    """
-    Conditional decorator used to skip tests if run in CI
-
-    https://stackoverflow.com/a/10724884
-    """
-    def decorate(fn):
-        return decorator(fn) if flag else fn
-
-    return decorate
 
 
 def rand_herm(d: int, n: int = 1) -> np.ndarray:
