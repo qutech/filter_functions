@@ -17,14 +17,17 @@
 #
 #     Contact email: tobias.hangleiter@rwth-aachen.de
 # =============================================================================
-"""
-This file provides methods for the analytical solutions to some of the
-dynamical decoupling sequences. The additional factor of two compared to the
-reference is due to a different convention. Also note that the filter functions
-given here differ by a factor of d/omega**2 from those defined in this package,
-again due to convention. See for example [Cyw08]_. The factor d is moved out of
-the filter function into the infidelity integral here, whereas the factor of
-omega**2 stems from a different definition of the Fourier transform.
+r"""
+This file provides functions for the analytical solutions to some of the
+dynamical decoupling sequences. Note that the filter functions given here
+differ by a factor of 1/omega**2 from those defined in this package due to
+different conventions. See for example [Cyw08]_. Depending on the definition of
+the noise Hamiltonian one might also get different results. The functions here
+agree for
+
+.. math::
+
+    B_\alpha\equiv\sigma_z/2.
 
 Functions
 ---------
@@ -53,32 +56,32 @@ import numpy as np
 
 
 def FID(z):
-    return 2*2*np.sin(z/2)**2
+    return 2*np.sin(z/2)**2
 
 
 def SE(z):
-    return 2*8*np.sin(z/4)**4
+    return 8*np.sin(z/4)**4
 
 
 def PDD(z, n):
     if n % 2 == 0:
-        return 2*2*np.tan(z/(2*n + 2))**2*np.cos(z/2)**2
+        return 2*np.tan(z/(2*n + 2))**2*np.cos(z/2)**2
     else:
-        return 2*2*np.tan(z/(2*n + 2))**2*np.sin(z/2)**2
+        return 2*np.tan(z/(2*n + 2))**2*np.sin(z/2)**2
 
 
 def CPMG(z, n):
     if n % 2 == 0:
-        return 2*8*np.sin(z/4/n)**4*np.sin(z/2)**2/np.cos(z/2/n)**2
+        return 8*np.sin(z/4/n)**4*np.sin(z/2)**2/np.cos(z/2/n)**2
     else:
-        return 2*8*np.sin(z/4/n)**4*np.cos(z/2)**2/np.cos(z/2/n)**2
+        return 8*np.sin(z/4/n)**4*np.cos(z/2)**2/np.cos(z/2/n)**2
 
 
 def CDD(z, l):
-    return 2*2**(2*l + 1)*np.sin(z/2**(l + 1))**2 *\
+    return 2**(2*l + 1)*np.sin(z/2**(l + 1))**2 *\
         np.product([np.sin(z/2**(k + 1))**2 for k in range(1, l+1)], axis=0)
 
 
 def UDD(z, n):
-    return 2*np.abs(np.sum([(-1)**k*np.exp(1j*z/2*np.cos(np.pi*k/(n + 1)))
-                            for k in range(-n-1, n+1)], axis=0))**2/2
+    return np.abs(np.sum([(-1)**k*np.exp(1j*z/2*np.cos(np.pi*k/(n + 1)))
+                          for k in range(-n-1, n+1)], axis=0))**2/2

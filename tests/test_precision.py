@@ -43,23 +43,23 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='cpmg')
 
-        H_n = [[ff.util.P_np[3], np.ones_like(dt)]]
+        H_n = [[ff.util.P_np[3]/2, np.ones_like(dt)]]
 
         SE_pulse = ff.PulseSequence(H_c, H_n, dt)
         omega = ff.util.get_sample_frequencies(SE_pulse, 100, spacing='linear')
-        # Comparison to filter function defined with omega**2/d
-        F = SE_pulse.get_filter_function(omega)[0, 0]*omega**2/d
+        # Comparison to filter function defined with omega**2
+        F = SE_pulse.get_filter_function(omega)[0, 0]*omega**2
 
         self.assertArrayAlmostEqual(F, SE(omega*tau), atol=1e-10)
 
         # Test again with a factor of one between the noise operators and
         # coefficients
         r = randn()
-        H_n = [[ff.util.P_np[3]*r, np.ones_like(dt)/r]]
+        H_n = [[ff.util.P_np[3]/2*r, np.ones_like(dt)/r]]
 
         SE_pulse = ff.PulseSequence(H_c, H_n, dt)
-        # Comparison to filter function defined with omega**2/d
-        F = SE_pulse.get_filter_function(omega)[0, 0]*omega**2/d
+        # Comparison to filter function defined with omega**2
+        F = SE_pulse.get_filter_function(omega)[0, 0]*omega**2
 
         self.assertArrayAlmostEqual(F, SE(omega*tau), atol=1e-10)
 
@@ -73,12 +73,12 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='cpmg')
 
-        H_n = [[ff.util.P_np[3], np.ones_like(dt)]]
+        H_n = [[ff.util.P_np[3]/2, np.ones_like(dt)]]
 
         CPMG_pulse = ff.PulseSequence(H_c, H_n, dt)
         omega = ff.util.get_sample_frequencies(CPMG_pulse, 100, spacing='log')
-        # Comparison to filter function defined with omega**2/d
-        F = CPMG_pulse.get_filter_function(omega)[0, 0]*omega**2/d
+        # Comparison to filter function defined with omega**2
+        F = CPMG_pulse.get_filter_function(omega)[0, 0]*omega**2
 
         self.assertArrayAlmostEqual(F, CPMG(omega*tau, n), atol=1e-10)
 
@@ -94,11 +94,11 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='udd')
 
-        H_n = [[ff.util.P_np[3], np.ones_like(dt)]]
+        H_n = [[ff.util.P_np[3]/2, np.ones_like(dt)]]
 
         UDD_pulse = ff.PulseSequence(H_c, H_n, dt)
-        # Comparison to filter function defined with omega**2/d
-        F = UDD_pulse.get_filter_function(omega)[0, 0]*omega**2/d
+        # Comparison to filter function defined with omega**2
+        F = UDD_pulse.get_filter_function(omega)[0, 0]*omega**2
 
         self.assertArrayAlmostEqual(F, UDD(omega*tau, n), atol=1e-10)
 
