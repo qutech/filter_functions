@@ -15,7 +15,9 @@ Run `python setup.py develop` to install using symlinks or `python setup.py inst
 To install the optional dependencies (`tqdm` and `requests` for a fancy progress bar), run `pip install -e .[fancy_progressbar]`.
 
 ## Documentation
-You can find example Jupyter notebooks [here](doc/source/examples) and example scripts [here](examples). The notebooks explain how to use the package and thus make sense to follow chronologically as a first step. The documentation including the example notebooks and an automatically generated API documentation can be built by running `make <format>` inside the *doc* directory where `<format>` is for example `html`.
+You can find the documentation on [Readthedocs](https://filter-functions.readthedocs.io/en/latest/). It is built from Jupyter notebooks that can also be run interactively and are located [here](doc/source/examples). The notebooks explain how to use the package and thus make sense to follow chronologically as a first step. Furthermore, there are also a few example scripts in the [examples](examples) folder.
+
+The documentation including the example notebooks and an automatically generated API documentation can be built by running `make <format>` inside the *doc* directory where `<format>` is for example `html`.
 
 Building the documentation requires the following additional dependencies: `nbsphinx`, `numpydoc`, `sphinx_rtd_theme`, `jupyter_client`, `ipython`, `ipykernel`, as well as `pandoc`. The last can be installed via conda (`conda install pandoc`) or downloaded from [Github](https://github.com/jgm/pandoc/releases/) and the rest automatically by running `pip install -e .[doc]`.
 
