@@ -707,7 +707,7 @@ def infidelity(pulse: 'PulseSequence',
 
         \xi^2 = \sum_j\left[
                     \lvert\lvert B_j\rvert\rvert^2
-                    \int_{-infty}^\infty\frac{\mathrm{d}\omega}{2\pi}
+                    \int_{-\infty}^\infty\frac{\mathrm{d}\omega}{2\pi}
                     S_j(\omega)\left(\sum_ls_j^{(l)}\Delta t_l\right)^2
                 \right].
 
