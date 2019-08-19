@@ -38,7 +38,6 @@ class PrecisionTest(testutil.TestCase):
         tau = np.pi
         tau_pi = 1e-8
         n = 1
-        d = 2
 
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='cpmg')
@@ -68,7 +67,6 @@ class PrecisionTest(testutil.TestCase):
         tau = np.pi
         tau_pi = 1e-9
         n = 6
-        d = 2
 
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='cpmg')
@@ -89,7 +87,6 @@ class PrecisionTest(testutil.TestCase):
         omega = np.logspace(0, 3, 100)
         omega = np.concatenate([-omega[::-1], omega])
         n = 6
-        d = 2
 
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='udd')

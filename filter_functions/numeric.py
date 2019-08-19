@@ -923,14 +923,11 @@ def error_transfer_matrix(
     .. math::
 
         \mathcal{\tilde{P}}_{ij}^{(1)} = \begin{cases}
-            \sum_{k\neq i}\bigl\langle u_{1,k}^2\bigr\rangle,
-                &\mathrm{if\;} i = j \\
-            -\frac{1}{2}\left(
-                \bigl\langle u_{1, i} u_{1, j}\bigr\rangle +
-                \bigl\langle u_{1, j} u_{1, i}\bigr\rangle
-            \right),
-                &\mathrm{if\;} i\neq j
-        \end{cases}.
+            \sum_{k\neq i}\bigl\langle u_{1,k}^2\bigr\rangle
+                &\mathrm{if\;} i = j, \\
+            -\langle u_{1, i} u_{1, j}\bigr\rangle
+                &\mathrm{if\;} i\neq j.
+        \end{cases}
 
     Given the above expression of the error transfer matrix, the entanglement
     infidelity is given by
@@ -960,9 +957,7 @@ def error_transfer_matrix(
         # Single qubit case. Can use simplified expression
         diag_mask = np.eye(N - 1, dtype=bool)
         # Offdiagonal terms
-        P[..., 1:, 1:][..., ~diag_mask] = -(
-            u_kl[..., ~diag_mask] + u_kl.swapaxes(-1, -2)[..., ~diag_mask]
-        )/2
+        P[..., 1:, 1:][..., ~diag_mask] = -u_kl[..., ~diag_mask]
         # Diagonal terms
         for i in range(1, N):
             P[..., i, i] = (u_kl[..., diag_mask][..., :i-1].sum(axis=-1) +
