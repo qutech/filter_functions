@@ -144,8 +144,8 @@ def calculate_control_matrix_from_scratch(
         Eigenvector matrices for each time pulse segment *l* with the first
         axis counting the pulse segment, i.e.
         ``HV == array([V_0, V_1, ...])``.
-    Q : array_like, shape (d, d)
-        The propagator :math:`Q_l = P_l P_{l-1}\cdots P_0` as a (d, d) array
+    Q : array_like, shape (n_dt+1, d, d)
+        The propagators :math:`Q_l = P_l P_{l-1}\cdots P_0` as a (d, d) array
         with *d* the dimension of the Hilbert space.
     omega : array_like, shape (n_omega,)
         Frequencies at which the pulse control matrix is to be evaluated.
@@ -153,7 +153,7 @@ def calculate_control_matrix_from_scratch(
         The basis elements in which the pulse control matrix will be expanded.
     n_opers : array_like, shape (n_nops, d, d)
         Noise operators :math:`B_j`.
-    n_coeffs : Sequence of array_likes
+    n_coeffs : array_like, shape (n_nops, n_dt)
         The sensitivities of the system to the noise operators given by
         *n_opers* at the given time step.
     dt : array_like, shape (n_dt)
