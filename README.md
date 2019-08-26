@@ -10,9 +10,9 @@ Previously, filter functions have only been computed analytically for select pul
 The package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, and comes with extensive documentation and a test suite.
 
 ## Installation
-Run `python setup.py develop` to install using symlinks or `python setup.py install` without. It is recommended to install QuTiP before by following the [instructions on their website](http://qutip.org/docs/latest/installation.html) rather than installing it through `pip`.
+To install the package from PyPI, run `pip install filter_functions`. It is recommended to install QuTiP before by following the [instructions on their website](http://qutip.org/docs/latest/installation.html) rather than installing it through `pip`. To install the package from source run `python setup.py develop` to install using symlinks or `python setup.py install` without.
 
-To install the optional dependencies (`tqdm` and `requests` for a fancy progress bar), run `pip install -e .[fancy_progressbar]`.
+To install the optional dependencies (`tqdm` and `requests` for a fancy progress bar), run `pip install -e .[fancy_progressbar]` from the root directory.
 
 ## Documentation
 You can find the documentation on [Readthedocs](https://filter-functions.readthedocs.io/en/latest/). It is built from Jupyter notebooks that can also be run interactively and are located [here](doc/source/examples). The notebooks explain how to use the package and thus make sense to follow chronologically as a first step. Furthermore, there are also a few example scripts in the [examples](examples) folder.
