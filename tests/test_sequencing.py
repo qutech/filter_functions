@@ -26,7 +26,6 @@ from itertools import product
 from random import sample
 
 import numpy as np
-import pytest
 from numpy.random import choice, randint, randn
 
 import filter_functions as ff
@@ -99,13 +98,13 @@ class ConcatenationTest(testutil.TestCase):
 
         self.assertIsNotNone(SE_1._total_phases)
         self.assertIsNotNone(SE_1._total_Q)
-        self.assertIsNotNone(SE_1._total_L)
+        self.assertIsNotNone(SE_1._total_Q_liouville)
         self.assertIsNotNone(CPMG._total_phases)
         self.assertIsNotNone(CPMG._total_Q)
-        self.assertIsNotNone(CPMG._total_L)
+        self.assertIsNotNone(CPMG._total_Q_liouville)
         self.assertIsNotNone(CPMG_concat._total_phases)
         self.assertIsNotNone(CPMG_concat._total_Q)
-        self.assertIsNotNone(CPMG_concat._total_L)
+        self.assertIsNotNone(CPMG_concat._total_Q_liouville)
 
         self.assertEqual(CPMG_concat, CPMG)
         self.assertArrayAlmostEqual(CPMG_concat._F, CPMG._F, rtol=1e-11)
@@ -141,13 +140,13 @@ class ConcatenationTest(testutil.TestCase):
 
         self.assertIsNotNone(SE_2._total_phases)
         self.assertIsNotNone(SE_2._total_Q)
-        self.assertIsNotNone(SE_2._total_L)
+        self.assertIsNotNone(SE_2._total_Q_liouville)
         self.assertIsNotNone(CPMG._total_phases)
         self.assertIsNotNone(CPMG._total_Q)
-        self.assertIsNotNone(CPMG._total_L)
+        self.assertIsNotNone(CPMG._total_Q_liouville)
         self.assertIsNotNone(CPMG_concat._total_phases)
         self.assertIsNotNone(CPMG_concat._total_Q)
-        self.assertIsNotNone(CPMG_concat._total_L)
+        self.assertIsNotNone(CPMG_concat._total_Q_liouville)
 
         self.assertEqual(CPMG_concat, CPMG)
         self.assertArrayAlmostEqual(CPMG_concat._F, CPMG._F, rtol=1e-11)
@@ -182,16 +181,16 @@ class ConcatenationTest(testutil.TestCase):
 
         self.assertIsNotNone(SE_1._total_phases)
         self.assertIsNotNone(SE_1._total_Q)
-        self.assertIsNotNone(SE_1._total_L)
+        self.assertIsNotNone(SE_1._total_Q_liouville)
         self.assertIsNotNone(SE_2._total_phases)
         self.assertIsNotNone(SE_2._total_Q)
-        self.assertIsNotNone(SE_2._total_L)
+        self.assertIsNotNone(SE_2._total_Q_liouville)
         self.assertIsNotNone(CPMG._total_phases)
         self.assertIsNotNone(CPMG._total_Q)
-        self.assertIsNotNone(CPMG._total_L)
+        self.assertIsNotNone(CPMG._total_Q_liouville)
         self.assertIsNotNone(CPMG_concat._total_phases)
         self.assertIsNotNone(CPMG_concat._total_Q)
-        self.assertIsNotNone(CPMG_concat._total_L)
+        self.assertIsNotNone(CPMG_concat._total_Q_liouville)
 
         self.assertEqual(CPMG_concat, CPMG)
         self.assertArrayAlmostEqual(CPMG_concat._F, CPMG._F, rtol=1e-11)
@@ -450,11 +449,11 @@ class ConcatenationTest(testutil.TestCase):
         # Check if stuff is cached
         self.assertIsNotNone(NOT_CC._total_phases)
         self.assertIsNotNone(NOT_CC._total_Q)
-        self.assertIsNotNone(NOT_CC._total_L)
+        self.assertIsNotNone(NOT_CC._total_Q_liouville)
         # concatenate_periodic does not cache phase factors
         self.assertIsNotNone(NOT_CC_PERIODIC._total_phases)
         self.assertIsNotNone(NOT_CC_PERIODIC._total_Q)
-        self.assertIsNotNone(NOT_CC_PERIODIC._total_L)
+        self.assertIsNotNone(NOT_CC_PERIODIC._total_Q_liouville)
 
         self.assertArrayAlmostEqual(F_LAB, F_CC, atol=1e-13)
         self.assertArrayAlmostEqual(F_LAB, F_CC_PERIODIC, atol=1e-13)
@@ -543,9 +542,11 @@ class ExtensionTest(testutil.TestCase):
                                                       atol=1e-14)
                     self.assertArrayAlmostEqual(test_ext_pulse._Q,
                                                 ext_pulse._Q, atol=1e-14)
-                    self.assertArrayAlmostEqual(test_ext_pulse._total_L,
-                                                ext_pulse._total_L,
-                                                atol=1e-14)
+                    self.assertArrayAlmostEqual(
+                        test_ext_pulse._total_Q_liouville,
+                        ext_pulse._total_Q_liouville,
+                        atol=1e-14
+                    )
                     self.assertArrayAlmostEqual(test_ext_pulse._total_Q,
                                                 ext_pulse._total_Q, atol=1e-14)
                     self.assertArrayAlmostEqual(test_ext_pulse._total_phases,
@@ -558,7 +559,7 @@ class ExtensionTest(testutil.TestCase):
                     self.assertIsNone(test_ext_pulse._HD)
                     self.assertIsNone(test_ext_pulse._HV)
                     self.assertIsNone(test_ext_pulse._Q)
-                    self.assertIsNone(test_ext_pulse._total_L)
+                    self.assertIsNone(test_ext_pulse._total_Q_liouville)
                     self.assertIsNone(test_ext_pulse._total_Q)
                     self.assertIsNone(test_ext_pulse._total_phases)
                     self.assertIsNone(test_ext_pulse._R)
@@ -591,7 +592,7 @@ class ExtensionTest(testutil.TestCase):
         self.assertIsNone(extended_pulse._HV)
         self.assertIsNone(extended_pulse._Q)
         self.assertIsNone(extended_pulse._total_Q)
-        self.assertIsNone(extended_pulse._total_L)
+        self.assertIsNone(extended_pulse._total_Q_liouville)
         self.assertIsNone(extended_pulse._total_phases)
         self.assertIsNone(extended_pulse._R)
         self.assertIsNone(extended_pulse._F)
@@ -603,7 +604,7 @@ class ExtensionTest(testutil.TestCase):
         self.assertIsNotNone(extended_pulse._HV)
         self.assertIsNotNone(extended_pulse._Q)
         self.assertIsNotNone(extended_pulse._total_Q)
-        self.assertIsNone(extended_pulse._total_L)
+        self.assertIsNone(extended_pulse._total_Q_liouville)
         self.assertIsNone(extended_pulse._total_phases)
         self.assertIsNone(extended_pulse._R)
         self.assertIsNone(extended_pulse._F)
@@ -615,7 +616,7 @@ class ExtensionTest(testutil.TestCase):
         self.assertIsNotNone(extended_pulse._HV)
         self.assertIsNotNone(extended_pulse._Q)
         self.assertIsNotNone(extended_pulse._total_Q)
-        self.assertIsNone(extended_pulse._total_L)
+        self.assertIsNone(extended_pulse._total_Q_liouville)
         self.assertIsNone(extended_pulse._total_phases)
         self.assertIsNone(extended_pulse._R)
         self.assertIsNone(extended_pulse._F)
@@ -628,7 +629,7 @@ class ExtensionTest(testutil.TestCase):
         self.assertIsNone(extended_pulse._Q)
         # Total_Q is still cached
         self.assertIsNotNone(extended_pulse._total_Q)
-        self.assertIsNone(extended_pulse._total_L)
+        self.assertIsNone(extended_pulse._total_Q_liouville)
         self.assertIsNone(extended_pulse._total_phases)
         self.assertIsNone(extended_pulse._R)
         self.assertIsNone(extended_pulse._F)
@@ -636,7 +637,7 @@ class ExtensionTest(testutil.TestCase):
         # Get filter function for one pulse
         pulse_1.cache_filter_function(omega)
         extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)])
-        self.assertIsNone(extended_pulse._total_L)
+        self.assertIsNone(extended_pulse._total_Q_liouville)
         self.assertIsNone(extended_pulse._total_phases)
         self.assertIsNone(extended_pulse._R)
         self.assertIsNone(extended_pulse._F)
@@ -645,7 +646,7 @@ class ExtensionTest(testutil.TestCase):
         extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)],
                                    cache_filter_function=True,
                                    omega=omega)
-        self.assertIsNotNone(extended_pulse._total_L)
+        self.assertIsNotNone(extended_pulse._total_Q_liouville)
         self.assertIsNotNone(extended_pulse._total_phases)
         self.assertIsNotNone(extended_pulse._R)
         self.assertIsNotNone(extended_pulse._F)
@@ -653,7 +654,7 @@ class ExtensionTest(testutil.TestCase):
         # Get filter function for both
         pulse_2.cache_filter_function(omega)
         extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)])
-        self.assertIsNotNone(extended_pulse._total_L)
+        self.assertIsNotNone(extended_pulse._total_Q_liouville)
         self.assertIsNotNone(extended_pulse._total_phases)
         self.assertIsNotNone(extended_pulse._R)
         self.assertIsNotNone(extended_pulse._F)
@@ -661,7 +662,7 @@ class ExtensionTest(testutil.TestCase):
         # override
         extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)],
                                    cache_filter_function=False)
-        self.assertIsNone(extended_pulse._total_L)
+        self.assertIsNone(extended_pulse._total_Q_liouville)
         self.assertIsNone(extended_pulse._total_phases)
         self.assertIsNone(extended_pulse._R)
         self.assertIsNone(extended_pulse._F)
@@ -990,7 +991,7 @@ class RemappingTest(testutil.TestCase):
             ff.Basis.ggm(4)
         )
         attrs = ('omega', 'HD', 'HV', 'Q', 'total_phases', 'total_Q', 'F',
-                 'total_L', 'R')
+                 'total_Q_liouville', 'R')
 
         XY_pulse.cleanup('all')
         remapped_XY_pulse = ff.remap(XY_pulse, (1, 0))
@@ -1074,8 +1075,8 @@ class RemappingTest(testutil.TestCase):
             self.assertArrayAlmostEqual(reordered_pulse._total_Q,
                                         remapped_pulse._total_Q,
                                         atol=1e-14)
-            self.assertArrayAlmostEqual(reordered_pulse._total_L,
-                                        remapped_pulse._total_L,
+            self.assertArrayAlmostEqual(reordered_pulse._total_Q_liouville,
+                                        remapped_pulse._total_Q_liouville,
                                         atol=1e-14)
             self.assertArrayAlmostEqual(reordered_pulse._total_phases,
                                         remapped_pulse._total_phases)

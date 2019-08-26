@@ -246,8 +246,8 @@ class PlottingTest(testutil.TestCase):
                                                grid=grid)
 
         # Test calling with precomputed transfer matrix
-        P = ff.error_transfer_matrix(simple_pulse, S, omega)
-        fig, grid = plot_error_transfer_matrix(P=P)
+        U = ff.error_transfer_matrix(simple_pulse, S, omega)
+        fig, grid = plot_error_transfer_matrix(U=U)
 
         # Non-default args
         n_oper_inds = sample(range(len(complicated_pulse.n_opers)),
@@ -261,19 +261,19 @@ class PlottingTest(testutil.TestCase):
         omega = ff.util.get_sample_frequencies(complicated_pulse, n_samples=50,
                                                spacing='log')
         S = np.exp(-omega**2)
-        P = ff.error_transfer_matrix(complicated_pulse, S, omega)
+        U = ff.error_transfer_matrix(complicated_pulse, S, omega)
         fig, grid = plot_error_transfer_matrix(
             complicated_pulse, S=S, omega=omega,
             n_oper_identifiers=n_oper_identifiers, basis_labels=basis_labels,
             basis_labelsize=4, linthresh=1e-4, cmap=matplotlib.cm.jet
         )
         fig, grid = plot_error_transfer_matrix(
-            P=P[n_oper_inds], n_oper_identifiers=n_oper_identifiers,
+            U=U[n_oper_inds], n_oper_identifiers=n_oper_identifiers,
             basis_labels=basis_labels, basis_labelsize=4, linthresh=1e-4,
             cmap=matplotlib.cm.jet
         )
 
-        # neither P nor all of pulse, S, omega given
+        # neither U nor all of pulse, S, omega given
         with self.assertRaises(ValueError):
             plot_error_transfer_matrix(complicated_pulse, S)
 

@@ -159,8 +159,8 @@ class PrecisionTest(testutil.TestCase):
                                       return_smallness=True)
             # infid scaled with d = 6, but we actually have d = 4
             infid *= 1.5
-            P = ff.error_transfer_matrix(cnot, S_t, omega_t, identifiers[:3])
-            infid_P = np.einsum('...ii', P)/4**2
+            U = ff.error_transfer_matrix(cnot, S_t, omega_t, identifiers[:3])
+            infid_P = np.einsum('...ii', U)/4**2
             self.assertLessEqual(np.abs(1 - (infid.sum()/MC)), rtol)
             self.assertArrayAlmostEqual(infid, infid_P)
             self.assertLessEqual(infid.sum(), xi**2/4)
@@ -285,9 +285,9 @@ class PrecisionTest(testutil.TestCase):
 
             # Assert fidelity is same as computed by infidelity()
             S = 1e-2/omega**2
-            P = ff.error_transfer_matrix(pulse, S, omega)
+            U = ff.error_transfer_matrix(pulse, S, omega)
             I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', P)/d**2
+            I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
 
             # Check that _single_qubit_error_transfer_matrix and
@@ -295,18 +295,18 @@ class PrecisionTest(testutil.TestCase):
             u_kl = ff.numeric.calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
-            P_multi = np.zeros(P.shape, dtype=complex)
-            P_multi[..., 1:, 1:] = (
+            U_multi = np.zeros_like(U)
+            U_multi[..., 1:, 1:] = (
                 contract('...kl,klij->...ij', u_kl, traces)/2 +
                 contract('...kl,klji->...ij', u_kl, traces)/2 -
                 contract('...kl,kilj->...ij', u_kl, traces)
             ).real
-            self.assertArrayAlmostEqual(P, P_multi)
+            self.assertArrayAlmostEqual(U, U_multi)
 
             S = np.outer(1e-2*np.arange(1, 3), 400/(omega**2 + 400))
-            P = ff.error_transfer_matrix(pulse, S, omega)
+            U = ff.error_transfer_matrix(pulse, S, omega)
             I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', P)/d**2
+            I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
 
             # Check that _single_qubit_error_transfer_matrix and
@@ -314,20 +314,20 @@ class PrecisionTest(testutil.TestCase):
             u_kl = ff.numeric.calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
-            P_multi = np.zeros(P.shape, dtype=complex)
-            P_multi[..., 1:, 1:] = (
+            U_multi = np.zeros_like(U)
+            U_multi[..., 1:, 1:] = (
                 contract('...kl,klij->...ij', u_kl, traces)/2 +
                 contract('...kl,klji->...ij', u_kl, traces)/2 -
                 contract('...kl,kilj->...ij', u_kl, traces)
             ).real
-            self.assertArrayAlmostEqual(P, P_multi)
+            self.assertArrayAlmostEqual(U, U_multi)
 
             S = np.einsum('i,j,o->ijo',
                           1e-2*np.arange(1, 3), 1e-2*np.arange(1, 3),
                           400/(omega**2 + 400))
-            P = ff.error_transfer_matrix(pulse, S, omega)
+            U = ff.error_transfer_matrix(pulse, S, omega)
             I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', P)/d**2
+            I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
 
             # Check that _single_qubit_error_transfer_matrix and
@@ -335,13 +335,13 @@ class PrecisionTest(testutil.TestCase):
             u_kl = ff.numeric.calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
-            P_multi = np.zeros(P.shape, dtype=complex)
-            P_multi[..., 1:, 1:] = (
+            U_multi = np.zeros_like(U)
+            U_multi[..., 1:, 1:] = (
                 contract('...kl,klij->...ij', u_kl, traces)/2 +
                 contract('...kl,klji->...ij', u_kl, traces)/2 -
                 contract('...kl,kilj->...ij', u_kl, traces)
             ).real
-            self.assertArrayAlmostEqual(P, P_multi)
+            self.assertArrayAlmostEqual(U, U_multi)
 
     def test_multi_qubit_error_transfer_matrix(self):
         """Test the calculation of the multi-qubit transfer matrix"""
@@ -364,23 +364,23 @@ class PrecisionTest(testutil.TestCase):
 
             # Assert fidelity is same as computed by infidelity()
             S = 1e-2/omega**2
-            P = ff.error_transfer_matrix(pulse, S, omega)
+            U = ff.error_transfer_matrix(pulse, S, omega)
             I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', P)/d**2
+            I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
 
             S = np.outer(1e-2*(np.arange(len(n_opers)) + 1),
                          400/(omega**2 + 400))
-            P = ff.error_transfer_matrix(pulse, S, omega)
+            U = ff.error_transfer_matrix(pulse, S, omega)
             I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', P)/d**2
+            I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
 
             S = np.einsum('i,j,o->ijo',
                           1e-2*(np.arange(len(n_opers)) + 1),
                           1e-2*(np.arange(len(n_opers)) + 1),
                           400/(omega**2 + 400))
-            P = ff.error_transfer_matrix(pulse, S, omega)
+            U = ff.error_transfer_matrix(pulse, S, omega)
             I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', P)/d**2
+            I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)

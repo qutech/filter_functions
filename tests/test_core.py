@@ -279,15 +279,15 @@ class CoreTest(testutil.TestCase):
         for pulse in pulses:
             self.assertIsNone(pulse._total_phases)
             self.assertIsNone(pulse._total_Q)
-            self.assertIsNone(pulse._total_L)
+            self.assertIsNone(pulse._total_Q_liouville)
 
             total_phases = pulse.get_total_phases(omega)
             total_Q = pulse.total_Q
-            total_L = pulse.total_L
+            total_Q_liouville = pulse.total_Q_liouville
 
             self.assertArrayEqual(total_phases, pulse._total_phases)
             self.assertArrayEqual(total_Q, pulse._total_Q)
-            self.assertArrayEqual(total_L, pulse._total_L)
+            self.assertArrayEqual(total_Q_liouville, pulse._total_Q_liouville)
 
         # Test custom identifiers
         letters = np.random.choice(list(string.ascii_letters), size=(6, 5))
@@ -324,7 +324,7 @@ class CoreTest(testutil.TestCase):
             # Check that some attributes are cached
             self.assertIsNotNone(total_pulse._total_phases)
             self.assertIsNotNone(total_pulse._total_Q)
-            self.assertIsNotNone(total_pulse._total_L)
+            self.assertIsNotNone(total_pulse._total_Q_liouville)
 
             # Calculate everything 'on foot'
             pulses = [ff.PulseSequence(list(zip(c_opers, c_coeffs[:, i:i+1])),

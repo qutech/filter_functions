@@ -200,7 +200,7 @@ class PulseSequence:
     total_Q : ndarray, shape (d, d)
         The total propagator :math:`Q` of the pulse alone. That is,
         :math:`|\psi(\tau)\rangle = Q|\psi(0)\rangle`.
-    total_L : array_like, shape (d**2 - 1, d**2 - 1)
+    total_Q_liouville : array_like, shape (d**2 - 1, d**2 - 1)
         The transfer matrix for the total propagator of the pulse. Given by
         ``liouville_representation(pulse.total_Q, pulse.basis)[1:, 1:]``.
 
@@ -277,7 +277,7 @@ class PulseSequence:
         # Attributes that are cached during calculation of the filter function
         self._total_phases = None
         self._total_Q = None
-        self._total_L = None
+        self._total_Q_liouville = None
         self._R = None
         self._F = None
         self._F_pc = None
@@ -477,9 +477,10 @@ class PulseSequence:
 
         # Cache total phase and total transfer matrices as well
         self.cache_total_phases(omega)
-        if not self.is_cached('total_L'):
-            self.total_L = liouville_representation(self.total_Q,
-                                                    self.basis)[1:, 1:]
+        if not self.is_cached('total_Q_liouville'):
+            self.total_Q_liouville = liouville_representation(
+                self.total_Q, self.basis
+            )[1:, 1:]
 
     def get_filter_function(self, omega: Coefficients,
                             show_progressbar: bool = False) -> ndarray:
@@ -488,11 +489,13 @@ class PulseSequence:
 
         .. math::
 
-            F_{jj'}(\omega) = \sum_{k}R_{jk}^\ast R_{j'k}(\omega),
+            F_{\alpha\beta}(\omega) = \left[\mathcal{R}\mathcal{R}^\dagger
+                                      \right]_{\alpha\beta}(\omega),
 
-        where :math:`j,j'` are indices counting the noise operators
-        :math:`B_j`. Thus, the filter function :math:`j,j'` corresponds to the
-        noise correlations between :math:`B_j` and :math:`B_{j'}`.
+        where :math:`\alpha,\beta` are indices counting the noise operators
+        :math:`B_\alpha`. Thus, the filter function :math:`\alpha,\beta`
+        corresponds to the noise correlations between :math:`B_\alpha` and
+        :math:`B_{\beta}`.
 
         The filter function is cached so it doesn't need to be calculated
         twice for the same frequencies.
@@ -578,15 +581,16 @@ class PulseSequence:
 
         .. math::
 
-            F_{jj'}^{(gg')}(\omega) = \sum_{kll'}e^{i\omega\Delta t_{gg'}}
-                            R_{jl}^{(g)\ast}(\omega) L_{lk}^{(g-1)\ast}
-                            R_{j'l'}^{(g')}(\omega) L_{l'k}^{(g'-1)},
+            F_{\alpha\beta}^{(gg')}(\omega) = e^{i\omega(t_{g-1} - t_{g'-1})}
+                \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
+                \mathcal{Q}^{(g'-1)\dagger}\mathcal{R}^{(g')\dagger}(\omega),
 
-        where :math:`g,g'` index the pulse in the sequence and :math:`j,j'`
-        index the noise operators, if it was computed during concatenation.
-        Since the calculation requires the individual pulse's control matrices
-        and phase factors, which are not retained after concatenation, the
-        pulse correlation filter function cannot be computed afterwards.
+        where :math:`g,g'` index the pulse in the sequence and
+        :math:`\alpha,\beta` index the noise operators, if it was computed
+        during concatenation. Since the calculation requires the individual
+        pulse's control matrices and phase factors, which are not retained
+        after concatenation, the pulse correlation filter function cannot be
+        computed afterwards.
 
         Note that the frequencies for which the filter function was calculated
         are not stored.
@@ -601,10 +605,13 @@ class PulseSequence:
 
             .. math::
 
-                F_{jj'}^{(gg')} &= \begin{pmatrix}
-                    F_{jj'}^{(AA)} & F_{jj'}^{(AB)} & F_{jj'}^{(AC)} \\
-                    F_{jj'}^{(BA)} & F_{jj'}^{(BB)} & F_{jj'}^{(BC)} \\
-                    F_{jj'}^{(CA)} & F_{jj'}^{(CB)} & F_{jj'}^{(CC)}
+                F_{\alpha\beta}^{(gg')} &= \begin{pmatrix}
+                    F_{\alpha\beta}^{(AA)} & F_{\alpha\beta}^{(AB)} &
+                        F_{\alpha\beta}^{(AC)} \\
+                    F_{\alpha\beta}^{(BA)} & F_{\alpha\beta}^{(BB)} &
+                        F_{\alpha\beta}^{(BC)} \\
+                    F_{\alpha\beta}^{(CA)} & F_{\alpha\beta}^{(CB)} &
+                        F_{\alpha\beta}^{(CC)}
                 \end{pmatrix}
 
             for :math:`g,g'\in\{A, B, C\}`.
@@ -707,18 +714,19 @@ class PulseSequence:
         self._total_Q = value
 
     @property
-    def total_L(self) -> ndarray:
+    def total_Q_liouville(self) -> ndarray:
         """Get the transfer matrix for the total propagator of the pulse."""
-        if not self.is_cached('total_L'):
-            self._total_L = liouville_representation(self.total_Q,
-                                                     self.basis)[1:, 1:]
+        if not self.is_cached('total_Q_liouville'):
+            self._total_Q_liouville = liouville_representation(
+                self.total_Q, self.basis
+            )[1:, 1:]
 
-        return self._total_L
+        return self._total_Q_liouville
 
-    @total_L.setter
-    def total_L(self, value: ndarray) -> None:
+    @total_Q_liouville.setter
+    def total_Q_liouville(self, value: ndarray) -> None:
         """Set the transfer matrix of the total cumulative propagator."""
-        self._total_L = value
+        self._total_Q_liouville = value
 
     @property
     def omega(self) -> ndarray:
@@ -765,7 +773,7 @@ class PulseSequence:
 
                 - _total_phases
                 - _total_Q
-                - _total_L
+                - _total_Q_liouville
                 - _R
 
             If set to 'all', all of the above as well as the following
@@ -781,7 +789,8 @@ class PulseSequence:
         """
         attrs = ['_HD', '_HV', '_Q']
         if method != 'conservative':
-            attrs.extend(['_R', '_total_phases', '_total_Q', '_total_L'])
+            attrs.extend(['_R', '_total_phases', '_total_Q',
+                          '_total_Q_liouville'])
             if method != 'greedy':
                 attrs.extend(['omega', '_F', '_F_pc'])
 
@@ -1462,7 +1471,7 @@ def concatenate(pulses: Iterable[PulseSequence],
     L = np.empty((len(pulses), N, N), dtype=complex)
     L[0] = np.identity(N)
     for i in range(1, len(pulses)):
-        L[i] = pulses[i-1].total_L @ L[i-1]
+        L[i] = pulses[i-1].total_Q_liouville @ L[i-1]
 
     # Get the control matrices for each pulse (agnostic of if it was cached or
     # not). Those are the 'new' pulse control matrices. Sort them along the
@@ -1490,8 +1499,9 @@ def concatenate(pulses: Iterable[PulseSequence],
 
     # Also set phases and total transfer matrix for the new pulse
     newpulse.cache_total_phases(omega)
-    newpulse.total_L = liouville_representation(newpulse.total_Q,
-                                                newpulse.basis)[1:, 1:]
+    newpulse.total_Q_liouville = liouville_representation(
+        newpulse.total_Q, newpulse.basis
+    )[1:, 1:]
 
     # Finally, calculate the new control matrix. If flag is set, calculate the
     # 'pulse correlation control matrix'
@@ -1593,7 +1603,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     # cumulative propagator for the atomic pulse
     phases_at = pulse.get_total_phases(pulse.omega)
     R_at = pulse.get_control_matrix(pulse.omega)
-    L_at = pulse.total_L
+    L_at = pulse.total_Q_liouville
 
     # Set the total propagator for possible future concatenations
     newpulse.total_Q = linalg.matrix_power(pulse.total_Q, repeats)
@@ -1602,7 +1612,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     newpulse.cache_total_phases(pulse.omega)
     # Might be cheaper for small repeats to use matrix_power, but this function
     # is aimed at a large number so we calculate it explicitly
-    newpulse.total_L = newpulse.total_L
+    newpulse.total_Q_liouville = newpulse.total_Q_liouville
 
     # Compute the total control matrix efficiently for periodic Hamiltonian
     R_tot = calculate_control_matrix_periodic(phases_at, R_at, L_at,
@@ -1724,7 +1734,7 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
             F=pulse.get_filter_function(omega)[n_sort_idx][:, n_sort_idx]
         )
 
-    if pulse.is_cached('total_L') or pulse.is_cached('R'):
+    if pulse.is_cached('total_Q_liouville') or pulse.is_cached('R'):
         if pulse.basis.btype != 'Pauli':
             warn('pulse does not have a separable basis which is needed to ' +
                  'retain cached control matrices.')
@@ -1732,9 +1742,12 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
             return remapped_pulse
 
         permutation = remap_pauli_basis_elements(order, N)[None, :]
-        if pulse.is_cached('total_L'):
-            remapped_pulse.total_L = np.empty_like(pulse.total_L)
-            remapped_pulse.total_L[permutation.T, permutation] = pulse.total_L
+        if pulse.is_cached('total_Q_liouville'):
+            remapped_pulse.total_Q_liouville = np.empty_like(
+                pulse.total_Q_liouville
+            )
+            remapped_pulse.total_Q_liouville[permutation.T, permutation] = \
+                pulse.total_Q_liouville
 
         if pulse.is_cached('R'):
             pulse_R = pulse.get_control_matrix(omega)
@@ -2244,7 +2257,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
             )
 
         newpulse.cache_total_phases(omega)
-        newpulse.total_L = liouville_representation(
+        newpulse.total_Q_liouville = liouville_representation(
             newpulse.total_Q, newpulse.basis
         )[1:, 1:]
         newpulse.cache_control_matrix(omega, R=R[n_sort_idx])

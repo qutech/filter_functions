@@ -152,7 +152,7 @@ def calculate_control_matrix_from_scratch(
     basis : Basis, shape (d**2, d, d)
         The basis elements in which the pulse control matrix will be expanded.
     n_opers : array_like, shape (n_nops, d, d)
-        Noise operators :math:`B_j`.
+        Noise operators :math:`B_\alpha`.
     n_coeffs : array_like, shape (n_nops, n_dt)
         The sensitivities of the system to the noise operators given by
         *n_opers* at the given time step.
@@ -168,7 +168,7 @@ def calculate_control_matrix_from_scratch(
     Returns
     -------
     R : ndarray, shape (n_nops, d**2-1, n_omega)
-        The control matrix :math:`R(\omega)`
+        The control matrix :math:`\mathcal{R}(\omega)`
 
     Notes
     -----
@@ -176,11 +176,10 @@ def calculate_control_matrix_from_scratch(
 
     .. math::
 
-        R_{jk}(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}} s_j^{(l)}\mathrm{tr}
-        \left(
-            [\tilde{B}_j^{(l)}\circ I(\omega)]
-            V^{(l)\dagger} Q_{l-1} C_k Q_{l-1}^\dagger V^{(l)}
-        \right)
+        \mathcal{R}_{\alpha k}(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}}
+            s_\alpha^{(l)}\mathrm{tr}\left(
+                [\bar{B}_\alpha^{(l)}\circ I(\omega)] \bar{C}_k^{(l)}
+            \right)
 
     where
 
@@ -191,12 +190,13 @@ def calculate_control_matrix_from_scratch(
                              &= \frac{e^{i(\omega+\omega_n-\omega_m)
                                 (t_l - t_{l-1})} - 1}
                                 {i(\omega+\omega_n-\omega_m)}, \\
-        \tilde{B}^{(l)}_{j} &= V^{(l)\dagger} B_j V^{(l)},
+        \bar{B}_\alpha^{(l)}_{j} &= V^{(l)\dagger} B_\alpha V^{(l)}, \\
+        \bar{C}_k^{(l)} &= V^{(l)\dagger} Q_{l-1} C_k Q_{l-1}^\dagger V^{(l)},
 
     and :math:`V^{(l)}` is the matrix of eigenvectors that diagonalizes
-    :math:`\tilde{\mathcal{H}}_n^{(l)}`, :math:`B_j` the :math:`j`-th noise
-    operator :math:`s_j^{(l)}` the noise sensitivity during interval :math:`l`,
-    and :math:`C_k` the :math:`k`-th basis element.
+    :math:`\tilde{\mathcal{H}}_n^{(l)}`, :math:`B_\alpha` the :math:`\alpha`-th
+    noise operator :math:`s_\alpha^{(l)}` the noise sensitivity during interval
+    :math:`l`, and :math:`C_k` the :math:`k`-th basis element.
 
     See Also
     --------
@@ -269,27 +269,29 @@ def calculate_control_matrix_from_scratch(
 
 
 def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
-                                      L: ndarray, repeats: int) -> ndarray:
+                                      Q_liouville: ndarray,
+                                      repeats: int) -> ndarray:
     r"""
     Calculate the control matrix of a periodic pulse given the phase factors,
-    control matrix and transfer matrix of the total propagator, L, of the
-    atomic pulse.
+    control matrix and transfer matrix of the total propagator, Q_liouville, of
+    the atomic pulse.
 
     Parameters
     ----------
     phases : ndarray, shape (n_omega,)
         The phase factors :math:`e^{i\omega T}` of the atomic pulse.
     R : ndarray, shape (n_nops, d**2 - 1, n_omega)
-        The control matrix :math:`R_0(\omega)` of the atomic pulse.
-    L : ndarray, shape (d**2 - 1, d**2 - 1)
-        The transfer matrix :math:`L^{(1)}` of the atomic pulse.
+        The control matrix :math:`\mathcal{R}^{(1)}(\omega)` of the atomic
+        pulse.
+    Q_liouville : ndarray, shape (d**2 - 1, d**2 - 1)
+        The transfer matrix :math:`\mathcal{Q}^{(1)}` of the atomic pulse.
     repeats : int
         The number of repetitions.
 
     Returns
     -------
     R : ndarray, shape (n_nops, d**2 - 1, n_omega)
-        The control matrix of the repeated pulse.
+        The control matrix :math:`\mathcal{R}(\omega)` of the repeated pulse.
 
     Notes
     -----
@@ -297,14 +299,12 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
 
     .. math::
 
-        R(\omega) &= R_0(\omega)\sum_{g=0}^{G-1}\left(
-                          e^{i\omega T}
-                     \right)^g \\
-                  &= R_0(\omega)\bigl(
-                         \mathbb{I} - e^{i\omega T} L^{(1)}
-                     \bigr)^{-1}\bigl(
-                         \mathbb{I} - \bigl(e^{i\omega T} L^{(1)}\bigr)^G
-                     \bigr).
+        \mathcal{R}(\omega) &= \mathcal{R}^{(1)}(\omega)\sum_{g=0}^{G-1}\left(
+                               e^{i\omega T}\right)^g \\
+                            &= \mathcal{R}^{(1)}(\omega)\bigl(
+                               \mathbb{I} - e^{i\omega T}\mathcal{Q}^{(1)}
+                               \bigr)^{-1}\bigl(\mathbb{I} - \bigl(
+                               e^{i\omega T}\mathcal{Q}^{(1)}\bigr)^G\bigr).
 
     with :math:`G` the number of repetitions.
     """
@@ -313,8 +313,8 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
     # compute the inverse in any case. For those frequencies where the inverse
     # is well-behaved, evaluate the sum as a Neumann series and for the rest
     # evaluate it explicitly.
-    eye = np.eye(L.shape[0])
-    T = np.multiply.outer(phases, L)
+    eye = np.eye(Q_liouville.shape[0])
+    T = np.multiply.outer(phases, Q_liouville)
 
     # Mask the invertible frequencies. The chosen atol is somewhat empiric.
     M = eye - T
@@ -322,7 +322,7 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
     good_inverse = np.isclose(M_inv @ M, eye, atol=1e-10, rtol=0).all((1, 2))
 
     # Allocate memory
-    S = np.empty((*phases.shape, *L.shape), dtype=complex)
+    S = np.empty((*phases.shape, *Q_liouville.shape), dtype=complex)
     # Evaluate the sum for invertible frequencies
     S[good_inverse] = (M_inv[good_inverse] @
                        (eye - linalg.matrix_power(T[good_inverse], repeats)))
@@ -338,7 +338,7 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
 
 
 def calculate_control_matrix_from_atomic(
-        phases: ndarray, R_l: ndarray, L: ndarray,
+        phases: ndarray, R_l: ndarray, Q_liouville: ndarray,
         show_progressbar: Optional[bool] = None) -> ndarray:
     r"""
     Calculate the control matrix from the control matrices of atomic segments.
@@ -349,7 +349,7 @@ def calculate_control_matrix_from_atomic(
         The phase factors for :math:`l\in\{0, 1, \dots, n-1\}`.
     R_l : array_like, shape (n_dt, n_nops, d**2-1, n_omega)
         The pulse control matrices for :math:`l\in\{1, 2, \dots, n\}`.
-    L : array_like, shape (n_dt, n_nops, d**2-1)
+    Q_liouville : array_like, shape (n_dt, n_nops, d**2-1)
         The transfer matrices of the cumulative propagators for
         :math:`l\in\{0, 1, \dots, n-1\}`.
     show_progressbar : bool, optional
@@ -358,7 +358,7 @@ def calculate_control_matrix_from_atomic(
     Returns
     -------
     R : ndarray, shape (n_nops, d**2-1, n_omega)
-        The control matrix :math:`R(\omega)`.
+        The control matrix :math:`\mathcal{R}(\omega)`.
 
     Notes
     -----
@@ -366,8 +366,8 @@ def calculate_control_matrix_from_atomic(
 
     .. math::
 
-        R(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}}
-            R^{(l)}(\omega) L^{(l-1)}.
+        \mathcal{R}(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}}
+            \mathcal{R}^{(l)}(\omega)\mathcal{Q}^{(l-1)}.
 
     See Also
     --------
@@ -390,11 +390,11 @@ def calculate_control_matrix_from_atomic(
     # also contract the time dimension in the same expression instead of
     # looping over it, but we don't distinguish here for readability.
     R_expr = contract_expression('o,ijo,jk->iko', phases[0].shape,
-                                 R_l[0].shape, L[0].shape,
+                                 R_l[0].shape, Q_liouville[0].shape,
                                  optimize=[(0, 1), (0, 1)])
 
     for l in progressbar_range(n):
-        R += R_expr(phases[l], R_l[l], L[l])
+        R += R_expr(phases[l], R_l[l], Q_liouville[l])
 
     return R
 
@@ -447,11 +447,12 @@ def calculate_pulse_correlation_filter_function(R: ndarray) -> ndarray:
 
     .. math::
 
-        F^{(gg')}(\omega) = e^{i\omega(t_{g-1} - t_{g'-1})}
-                            R^{(g)}(\omega) L^{(g-1)}
-                            L^{(g'-1)\dagger}R^{(g')\dagger}(\omega)
+        F_{\alpha\beta}^{(gg')}(\omega) = e^{i\omega(t_{g-1} - t_{g'-1})}
+            \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
+            \mathcal{Q}^{(g'-1)\dagger}\mathcal{R}^{(g')\dagger}(\omega)
 
-    with :math:`R^{(g)}` the control matrices of the :math:`g`-th pulse.
+    with :math:`\mathcal{R}^{(g)}` the control matrix of the :math:`g`-th
+    pulse.
 
     See Also
     --------
@@ -476,8 +477,8 @@ def calculate_error_vector_correlation_functions(
         n_oper_identifiers: Optional[Sequence[str]] = None) -> ndarray:
     r"""
     Get the error vector correlation functions
-    :math:`\langle u_{1,k} u_{1, l}\rangle_{ij}` for noise sources :math:`i,j`
-    and basis elements :math:`k,l`.
+    :math:`\langle u_{1,k} u_{1, l}\rangle_{\alpha\beta}` for noise sources
+    :math:`\alpha,\beta` and basis elements :math:`k,l`.
 
 
     Parameters
@@ -510,9 +511,9 @@ def calculate_error_vector_correlation_functions(
 
     .. math::
 
-        \langle u_{1,k} u_{1, l}\rangle_{ij} = \int
-            \frac{\mathrm{d}\omega}{2\pi}S_{ij}(\omega)
-            \mathcal{R}^\ast_{ik}(\omega)\mathcal{R}_{jl}(\omega).
+        \langle u_{1,k} u_{1, l}\rangle_{\alpha\beta} = \int
+            \frac{\mathrm{d}\omega}{2\pi}\mathcal{R}^\ast_{\alpha k}(\omega)
+            S_{\alpha\beta}(\omega)\mathcal{R}_{\beta l}(\omega).
 
     """
     # TODO: Implement for correlation FFs? Replace infidelity() by this?
@@ -569,11 +570,12 @@ def liouville_representation(U: ndarray, basis: Basis) -> ndarray:
 
     Notes
     -----
-    The Liouville representation is given by
+    The Liouville representation of a unitary quantum operation
+    :math:`\mathcal{U}:\rho\rightarrow U\rho U^\dagger` is given by
 
     .. math::
 
-        (\mathcal{R}_U)_{ij} = \mathrm{tr}(C_i U C_j U^\dagger)
+        \mathcal{U}_{ij} = \mathrm{tr}(C_i U C_j U^\dagger)
 
     with :math:`C_i` elements of the basis spanning
     :math:`\mathbb{C}^{d\times d}` with :math:`d` the dimension of the Hilbert
@@ -705,10 +707,11 @@ def infidelity(pulse: 'PulseSequence',
 
     .. math::
 
-        \xi^2 = \sum_j\left[
-                    \lvert\lvert B_j\rvert\rvert^2
+        \xi^2 = \sum_\alpha\left[
+                    \lvert\lvert B_\alpha\rvert\rvert^2
                     \int_{-\infty}^\infty\frac{\mathrm{d}\omega}{2\pi}
-                    S_j(\omega)\left(\sum_ls_j^{(l)}\Delta t_l\right)^2
+                    S_\alpha(\omega)\left(\sum_ls_\alpha^{(l)}\Delta t_l
+                    \right)^2
                 \right].
 
     Note that in practice, the integral is only evaluated on the interval
@@ -861,7 +864,7 @@ def error_transfer_matrix(
 
     Returns
     -------
-    P : ndarray, shape (..., d**2, d**2)
+    U : ndarray, shape (..., d**2, d**2)
         The first correction to the error transfer matrix. The individual noise
         operator contributions chosen by ``n_oper_identifiers`` are on the
         first axis / axes, depending on whether the noise is cross-correlated
@@ -874,7 +877,7 @@ def error_transfer_matrix(
 
     .. math::
 
-        \mathcal{\tilde{P}}_{ij} &= \mathrm{tr}\bigl(C_i\tilde{U} C_j
+        \mathcal{\tilde{U}}_{ij} &= \mathrm{tr}\bigl(C_i\tilde{U} C_j
                                                      \tilde{U}^\dagger\bigr) \\
                                  &= \mathrm{tr}(C_i C_j)
                                     -\frac{1}{2}\left\langle\mathrm{tr}
@@ -898,7 +901,7 @@ def error_transfer_matrix(
 
     .. math::
 
-        \mathcal{\tilde{P}}\approx\mathbb{I} - \mathcal{\tilde{P}}^{(1)}.
+        \mathcal{\tilde{U}}\approx\mathbb{I} - \mathcal{\tilde{U}}^{(1)}.
 
     Note additionally that the above expression includes a second-order term
     from the Magnus Expansion (:math:`\propto\vec{u}_2`). Since this term can
@@ -910,7 +913,7 @@ def error_transfer_matrix(
 
     .. math::
 
-        \mathcal{\tilde{P}}_{ij}^{(1)} = \sum_{k,l=0}^{d^2-1}
+        \mathcal{\tilde{U}}_{ij}^{(1)} = \sum_{k,l=0}^{d^2-1}
             \left\langle u_{1,k}u_{1,l}\right\rangle\left[
                 \frac{1}{2}T_{k l i j} +
                 \frac{1}{2}T_{k l j i} -
@@ -922,7 +925,7 @@ def error_transfer_matrix(
 
     .. math::
 
-        \mathcal{\tilde{P}}_{ij}^{(1)} = \begin{cases}
+        \mathcal{\tilde{U}}_{ij}^{(1)} = \begin{cases}
             \sum_{k\neq i}\bigl\langle u_{1,k}^2\bigr\rangle
                 &\mathrm{if\;} i = j, \\
             -\langle u_{1, i} u_{1, j}\bigr\rangle
@@ -935,7 +938,7 @@ def error_transfer_matrix(
     .. math::
 
         \mathcal{I}_\mathrm{e} = \frac{1}{d^2}\mathrm{tr}
-                                 \bigl(\mathcal{\tilde{P}}^{(1)}\bigr).
+                                 \bigl(\mathcal{\tilde{U}}^{(1)}\bigr).
 
     See Also
     --------
@@ -948,27 +951,31 @@ def error_transfer_matrix(
                                                         n_oper_identifiers)
     if u_kl.ndim == 3:
         # Uncorrelated noise
-        P = np.zeros(u_kl.shape[:1] + (u_kl.shape[1] + 1,)*2, dtype=complex)
+        U = np.zeros(u_kl.shape[:1] + (u_kl.shape[1] + 1,)*2, dtype=complex)
     elif u_kl.ndim == 4:
         # Correlated_noise
-        P = np.zeros(u_kl.shape[:2] + (u_kl.shape[2] + 1,)*2, dtype=complex)
+        U = np.zeros(u_kl.shape[:2] + (u_kl.shape[2] + 1,)*2, dtype=complex)
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
         diag_mask = np.eye(N - 1, dtype=bool)
-        # Offdiagonal terms
-        P[..., 1:, 1:][..., ~diag_mask] = -u_kl[..., ~diag_mask]
+        # Offdiagonal terms, take care to symmetrize since
+        # <u_kl>_ab = <u_lk>_ba*
+        U[..., 1:, 1:][..., ~diag_mask] = -(
+            u_kl[..., ~diag_mask] + u_kl.swapaxes(-1, -2)[..., ~diag_mask]
+        )/2
+
         # Diagonal terms
         for i in range(1, N):
-            P[..., i, i] = (u_kl[..., diag_mask][..., :i-1].sum(axis=-1) +
+            U[..., i, i] = (u_kl[..., diag_mask][..., :i-1].sum(axis=-1) +
                             u_kl[..., diag_mask][..., i:].sum(axis=-1))
     else:
         # Multi qubit case. Use general expression.
         traces = pulse.basis.four_element_traces
-        P[..., 1:, 1:] = (
+        U[..., 1:, 1:] = (
             contract('...kl,klij->...ij', u_kl, traces, backend='sparse')/2 +
             contract('...kl,klji->...ij', u_kl, traces, backend='sparse')/2 -
             contract('...kl,kilj->...ij', u_kl, traces, backend='sparse')
         )
 
-    return P.real
+    return U.real

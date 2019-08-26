@@ -293,9 +293,9 @@ def plot_filter_function(pulse: 'PulseSequence',
                          **figure_kw) -> FigureAxesLegend:
     r"""
     Plot the filter function(s) of the given PulseSequence for positive
-    frequencies. As of now only the diagonal elements of :math:`F_{jj'}` are
-    implemented, i.e. the filter functions corresponding to uncorrelated noise
-    sources.
+    frequencies. As of now only the diagonal elements of
+    :math:`F_{\alpha\beta}` are implemented, i.e. the filter functions
+    corresponding to uncorrelated noise sources.
 
     Parameters
     ----------
@@ -416,8 +416,8 @@ def plot_pulse_correlation_filter_function(
 
     Returns a figure with *n* by *n* subplots where *n* is the number of pulses
     that were concatenated. As of now only the diagonal elements of
-    :math:`F_{jj'}` are implemented, i.e. the filter functions corresponding to
-    uncorrelated noise sources.
+    :math:`F_{\alpha\beta}` are implemented, i.e. the filter functions
+    corresponding to uncorrelated noise sources.
 
     Parameters
     ----------
@@ -579,7 +579,7 @@ def plot_error_transfer_matrix(
         pulse: Optional['PulseSequence'] = None,
         S: Optional[ndarray] = None,
         omega: Optional[Coefficients] = None,
-        P: Optional[ndarray] = None,
+        U: Optional[ndarray] = None,
         n_oper_identifiers: Optional[Sequence[int]] = None,
         basis_labels: Optional[Sequence[str]] = None,
         colorscale: Optional[str] = 'linear',
@@ -611,7 +611,7 @@ def plot_error_transfer_matrix(
         The frequencies for which to evaluate the error transfer matrix. Note
         that they should be symmetric around zero, that is, include negative
         frequencies.
-    P : ndarray, shape
+    U : ndarray, shape
         A precomputed error transfer matrix. If given, *pulse*, *S*, *omega*
         are not required.
     n_oper_identifiers : array_like, optional
@@ -652,8 +652,8 @@ def plot_error_transfer_matrix(
     grid : matplotlib ImageGrid
         The ImageGrid instance used for plotting.
     """
-    if P is not None:
-        n_oper_inds = np.arange(len(P))
+    if U is not None:
+        n_oper_inds = np.arange(len(U))
         if n_oper_identifiers is None:
             n_oper_identifiers = ['$B_{}$'.format(i)
                                   for i in range(len(n_oper_inds))]
@@ -669,21 +669,21 @@ def plot_error_transfer_matrix(
         n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
         btype = pulse.basis.btype
         # Get the error transfer matrix
-        P = numeric.error_transfer_matrix(pulse, S, omega, n_oper_identifiers)
-        if P.ndim == 4:
+        U = numeric.error_transfer_matrix(pulse, S, omega, n_oper_identifiers)
+        if U.ndim == 4:
             # Only autocorrelated noise supported
-            P = P[range(len(n_oper_inds)), range(len(n_oper_inds))]
+            U = U[range(len(n_oper_inds)), range(len(n_oper_inds))]
 
     if basis_labels is None:
         if btype == 'Pauli':
-            n_qubits = int(np.log(P.shape[-1])/np.log(4))
+            n_qubits = int(np.log(U.shape[-1])/np.log(4))
             basis_labels = [''.join(tup) for tup in
                             product(['I', 'X', 'Y', 'Z'], repeat=n_qubits)]
         else:
             basis_labels = ['$C_{{{}}}$'.format(i)
-                            for i in range(P.shape[-1])]
+                            for i in range(U.shape[-1])]
     else:
-        if len(basis_labels) != P.shape[-1]:
+        if len(basis_labels) != U.shape[-1]:
             raise ValueError('Invalid number of basis_labels given')
 
     if grid is None:
@@ -718,13 +718,13 @@ def plot_error_transfer_matrix(
     else:
         cmap = plt.get_cmap('RdBu')
 
-    Pmax = P.max()
-    Pmin = -Pmax
+    Umax = U.max()
+    Umin = -Umax
     if colorscale == 'log':
-        linthresh = np.abs(P).mean()/10 if linthresh is None else linthresh
-        norm = colors.SymLogNorm(linthresh=linthresh, vmin=Pmin, vmax=Pmax)
+        linthresh = np.abs(U).mean()/10 if linthresh is None else linthresh
+        norm = colors.SymLogNorm(linthresh=linthresh, vmin=Umin, vmax=Umax)
     elif colorscale == 'linear':
-        norm = colors.Normalize(vmin=Pmin, vmax=Pmax)
+        norm = colors.Normalize(vmin=Umin, vmax=Umax)
 
     imshow_kw = {} if imshow_kw is None else imshow_kw
     imshow_kw.setdefault('origin', 'upper')
@@ -737,10 +737,10 @@ def plot_error_transfer_matrix(
     # Draw the images
     for i, n_oper_identifier in enumerate(n_oper_identifiers):
         ax = grid[i]
-        im = ax.imshow(P[i], **imshow_kw)
+        im = ax.imshow(U[i], **imshow_kw)
         ax.set_title(n_oper_identifier)
-        ax.set_xticks(np.arange(P.shape[-1]))
-        ax.set_yticks(np.arange(P.shape[-1]))
+        ax.set_xticks(np.arange(U.shape[-1]))
+        ax.set_yticks(np.arange(U.shape[-1]))
         ax.set_xticklabels(basis_labels, rotation='vertical',
                            fontsize=basis_labelsize)
         ax.set_yticklabels(basis_labels, fontsize=basis_labelsize)
