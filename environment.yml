@@ -1,4 +1,4 @@
-name: rtd-environment
+name: test-environment
 channels:
   - defaults
   - conda-forge
