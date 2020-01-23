@@ -28,9 +28,14 @@ import numpy as np
 from numpy.random import choice, randint, randn
 
 import filter_functions as ff
-from filter_functions.numeric import (calculate_control_matrix_from_atomic,
-                                      calculate_control_matrix_from_scratch,
-                                      diagonalize, liouville_representation)
+from filter_functions.numeric import (
+    calculate_control_matrix_from_atomic,
+    calculate_control_matrix_from_scratch,
+    calculate_error_vector_correlation_functions,
+    calculate_pulse_correlation_filter_function,
+    diagonalize,
+    liouville_representation
+)
 from tests import testutil
 
 
@@ -204,7 +209,7 @@ class CoreTest(testutil.TestCase):
         print(pulse)
 
         # Hit __copy__ method
-        pulse_copy = copy(pulse)
+        _ = copy(pulse)
 
         # Fewer identifiers than opers
         pulse_2 = ff.PulseSequence(
@@ -247,7 +252,7 @@ class CoreTest(testutil.TestCase):
             pulse_1 @ pulse_3
 
         # Test nbytes property
-        nbytes = pulse_1.nbytes
+        _ = pulse_1.nbytes
 
         self.assertArrayEqual(pulse_12.dt, [*dt_1, *dt_2])
         self.assertArrayEqual(pulse_21.dt, [*dt_2, *dt_1])
@@ -400,6 +405,9 @@ class CoreTest(testutil.TestCase):
         pulse_2 = ff.concatenate([pulses['X'], pulses['Y']],
                                  calc_pulse_correlation_ff=True)
 
+        with self.assertRaises(ValueError):
+            calculate_pulse_correlation_filter_function(pulse_1._R)
+
         # Check if the filter functions on the diagonals are real
         F = pulse_2.get_pulse_correlation_filter_function()
         diag_1 = np.eye(2, dtype=bool)
@@ -450,6 +458,21 @@ class CoreTest(testutil.TestCase):
 
         self.assertAlmostEqual(infid_1.sum(), infid_2.sum())
         self.assertArrayAlmostEqual(infid_1, infid_2.sum(axis=(0, 1)))
+
+    def test_calculate_error_vector_correlation_functions(self):
+        """Test raises of numeric.error_transfer_matrix"""
+        pulse = ff.PulseSequence([[ff.util.P_np[1], [np.pi/2]]],
+                                 [[ff.util.P_np[1], [1]]],
+                                 [1])
+
+        omega = randn(43)
+        # single spectrum
+        S = randn(78)
+        for i in range(4):
+            with self.assertRaises(ValueError):
+                calculate_error_vector_correlation_functions(
+                    pulse, np.expand_dims(S, list(range(i))), omega
+                )
 
     def test_infidelity_convergence(self):
         import matplotlib

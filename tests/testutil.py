@@ -84,12 +84,26 @@ def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg',
     *pulse_type* toggles between a primitive NOT-pulse and a dynamically
     corrected gate.
     """
+    def cdd_odd(l, t):
+        return np.array([*cdd_even(l-1, t/2), t/2, *cdd_even(l-1, t/2) + t/2])
+
+    def cdd_even(l, t):
+        if l == 0:
+            return np.array([])
+
+        return np.array([*cdd_odd(l-1, t/2), *cdd_odd(l-1, t/2) + t/2])
+
     if dd_type == 'cpmg':
         delta = np.array([0] + [(l - 0.5)/n for l in range(1, n+1)])
     elif dd_type == 'udd':
         delta = np.array(
             [0] + [np.sin(np.pi*l/(2*n + 2))**2 for l in range(1, n+1)]
         )
+    elif dd_type == 'pdd':
+        delta = np.array([0] + [l/(n + 1) for l in range(1, n+1)])
+    elif dd_type == 'cdd':
+        delta = cdd_odd(n, 1) if n % 2 else cdd_even(n, 1)
+        delta = np.insert(delta, 0, 0)
 
     if pulse_type == 'primitive':
         tau_p = tau_pi
@@ -102,7 +116,7 @@ def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg',
 
     s = np.array([])
     t = np.array([0])
-    for i in range(n):
+    for i in range(len(delta) - 1):
         s = np.append(s, s_p)
         t = np.append(t, t_p + (delta*tau)[i+1] - tau_p/2)
     t = np.append(t, tau)

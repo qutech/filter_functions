@@ -581,6 +581,7 @@ def liouville_representation(U: ndarray, basis: Basis) -> ndarray:
     :math:`\mathbb{C}^{d\times d}` with :math:`d` the dimension of the Hilbert
     space.
     """
+    U = np.asanyarray(U)
     if basis.btype == 'GGM' and basis.d > 12:
         # Can do closed form expansion and overhead compensated
         path = ['einsum_path', (0, 1), (0, 1)]

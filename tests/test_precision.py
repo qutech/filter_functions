@@ -27,11 +27,28 @@ from numpy.random import randint, randn
 from opt_einsum import contract
 
 import filter_functions as ff
-from filter_functions.analytic import CPMG, SE, UDD
+from filter_functions import analytic
+from filter_functions.numeric import (
+    calculate_error_vector_correlation_functions,
+    liouville_representation
+)
 from tests import testutil
 
 
 class PrecisionTest(testutil.TestCase):
+
+    def test_FID(self):
+        """FID"""
+        tau = abs(randn())
+        FID_pulse = ff.PulseSequence([[ff.util.P_np[1]/2, [0]]],
+                                     [[ff.util.P_np[3]/2, [1]]],
+                                     [tau])
+
+        omega = ff.util.get_sample_frequencies(FID_pulse, 50, spacing='linear')
+        # Comparison to filter function defined with omega**2
+        F = FID_pulse.get_filter_function(omega).squeeze()*omega**2
+
+        self.assertArrayAlmostEqual(F, analytic.FID(omega*tau), atol=1e-10)
 
     def test_SE(self):
         """Spin echo"""
@@ -49,7 +66,7 @@ class PrecisionTest(testutil.TestCase):
         # Comparison to filter function defined with omega**2
         F = SE_pulse.get_filter_function(omega)[0, 0]*omega**2
 
-        self.assertArrayAlmostEqual(F, SE(omega*tau), atol=1e-10)
+        self.assertArrayAlmostEqual(F, analytic.SE(omega*tau), atol=1e-10)
 
         # Test again with a factor of one between the noise operators and
         # coefficients
@@ -60,7 +77,7 @@ class PrecisionTest(testutil.TestCase):
         # Comparison to filter function defined with omega**2
         F = SE_pulse.get_filter_function(omega)[0, 0]*omega**2
 
-        self.assertArrayAlmostEqual(F, SE(omega*tau), atol=1e-10)
+        self.assertArrayAlmostEqual(F, analytic.SE(omega*tau), atol=1e-10)
 
     def test_6_pulse_CPMG(self):
         """6-pulse CPMG"""
@@ -78,7 +95,7 @@ class PrecisionTest(testutil.TestCase):
         # Comparison to filter function defined with omega**2
         F = CPMG_pulse.get_filter_function(omega)[0, 0]*omega**2
 
-        self.assertArrayAlmostEqual(F, CPMG(omega*tau, n), atol=1e-10)
+        self.assertArrayAlmostEqual(F, analytic.CPMG(omega*tau, n), atol=1e-10)
 
     def test_6_pulse_UDD(self):
         """6-pulse UDD"""
@@ -97,7 +114,86 @@ class PrecisionTest(testutil.TestCase):
         # Comparison to filter function defined with omega**2
         F = UDD_pulse.get_filter_function(omega)[0, 0]*omega**2
 
-        self.assertArrayAlmostEqual(F, UDD(omega*tau, n), atol=1e-10)
+        self.assertArrayAlmostEqual(F, analytic.UDD(omega*tau, n), atol=1e-10)
+
+    def test_6_pulse_PDD(self):
+        """6-pulse PDD"""
+        tau = np.pi
+        tau_pi = 1e-9
+        omega = np.logspace(0, 3, 100)
+        omega = np.concatenate([-omega[::-1], omega])
+        n = 6
+
+        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
+                                                   dd_type='pdd')
+
+        H_n = [[ff.util.P_np[3]/2, np.ones_like(dt)]]
+
+        PDD_pulse = ff.PulseSequence(H_c, H_n, dt)
+        # Comparison to filter function defined with omega**2
+        F = PDD_pulse.get_filter_function(omega)[0, 0]*omega**2
+
+        self.assertArrayAlmostEqual(F, analytic.PDD(omega*tau, n), atol=1e-10)
+
+    def test_5_pulse_CDD(self):
+        """5-pulse CDD"""
+        tau = np.pi
+        tau_pi = 1e-9
+        omega = np.logspace(0, 3, 100)
+        omega = np.concatenate([-omega[::-1], omega])
+        n = 3
+
+        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
+                                                   dd_type='cdd')
+
+        H_n = [[ff.util.P_np[3]/2, np.ones_like(dt)]]
+
+        CDD_pulse = ff.PulseSequence(H_c, H_n, dt)
+        # Comparison to filter function defined with omega**2
+        F = CDD_pulse.get_filter_function(omega)[0, 0]*omega**2
+
+        self.assertArrayAlmostEqual(F, analytic.CDD(omega*tau, n), atol=1e-10)
+
+    def test_liouville_representation(self):
+        """Test the calculation of the transfer matrix"""
+        dd = np.arange(2, 18, 4)
+
+        for d in dd:
+            # Works with different bases
+            if d == 4:
+                basis = ff.Basis.pauli(2)
+            else:
+                basis = ff.Basis.ggm(d)
+
+            U = testutil.rand_unit(d, 2)
+
+            # Works on matrices and arrays of matrices
+            U_liouville = liouville_representation(U[0], basis)
+            U_liouville = liouville_representation(U, basis)
+
+            # should have dimension d^2 x d^2
+            self.assertEqual(U_liouville.shape, (U.shape[0], d**2, d**2))
+            # Real
+            self.assertTrue(np.isreal(U_liouville).all())
+            # Hermitian for unitary input
+            self.assertArrayAlmostEqual(
+                U_liouville.swapaxes(-1, -2) @ U_liouville,
+                np.tile(np.eye(d**2), (U.shape[0], 1, 1)),
+                atol=np.finfo(float).eps*d**2
+            )
+
+            if d == 2:
+                U_liouville = liouville_representation(ff.util.P_np[1:],
+                                                       basis)
+                self.assertArrayAlmostEqual(U_liouville[0],
+                                            np.diag([1, 1, -1, -1]),
+                                            atol=np.finfo(float).eps)
+                self.assertArrayAlmostEqual(U_liouville[1],
+                                            np.diag([1, -1, 1, -1]),
+                                            atol=np.finfo(float).eps)
+                self.assertArrayAlmostEqual(U_liouville[2],
+                                            np.diag([1, -1, -1, 1]),
+                                            atol=np.finfo(float).eps)
 
     def test_diagonalization_cnot(self):
         """CNOT"""
@@ -292,7 +388,7 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = ff.numeric.calculate_error_vector_correlation_functions(
+            u_kl = calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
             U_multi = np.zeros_like(U)
@@ -311,7 +407,7 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = ff.numeric.calculate_error_vector_correlation_functions(
+            u_kl = calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
             U_multi = np.zeros_like(U)
@@ -332,7 +428,7 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = ff.numeric.calculate_error_vector_correlation_functions(
+            u_kl = calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
             U_multi = np.zeros_like(U)
