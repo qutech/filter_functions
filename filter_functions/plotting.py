@@ -58,20 +58,20 @@ __all__ = ['plot_pulse_train', 'plot_bloch_vector_evolution',
            'plot_infidelity_convergence', 'plot_error_transfer_matrix']
 
 
-def get_bloch_vector(states: Sequence[State], outtype: str = 'np') -> ndarray:
+def get_bloch_vector(states: Sequence[State]) -> ndarray:
     r"""
     Get the Bloch vector from quantum states.
     """
-    if outtype == 'np':
-        a = np.array([[(states[i].T.conj() @ util.P_np[j+1] @ states[i])[0, 0]
-                       for i in range(len(states))] for j in range(3)])
-    else:
+    if isinstance(states[0], Qobj):
         a = np.empty((3, len(states)))
         X, Y, Z = util.P_qt[1:]
         for i, state in enumerate(states):
             a[:, i] = [expect(X, state),
                        expect(Y, state),
                        expect(Z, state)]
+    else:
+        a = np.einsum('...ij,kil,...lm->k...', np.conj(states), util.P_np[1:],
+                      states)
     return a
 
 

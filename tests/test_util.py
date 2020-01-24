@@ -463,6 +463,11 @@ class UtilTest(testutil.TestCase):
             self.assertFalse(result[0])
 
     def test_dot_HS(self):
+        U, V = randint(0, 100, (2, 2, 2))
+        S = util.dot_HS(U, V)
+        T = util.dot_HS(U, V, eps=0)
+        self.assertArrayEqual(S, T)
+
         for d in randint(2, 10, (5,)):
             U = qt.rand_herm(d)
             V = qt.rand_herm(d)
