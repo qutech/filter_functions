@@ -842,6 +842,11 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
     Function to parse the arguments given at instantiation of the PulseSequence
     object.
     """
+
+    if not hasattr(dt, '__getitem__'):
+        raise TypeError('Expected a sequence of time steps, not {}'.format(
+            type(dt)))
+
     dt = np.asarray(dt)
     # Check the time argument for data type and monotonicity (should be
     # increasing)

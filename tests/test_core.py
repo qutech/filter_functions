@@ -55,6 +55,10 @@ class CoreTest(testutil.TestCase):
             # Not enough positional arguments
             ff.PulseSequence(H_c, H_n)
 
+        with self.assertRaises(TypeError):
+            # dt not a sequence
+            ff.PulseSequence(H_c, H_n, dt[0])
+
         idx = randint(0, 5)
         with self.assertRaises(ValueError):
             # negative dt
@@ -223,6 +227,140 @@ class CoreTest(testutil.TestCase):
         self.assertArrayEqual(pulse_2.n_oper_identifiers, ('B_0', 'Y'))
 
     def test_pulse_sequence_attributes(self):
+        """Test attributes of single instance"""
+        X, Y, Z = ff.util.P_np[1:]
+        n_dt = randint(1, 10)
+
+        # trivial case
+        A = ff.PulseSequence([[X, randn(n_dt), 'X']],
+                             [[Z, randn(n_dt), 'Z']],
+                             np.abs(randn(n_dt)))
+        self.assertFalse(A == 1)
+        self.assertTrue(A != 1)
+
+        # different number of time steps
+        B = ff.PulseSequence([[X, randn(n_dt+1), 'X']],
+                             [[Z, randn(n_dt+1), 'Z']],
+                             np.abs(randn(n_dt+1)))
+        self.assertFalse(A == B)
+        self.assertTrue(A != B)
+
+        # different time steps
+        B = ff.PulseSequence(
+            list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
+            list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
+            np.abs(randn(n_dt))
+        )
+        self.assertFalse(A == B)
+        self.assertTrue(A != B)
+
+        # different control opers
+        B = ff.PulseSequence(
+            list(zip([Y], A.c_coeffs, A.c_oper_identifiers)),
+            list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
+            A.dt
+        )
+        self.assertFalse(A == B)
+        self.assertTrue(A != B)
+
+        # different control coeffs
+        B = ff.PulseSequence(
+            list(zip(A.c_opers, [randn(n_dt)], A.c_oper_identifiers)),
+            list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
+            A.dt
+        )
+        self.assertFalse(A == B)
+        self.assertTrue(A != B)
+
+        # different noise opers
+        B = ff.PulseSequence(
+            list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
+            list(zip([Y], A.n_coeffs, A.n_oper_identifiers)),
+            A.dt
+        )
+        self.assertFalse(A == B)
+        self.assertTrue(A != B)
+
+        # different noise coeffs
+        B = ff.PulseSequence(
+            list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
+            list(zip(A.n_opers, [randn(n_dt)], A.n_oper_identifiers)),
+            A.dt
+        )
+        self.assertFalse(A == B)
+        self.assertTrue(A != B)
+
+        # different control oper identifiers
+        B = ff.PulseSequence(
+            list(zip(A.c_opers, A.c_coeffs, ['foobar'])),
+            list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
+            A.dt
+        )
+        self.assertFalse(A == B)
+        self.assertTrue(A != B)
+
+        # different noise oper identifiers
+        B = ff.PulseSequence(
+            list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
+            list(zip(A.n_opers, A.n_coeffs, ['foobar'])),
+            A.dt
+        )
+        self.assertFalse(A == B)
+        self.assertTrue(A != B)
+
+        # different bases
+        elem = testutil.rand_herm(2)
+        elem -= np.eye(2)*np.trace(elem)/2
+        B = ff.PulseSequence(
+            list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
+            list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
+            A.dt,
+            ff.Basis([elem])
+        )
+        self.assertFalse(A == B)
+        self.assertTrue(A != B)
+
+        # Test for attributes
+        for attr in A.__dict__.keys():
+            if not (attr.startswith('_') or '_' + attr in A.__dict__.keys()):
+                # not a cached attribute
+                with self.assertRaises(AttributeError):
+                    _ = A.is_cached(attr)
+            else:
+                self.assertFalse(A.is_cached(attr))
+
+        # Test cleanup
+        C = ff.concatenate((A, A), calc_pulse_correlation_ff=True,
+                           omega=ff.util.get_sample_frequencies(A))
+        C.diagonalize()
+        C.cache_filter_function(ff.util.get_sample_frequencies(A))
+        attrs = ['_HD', '_HV', '_Q']
+        for attr in attrs:
+            self.assertIsNotNone(getattr(C, attr))
+
+        C.cleanup()
+        for attr in attrs:
+            self.assertIsNone(getattr(C, attr))
+
+        C.diagonalize()
+        attrs.extend(['_R', '_total_phases', '_total_Q', '_total_Q_liouville'])
+        for attr in attrs:
+            self.assertIsNotNone(getattr(C, attr))
+
+        C.cleanup('greedy')
+        for attr in attrs:
+            self.assertIsNone(getattr(C, attr))
+
+        C.cache_filter_function(ff.util.get_sample_frequencies(A))
+        attrs.extend(['omega', '_F', '_F_pc'])
+        for attr in attrs:
+            self.assertIsNotNone(getattr(C, attr))
+
+        C.cleanup('all')
+        for attr in attrs:
+            self.assertIsNone(getattr(C, attr))
+
+    def test_pulse_sequence_attributes_concat(self):
         """Test attributes of concatenated sequence."""
         X, Y, Z = ff.util.P_np[1:]
         n_dt_1 = randint(5, 11)
@@ -246,6 +384,9 @@ class CoreTest(testutil.TestCase):
 
         pulse_12 = pulse_1 @ pulse_2
         pulse_21 = pulse_2 @ pulse_1
+
+        with self.assertRaises(TypeError):
+            _ = pulse_1 @ randn(2, 2)
 
         # Concatenate pulses with same operators but different labels
         with self.assertRaises(ValueError):
