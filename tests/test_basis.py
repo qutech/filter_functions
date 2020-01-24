@@ -26,12 +26,42 @@ from itertools import product
 import numpy as np
 
 import filter_functions as ff
+from sparse import COO
 from tests import testutil
 
 
 class BasisTest(testutil.TestCase):
 
-    def test_basis_class(self):
+    def test_basis_constructor(self):
+        """Test the constructor for several failure modes"""
+
+        # Constructing from given elements should check for __getitem__
+        with self.assertRaises(TypeError):
+            _ = ff.Basis(1)
+
+        # All elements should be either COO, Qobj, or ndarray
+        elems = [ff.util.P_np[1], ff.util.P_qt[2],
+                 COO.from_numpy(ff.util.P_np[3]), ff.util.P_qt[0].data]
+        with self.assertRaises(TypeError):
+            _ = ff.Basis(elems)
+
+        # Too many elements
+        with self.assertRaises(ValueError):
+            _ = ff.Basis(np.random.randn(5, 2, 2))
+
+        # Properly normalized
+        self.assertTrue(ff.Basis.pauli(1) == ff.Basis(ff.util.P_np))
+
+        # Warns if orthonormal basis couldn't be generated
+        basis = ff.Basis(
+            [np.pad(b, (0, 1), 'constant') for b in ff.Basis.pauli(1)],
+            skip_check=True,
+            btype='Pauli'
+        )
+        with self.assertWarns(UserWarning):
+            _ = ff.Basis(basis)
+
+    def test_basis_properties(self):
         """Basis orthonormal and of correct dimensions"""
         d = np.random.randint(2, 17)
         ggm_basis = ff.Basis.ggm(d)
@@ -41,6 +71,9 @@ class BasisTest(testutil.TestCase):
         btypes = ('Pauli', 'GGM')
         bases = (pauli_basis, ggm_basis)
         for btype, base in zip(btypes, bases):
+            base.tidyup(eps_scale=0)
+            self.assertTrue(base == base)
+            self.assertFalse(base == ff.Basis.ggm(d+1))
             self.assertEqual(btype, base.btype)
             if not btype == 'Pauli':
                 self.assertEqual(d, base.d)
@@ -51,6 +84,8 @@ class BasisTest(testutil.TestCase):
                 # Check if __contains__ works as expected
                 self.assertTrue(base[np.random.randint(0, (2**n)**2)] in base)
             # Check if all elements of each basis are orthonormal and hermitian
+            self.assertArrayEqual(base.T,
+                                  base.view(np.ndarray).swapaxes(-1, -2))
             self.assertTrue(base.isorthonorm)
             self.assertTrue(base.isherm)
             # Check if basis spans the whole space and all elems are traceless
@@ -58,6 +93,9 @@ class BasisTest(testutil.TestCase):
             self.assertTrue(base.iscomplete)
             # Check sparse representation
             self.assertArrayEqual(base.sparse.todense(), base)
+            # Test sparse cache
+            self.assertArrayEqual(base.sparse.todense(), base)
+
             if base.d < 8:
                 # Test very resource intense
                 self.assertArrayAlmostEqual(base.four_element_traces.todense(),
@@ -66,6 +104,10 @@ class BasisTest(testutil.TestCase):
                                             atol=1e-16)
 
             base._print_checks()
+
+        basis = ff.util.P_np[1].view(ff.Basis)
+        self.assertTrue(basis.isorthonorm)
+        self.assertArrayEqual(basis.T, basis.view(np.ndarray).T)
 
     def test_basis_expansion_and_normalization(self):
         """Correct expansion of operators and normalization of bases"""

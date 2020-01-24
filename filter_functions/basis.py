@@ -249,17 +249,16 @@ class Basis(ndarray):
             # unitary.
             if self.ndim == 2:
                 # Only one basis element
-                dim = 1
+                self._isorthonorm = True
             else:
                 # Size of the result after multiplication
                 dim = self.shape[0]
-
-            U = self.reshape((dim, -1))
-            actual = U.conj() @ U.T
-            target = np.identity(dim)
-            atol = self._eps*(self.d**2)**3
-            self._isorthonorm = np.allclose(actual.view(ndarray), target,
-                                            atol=atol, rtol=self._rtol)
+                U = self.reshape((dim, -1))
+                actual = U.conj() @ U.T
+                target = np.identity(dim)
+                atol = self._eps*(self.d**2)**3
+                self._isorthonorm = np.allclose(actual.view(ndarray), target,
+                                                atol=atol, rtol=self._rtol)
 
         return self._isorthonorm
 
