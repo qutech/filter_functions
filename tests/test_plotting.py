@@ -35,7 +35,9 @@ from mpl_toolkits.axes_grid1 import ImageGrid
 from numpy.random import randint, randn
 
 import filter_functions as ff
-from filter_functions.plotting import (init_bloch_sphere,
+from filter_functions.plotting import (get_bloch_vector,
+                                       get_states_from_prop,
+                                       init_bloch_sphere,
                                        plot_bloch_vector_evolution,
                                        plot_filter_function,
                                        plot_pulse_correlation_filter_function,
@@ -69,6 +71,26 @@ two_qubit_pulse = ff.PulseSequence(
 
 class PlottingTest(testutil.TestCase):
 
+    def test_get_bloch_vector(self):
+        states = [qt.rand_ket(2) for _ in range(10)]
+        bloch_vectors_qt = get_bloch_vector(states)
+        bloch_vectors_np = get_bloch_vector([state.full() for state in states])
+
+        for bv_qt, bv_np in zip(bloch_vectors_qt, bloch_vectors_np):
+            self.assertArrayAlmostEqual(bv_qt, bv_np)
+
+    def test_get_states_from_prop(self):
+        P = testutil.rand_unit(2, 10)
+        Q = np.empty((11, 2, 2), dtype=complex)
+        Q[0] = np.identity(2)
+        for i in range(10):
+            Q[i+1] = P[i] @ Q[i]
+
+        psi0 = qt.rand_ket(2)
+        states_piecewise = get_states_from_prop(P, psi0, 'piecewise')
+        states_total = get_states_from_prop(Q[1:], psi0, 'total')
+        self.assertArrayAlmostEqual(states_piecewise, states_total)
+
     def test_plot_bloch_vector_evolution(self):
         two_qubit_pulse = ff.PulseSequence(
             [[qt.tensor(qt.sigmax(), qt.sigmax()), [np.pi/2]]],
@@ -95,6 +117,13 @@ class PlottingTest(testutil.TestCase):
     def test_plot_pulse_train(self):
         # Call with default args
         fig, ax, leg = plot_pulse_train(simple_pulse)
+
+        # Call with no axes but figure
+        fig = plt.figure()
+        fig, ax, leg = plot_pulse_train(simple_pulse, fig=fig)
+
+        # Call with axes but no figure
+        fig, ax, leg = plot_pulse_train(simple_pulse, axes=ax)
 
         # Call with custom args
         c_oper_identifiers = sample(
@@ -126,7 +155,15 @@ class PlottingTest(testutil.TestCase):
 
     def test_plot_filter_function(self):
         # Call with default args
+        simple_pulse.cleanup('all')
         fig, ax, leg = plot_filter_function(simple_pulse)
+
+        # Call with no axes but figure
+        fig = plt.figure()
+        fig, ax, leg = plot_filter_function(simple_pulse, fig=fig)
+
+        # Call with axes but no figure
+        fig, ax, leg = plot_filter_function(simple_pulse, axes=ax)
 
         # Non-default args
         n_oper_identifiers = sample(
@@ -248,6 +285,9 @@ class PlottingTest(testutil.TestCase):
         # Test calling with precomputed transfer matrix
         U = ff.error_transfer_matrix(simple_pulse, S, omega)
         fig, grid = plot_error_transfer_matrix(U=U)
+
+        # Log colorscale
+        fig, grid = plot_error_transfer_matrix(U=U, colorscale='log')
 
         # Non-default args
         n_oper_inds = sample(range(len(complicated_pulse.n_opers)),
