@@ -612,7 +612,7 @@ class CoreTest(testutil.TestCase):
         for i in range(4):
             with self.assertRaises(ValueError):
                 calculate_error_vector_correlation_functions(
-                    pulse, np.expand_dims(S, list(range(i))), omega
+                    pulse, np.tile(S, [1]*i), omega
                 )
 
     def test_infidelity_convergence(self):
