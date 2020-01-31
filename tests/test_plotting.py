@@ -286,6 +286,10 @@ class PlottingTest(testutil.TestCase):
         U = ff.error_transfer_matrix(simple_pulse, S, omega)
         fig, grid = plot_error_transfer_matrix(U=U)
 
+        # Test calling with precomputed transfer matrix of ndim == 2
+        U = ff.error_transfer_matrix(simple_pulse, S, omega)
+        fig, grid = plot_error_transfer_matrix(U=U[0])
+
         # Log colorscale
         fig, grid = plot_error_transfer_matrix(U=U, colorscale='log')
 
