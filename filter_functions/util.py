@@ -155,7 +155,7 @@ except ImportError:
 
 try:
     if _NOTEBOOK_NAME:
-        from tqdm import tqdm_notebook as tqdm
+        from tqdm.notebook import tqdm
     else:
         # Either not running notebook or not able to determine
         from tqdm import tqdm
