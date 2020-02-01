@@ -653,6 +653,8 @@ def plot_error_transfer_matrix(
         The ImageGrid instance used for plotting.
     """
     if U is not None:
+        if U.ndim == 2:
+            U = np.array([U])
         n_oper_inds = np.arange(len(U))
         if n_oper_identifiers is None:
             n_oper_identifiers = ['$B_{}$'.format(i)
