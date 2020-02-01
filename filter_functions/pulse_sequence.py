@@ -1466,7 +1466,7 @@ def concatenate(pulses: Iterable[PulseSequence],
 
     # Get the transfer matrices for the individual gates
     N = len(newpulse.basis) - 1
-    L = np.empty((len(pulses), N, N), dtype=complex)
+    L = np.empty((len(pulses), N, N))
     L[0] = np.identity(N)
     for i in range(1, len(pulses)):
         L[i] = pulses[i-1].total_Q_liouville @ L[i-1]
