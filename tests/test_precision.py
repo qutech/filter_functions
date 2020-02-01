@@ -235,6 +235,8 @@ class PrecisionTest(testutil.TestCase):
         infid_MC = testutil.cnot_infid_fast
         A = testutil.A
 
+        subspace_projector = np.diag([0, 1, 1, 1, 1, 0])
+
         # Basis for qubit subspace
         qubit_subspace_basis = ff.Basis(
             [np.pad(b, 1, 'constant') for b in ff.Basis.pauli(2)],
@@ -246,6 +248,7 @@ class PrecisionTest(testutil.TestCase):
         H_c = list(zip(c_opers, c_coeffs, identifiers))
         H_n = list(zip(n_opers, n_coeffs, identifiers))
         cnot = ff.PulseSequence(H_c, H_n, dt, basis=qubit_subspace_basis)
+        cnot_full = ff.PulseSequence(H_c, H_n, dt)
 
         T = dt.sum()
         omega = np.logspace(np.log10(1/T), 2, 125)
@@ -255,10 +258,14 @@ class PrecisionTest(testutil.TestCase):
                                       return_smallness=True)
             # infid scaled with d = 6, but we actually have d = 4
             infid *= 1.5
-            U = ff.error_transfer_matrix(cnot, S_t, omega_t, identifiers[:3])
-            infid_P = np.einsum('...ii', U)/4**2
+            U = ff.error_transfer_matrix(cnot_full, S_t, omega_t,
+                                         identifiers[:3])
+            PI = ff.numeric.liouville_representation(subspace_projector,
+                                                     cnot_full.basis)
+            infid_P = np.trace(PI @ U, axis1=1, axis2=2)/4**2
+
             self.assertLessEqual(np.abs(1 - (infid.sum()/MC)), rtol)
-            self.assertArrayAlmostEqual(infid, infid_P)
+            self.assertLessEqual(np.abs(1 - (infid_P.sum()/MC)), rtol)
             self.assertLessEqual(infid.sum(), xi**2/4)
 
     def test_infidelity(self):
