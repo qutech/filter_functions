@@ -1312,12 +1312,7 @@ def concatenate_without_filter_function(
     dt = np.concatenate(tuple(pulse.dt for pulse in pulses))
     t = np.concatenate(([0], dt.cumsum()))
 
-    attributes = {
-        'dt': dt,
-        't': t,
-        'd': pulses[0].d,
-        'basis': basis
-    }
+    attributes = {'dt': dt, 't': t, 'd': pulses[0].d, 'basis': basis}
     attributes.update(**{key: value for key, value
                          in zip(control_keys, control_values)})
     attributes.update(**{key: value for key, value
@@ -1394,17 +1389,14 @@ def concatenate(pulses: Iterable[PulseSequence],
     if len(pulses) == 1:
         return copy(pulses[0])
 
-    # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     newpulse, _, n_oper_mapping = concatenate_without_filter_function(
         pulses, return_identifier_mappings=True
     )
 
-    # Set total propagator if all pulses were diagonalized
-    is_diagonalized = all(pls.is_cached('total_Q') for pls in pulses)
-    if is_diagonalized:
+    if all(pls.is_cached('total_Q') for pls in pulses):
         newpulse.total_Q = mdot([pls.total_Q for pls in pulses][::-1])
 
-    if calc_filter_function is False and calc_pulse_correlation_ff is not True:
+    if calc_filter_function is False and not calc_pulse_correlation_ff:
         return newpulse
 
     # If the pulses have different noise operators, we cannot reuse cached
@@ -1414,6 +1406,7 @@ def concatenate(pulses: Iterable[PulseSequence],
     pulse_identifiers = []
     for _, mapping in sorted(n_oper_mapping.items()):
         pulse_identifiers.append([i for i in sorted(mapping.values())])
+
     unique_identifiers = sorted(set(h for i in pulse_identifiers for h in i))
     # matrix with pulses in rows and all noise operator identifier hashes in
     # columns. True if the noise operator is present in the pulse, False if
@@ -1448,7 +1441,7 @@ def concatenate(pulses: Iterable[PulseSequence],
             return newpulse
 
         if calc_filter_function is None:
-            # compute filter function only at least one pulse has a control
+            # compute filter function only if at least one pulse has a control
             # matrix cached
             if not equal_n_opers or not any(cached_ctrl_mat):
                 return newpulse
@@ -1473,7 +1466,7 @@ def concatenate(pulses: Iterable[PulseSequence],
 
     # Get the transfer matrices for the individual gates
     N = len(newpulse.basis) - 1
-    L = np.empty((len(pulses), N, N), dtype=complex)
+    L = np.empty((len(pulses), N, N))
     L[0] = np.identity(N)
     for i in range(1, len(pulses)):
         L[i] = pulses[i-1].total_Q_liouville @ L[i-1]
@@ -1502,14 +1495,11 @@ def concatenate(pulses: Iterable[PulseSequence],
     if not newpulse.is_cached('total_Q'):
         newpulse.total_Q = mdot([pls.total_Q for pls in pulses][::-1])
 
-    # Also set phases and total transfer matrix for the new pulse
     newpulse.cache_total_phases(omega)
     newpulse.total_Q_liouville = liouville_representation(
         newpulse.total_Q, newpulse.basis
     )[1:, 1:]
 
-    # Finally, calculate the new control matrix. If flag is set, calculate the
-    # 'pulse correlation control matrix'
     if calc_pulse_correlation_ff:
         path = ['einsum_path', (1, 2), (0, 1)]
         R = np.einsum('go,gjlo,glk->gjko', phases, R_g, L, optimize=path)
@@ -1583,7 +1573,6 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
-
     dt = np.tile(pulse.dt, repeats)
     newpulse = PulseSequence(
         c_opers=pulse.c_opers,
@@ -1604,26 +1593,19 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
         # they cannot be computed anymore afterwards.
         return newpulse
 
-    # Get the phase factor, control matrix, and transfer matrix of the
-    # cumulative propagator for the atomic pulse
     phases_at = pulse.get_total_phases(pulse.omega)
     R_at = pulse.get_control_matrix(pulse.omega)
     L_at = pulse.total_Q_liouville
 
-    # Set the total propagator for possible future concatenations
     newpulse.total_Q = linalg.matrix_power(pulse.total_Q, repeats)
-    # Also set total phases and transfer matrix of the cumulative propagator
-    # for the new pulse
     newpulse.cache_total_phases(pulse.omega)
     # Might be cheaper for small repeats to use matrix_power, but this function
     # is aimed at a large number so we calculate it explicitly
     newpulse.total_Q_liouville = newpulse.total_Q_liouville
 
-    # Compute the total control matrix efficiently for periodic Hamiltonian
     R_tot = calculate_control_matrix_periodic(phases_at, R_at, L_at,
                                               repeats)
 
-    # Set the attribute and calculate filter function
     newpulse.cache_filter_function(pulse.omega, R_tot)
 
     return newpulse
