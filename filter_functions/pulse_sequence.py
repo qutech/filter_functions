@@ -1396,7 +1396,7 @@ def concatenate(pulses: Iterable[PulseSequence],
     if all(pls.is_cached('total_Q') for pls in pulses):
         newpulse.total_Q = mdot([pls.total_Q for pls in pulses][::-1])
 
-    if not calc_filter_function and calc_pulse_correlation_ff:
+    if calc_filter_function is False and not calc_pulse_correlation_ff:
         return newpulse
 
     # If the pulses have different noise operators, we cannot reuse cached
