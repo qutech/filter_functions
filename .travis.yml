@@ -15,13 +15,12 @@ install:
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda config --append channels conda-forge
-  - conda update -q conda
   # Useful for debugging any issues with conda
   - conda info -a
 
   - conda env create -f ./environment.yml
   - source activate test-environment
-  - python setup.py install
+  - pip install .[fancy_progressbar,doc]
 
 script:
   - "coverage run --rcfile=coverage.ini -m pytest"
