@@ -3,9 +3,6 @@ version: 2
 conda:
   environment: environment.yml
 
-sphinx:
-  configuration: doc/source/conf.py
-
 python:
   install:
     - method: pip
