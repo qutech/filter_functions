@@ -1,8 +1,15 @@
 version: 2
+
 conda:
-  environment: environment.yml
+  file: environment.yml
+
+sphinx:
+  configuration: doc/source/conf.py
+
 python:
-  version: 3
   install:
     - method: pip
       path: .
+      extra_requirements:
+         - doc
+         - fancy_progressbar
