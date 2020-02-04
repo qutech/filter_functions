@@ -1,5 +1,8 @@
 version: 2
 
+conda:
+  environment: environment.yml
+  
 python:
   system_packages: true
   install:
