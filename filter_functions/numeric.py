@@ -43,6 +43,7 @@ Functions
     Calculate the error transfer matrix of a pulse up to a unitary
     rotation and second order in noise
 """
+from collections import deque
 from itertools import accumulate, repeat
 from typing import Any, Callable, Dict, Optional, Sequence, Union
 
@@ -167,7 +168,7 @@ def calculate_control_matrix_from_scratch(
 
     Returns
     -------
-    R : ndarray, shape (n_nops, d**2-1, n_omega)
+    R : ndarray, shape (n_nops, d**2, n_omega)
         The control matrix :math:`\mathcal{R}(\omega)`
 
     Notes
@@ -212,7 +213,7 @@ def calculate_control_matrix_from_scratch(
     n_coeffs = np.asarray(n_coeffs)
 
     # Allocate memory
-    R = np.zeros((len(n_opers), len(basis) - 1, len(E)), dtype=complex)
+    R = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
 
     # Wrapper for loop if no progress bar is desired
     def progressbar_range(*args):
@@ -262,7 +263,7 @@ def calculate_control_matrix_from_scratch(
         # loop, but for readability we don't distinguish.
         R += np.einsum('o,j,jmn,omn,knm->jko',
                        np.exp(1j*E*t[l]), n_coeffs[:, l], B[:, l], integral,
-                       QdagV[l].conj().T @ basis[1:] @ QdagV[l],
+                       QdagV[l].conj().T @ basis @ QdagV[l],
                        optimize=R_path)
 
     return R
@@ -280,17 +281,17 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
     ----------
     phases : ndarray, shape (n_omega,)
         The phase factors :math:`e^{i\omega T}` of the atomic pulse.
-    R : ndarray, shape (n_nops, d**2 - 1, n_omega)
+    R : ndarray, shape (n_nops, d**2, n_omega)
         The control matrix :math:`\mathcal{R}^{(1)}(\omega)` of the atomic
         pulse.
-    Q_liouville : ndarray, shape (d**2 - 1, d**2 - 1)
+    Q_liouville : ndarray, shape (d**2, d**2)
         The transfer matrix :math:`\mathcal{Q}^{(1)}` of the atomic pulse.
     repeats : int
         The number of repetitions.
 
     Returns
     -------
-    R : ndarray, shape (n_nops, d**2 - 1, n_omega)
+    R : ndarray, shape (n_nops, d**2, n_omega)
         The control matrix :math:`\mathcal{R}(\omega)` of the repeated pulse.
 
     Notes
@@ -347,9 +348,9 @@ def calculate_control_matrix_from_atomic(
     ----------
     phases : array_like, shape (n_dt, n_omega)
         The phase factors for :math:`l\in\{0, 1, \dots, n-1\}`.
-    R_l : array_like, shape (n_dt, n_nops, d**2-1, n_omega)
+    R_l : array_like, shape (n_dt, n_nops, d**2, n_omega)
         The pulse control matrices for :math:`l\in\{1, 2, \dots, n\}`.
-    Q_liouville : array_like, shape (n_dt, n_nops, d**2-1)
+    Q_liouville : array_like, shape (n_dt, n_nops, d**2, d**2)
         The transfer matrices of the cumulative propagators for
         :math:`l\in\{0, 1, \dots, n-1\}`.
     show_progressbar : bool, optional
@@ -357,7 +358,7 @@ def calculate_control_matrix_from_atomic(
 
     Returns
     -------
-    R : ndarray, shape (n_nops, d**2-1, n_omega)
+    R : ndarray, shape (n_nops, d**2, n_omega)
         The control matrix :math:`\mathcal{R}(\omega)`.
 
     Notes
@@ -405,7 +406,7 @@ def calculate_filter_function(R: ndarray) -> ndarray:
 
     Parameters
     ----------
-    R : array_like, shape (n_nops, d**2-1, n_omega)
+    R : array_like, shape (n_nops, d**2, n_omega)
         The control matrix.
 
     Returns
@@ -431,7 +432,7 @@ def calculate_pulse_correlation_filter_function(R: ndarray) -> ndarray:
 
     Parameters
     ----------
-    R : array_like, shape (n_pulses, n_nops, d**2-1, n_omega)
+    R : array_like, shape (n_pulses, n_nops, d**2, n_omega)
         The control matrix.
 
     Returns
@@ -502,7 +503,7 @@ def calculate_error_vector_correlation_functions(
 
     Returns
     -------
-    u_kl : ndarray, shape (..., d**2 - 1, d**2 - 1)
+    u_kl : ndarray, shape (..., d**2, d**2)
         The error vector correlation functions.
 
     Notes
@@ -950,33 +951,38 @@ def error_transfer_matrix(
     N, d = pulse.basis.shape[:2]
     u_kl = calculate_error_vector_correlation_functions(pulse, S, omega,
                                                         n_oper_identifiers)
-    if u_kl.ndim == 3:
-        # Uncorrelated noise
-        U = np.zeros(u_kl.shape[:1] + (u_kl.shape[1] + 1,)*2, dtype=complex)
-    elif u_kl.ndim == 4:
-        # Correlated_noise
-        U = np.zeros(u_kl.shape[:2] + (u_kl.shape[2] + 1,)*2, dtype=complex)
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
-        diag_mask = np.eye(N - 1, dtype=bool)
-        # Offdiagonal terms, take care to symmetrize since
-        # <u_kl>_ab = <u_lk>_ba*
-        U[..., 1:, 1:][..., ~diag_mask] = -(
+        U = np.zeros_like(u_kl)
+        diag_mask = np.eye(N, dtype=bool)
+
+        # Offdiagonal terms
+        U[..., ~diag_mask] = -(
             u_kl[..., ~diag_mask] + u_kl.swapaxes(-1, -2)[..., ~diag_mask]
         )/2
 
-        # Diagonal terms
+        # Diagonal terms U_ii given by sum over diagonal of u_kl excluding u_ii
+        # Since the Pauli basis is traceless, U_00 is zero, therefore start at
+        # U_11
+        diag_items = deque((True, False, True, True))
         for i in range(1, N):
-            U[..., i, i] = (u_kl[..., diag_mask][..., :i-1].sum(axis=-1) +
-                            u_kl[..., diag_mask][..., i:].sum(axis=-1))
+            U[..., i, i] = u_kl[..., diag_items, diag_items].sum(axis=-1)
+            # shift the item not summed over by one
+            diag_items.rotate()
+
+        if S.ndim == 3:
+            # Cross-correlated noise induces non-unitality, thus U[..., 0] != 0
+            k, l, i = np.indices((3, 3, 3))
+            eps_kli = (l - k)*(i - l)*(i - k)/2
+
+            U[..., 1:, 0] = 1j*np.einsum('...kl,kli',
+                                         u_kl[..., 1:, 1:], eps_kli)
     else:
         # Multi qubit case. Use general expression.
         traces = pulse.basis.four_element_traces
-        U[..., 1:, 1:] = (
-            contract('...kl,klij->...ij', u_kl, traces, backend='sparse')/2 +
-            contract('...kl,klji->...ij', u_kl, traces, backend='sparse')/2 -
-            contract('...kl,kilj->...ij', u_kl, traces, backend='sparse')
-        )
+        U = (contract('...kl,klij->...ij', u_kl, traces, backend='sparse')/2 +
+             contract('...kl,klji->...ij', u_kl, traces, backend='sparse')/2 -
+             contract('...kl,kilj->...ij', u_kl, traces, backend='sparse'))
 
-    return U.real
+    return U

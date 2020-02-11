@@ -314,7 +314,7 @@ class ConcatenationTest(testutil.TestCase):
     def test_different_n_opers(self):
         """Test behavior when concatenating with different n_opers"""
         for d, n_dt in zip(randint(2, 5, 20), randint(1, 11, 20)):
-            opers = testutil.rand_herm(d, 10)
+            opers = testutil.rand_herm_traceless(d, 10)
             letters = np.array(sample(list(string.ascii_letters), 10))
             n_idx = sample(range(10), randint(2, 5))
             c_idx = sample(range(10), randint(2, 5))

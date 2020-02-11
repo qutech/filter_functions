@@ -200,9 +200,9 @@ class PulseSequence:
     total_Q : ndarray, shape (d, d)
         The total propagator :math:`Q` of the pulse alone. That is,
         :math:`|\psi(\tau)\rangle = Q|\psi(0)\rangle`.
-    total_Q_liouville : array_like, shape (d**2 - 1, d**2 - 1)
+    total_Q_liouville : array_like, shape (d**2, d**2)
         The transfer matrix for the total propagator of the pulse. Given by
-        ``liouville_representation(pulse.total_Q, pulse.basis)[1:, 1:]``.
+        ``liouville_representation(pulse.total_Q, pulse.basis)``.
 
     Furthermore, when the filter function is calculated, the frequencies are
     cached as well as other relevant quantities.
@@ -425,7 +425,7 @@ class PulseSequence:
 
         Returns
         -------
-        R : ndarray, shape (n_nops, d**2 - 1, n_omega)
+        R : ndarray, shape (n_nops, d**2, n_omega)
             The control matrix for the noise operators.
         """
         # Only calculate if not calculated before for the same frequencies
@@ -463,7 +463,7 @@ class PulseSequence:
         ----------
         omega : array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R : array_like, shape (n_nops [, n_nops], d**2 - 1, n_omega), optional
+        R : array_like, shape (n_nops [, n_nops], d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed.
         show_progressbar : bool
@@ -478,9 +478,8 @@ class PulseSequence:
         # Cache total phase and total transfer matrices as well
         self.cache_total_phases(omega)
         if not self.is_cached('total_Q_liouville'):
-            self.total_Q_liouville = liouville_representation(
-                self.total_Q, self.basis
-            )[1:, 1:]
+            self.total_Q_liouville = liouville_representation(self.total_Q,
+                                                              self.basis)
 
     def get_filter_function(self, omega: Coefficients,
                             show_progressbar: bool = False) -> ndarray:
@@ -547,7 +546,7 @@ class PulseSequence:
         ----------
         omega : array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R : array_like, shape (n_nops [, n_nops], d**2 - 1, n_omega), optional
+        R : array_like, shape (n_nops [, n_nops], d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed and the filter function derived from it.
         F : array_like, shape (n_nops, n_nops, n_omega), optional
@@ -717,9 +716,8 @@ class PulseSequence:
     def total_Q_liouville(self) -> ndarray:
         """Get the transfer matrix for the total propagator of the pulse."""
         if not self.is_cached('total_Q_liouville'):
-            self._total_Q_liouville = liouville_representation(
-                self.total_Q, self.basis
-            )[1:, 1:]
+            self._total_Q_liouville = liouville_representation(self.total_Q,
+                                                               self.basis)
 
         return self._total_Q_liouville
 
@@ -1465,7 +1463,7 @@ def concatenate(pulses: Iterable[PulseSequence],
     ).cumprod(axis=0)
 
     # Get the transfer matrices for the individual gates
-    N = len(newpulse.basis) - 1
+    N = len(newpulse.basis)
     L = np.empty((len(pulses), N, N))
     L[0] = np.identity(N)
     for i in range(1, len(pulses)):
@@ -1496,9 +1494,8 @@ def concatenate(pulses: Iterable[PulseSequence],
         newpulse.total_Q = mdot([pls.total_Q for pls in pulses][::-1])
 
     newpulse.cache_total_phases(omega)
-    newpulse.total_Q_liouville = liouville_representation(
-        newpulse.total_Q, newpulse.basis
-    )[1:, 1:]
+    newpulse.total_Q_liouville = liouville_representation(newpulse.total_Q,
+                                                          newpulse.basis)
 
     if calc_pulse_correlation_ff:
         path = ['einsum_path', (1, 2), (0, 1)]
@@ -2206,7 +2203,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
         newpulse.omega = omega
 
         n_nops_new = len(newpulse.n_opers)
-        R = np.zeros((n_nops_new, (d_per_qubit**N)**2-1, len(omega)),
+        R = np.zeros((n_nops_new, (d_per_qubit**N)**2, len(omega)),
                      dtype=complex)
         F = np.zeros((n_nops_new, n_nops_new, len(omega)), dtype=complex)
         n_ops_counter = 0
@@ -2221,7 +2218,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
 
             # Need to scale the control matrix and filter function
             scaling_factor = d_per_qubit**(N - len(ind))
-            R[n_oper_idx, basis_idx-1] = pulse.get_control_matrix(
+            R[n_oper_idx, basis_idx] = pulse.get_control_matrix(
                 omega, show_progressbar=show_progressbar
             )*np.sqrt(scaling_factor)
             F[n_oper_idx, n_oper_idx] = pulse.get_filter_function(
@@ -2244,9 +2241,8 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
             )
 
         newpulse.cache_total_phases(omega)
-        newpulse.total_Q_liouville = liouville_representation(
-            newpulse.total_Q, newpulse.basis
-        )[1:, 1:]
+        newpulse.total_Q_liouville = liouville_representation(newpulse.total_Q,
+                                                              newpulse.basis)
         newpulse.cache_control_matrix(omega, R=R[n_sort_idx])
         newpulse.cache_filter_function(omega, F=F[n_sort_idx][:, n_sort_idx])
 

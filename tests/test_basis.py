@@ -50,16 +50,17 @@ class BasisTest(testutil.TestCase):
             _ = ff.Basis(np.random.randn(5, 2, 2))
 
         # Properly normalized
-        self.assertTrue(ff.Basis.pauli(1) == ff.Basis(ff.util.P_np))
+        self.assertEqual(ff.Basis.pauli(1), ff.Basis(ff.util.P_np))
 
-        # Warns if orthonormal basis couldn't be generated
-        basis = ff.Basis(
-            [np.pad(b, (0, 1), 'constant') for b in ff.Basis.pauli(1)],
-            skip_check=True,
-            btype='Pauli'
-        )
-        with self.assertWarns(UserWarning):
-            _ = ff.Basis(basis)
+        # Non traceless elems but traceless basis requested
+        with self.assertRaises(ValueError):
+            _ = ff.Basis(np.ones((2, 2)), traceless=True)
+
+        # Calling with only the identity should work with traceless true or
+        # false
+        self.assertEqual(ff.Basis(np.eye(2), traceless=False),
+                         ff.Basis(np.eye(2), traceless=True))
+
 
     def test_basis_properties(self):
         """Basis orthonormal and of correct dimensions"""
@@ -89,7 +90,11 @@ class BasisTest(testutil.TestCase):
             self.assertTrue(base.isorthonorm)
             self.assertTrue(base.isherm)
             # Check if basis spans the whole space and all elems are traceless
-            self.assertTrue(base.istraceless)
+            if not btype == 'Custom':
+                self.assertTrue(base.istraceless)
+            else:
+                self.assertFalse(base.istraceless)
+
             self.assertTrue(base.iscomplete)
             # Check sparse representation
             self.assertArrayEqual(base.sparse.todense(), base)
@@ -100,7 +105,7 @@ class BasisTest(testutil.TestCase):
                 # Test very resource intense
                 self.assertArrayAlmostEqual(base.four_element_traces.todense(),
                                             np.einsum('iab,jbc,kcd,lda',
-                                                      *(base[1:],)*4),
+                                                      *(base,)*4),
                                             atol=1e-16)
 
             base._print_checks()
@@ -114,7 +119,10 @@ class BasisTest(testutil.TestCase):
         for _ in range(10):
             d = np.random.randint(2, 16)
             ggm_basis = ff.Basis.ggm(d)
-            basis = np.einsum('i,ijk->ijk', np.random.randn(d**2), ggm_basis)
+            basis = ff.Basis(
+                np.einsum('i,ijk->ijk', np.random.randn(d**2), ggm_basis),
+                skip_check=True
+            )
             M = np.random.randn(d, d) + 1j*np.random.randn(d, d)
             M -= np.trace(M)/d
             coeffs = ff.basis.expand(M, basis, normalized=False)
@@ -183,14 +191,12 @@ class BasisTest(testutil.TestCase):
 
     def test_basis_generation_from_partial_random(self):
         """"Generate complete basis from partial elements of a random basis"""
-        # Do 100 test runs with random elements from a random basis in
+        # Do 25 test runs with random elements from a random basis in
         # (2 ... 8) dimensions
         for _ in range(25):
             d = np.random.randint(2, 7)
-            # Get a random hermitian operator with zeros on diagonal (cannot
-            # generate basis from arbitrary operators)
-            oper = testutil.rand_herm(d)
-            oper[np.diag_indices(d)] = 0
+            # Get a random traceless hermitian operator
+            oper = testutil.rand_herm_traceless(d)
             # ... and build a basis from it
             b = ff.Basis(np.array([oper]))
             self.assertTrue(b.isorthonorm)
@@ -210,6 +216,30 @@ class BasisTest(testutil.TestCase):
             self.assertTrue(basis.iscomplete)
             self.assertTrue(all(elem in basis for elem in elems))
 
+        # Test runs with non-traceless opers
+        for _ in range(25):
+            d = np.random.randint(2, 7)
+            # Get a random hermitian operator
+            oper = testutil.rand_herm(d)
+            # ... and build a basis from it
+            b = ff.Basis(np.array([oper]))
+            self.assertTrue(b.isorthonorm)
+            self.assertTrue(b.isherm)
+            self.assertFalse(b.istraceless)
+            self.assertTrue(b.iscomplete)
+            # Choose random elements from that basis and generate a new basis
+            # from it
+            inds = [i for i in range(d**2)]
+            tup = tuple(inds.pop(np.random.randint(0, len(inds)))
+                        for _ in range(np.random.randint(1, d**2)))
+            elems = b[tup, ...]
+            basis = ff.Basis(elems)
+            self.assertTrue(basis.isorthonorm)
+            self.assertTrue(basis.isherm)
+            self.assertFalse(basis.istraceless)
+            self.assertTrue(basis.iscomplete)
+            self.assertTrue(all(elem in basis for elem in elems))
+
     def test_filter_functions(self):
         """Filter functions equal for different bases"""
         # Set up random Hamiltonian
@@ -220,7 +250,7 @@ class BasisTest(testutil.TestCase):
 
         dt = np.ones(3)
 
-        n_oper = testutil.rand_herm(4)
+        n_oper = testutil.rand_herm_traceless(4)
         n_oper[np.diag_indices(n_oper.shape[-1])] = 0
         n_oper = ff.basis.normalize(n_oper)
 
@@ -239,3 +269,41 @@ class BasisTest(testutil.TestCase):
         F = [pulse.get_filter_function(omega).sum(0) for pulse in pulses]
         for pair in product(F, F):
             self.assertArrayAlmostEqual(*pair)
+
+    def test_control_matrix(self):
+        """Test control matrix for traceless and non-traceless bases"""
+        c_opers = testutil.rand_herm(3, 4)
+        c_coeffs = np.random.randn(4, 10)
+
+        n_opers_traceless = testutil.rand_herm_traceless(3, 4)
+        n_opers = testutil.rand_herm(3, 4)
+        n_coeffs = np.abs(np.random.randn(4, 10))
+
+        dt = np.abs(np.random.randn(10))
+
+        basis = ff.Basis(testutil.rand_herm(3), traceless=False)
+        basis_traceless = ff.Basis(testutil.rand_herm_traceless(3),
+                                   traceless=True)
+
+        omega = np.logspace(-1, 1, 51)
+
+        for i, base in enumerate((basis, basis_traceless)):
+            for j, n_ops in enumerate((n_opers, n_opers_traceless)):
+                pulse = ff.PulseSequence(list(zip(c_opers, c_coeffs)),
+                                         list(zip(n_ops, n_coeffs)),
+                                         dt, base)
+
+                R = pulse.get_control_matrix(omega)
+
+                if i == 0 and j == 0:
+                    # base not traceless, nopers not traceless
+                    self.assertTrue((R[:, 0] != 0).all())
+                elif i == 0 and j == 1:
+                    # base not traceless, nopers traceless
+                    self.assertTrue((R[:, 0] != 0).all())
+                elif i == 1 and j == 0:
+                    # base traceless, nopers not traceless
+                    self.assertTrue((R[:, 0] != 0).all())
+                elif i == 1 and j == 1:
+                    # base traceless, nopers traceless
+                    self.assertTrue(np.allclose(R[:, 0], 0))

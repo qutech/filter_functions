@@ -39,7 +39,7 @@ Functions
 
 """
 
-from typing import Dict, Optional, Sequence, Tuple, Union
+from typing import Optional, Sequence, Union
 from warnings import warn
 
 import numpy as np
@@ -50,7 +50,7 @@ from qutip import Qobj
 from scipy.linalg import null_space
 from sparse import COO
 
-from .util import P_np, oper_equiv, remove_float_errors, tensor
+from .util import P_np, remove_float_errors, tensor
 
 __all__ = ['Basis', 'normalize', 'expand', 'ggm_expand']
 
@@ -66,8 +66,8 @@ class Basis(ndarray):
           all original (input) elements:
 
               - hermitian
-              - traceless
               - orthonormal
+              - [traceless] (can be controlled by a flag)
 
         - by calling one of the classes alternative constructors
           (classmethods) for predefined bases:
@@ -92,13 +92,19 @@ class Basis(ndarray):
         An array or list of square matrices that are elements of an operator
         basis spanning :math:`\mathbb{C}^{d\times d}`. *n* should be smaller
         than or equal to *d**2*.
-    btype : str, optional
+    traceless : bool, optional (default: auto)
+        Controls whether a traceless basis is forced. Here, traceless means
+        that the first element of the basis is the identity and the remaining
+        elements are matrices of trace zero. If an element of ``basis_array``
+        is neither traceless nor the identity and ``traceless == True``, an
+        exception will be raised. Defaults to ``True`` if basis_array is
+        traceless and ``False`` if not.
+    btype : str, optional (default: ``'custom'``)
         A string describing the basis type. For example, a basis created by the
         factory method :meth:`pauli` has *btype* 'pauli'.
-    skip_check : bool, optional
+    skip_check : bool, optional (default: ``False``)
         Skip the internal routine for checking ``basis_array``'s
-        orthonormality, linear independence and whether it spans the whole
-        space. Use with caution.
+        orthonormality and completeness. Use with caution.
 
     Attributes
     ----------
@@ -109,9 +115,6 @@ class Basis(ndarray):
         Basis type.
     d : int
         Dimension of the space spanned by the basis.
-    elem_inds : dict
-        Maps indices of the original basis elements used to construct the
-        basis to where they are in the complete basis.
     H : Basis
         Hermitian conjugate.
     isherm : bool
@@ -119,8 +122,7 @@ class Basis(ndarray):
     isorthonorm : bool
         If the basis is orthonormal.
     istraceless : bool
-        If the basis is traceless except for one element (usually the
-        identity).
+        If the basis is traceless except for an identity element
     iscomplete : bool
         If the basis is complete, ie spans the full space.
     sparse : COO, shape (n, d, d)
@@ -145,24 +147,35 @@ class Basis(ndarray):
 
     """
 
-    def __new__(cls, basis_array: Sequence, btype: Optional[str] = None,
-                skip_check: bool = False) -> 'Basis':
+    def __new__(cls, basis_array: Sequence, traceless: Optional[bool] = None,
+                btype: Optional[str] = None, skip_check: bool = False
+                ) -> 'Basis':
         """Constructor."""
         if not skip_check:
             if not hasattr(basis_array, '__getitem__'):
                 raise TypeError('Invalid data type. Must be array_like')
 
-            basis = np.empty((len(basis_array), *basis_array[0].shape),
-                             dtype=complex)
-            for i, elem in enumerate(basis_array):
-                if isinstance(elem, ndarray):
-                    basis[i] = elem
-                elif isinstance(elem, Qobj):
-                    basis[i] = elem.full()
-                elif isinstance(elem, COO):
-                    basis[i] = elem.todense()
-                else:
-                    raise TypeError('At least one element of invalid type!')
+            if isinstance(basis_array, cls):
+                basis = basis_array
+            else:
+                try:
+                    # Allow single 2d element
+                    if len(basis_array.shape) == 2:
+                        basis_array = [basis_array]
+                except AttributeError:
+                    pass
+
+                basis = np.empty((len(basis_array), *basis_array[0].shape),
+                                 dtype=complex)
+                for i, elem in enumerate(basis_array):
+                    if isinstance(elem, ndarray):
+                        basis[i] = elem
+                    elif isinstance(elem, Qobj):
+                        basis[i] = elem.full()
+                    elif isinstance(elem, COO):
+                        basis[i] = elem.todense()
+                    else:
+                        raise TypeError('At least one element invalid type!')
 
             d = basis.shape[-1]
 
@@ -170,16 +183,14 @@ class Basis(ndarray):
                 raise ValueError('Given overcomplete set of basis matrices. '
                                  'Not linearly independent.')
 
-            basis, elem_inds = _full_from_partial(basis)
+            basis = _full_from_partial(basis, traceless)
         else:
             basis = np.asanyarray(basis_array)
             d = basis.shape[-1]
-            elem_inds = np.arange(d**2)
 
         basis = basis.view(cls)
         basis.btype = btype if btype is not None else 'Custom'
         basis.d = d
-        basis.elem_inds = elem_inds
         return basis
 
     def __array_finalize__(self, basis: 'Basis') -> None:
@@ -189,7 +200,6 @@ class Basis(ndarray):
 
         self.btype = getattr(basis, 'btype', 'Custom')
         self.d = getattr(basis, 'd', basis.shape[-1])
-        self.elem_inds = getattr(basis, 'elem_inds', np.arange(self.d**2))
         self._sparse = None                 # sparse representation of self
         self._four_element_traces = None
         self._isherm = None
@@ -265,13 +275,30 @@ class Basis(ndarray):
     @property
     def istraceless(self) -> bool:
         """
-        Returns True if basis is traceless except for one element (usually the
-        identity).
+        Returns True if basis is traceless except for possibly the identity.
         """
         if self._istraceless is None:
-            trace = np.array([np.einsum('...jj', self)])
+            trace = np.einsum('...jj', self)
             trace = remove_float_errors(trace, self.d)
-            self._istraceless = trace.nonzero()[0].size <= 1
+            nonzero = trace.nonzero()
+            if nonzero[0].size == 0:
+                self._istraceless = True
+            elif nonzero[0].size == 1:
+                # Single element has nonzero trace, check if (proportional to)
+                # identity
+                elem = self[nonzero][0].view(ndarray)
+                offdiag_nonzero = elem[~np.eye(self.d, dtype=bool)].nonzero()
+                diag_equal = np.diag(elem) == elem[0, 0]
+                if diag_equal.all() and not offdiag_nonzero[0].any():
+                    # Element is (proportional to) the identity, this we define
+                    # as 'traceless' since a complete basis cannot have only
+                    # traceless elems.
+                    self._istraceless = True
+                else:
+                    # Element not the identity, therefore not traceless
+                    self._istraceless = False
+            else:
+                self._istraceless = False
 
         return self._istraceless
 
@@ -321,22 +348,27 @@ class Basis(ndarray):
             # makes sense for any dimension to also calculate with sparse
             # arrays. For Pauli bases, which are very dense, this is not so
             # efficient but unavoidable for d > 12.
+            path = [(0, 1), (0, 1), (0, 1)]
             if self.btype == 'Pauli' and self.d <= 12:
                 # For d == 12, the result is ~270 MB.
                 self._four_element_traces = COO.from_numpy(oe.contract(
-                    'iab,jbc,kcd,lda->ijkl', *(self[1:],)*4
+                    'iab,jbc,kcd,lda->ijkl', *(self,)*4, optimize=path
                 ))
             else:
                 self._four_element_traces = oe.contract(
-                    'iab,jbc,kcd,lda->ijkl', *(self[1:].sparse,)*4,
-                    backend='sparse'
+                    'iab,jbc,kcd,lda->ijkl', *(self.sparse,)*4,
+                    backend='sparse', optimize=path
                 )
 
         return self._four_element_traces
 
     def normalize(self) -> None:
         """Normalize the basis in-place"""
-        np.einsum('ijk,i->ijk', self, 1/norm(self, axis=(1, 2)), out=self)
+        if self.ndim == 2:
+            self /= norm(self)
+        elif self.ndim == 3:
+            np.einsum('ijk,i->ijk', self, 1/norm(self, axis=(1, 2)),
+                      out=self)
 
     def tidyup(self, eps_scale: Optional[float] = None) -> None:
         """Wraps util.remove_float_errors."""
@@ -383,7 +415,7 @@ class Basis(ndarray):
         normalization = np.sqrt(2**n)
         combinations = np.indices((4,)*n).reshape(n, 4**n)
         sigma = tensor(*np.array(P_np)[combinations], rank=2)/normalization
-        return cls(sigma, 'Pauli', skip_check=True)
+        return cls(sigma, btype='Pauli', skip_check=True)
 
     @classmethod
     def ggm(cls, d: int) -> 'Basis':
@@ -445,14 +477,15 @@ class Basis(ndarray):
         Lambda[2*n_sym + 1:, range(d), range(d)] /= \
             np.tile(np.sqrt(diag_rng*(diag_rng + 1))[:, None], (1, d))
 
-        return cls(Lambda, 'GGM', skip_check=True)
+        return cls(Lambda, btype='GGM', skip_check=True)
 
 
-def _full_from_partial(elems: Sequence) -> Tuple[Basis, Dict[int, int]]:
-    """Internal function to parse the basis elements *elems*. By default,
-    checks are performed for orthogonality and linear independence. If either
-    fails, the elements are orthogonalized or and exception is raised,
-    respectively. Returns a full hermitian and orthonormal basis."""
+def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
+    """
+    Internal function to parse the basis elements *elems*. By default, checks
+    are performed for orthogonality and linear independence. If either fails an
+    exception is raised. Returns a full hermitian and orthonormal basis.
+    """
     elems = np.asanyarray(elems)
     if not isinstance(elems, Basis):
         # Convert elems to basis to have access to its handy attributes
@@ -461,18 +494,27 @@ def _full_from_partial(elems: Sequence) -> Tuple[Basis, Dict[int, int]]:
     if not elems.isherm:
         warn("(Some) elems not hermitian! The resulting basis also won't be.")
 
-    # Get a Generalized Gell-Mann basis to expand in (fulfills the desired
-    # properties hermiticity, tracelessness, and orthonormality, and therefore
-    # also linear combinations, ie basis expansions, of it will). Split off the
-    # identity as it's not traceless and we just add it again later.
-    Id, ggm = np.split(Basis.ggm(elems.d), [1])
-
-    # Expand the elements in the GGMs. If they are not orthogonal, we obviously
-    # cannot generate an orthonormal basis from them and still retain all
-    # elements
-    coeffs = expand(elems, ggm, tidyup=True)
     if not elems.isorthonorm:
         raise ValueError("The basis elements are not orthonormal!")
+
+    if traceless is None:
+        traceless = elems.istraceless
+    else:
+        if traceless and not elems.istraceless:
+            raise ValueError("The basis elements are not traceless (up to " +
+                             "an identity element) but a traceless basis " +
+                             "was requested!")
+
+    # Get a Generalized Gell-Mann basis to expand in (fulfills the desired
+    # properties hermiticity and orthonormality, and therefore also linear
+    # combinations, ie basis expansions, of it will). Split off the identity so
+    # that for traceless bases we can put it in the front.
+    if traceless:
+        Id, ggm = np.split(Basis.ggm(elems.d), [1])
+    else:
+        ggm = Basis.ggm(elems.d)
+
+    coeffs = expand(elems, ggm, tidyup=True)
 
     # Throw out coefficient vectors that are all zero (should only happen for
     # the identity)
@@ -490,31 +532,15 @@ def _full_from_partial(elems: Sequence) -> Tuple[Basis, Dict[int, int]]:
         basis = ggm
 
     # Add the identity again and normalize the new basis
-    basis = np.stack((*Id, *basis)).view(Basis)
-
-    # Check if all elems are actually present in basis. Possibly they are up to
-    # a phase which we then adjust. Also save the indices of where the elems
-    # are in the basis so that they can be easily found.
-    elem_inds = {}
-    for i, elem in enumerate(elems):
-        phase_eq, phase = zip(*[oper_equiv(elem, b) for b in basis])
-        ind = np.nonzero(phase_eq)[0]
-        if ind.size != 1:
-            warn("Couldn't generate orthonormal, hermitian, and " +
-                 "traceless basis and at the same time retain all " +
-                 "original elements")
-            continue
-
-        if phase[ind[0]] != 0:
-            # Phase equal but not equal: adjust the phase
-            basis[ind[0]] *= np.exp(1j*phase[ind[0]])
-
-        elem_inds[i] = ind[0]
+    if traceless:
+        basis = np.concatenate((Id, basis)).view(Basis)
+    else:
+        basis = basis.view(Basis)
 
     # Clean up
     basis.tidyup()
 
-    return basis, elem_inds
+    return basis
 
 
 def normalize(b: Sequence) -> Basis:
@@ -671,8 +697,8 @@ def equivalent_pauli_basis_elements(idx: Union[Sequence[int], int],
     idx = [idx] if isinstance(idx, int) else idx
     multi_index = np.ix_(*[range(4) if i in idx else [0]
                            for i in range(N)])
-    elem_idx = np.ravel_multi_index(multi_index, [4]*N)
-    return elem_idx[elem_idx != 0]
+    elem_idx = np.ravel_multi_index(multi_index, [4]*N).ravel()
+    return elem_idx
 
 
 def remap_pauli_basis_elements(order: Sequence[int], N: int) -> ndarray:
@@ -682,9 +708,9 @@ def remap_pauli_basis_elements(order: Sequence[int], N: int) -> ndarray:
     """
     # Index tuples for single qubit paulis that give the n-qubit paulis when
     # tensored together
-    pauli_idx = np.indices((4,)*N).reshape(N, 4**N).T[1:]
+    pauli_idx = np.indices((4,)*N).reshape(N, 4**N).T
     # Indices of the N-qubit basis reordered according to order
-    linear_idx = [np.ravel_multi_index([idx_tup[i] for i in order], (4,)*N) - 1
+    linear_idx = [np.ravel_multi_index([idx_tup[i] for i in order], (4,)*N)
                   for idx_tup in pauli_idx]
 
     return np.array(linear_idx)

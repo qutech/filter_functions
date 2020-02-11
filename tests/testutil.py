@@ -129,7 +129,14 @@ def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg',
 def rand_herm(d: int, n: int = 1) -> np.ndarray:
     """n random Hermitian matrices of dimension d"""
     A = randn(n, d, d) + 1j*randn(n, d, d)
-    return (A + A.conj().transpose([0, 2, 1])).squeeze()
+    return (A + A.conj().transpose([0, 2, 1])).squeeze()/2
+
+
+def rand_herm_traceless(d: int, n: int = 1) -> np.ndarray:
+    """n random traceless Hermitian matrices of dimension d"""
+    A = rand_herm(d, n).transpose()
+    A -= A.trace(axis1=0, axis2=1)/d
+    return A.transpose()
 
 
 def rand_unit(d: int, n: int = 1) -> np.ndarray:
