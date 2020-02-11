@@ -676,6 +676,9 @@ def plot_error_transfer_matrix(
             # Only autocorrelated noise supported
             U = U[range(len(n_oper_inds)), range(len(n_oper_inds))]
 
+    # Only autocorrelated noise implemented for now, ie U is real
+    U = U.real
+
     if basis_labels is None:
         if btype == 'Pauli':
             n_qubits = int(np.log(U.shape[-1])/np.log(4))

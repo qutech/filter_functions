@@ -528,14 +528,16 @@ def calculate_error_vector_correlation_functions(
         if S.shape != shape:
             raise ValueError(S_err_str.format(shape, S.shape))
 
-        integrand = np.einsum('jko,jlo->jklo', R.conj(), S*R)
+        # S is real, integrand therefore also
+        integrand = np.einsum('jko,jlo->jklo', R.conj(), S*R).real
     elif S.ndim == 2:
         # S is diagonal (no correlation between noise sources)
         shape = (len(idx), len(omega))
         if S.shape != shape:
             raise ValueError(S_err_str.format(shape, S.shape))
 
-        integrand = np.einsum('jko,jo,jlo->jklo', R.conj(), S, R)
+        # S is real, integrand therefore also
+        integrand = np.einsum('jko,jo,jlo->jklo', R.conj(), S, R).real
     elif S.ndim == 3:
         # General case where S is a matrix with correlation spectra on off-diag
         shape = (len(idx), len(idx), len(omega))
@@ -796,14 +798,16 @@ def infidelity(pulse: 'PulseSequence',
         if S.shape != shape:
             raise ValueError(S_err_str.format(shape, S.shape))
 
-        integrand = F[..., idx, idx, :]*S
+        # S is real, integrand therefore also
+        integrand = (F[..., idx, idx, :]*S).real
     elif S.ndim == 2:
         # S is diagonal (no correlation between noise sources)
         shape = (len(idx), len(omega))
         if S.shape != shape:
             raise ValueError(S_err_str.format(shape, S.shape))
 
-        integrand = F[..., idx, idx, :]*S
+        # S is real, integrand therefore also
+        integrand = (F[..., idx, idx, :]*S).real
     elif S.ndim == 3:
         # General case where S is a matrix with correlation spectra on off-diag
         shape = (len(idx), len(idx), len(omega))
@@ -814,7 +818,7 @@ def infidelity(pulse: 'PulseSequence',
     elif S.ndim > 3:
         raise ValueError('Expected S to be array_like with < 4 dimensions')
 
-    infid = trapz(integrand, omega).real/(2*np.pi*pulse.d)
+    infid = trapz(integrand, omega)/(2*np.pi*pulse.d)
 
     if return_smallness:
         if S.ndim > 2:
