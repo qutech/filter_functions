@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # =============================================================================
 #     filter_functions
 #     Copyright (C) 2019 Quantum Technology Group, RWTH Aachen University
@@ -924,8 +925,8 @@ def dot_HS(U: Union[ndarray, qt.Qobj],
     else:
         decimals = abs(int(np.log10(eps)))
 
-    res = np.round(np.einsum('ij,ij', U.conj(), V), decimals)
-    return res if res.imag else res.real
+    res = np.round(np.einsum('...ij,...ij', U.conj(), V), decimals)
+    return res if res.imag.any() else res.real
 
 
 def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 200,

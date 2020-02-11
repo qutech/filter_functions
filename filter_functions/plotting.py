@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # =============================================================================
 #     filter_functions
 #     Copyright (C) 2019 Quantum Technology Group, RWTH Aachen University
@@ -675,6 +676,9 @@ def plot_error_transfer_matrix(
         if U.ndim == 4:
             # Only autocorrelated noise supported
             U = U[range(len(n_oper_inds)), range(len(n_oper_inds))]
+
+    # Only autocorrelated noise implemented for now, ie U is real
+    U = U.real
 
     if basis_labels is None:
         if btype == 'Pauli':

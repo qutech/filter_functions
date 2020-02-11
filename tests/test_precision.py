@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # =============================================================================
 #     filter_functions
 #     Copyright (C) 2019 Quantum Technology Group, RWTH Aachen University
@@ -332,6 +333,10 @@ class PrecisionTest(testutil.TestCase):
                     )
                     self.assertArrayAlmostEqual(np.diag(infids),
                                                 uncorrelated_infids)
+
+                    # Infidelity matrix should be hermitian
+                    self.assertArrayEqual(infids, infids.conj().T)
+
                 count += 1
 
         # Check raises
@@ -386,6 +391,7 @@ class PrecisionTest(testutil.TestCase):
             n_oper_identifiers = ['B_0', 'B_1']
             traces = pulse.basis.four_element_traces.todense()
 
+            # Single spectrum
             # Assert fidelity is same as computed by infidelity()
             S = 1e-2/omega**2
             U = ff.error_transfer_matrix(pulse, S, omega)
