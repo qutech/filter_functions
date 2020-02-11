@@ -561,15 +561,18 @@ class PulseSequence:
                 R = self.get_control_matrix(omega, show_progressbar)
 
             if R.ndim == 4:
+                # Cache regular control matrix
                 self.cache_control_matrix(omega, R.sum(axis=0),
                                           show_progressbar=show_progressbar)
+                # Calculate pulse correlation FF and derive canonical FF from
+                # it
                 self._F_pc = calculate_pulse_correlation_filter_function(R)
                 F = np.einsum('ghjlo->jlo', self._F_pc)
+
             else:
+                # Regular case
                 self.cache_control_matrix(omega, R,
                                           show_progressbar=show_progressbar)
-                # Get the filter function as function of omega by summing over
-                # the first axis of the absolute value squared.
                 F = calculate_filter_function(R)
 
         self.omega = omega
