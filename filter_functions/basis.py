@@ -80,8 +80,8 @@ class Basis(ndarray):
     attributes, e.g. ``shape``. The following attributes behave slightly
     differently to a ndarray, however
 
-        - ``A == B`` is ``True`` if all elements evaluate ``True``, i.e.
-          equivalent to ``np.array_equal(A, B)``.
+        - ``A == B`` is ``True`` if all elements evaluate almost equal, i.e.
+          equivalent to ``np.allclose(A, B)``.
         - ``basis.T`` transposes the last two axes of ``basis``. For a full
           basis, this corresponds to transposing each element individually. For
           a basis element, it corresponds to normal transposition.
@@ -131,6 +131,9 @@ class Basis(ndarray):
         Traces over all possible combinations of four elements of self. This is
         required for the calculation of the error transfer matrix and thus
         cached in the Basis instance.
+
+    Most of the attributes above are properties which are lazily evaluated and
+    cached.
 
     Methods
     -------
@@ -200,7 +203,7 @@ class Basis(ndarray):
 
         self.btype = getattr(basis, 'btype', 'Custom')
         self.d = getattr(basis, 'd', basis.shape[-1])
-        self._sparse = None                 # sparse representation of self
+        self._sparse = None     # sparse representation of self
         self._four_element_traces = None
         self._isherm = None
         self._isorthonorm = None
@@ -248,6 +251,7 @@ class Basis(ndarray):
         """Returns True if all basis elements are hermitian."""
         if self._isherm is None:
             self._isherm = (self.H == self)
+
         return self._isherm
 
     @property
@@ -306,7 +310,7 @@ class Basis(ndarray):
     def iscomplete(self) -> bool:
         """Returns True if basis is complete."""
         if self._iscomplete is None:
-            A = np.column_stack([elem.ravel() for elem in self])
+            A = self.reshape(self.shape[0], -1)
             rank = np.linalg.matrix_rank(A)
             self._iscomplete = rank == self.d**2
 
@@ -320,9 +324,10 @@ class Basis(ndarray):
     @property
     def T(self) -> 'Basis':
         """Return the basis transposed element-wise."""
-        if len(self.shape) == 3:
+        if self.ndim == 3:
             return self.transpose(0, 2, 1)
-        if len(self.shape) == 2:
+
+        if self.ndim == 2:
             return self.transpose(1, 0)
 
         return self
