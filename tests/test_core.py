@@ -505,7 +505,7 @@ class CoreTest(testutil.TestCase):
             # first column (identity element) always zero but susceptible to
             # floating point error, increase atol
             self.assertArrayAlmostEqual(R_from_scratch, R_from_atomic,
-                                        atol=1e-14)
+                                        atol=1e-13)
 
             # Check if the filter functions for autocorrelated noise are real
             F = total_pulse.get_filter_function(omega)
