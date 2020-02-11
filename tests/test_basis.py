@@ -45,6 +45,9 @@ class BasisTest(testutil.TestCase):
         with self.assertRaises(TypeError):
             _ = ff.Basis(elems)
 
+        # Excluding the fast_csr element should work
+        self.assertEqual(ff.Basis.pauli(1), ff.Basis(elems[:-1]))
+
         # Too many elements
         with self.assertRaises(ValueError):
             _ = ff.Basis(np.random.randn(5, 2, 2))
@@ -61,16 +64,20 @@ class BasisTest(testutil.TestCase):
         self.assertEqual(ff.Basis(np.eye(2), traceless=False),
                          ff.Basis(np.eye(2), traceless=True))
 
+        # Constructing a basis from a basis should work
+        _ = ff.Basis(ff.Basis.ggm(2)[1:])
 
     def test_basis_properties(self):
         """Basis orthonormal and of correct dimensions"""
         d = np.random.randint(2, 17)
-        ggm_basis = ff.Basis.ggm(d)
-
         n = np.random.randint(1, 5)
+
+        ggm_basis = ff.Basis.ggm(d)
         pauli_basis = ff.Basis.pauli(n)
-        btypes = ('Pauli', 'GGM')
-        bases = (pauli_basis, ggm_basis)
+        custom_basis = ff.Basis(testutil.rand_herm(d), traceless=False)
+
+        btypes = ('Pauli', 'GGM', 'Custom')
+        bases = (pauli_basis, ggm_basis, custom_basis)
         for btype, base in zip(btypes, bases):
             base.tidyup(eps_scale=0)
             self.assertTrue(base == base)
@@ -142,7 +149,26 @@ class BasisTest(testutil.TestCase):
             self.assertArrayAlmostEqual(ff.basis.expand(M, ggm_basis),
                                         ff.basis.ggm_expand(M), atol=1e-14)
 
+            # Argument to ggm_expand not square in last two dimensions
+            with self.assertRaises(ValueError):
+                ff.basis.ggm_expand(basis[..., 0])
+
             self.assertTrue(ff.basis.normalize(basis).isorthonorm)
+
+            # Basis method and function should give the same
+            normalized = ff.basis.normalize(basis)
+            basis.normalize()
+            self.assertEqual(normalized, basis)
+
+            # normalize single element
+            elem = basis[1]
+            normalized = ff.basis.normalize(elem)
+            elem.normalize()
+            self.assertEqual(normalized, elem)
+
+            # Not matrix or sequence of matrices
+            with self.assertRaises(ValueError):
+                ff.basis.normalize(basis[0, 0])
 
     def test_basis_generation_from_partial_ggm(self):
         """"Generate complete basis from partial elements of a GGM basis"""
