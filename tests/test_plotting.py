@@ -32,7 +32,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 import qutip as qt
-from mpl_toolkits.axes_grid1 import ImageGrid
 from numpy.random import randint, randn
 
 import filter_functions as ff
@@ -286,6 +285,10 @@ class PlottingTest(testutil.TestCase):
         # Test calling with precomputed transfer matrix
         U = ff.error_transfer_matrix(simple_pulse, S, omega)
         fig, grid = plot_error_transfer_matrix(U=U)
+
+        # Test calling with precomputed transfer matrix and pulse
+        U = ff.error_transfer_matrix(simple_pulse, S, omega)
+        fig, grid = plot_error_transfer_matrix(simple_pulse, U=U)
 
         # Test calling with precomputed transfer matrix of ndim == 2
         U = ff.error_transfer_matrix(simple_pulse, S, omega)
