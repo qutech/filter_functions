@@ -56,7 +56,7 @@ from scipy.integrate import trapz
 from .basis import Basis, ggm_expand
 from .plotting import plot_infidelity_convergence
 from .types import Coefficients, Operator
-from .util import (abs2, get_indices_from_identifiers, progressbar,
+from .util import (abs2, cexp, get_indices_from_identifiers, progressbar,
                    symmetrize_spectrum)
 
 __all__ = ['diagonalize', 'liouville_representation',
@@ -108,8 +108,7 @@ def diagonalize(H: ndarray, dt: Coefficients) -> Sequence[ndarray]:
     # P = np.empty((500, 4, 4), dtype=complex)
     # for l, (V, D) in enumerate(zip(HV, np.exp(-1j*dt*HD.T).T)):
     #     P[l] = (V * D) @ V.conj().T
-    P = np.einsum('lij,jl,lkj->lik', HV, np.exp(-1j*np.asarray(dt)*HD.T),
-                  HV.conj())
+    P = np.einsum('lij,jl,lkj->lik', HV, cexp(-np.asarray(dt)*HD.T), HV.conj())
     # The cumulative propagator Q with the identity operator as first
     # element (Q_0 = P_0 = I), i.e.
     # Q = [Q_0, Q_1, ..., Q_n] = [P_0, P_1 @ P_0, ..., P_n @ ... @ P_0]
@@ -250,7 +249,7 @@ def calculate_control_matrix_from_scratch(
         # Mask the integral to avoid convergence problems
         mask_small = np.abs(EdE*dt[l]) <= 1e-7
         integral[mask_small] = dt[l]
-        integral[~mask_small] = (np.exp(1j*EdE[~mask_small]*dt[l]) - 1) /\
+        integral[~mask_small] = (cexp(EdE[~mask_small]*dt[l]) - 1) /\
                                 (1j*(EdE[~mask_small]))
         """
         # Test convergence of integral as argument of exponential -> 0
@@ -263,7 +262,7 @@ def calculate_control_matrix_from_scratch(
         # Faster for d = 2 to also contract over the time dimension instead of
         # loop, but for readability we don't distinguish.
         R += np.einsum('o,j,jmn,omn,knm->jko',
-                       np.exp(1j*E*t[l]), n_coeffs[:, l], B[:, l], integral,
+                       cexp(E*t[l]), n_coeffs[:, l], B[:, l], integral,
                        QdagV[l].conj().T @ basis @ QdagV[l],
                        optimize=R_path)
 

@@ -35,6 +35,22 @@ class UtilTest(testutil.TestCase):
         x = randn(20, 100) + 1j*randn(20, 100)
         self.assertArrayAlmostEqual(np.abs(x)**2, util.abs2(x))
 
+    def test_cexp(self):
+        """Fast complex exponential."""
+        x = randn(50, 100)
+        a = util.cexp(x)
+        b = np.exp(1j*x)
+        self.assertArrayAlmostEqual(a, b)
+
+        a = util.cexp(-x)
+        b = np.exp(-1j*x)
+        self.assertArrayAlmostEqual(a, b)
+
+        x = randn(50, 100)*(1 + 1j)
+        a = util.cexp(x)
+        b = np.exp(1j*x)
+        self.assertArrayAlmostEqual(a, b)
+
     def test_get_indices_from_identifiers(self):
         pulse = PulseSequence(
             [[util.P_np[3], [2], 'Z'],

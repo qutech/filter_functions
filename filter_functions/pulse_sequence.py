@@ -57,10 +57,11 @@ from .numeric import (calculate_control_matrix_from_atomic,
                       calculate_control_matrix_from_scratch,
                       calculate_control_matrix_periodic,
                       calculate_filter_function,
-                      calculate_pulse_correlation_filter_function, diagonalize,
+                      calculate_pulse_correlation_filter_function,
+                      diagonalize,
                       liouville_representation)
 from .types import Coefficients, Hamiltonian, Operator, PulseMapping
-from .util import (CalculationError, all_array_equal,
+from .util import (CalculationError, all_array_equal, cexp,
                    get_indices_from_identifiers, hash_array_along_axis, mdot,
                    tensor, tensor_insert, tensor_merge, tensor_transpose)
 
@@ -659,7 +660,7 @@ class PulseSequence:
             they are computed.
         """
         if total_phases is None:
-            total_phases = np.exp(1j*np.asarray(omega)*self.t[-1])
+            total_phases = cexp(np.asarray(omega)*self.t[-1])
 
         self.omega = omega
         self._total_phases = total_phases
@@ -814,7 +815,7 @@ class PulseSequence:
         idx[idx < 0] = 0
         Q_prev = self.Q[idx]
         U_curr = np.einsum('lij,jl,lkj->lik', self.HV[idx],
-                           np.exp(-1j*(t - self.t[idx])*self.HD[idx].T),
+                           cexp((self.t[idx] - t)*self.HD[idx].T),
                            self.HV[idx].conj())
 
         return U_curr @ Q_prev

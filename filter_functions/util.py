@@ -176,7 +176,7 @@ P_qt = [qt.qeye(2),
 P_np = [P.full() for P in P_qt]
 
 
-def abs2(x):
+def abs2(x: ndarray) -> ndarray:
     r"""
     Fast function to calculate the absolute value squared,
 
@@ -189,6 +189,31 @@ def abs2(x):
         np.abs(x)**2
     """
     return x.real**2 + x.imag**2
+
+
+def cexp(x: ndarray) -> ndarray:
+    r"""Fast complex exponential.
+
+    Parameters
+    ----------
+    x : ndarray
+        Argument of the complex exponential :math:`\exp(i x)`.
+
+    Returns
+    -------
+    y : ndarray
+        Complex exponential :math:`y = \exp(i x)`.
+
+    References
+    ----------
+    https://software.intel.com/en-us/forums/intel-distribution-for-python/topic/758148  # noqa
+    """
+    df_exp = np.empty(x.shape, dtype=np.complex128)
+    trig_buf = np.cos(x)
+    df_exp.real[:] = trig_buf
+    np.sin(x, out=trig_buf)
+    df_exp.imag[:] = trig_buf
+    return df_exp
 
 
 def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int],
