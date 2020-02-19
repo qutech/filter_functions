@@ -29,25 +29,13 @@ References
     Hamiltonians: Example with ion traps, 1(1), 1–7.
     Retrieved from http://arxiv.org/abs/1503.08806
 """
-import filter_functions as ff
 import numpy as np
+
+import filter_functions as ff
 import qutip as qt
+from qutip import qip
+
 # %% Define some functions
-
-
-def get_a_k(k, n, N: int = 4):
-    if k < n:
-        a_k = 0
-    elif k == n:
-        a_k = 1/np.sqrt(2**(N - n + 4))
-    else:
-        a_k = 2**(n - k - 1)/get_a_k(n, n, N)
-
-    return a_k
-
-
-def get_J_kl(k, l, n, N: int = 4):
-    return -np.pi*get_a_k(k, n, N)*get_a_k(l, n, N)/2
 
 
 def R_k_pulse(k, theta, phi, N: int = 4, tau: float = 1):
@@ -63,10 +51,10 @@ def R_k_pulse(k, theta, phi, N: int = 4, tau: float = 1):
         X = qt.tensor(X)
         Y = qt.tensor(Y)
 
-    H_c = [[X*np.cos(phi), [theta/2/tau]],
-           [Y*np.sin(phi), [theta/2/tau]]]
-    H_n = [[X/np.sqrt(X.shape[0]), [np.sqrt(X.shape[0])]],
-           [Y/np.sqrt(Y.shape[0]), [np.sqrt(Y.shape[0])]]]
+    H_c = [[X, [theta/2/tau*np.cos(phi)], 'I'*k + 'X' + 'I'*(N - k - 1)],
+           [Y, [theta/2/tau*np.sin(phi)], 'I'*k + 'Y' + 'I'*(N - k - 1)]]
+    H_n = [[X/np.sqrt(X.shape[0]), [1], 'I'*k + 'X' + 'I'*(N - k - 1)],
+           [Y/np.sqrt(Y.shape[0]), [1], 'I'*k + 'Y' + 'I'*(N - k - 1)]]
     dt = [tau]
 
     return ff.PulseSequence(H_c, H_n, dt)
@@ -76,17 +64,19 @@ def T_I_pulse(N: int = 4, tau: float = 1):
     Id = qt.qeye(2)
     if N == 1:
         T = Id
-        H_c = [[Id, [0]]]
-        H_n = [[T/np.sqrt(T.shape[0]), [np.sqrt(T.shape[0])]]]
+        H_c = [[Id, [0], 'I']]
+        H_n = [[T/np.sqrt(T.shape[0]), [1], 'I']]
     else:
         H_c = []
         H_n = []
         T = [Id]*(N - 1)
         T.insert(0, qt.sigmaz())
         for k in range(1, N+1):
-            H_c.append([qt.tensor(np.roll(T, k-1)),
-                        [np.pi/4*(1 - 2**(1 - k))/tau]])
-            H_n.append([qt.tensor(T)/np.sqrt(2**len(T)), [np.sqrt(2**len(T))]])
+            H_c.append([qt.tensor(T[-k+1:] + T[:-k+1]),
+                        [np.pi/4*(1 - 2**(1 - k))/tau],
+                        'I'*(k - 1) + 'Z' + 'I'*(N - k)])
+            H_n.append([qt.tensor(T[-k+1:] + T[:-k+1])/np.sqrt(2**len(T)),
+                        [1], 'I'*(k - 1) + 'Z' + 'I'*(N - k)])
 
     return ff.PulseSequence(H_c, H_n, [tau])
 
@@ -95,38 +85,35 @@ def T_F_pulse(N: int = 4, tau: float = 1):
     Id = qt.qeye(2)
     if N == 1:
         T = Id
-        H_c = [[Id, [0]]]
-        H_n = [[T/np.sqrt(T.shape[0]), [np.sqrt(T.shape[0])]]]
+        H_c = [[Id, [0], 'I']]
+        H_n = [[T/np.sqrt(T.shape[0]), [1], 'I']]
     else:
         H_c = []
         H_n = []
         T = [Id]*(N - 1)
         T.insert(0, qt.sigmaz())
         for k in range(1, N+1):
-            H_c.append([qt.tensor(np.roll(T, k-1)),
-                        [np.pi/4*(1 - 2**(k - N))/tau]])
-            H_n.append([qt.tensor(T)/np.sqrt(2**len(T)), [np.sqrt(2**len(T))]])
+            H_c.append([qt.tensor(T[-k+1:] + T[:-k+1]),
+                        [np.pi/4*(1 - 2**(k - N))/tau],
+                        'I'*(k - 1) + 'Z' + 'I'*(N - k)])
+            H_n.append([qt.tensor(T[-k+1:] + T[:-k+1])/np.sqrt(2**len(T)),
+                        [1], 'I'*(k - 1) + 'Z' + 'I'*(N - k)])
 
     return ff.PulseSequence(H_c, H_n, [tau])
 
 
-def U_pulse(n, N: int = 4, tau: float = 1):
+def P_n_pulse(n, N: int = 4, tau: float = 1):
     Id = qt.qeye(2)
-    if N == 2:
-        Z = qt.tensor([qt.sigmaz()]*2)
-        H_c = [[Z, [get_J_kl(1, 2, 1, N)/tau]]]
-        H_n = [[Z/np.sqrt(Z.shape[0]), [np.sqrt(Z.shape[0])]]]
-    else:
-        H_c = []
-        H_n = []
-        for k in range(n, N+1):
-            for l in range(k+1, N+1):
-                Z = [Id]*(N - 2)
-                Z.insert(k-1, qt.sigmaz())
-                Z.insert(l-1, qt.sigmaz())
-                Z = qt.tensor(Z)
-                H_c.append([Z, [get_J_kl(k, l, n, N)/tau]])
-                H_n.append([Z/np.sqrt(Z.shape[0]), [np.sqrt(Z.shape[0])]])
+    H_c = []
+    H_n = []
+    for l in range(n+1, N+1):
+        Z = [Id]*(N - 2)
+        Z.insert(n-1, qt.sigmaz())
+        Z.insert(l-1, qt.sigmaz())
+        Z = qt.tensor(Z)
+        identifier = ('I'*(n-1) + 'Z' + 'I'*(l - n - 1) + 'Z' + 'I'*(N - l))
+        H_c.append([Z, [-np.pi/4*2**(n - l)/tau], identifier])
+        H_n.append([Z/np.sqrt(Z.shape[0]), [1], identifier])
 
     return ff.PulseSequence(H_c, H_n, [tau])
 
@@ -140,7 +127,7 @@ def QFT_pulse(N: int = 4, tau: float = 1):
     pulses = [T_I_pulse(N, tau)]
     for n in range(N-1):
         pulses.append(H_k_pulse(n, N, tau))
-        pulses.append(U_pulse(n+1, N, tau))
+        pulses.append(P_n_pulse(n+1, N, tau))
 
     pulses.append(H_k_pulse(N-1, N, tau))
     pulses.append(T_F_pulse(N, tau))
@@ -150,7 +137,18 @@ def QFT_pulse(N: int = 4, tau: float = 1):
 
 # %% Get a 4-qubit QFT and plot the filter function
 omega = np.logspace(-2, 2, 500)
-QFT = QFT_pulse(4)
+
+N = 4
+QFT = QFT_pulse(N)
+
+# Check the pulse produces the correct propagator after swapping the qubits
+swaps = [qip.operations.swap(N, [i, j]).full()
+         for i, j in zip(range(N//2), range(N-1, N//2-1, -1))]
+prop = ff.util.mdot(swaps) @ QFT.total_Q
+qt.matrix_histogram_complex(prop)
+print('Correct action: ',
+      ff.util.oper_equiv(prop, qip.algorithms.qft.qft(N), eps=1e-14))
+
 fig, ax, _ = ff.plot_filter_function(QFT, omega)
 # Move the legend to the side because of many entries
 ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
