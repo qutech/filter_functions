@@ -46,11 +46,6 @@ class UtilTest(testutil.TestCase):
         b = np.exp(-1j*x)
         self.assertArrayAlmostEqual(a, b)
 
-        x = randn(50, 100)*(1 + 1j)
-        a = util.cexp(x)
-        b = np.exp(1j*x)
-        self.assertArrayAlmostEqual(a, b)
-
     def test_get_indices_from_identifiers(self):
         pulse = PulseSequence(
             [[util.P_np[3], [2], 'Z'],
