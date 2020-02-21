@@ -861,6 +861,10 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
     control_args = _parse_Hamiltonian(H_c, len(dt), 'H_c')
     noise_args = _parse_Hamiltonian(H_n, len(dt), 'H_n')
 
+    if control_args[0].shape[-2:] != noise_args[0].shape[-2:]:
+        # Check operator shapes
+        raise ValueError('Control and noise Hamiltonian not same dimension!')
+
     t = np.concatenate(([0], dt.cumsum()))
     # Dimension of the system
     d = control_args[0].shape[-1]

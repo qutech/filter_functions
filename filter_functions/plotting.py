@@ -658,8 +658,11 @@ def plot_error_transfer_matrix(
             U = np.array([U])
         n_oper_inds = np.arange(len(U))
         if n_oper_identifiers is None:
-            n_oper_identifiers = ['$B_{}$'.format(i)
-                                  for i in range(len(n_oper_inds))]
+            if pulse is not None and len(pulse.n_oper_identifiers) == len(U):
+                n_oper_identifiers = pulse.n_oper_identifiers
+            else:
+                n_oper_identifiers = ['$B_{}$'.format(i)
+                                      for i in range(len(n_oper_inds))]
         btype = ''
     else:
         if pulse is None or S is None or omega is None:

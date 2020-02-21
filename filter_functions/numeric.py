@@ -46,7 +46,7 @@ Functions
 """
 from collections import deque
 from itertools import accumulate, repeat
-from typing import Any, Callable, Dict, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from numpy import linalg, ndarray
@@ -67,7 +67,7 @@ __all__ = ['diagonalize', 'liouville_representation',
            'infidelity', 'error_transfer_matrix']
 
 
-def diagonalize(H: ndarray, dt: Coefficients) -> Sequence[ndarray]:
+def diagonalize(H: ndarray, dt: Coefficients) -> Tuple[ndarray]:
     r"""
     Diagonalize the Hamiltonian *H* which is piecewise constant during the
     times given by *dt* and return eigenvalues, eigenvectors, and the
@@ -130,7 +130,7 @@ def calculate_control_matrix_from_scratch(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         t: Optional[Coefficients] = None,
-        show_progressbar: bool = False) -> Union[ndarray]:
+        show_progressbar: Optional[bool] = False) -> ndarray:
     r"""
     Calculate the control matrix from scratch, i.e. without knowledge of the
     control matrices of more atomic pulse sequences.
@@ -475,7 +475,8 @@ def calculate_error_vector_correlation_functions(
         pulse: 'PulseSequence',
         S: ndarray,
         omega: Coefficients,
-        n_oper_identifiers: Optional[Sequence[str]] = None) -> ndarray:
+        n_oper_identifiers: Optional[Sequence[str]] = None,
+        show_progressbar: Optional[bool] = False) -> ndarray:
     r"""
     Get the error vector correlation functions
     :math:`\langle u_{1,k} u_{1, l}\rangle_{\alpha\beta}` for noise sources
@@ -495,6 +496,8 @@ def calculate_error_vector_correlation_functions(
     n_oper_identifiers : array_like, optional
         The identifiers of the noise operators for which to calculate the error
         vector correlation functions. The default is all.
+    show_progressbar : bool, optional
+        Show a progress bar for the calculation of the control matrix.
 
     Raises
     ------
@@ -520,7 +523,7 @@ def calculate_error_vector_correlation_functions(
     # TODO: Implement for correlation FFs? Replace infidelity() by this?
     # Noise operator indices
     idx = get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
-    R = pulse.get_control_matrix(omega)[idx]
+    R = pulse.get_control_matrix(omega, show_progressbar)[idx]
     S = np.asarray(S)
     S_err_str = 'S should be of shape {}, not {}.'
     if S.ndim == 1:
@@ -840,7 +843,8 @@ def error_transfer_matrix(
         pulse: 'PulseSequence',
         S: ndarray,
         omega: Coefficients,
-        n_oper_identifiers: Optional[Sequence[str]] = None) -> ndarray:
+        n_oper_identifiers: Optional[Sequence[str]] = None,
+        show_progressbar: Optional[bool] = False) -> ndarray:
     r"""
     Compute the first correction to the error transfer matrix up to unitary
     rotations and second order in noise.
@@ -867,6 +871,8 @@ def error_transfer_matrix(
     n_oper_identifiers : array_like, optional
         The identifiers of the noise operators for which to evaluate the
         error transfer matrix. The default is all.
+    show_progressbar : bool, optional
+        Show a progress bar for the calculation of the control matrix.
 
     Returns
     -------
@@ -954,7 +960,8 @@ def error_transfer_matrix(
     """
     N, d = pulse.basis.shape[:2]
     u_kl = calculate_error_vector_correlation_functions(pulse, S, omega,
-                                                        n_oper_identifiers)
+                                                        n_oper_identifiers,
+                                                        show_progressbar)
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
