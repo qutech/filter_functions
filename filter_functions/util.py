@@ -23,43 +23,43 @@ This module provides various helper functions.
 
 Functions
 ---------
-:meth:`abs2`
+:func:`abs2`
     Absolute value squared
-:meth:`get_indices_from_identifiers`
+:func:`get_indices_from_identifiers`
     The the indices of control or noise operators with given identifiers as
     they are saved in a ``PulseSequence``.
-:meth:`tensor`
+:func:`tensor`
     Fast, flexible tensor product of an arbitrary number of inputs using
-    :meth:`~numpy.einsum`
-:meth:`tensor_insert`
+    :func:`~numpy.einsum`
+:func:`tensor_insert`
     For an array that is known to be a tensor product, insert arrays at a given
     position in the product chain
-:meth:`tensor_merge`
+:func:`tensor_merge`
     For two arrays that are tensor products of known dimensions, merge them
     at arbitary positions in the product chain
-:meth:`tensor_transpose`
+:func:`tensor_transpose`
     For a tensor product, transpose the order of the constituents in the
     product chain
-:meth:`mdot`
+:func:`mdot`
     Multiple matrix product
-:meth:`remove_float_errors`
+:func:`remove_float_errors`
     Set entries whose absolute value is below a certain threshold to zero
-:meth:`oper_equiv`
+:func:`oper_equiv`
     Determine if two vectors or operators are equal up to a global phase
-:meth:`dot_HS`
+:func:`dot_HS`
     Hilbert-Schmidt inner product
-:meth:`get_sample_frequencies`
+:func:`get_sample_frequencies`
     Get frequencies with typical infrared and ultraviolet cutoffs for a
     ``PulseSequence``
-:meth:`symmetrize_spectrum`
+:func:`symmetrize_spectrum`
     Symmetrize a one-sided power spectrum as well as the frequencies associated
     with it to get a two-sided spectrum.
-:meth:`progressbar`
+:func:`progressbar`
     A progress bar for loops. Uses tqdm if available and a simple custom one if
     not.
-:meth:`hash_array_along_axis`
+:func:`hash_array_along_axis`
     Return a list of hashes along a given axis
-:meth:`all_array_equal`
+:func:`all_array_equal`
     Check if all arrays in an iterable are equal
 
 Exceptions
@@ -301,7 +301,7 @@ def tensor(*args, rank: int = 2,
         matrices ``rank == 2``. The remaining axes are broadcast over.
     optimize : bool|str, optional (default: False)
         Optimize the tensor contraction order. Passed through to
-        :meth:`numpy.einsum`.
+        :func:`numpy.einsum`.
 
     Examples
     --------
@@ -338,13 +338,13 @@ def tensor(*args, rank: int = 2,
 
     See Also
     --------
-    :meth:`numpy.kron`
+    :func:`numpy.kron`
 
-    :meth:`tensor_insert`
+    :func:`tensor_insert`
 
-    :meth:`tensor_merge`
+    :func:`tensor_merge`
 
-    :meth:`tensor_transpose`
+    :func:`tensor_transpose`
     """
     chars = string.ascii_letters
     # All the subscripts we need
@@ -393,7 +393,7 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
     .. math::
         A\otimes B\otimes\left[\bigotimes_{X\in\verb|args|}X\right]\otimes C.
 
-    This function works in a similar way to :meth:`numpy.insert` and the
+    This function works in a similar way to :func:`numpy.insert` and the
     following would be functionally equivalent in the case that the constituent
     tensors of the product *arr* are known:
 
@@ -430,7 +430,7 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
         remaining axes are broadcast over.
     optimize : bool|str, optional (default: False)
         Optimize the tensor contraction order. Passed through to
-        :meth:`numpy.einsum`.
+        :func:`numpy.einsum`.
 
 
     Examples
@@ -471,15 +471,15 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
 
     See Also
     --------
-    :meth:`tensor`
+    :func:`tensor`
 
-    :meth:`tensor_merge`
+    :func:`tensor_merge`
 
-    :meth:`tensor_transpose`
+    :func:`tensor_transpose`
 
-    :meth:`numpy.kron`
+    :func:`numpy.kron`
 
-    :meth:`numpy.insert`
+    :func:`numpy.insert`
     """
     if len(args) == 0:
         raise ValueError('Require nonzero number of args!')
@@ -574,8 +574,8 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
     .. math::
         A\otimes D\otimes B\otimes E\otimes C.
 
-    This function works in a similar way to :meth:`numpy.insert` and
-    :meth:`tensor_insert`.
+    This function works in a similar way to :func:`numpy.insert` and
+    :func:`tensor_insert`.
 
     Parameters
     ----------
@@ -608,7 +608,7 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
         remaining axes are broadcast over.
     optimize : bool|str, optional (default: False)
         Optimize the tensor contraction order. Passed through to
-        :meth:`numpy.einsum`.
+        :func:`numpy.einsum`.
 
     Examples
     --------
@@ -624,7 +624,7 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
     >>> np.allclose(r1, r2)
     True
 
-    :meth:`tensor_insert` can provide the same functionality in some cases:
+    :func:`tensor_insert` can provide the same functionality in some cases:
 
     >>> arr = tensor(Y, Z)
     >>> ins = tensor(I, X)
@@ -645,15 +645,15 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
 
     See Also
     --------
-    :meth:`tensor`
+    :func:`tensor`
 
-    :meth:`tensor_insert`
+    :func:`tensor_insert`
 
-    :meth:`tensor_transpose`
+    :func:`tensor_transpose`
 
-    :meth:`numpy.kron`
+    :func:`numpy.kron`
 
-    :meth:`numpy.insert`
+    :func:`numpy.insert`
     """
     # Parse dimension args
     for arg_name, arg_dims in zip(('arr', 'ins'), (arr_dims, ins_dims)):
@@ -748,13 +748,13 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
 
     See Also
     --------
-    :meth:`tensor`
+    :func:`tensor`
 
-    :meth:`tensor_insert`
+    :func:`tensor_insert`
 
-    :meth:`tensor_transpose`
+    :func:`tensor_transpose`
 
-    :meth:`numpy.kron`
+    :func:`numpy.kron`
     """
     _parse_dims_arg('arr', arr_dims, rank)
 
@@ -838,7 +838,7 @@ def oper_equiv(psi: Union[Operator, State],
         the function returns ``True`` if ``abs(1 - modulus) <= eps``.
     normalized : bool
         Flag indicating if *psi* and *phi* are normalized with respect to the
-        Hilbert-Schmidt inner product :meth:`dot_HS`.
+        Hilbert-Schmidt inner product :func:`dot_HS`.
 
     Examples
     --------

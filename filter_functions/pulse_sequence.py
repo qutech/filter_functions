@@ -29,13 +29,13 @@ Classes
 
 Functions
 ---------
-:meth:`concatenate`
+:func:`concatenate`
     Function to concatenate different ``PulseSequence`` instances and
     efficiently compute their joint filter function
-:meth:`concatenate_periodic`
+:func:`concatenate_periodic`
     Function to more efficiently concatenate many versions of the same
     ``PulseSequence`` instances and compute their joint filter function
-:meth:`extend`
+:func:`extend`
     Function to map several ``PulseSequence`` instances to different qubits,
     efficiently scaling up cached attributes.
 """
@@ -88,7 +88,7 @@ class PulseSequence:
     ----------
     H_c : list of lists
         A nested list of *n_cops* nested lists as taken by QuTiP functions
-        (see for example :meth:`~qutip.propagator`) describing the control
+        (see for example :func:`~qutip.propagator`) describing the control
         part of the Hamiltonian. The *i*-th entry of the list should be a
         list consisting of the *i*-th operator :math:`A_i` making up the
         control Hamiltonian and a list or array :math:`a_i(t)` describing the
@@ -107,7 +107,7 @@ class PulseSequence:
 
     H_n : list of lists
         A nested list of *n_nops* nested lists as taken by QuTiP functions
-        (see for example :meth:`~qutip.propagator`) describing the noise
+        (see for example :func:`~qutip.propagator`) describing the noise
         part of the Hamiltonian. The *j*-th entry of the list should be a
         list consisting of the *j*-th operator :math:`B_j` making up the noise
         Hamiltonian and a list or array describing the sensitivity
@@ -229,7 +229,7 @@ class PulseSequence:
 
     Notes
     -----
-    Due to the heavy use of NumPy's :meth:`~numpy.einsum` function, results
+    Due to the heavy use of NumPy's :func:`~numpy.einsum` function, results
     have a floating point error of ~1e-13.
     """
 
@@ -1276,9 +1276,9 @@ def concatenate_without_filter_function(
 
     See Also
     --------
-    :meth:`concatenate`
+    :func:`concatenate`
 
-    :meth:`concatenate_periodic`
+    :func:`concatenate_periodic`
     """
     pulses = tuple(pulses)
     try:
@@ -1527,7 +1527,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     Concatenate a pulse sequence *pulse* whose Hamiltonian is periodic
     *repeats* times. Although performing the same task, this function is much
     faster for concatenating many identical pulses with filter functions than
-    :meth:`~filter_functions.concatenate`.
+    :func:`concatenate`.
 
     Note that for large dimensions, the calculation of the control matrix using
     this function might be very memory intensive.
@@ -1566,7 +1566,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     See also
     --------
-    :meth:`~filter_functions.concatenate`
+    :func:`concatenate`
     """
 
     try:
@@ -1674,9 +1674,9 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
 
     See Also
     --------
-    :meth:`extend`
+    :func:`extend`
 
-    :meth:`util.tensor_transpose`
+    :func:`util.tensor_transpose`
     """
     # Number of qubits
     N = int(np.log(pulse.d)/np.log(d_per_qubit))
@@ -1859,7 +1859,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
     >>> XYX_pulse = ff.extend([(XX_pulse, (0, 2)), (Y_pulse, 1)])
 
     Additionally, pulses can have the order of the qubits they are defined for
-    permuted (see :meth:`remap`):
+    permuted (see :func:`remap`):
 
     >>> Z_pulse = ff.PulseSequence([[Z, [np.pi/2], 'Z']], [[Z, [1], 'Z']],
     ...                            [1], basis=ff.Basis.pauli(1))
@@ -1886,11 +1886,11 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
 
     See Also
     --------
-    :meth:`remap`
+    :func:`remap`
 
-    :meth:`concatenate`
+    :func:`concatenate`
 
-    :meth:`concatenate_periodic`
+    :func:`concatenate_periodic`
     """
     # Parse pulse_to_qubit_mapping
     active_qubits_list = []

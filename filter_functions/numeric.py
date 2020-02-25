@@ -24,23 +24,23 @@ functions.
 
 Functions
 ---------
-:meth:`diagonalize`
+:func:`diagonalize`
     Diagonalize a Hamiltonian
-:meth:`calculate_control_matrix_from_scratch`
+:func:`calculate_control_matrix_from_scratch`
     Calculate the control matrix from scratch
-:meth:`calculate_control_matrix_from_atomic`
+:func:`calculate_control_matrix_from_atomic`
     Calculate the control matrix from those of atomic pulse sequences
-:meth:`calculate_filter_function`
+:func:`calculate_filter_function`
     Calculate the filter function from the control matrix
-:meth:`calculate_pulse_correlation_filter_function`
+:func:`calculate_pulse_correlation_filter_function`
     Calculate the pulse correlation filter function from the control matrix
-:meth:`liouville_representation`
+:func:`liouville_representation`
     Calculate the Liouville representation of a unitary with respect to a basis
-:meth:`infidelity`
+:func:`infidelity`
     Function to compute the infidelity of a pulse defined by a
     ``PulseSequence`` instance for a given noise spectral density and
     frequencies
-:meth:`error_transfer_matrix`
+:func:`error_transfer_matrix`
     Calculate the error transfer matrix of a pulse up to a unitary
     rotation and second order in noise
 """
@@ -201,7 +201,7 @@ def calculate_control_matrix_from_scratch(
 
     See Also
     --------
-    :meth:`calculate_control_matrix_from_atomic`
+    :func:`calculate_control_matrix_from_atomic`
     """
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
@@ -372,9 +372,9 @@ def calculate_control_matrix_from_atomic(
 
     See Also
     --------
-    :meth:`calculate_control_matrix_from_scratch`
+    :func:`calculate_control_matrix_from_scratch`
 
-    :meth:`liouville_representation`
+    :func:`liouville_representation`
     """
     n = len(R_l)
     # Allocate memory
@@ -417,11 +417,11 @@ def calculate_filter_function(R: ndarray) -> ndarray:
 
     See Also
     --------
-    :meth:`calculate_control_matrix_from_scratch`
+    :func:`calculate_control_matrix_from_scratch`
 
-    :meth:`calculate_control_matrix_from_atomic`
+    :func:`calculate_control_matrix_from_atomic`
 
-    :meth:`calculate_pulse_correlation_filter_function`
+    :func:`calculate_pulse_correlation_filter_function`
     """
     return np.einsum('iko,jko->ijo', R.conj(), R)
 
@@ -457,11 +457,11 @@ def calculate_pulse_correlation_filter_function(R: ndarray) -> ndarray:
 
     See Also
     --------
-    :meth:`calculate_control_matrix_from_scratch`
+    :func:`calculate_control_matrix_from_scratch`
 
-    :meth:`calculate_control_matrix_from_atomic`
+    :func:`calculate_control_matrix_from_atomic`
 
-    :meth:`calculate_filter_function`
+    :func:`calculate_filter_function`
     """
     try:
         F_pc = np.einsum('gjko,hlko->ghjlo', R.conj(), R)
@@ -653,7 +653,7 @@ def infidelity(pulse: 'PulseSequence',
         infidelities for each noise operator are returned, in the latter all of
         the individual infidelity contributions including the pulse
         correlations (note that in this case no checks are performed if the
-        frequencies are compliant). See :meth:`~pulse_sequence.concatenate`
+        frequencies are compliant). See :func:`~pulse_sequence.concatenate`
         for more details.
     return_smallness : bool, optional
         Return the smallness parameter :math:`\xi` for the given spectrum.
@@ -954,9 +954,9 @@ def error_transfer_matrix(
 
     See Also
     --------
-    :meth:`calculate_error_vector_correlation_functions`
+    :func:`calculate_error_vector_correlation_functions`
 
-    :meth:`infidelity`
+    :func:`infidelity`
     """
     N, d = pulse.basis.shape[:2]
     u_kl = calculate_error_vector_correlation_functions(pulse, S, omega,
