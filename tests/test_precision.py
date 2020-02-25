@@ -31,6 +31,7 @@ import filter_functions as ff
 from filter_functions import analytic
 from filter_functions.numeric import (
     calculate_error_vector_correlation_functions,
+    calculate_filter_function,
     liouville_representation
 )
 from tests import testutil
@@ -255,13 +256,22 @@ class PrecisionTest(testutil.TestCase):
         omega = np.geomspace(1/T, 1e2, 125)
         for A, alpha, MC, rtol in zip(A, (0.0, 0.7), infid_MC, (0.1, 0.02)):
             S_t, omega_t = ff.util.symmetrize_spectrum(A/omega**alpha, omega)
+
+            # Project out diag(0, 1, 1, 1, 1, 0) to compare to fidelity of
+            # propagator mapped to closest unitary
+            cnot.cache_filter_function(omega_t, F=calculate_filter_function(
+                np.einsum('ajo,jk->ako', cnot.get_control_matrix(omega_t),
+                          np.diag([0, *[1]*15]))
+            ))
+
             infid, xi = ff.infidelity(cnot, S_t, omega_t, identifiers[:3],
                                       return_smallness=True)
             # infid scaled with d = 6, but we actually have d = 4
             infid *= 1.5
+
             U = ff.error_transfer_matrix(cnot_full, S_t, omega_t,
                                          identifiers[:3])
-            infid_P = np.trace(U[:, :16, :16], axis1=1, axis2=2).real/4**2
+            infid_P = np.trace(U[:, 1:16, 1:16], axis1=1, axis2=2).real/4**2
 
             self.assertLessEqual(np.abs(1 - (infid.sum()/MC)), rtol)
             self.assertLessEqual(np.abs(1 - (infid_P.sum()/MC)), rtol)
