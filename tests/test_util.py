@@ -455,12 +455,11 @@ class UtilTest(testutil.TestCase):
             result = util.oper_equiv(psi, psi+1)
             self.assertFalse(result[0])
 
-            # For some reason there is a huge error here of up to 1e-7
-            result = util.oper_equiv(U, U*np.exp(1j*phase), eps=1e-6)
+            result = util.oper_equiv(U, U*np.exp(1j*phase))
             self.assertTrue(result[0])
             self.assertAlmostEqual(result[1], phase, places=5)
 
-            result = util.oper_equiv(U*np.exp(1j*phase), U, eps=1e-6)
+            result = util.oper_equiv(U*np.exp(1j*phase), U)
             self.assertTrue(result[0])
             self.assertAlmostEqual(result[1], -phase, places=5)
 

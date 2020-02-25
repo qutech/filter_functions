@@ -30,11 +30,11 @@ Classes
 
 Functions
 ---------
-:meth:`normalize`
+:func:`normalize`
     Function to normalize a ``Basis`` instance
-:meth:`expand`
+:func:`expand`
     Function to expand an array of operators in a given basis
-:meth:`ggm_expand`
+:func:`ggm_expand`
     Fast function to expand an array of operators in a Generalized Gell-Mann
     basis
 
@@ -557,7 +557,7 @@ def normalize(b: Sequence) -> Basis:
         :math:`||A||_F = \left[\sum_{i,j} |a_{i,j}|^2\right]^{1/2}`
 
     or equivalently, with respect to the Hilbert-Schmidt inner product as
-    implemented by :meth:`~filter_functions.util.dot_HS`.
+    implemented by :func:`~filter_functions.util.dot_HS`.
 
     References
     ----------
@@ -603,7 +603,7 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
     For an orthogonal matrix basis :math:`\mathcal{C} = \big\{C_k\in
     \mathbb{C}^{d\times d}: \langle C_k,C_l\rangle_\mathrm{HS} \propto
     \delta_{kl}\big\}_{k=0}^{d^2-1}` with the Hilbert-Schmidt inner product as
-    implemented by :meth:`~filter_functions.util.dot_HS` and
+    implemented by :func:`~filter_functions.util.dot_HS` and
     :math:`M\in\mathbb{C}^{d\times d}`, the expansion of
     :math:`M` in terms of :math:`\mathcal{C}` is given by
 
