@@ -84,6 +84,8 @@ import numpy as np
 import qutip as qt
 from numpy import linalg, ndarray
 
+from .types import Operator, State
+
 try:
     import jupyter_client
     import requests
@@ -813,8 +815,8 @@ def remove_float_errors(arr: ndarray, eps_scale: float = None):
     return arr
 
 
-def oper_equiv(psi: Union[qt.Qobj, Sequence],
-               phi: Union[qt.Qobj, Sequence],
+def oper_equiv(psi: Union[Operator, State],
+               phi: Union[Operator, State],
                eps: float = None,
                normalized: bool = False) -> Tuple[bool, float]:
     r"""
@@ -857,22 +859,11 @@ def oper_equiv(psi: Union[qt.Qobj, Sequence],
             # normalization introduces more floating point error
             eps *= (np.prod(psi.shape)*phi.shape[-1]*2)**2
 
-    if psi.ndim - psi.shape.count(1) == 1:
-        # Vector
-        inner_product = (psi.T.conj() @ phi).squeeze()
-        if normalized:
-            norm = 1
-        else:
-            norm = (linalg.norm(psi)*linalg.norm(phi)).squeeze()
-    elif psi.ndim == 2:
-        inner_product = dot_HS(psi, phi, eps)
-        # Matrix
-        if normalized:
-            norm = 1
-        else:
-            norm = np.sqrt(dot_HS(psi, psi, eps)*dot_HS(phi, phi, eps))
+    inner_product = (psi.T.conj() @ phi).trace()
+    if normalized:
+        norm = 1
     else:
-        raise ValueError('Invalid dimension')
+        norm = linalg.norm(psi)*linalg.norm(phi)
 
     phase = np.angle(inner_product)
     modulus = abs(inner_product)
@@ -880,9 +871,7 @@ def oper_equiv(psi: Union[qt.Qobj, Sequence],
     return abs(norm - modulus) <= eps, phase
 
 
-def dot_HS(U: Union[ndarray, qt.Qobj],
-           V: Union[ndarray, qt.Qobj],
-           eps: float = None) -> float:
+def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
     r"""Return the Hilbert-Schmidt inner product of U and V,
 
     .. math::
