@@ -1,5 +1,8 @@
 version: 2
 
+build:
+  image: stable
+
 conda:
   environment: environment.yml
   
