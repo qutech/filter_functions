@@ -20,7 +20,7 @@ install:
 
   - conda env create -f ./environment.yml
   - source activate filter_functions
-  - pip install .[fancy_progressbar,doc]
+  - pip install .[fancy_progressbar,doc,tests]
 
 script:
   - "coverage run --rcfile=coverage.ini -m pytest"
