@@ -42,7 +42,7 @@ setup(name='filter_functions',
                   'jupyter_client', 'sphinx_rtd_theme']
       },
       test_suite='tests',
-      tests_require=['pytest'],
+      tests_require=['pytest', 'coverage', 'coveralls'],
       classifiers=[
           'Programming Language :: Python :: 3',
           'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
