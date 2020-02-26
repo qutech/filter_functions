@@ -19,7 +19,7 @@ install:
   - conda info -a
 
   - conda env create -f ./environment.yml
-  - source activate test-environment
+  - source activate filter_functions
   - pip install .[fancy_progressbar,doc]
 
 script:
