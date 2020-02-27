@@ -39,10 +39,10 @@ setup(name='filter_functions',
       extras_require={
           'fancy_progressbar': ['tqdm', 'requests'],
           'doc': ['ipython', 'ipykernel', 'nbsphinx', 'numpydoc', 'sphinx',
-                  'jupyter_client', 'sphinx_rtd_theme']
+                  'jupyter_client', 'sphinx_rtd_theme'],
+          'tests': ['pytest', 'coverage', 'coveralls'],
       },
       test_suite='tests',
-      tests_require=['pytest', 'coverage', 'coveralls'],
       classifiers=[
           'Programming Language :: Python :: 3',
           'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
