@@ -47,11 +47,13 @@ Functions
 from collections import deque
 from itertools import accumulate, repeat
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
+from warnings import warn
 
 import numpy as np
 from numpy import linalg, ndarray
 from opt_einsum import contract, contract_expression
 from scipy.integrate import trapz
+import sparse
 
 from .basis import Basis, ggm_expand
 from .plotting import plot_infidelity_convergence
@@ -788,8 +790,23 @@ def infidelity(pulse: 'PulseSequence',
         return n_samples, convergence_infids, (fig, ax)
 
     if which == 'total':
-        F = pulse.get_filter_function(omega)
+        if not pulse.basis.istraceless:
+            # Fidelity not simply sum of all error vector auto-correlation
+            # funcs <u_k u_k> but trace tensor plays a role, cf eq. (29). For
+            # traceless bases, the trace tensor term reduces to delta_ij.
+            T = pulse.basis.four_element_traces
+            Tp = (sparse.diagonal(T, 0, 2, 3).sum(-1) -
+                  sparse.diagonal(T, 0, 1, 3).sum(-1)).todense()
+
+            R = pulse.get_control_matrix(omega)
+            F = np.einsum('ako,blo,kl->abo', R.conj(), R, Tp)/pulse.d
+        else:
+            F = pulse.get_filter_function(omega)
     elif which == 'correlations':
+        if not pulse.basis.istraceless:
+            warn('Calculating pulse correlation fidelities with non-' +
+                 'traceless basis. The results will be off.')
+
         F = pulse.get_pulse_correlation_filter_function()
     else:
         raise ValueError("Unrecognized option for 'which': {}.".format(which))
