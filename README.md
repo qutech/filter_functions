@@ -1,11 +1,11 @@
-# `filter_functions`: A package for efficient numeric calculation of generalized filter functions
+# `filter_functions`: A package for efficient numerical calculation of generalized filter functions
 [![Coverage Status](https://coveralls.io/repos/github/qutech/filter_functions/badge.svg?branch=master)](https://coveralls.io/github/qutech/filter_functions?branch=master)
 [![Build Status](https://travis-ci.org/qutech/filter_functions.svg?branch=master)](https://travis-ci.org/qutech/filter_functions)
 [![Documentation Status](https://readthedocs.org/projects/filter-functions/badge/?version=latest)](https://filter-functions.readthedocs.io/en/latest/?badge=latest)
 
 Simply put, filter functions characterize a pulse's susceptibility to noise at a given frequency and can thus be used to gain insight into the decoherence of the system. The formalism allows for efficient calculation of several quantities of interest such as average gate fidelity. Moreover, the filter function of a composite pulse can be easily derived from those of the constituent pulses, allowing for efficient assembly and characterization of pulse sequences.
 
-Previously, filter functions have only been computed analytically for select pulses such as dynamical decoupling sequences [1], [2]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numeric pulse optimization algorithms. 
+Previously, filter functions have only been computed analytically for select pulses such as dynamical decoupling sequences [1], [2]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms. 
 
 The package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, and comes with extensive documentation and a test suite.
 

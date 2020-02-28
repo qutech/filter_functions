@@ -1,8 +1,16 @@
 version: 2
+
+build:
+  image: stable
+
 conda:
   environment: environment.yml
+  
 python:
-  version: 3
+  system_packages: true
   install:
     - method: pip
       path: .
+      extra_requirements:
+         - doc
+         - fancy_progressbar
