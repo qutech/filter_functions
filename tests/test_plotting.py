@@ -21,29 +21,28 @@
 """
 This module tests the plotting functionality of the package.
 """
-import string
-from random import sample
-
 import matplotlib
 # Needs to be executed before the pyplot import
 matplotlib.use('Agg')
+
+import string
+from random import sample
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 import qutip as qt
 from numpy.random import randint, randn
+from tests import testutil
 
 import filter_functions as ff
-from filter_functions.plotting import (get_bloch_vector,
-                                       get_states_from_prop,
+from filter_functions.plotting import (get_bloch_vector, get_states_from_prop,
                                        init_bloch_sphere,
                                        plot_bloch_vector_evolution,
+                                       plot_error_transfer_matrix,
                                        plot_filter_function,
                                        plot_pulse_correlation_filter_function,
-                                       plot_pulse_train,
-                                       plot_error_transfer_matrix)
-from tests import testutil
+                                       plot_pulse_train)
 
 simple_pulse = ff.PulseSequence(
     [[qt.sigmax(), [np.pi/2]]],

@@ -165,10 +165,10 @@ try:
 except ImportError:
     tqdm = None
 
-__all__ = ['abs2', 'tensor', 'tensor_insert', 'tensor_merge',
-           'tensor_transpose', 'mdot', 'remove_float_errors',
-           'oper_equiv', 'dot_HS', 'get_sample_frequencies', 'progressbar',
-           'P_qt', 'P_np', 'hash_array_along_axis', 'all_array_equal']
+__all__ = ['P_np', 'P_qt', 'abs2', 'all_array_equal', 'dot_HS',
+           'get_sample_frequencies', 'hash_array_along_axis', 'mdot',
+           'oper_equiv', 'progressbar', 'remove_float_errors', 'tensor',
+           'tensor_insert', 'tensor_merge', 'tensor_transpose']
 
 # Pauli matrices
 P_qt = [qt.qeye(2),

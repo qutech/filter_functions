@@ -24,9 +24,9 @@ This module tests the utility functions in util.py
 import numpy as np
 import qutip as qt
 from numpy.random import randint, randn, random
+from tests import testutil
 
 from filter_functions import PulseSequence, util
-from tests import testutil
 
 
 class UtilTest(testutil.TestCase):

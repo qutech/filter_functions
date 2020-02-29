@@ -54,9 +54,9 @@ from . import numeric, util
 from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes,
                     FigureAxesLegend, FigureGrid, Grid, Operator, State)
 
-__all__ = ['plot_pulse_train', 'plot_bloch_vector_evolution',
-           'plot_filter_function', 'plot_pulse_correlation_filter_function',
-           'plot_infidelity_convergence', 'plot_error_transfer_matrix']
+__all__ = ['plot_bloch_vector_evolution', 'plot_error_transfer_matrix',
+           'plot_filter_function', 'plot_infidelity_convergence',
+           'plot_pulse_correlation_filter_function', 'plot_pulse_train']
 
 
 def get_bloch_vector(states: Sequence[State]) -> ndarray:

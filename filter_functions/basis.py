@@ -53,7 +53,7 @@ from sparse import COO
 
 from .util import P_np, remove_float_errors, tensor
 
-__all__ = ['Basis', 'normalize', 'expand', 'ggm_expand']
+__all__ = ['Basis', 'expand', 'ggm_expand', 'normalize']
 
 
 class Basis(ndarray):

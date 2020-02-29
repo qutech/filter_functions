@@ -53,13 +53,11 @@ from qutip import Qobj
 
 from .basis import (Basis, equivalent_pauli_basis_elements,
                     remap_pauli_basis_elements)
-from .numeric import (calculate_control_matrix_from_atomic,
-                      calculate_control_matrix_from_scratch,
-                      calculate_control_matrix_periodic,
-                      calculate_filter_function,
-                      calculate_pulse_correlation_filter_function,
-                      diagonalize,
-                      liouville_representation)
+from .numeric import (
+    calculate_control_matrix_from_atomic,
+    calculate_control_matrix_from_scratch, calculate_control_matrix_periodic,
+    calculate_filter_function, calculate_pulse_correlation_filter_function,
+    diagonalize, liouville_representation)
 from .types import Coefficients, Hamiltonian, Operator, PulseMapping
 from .util import (CalculationError, all_array_equal, cexp,
                    get_indices_from_identifiers, hash_array_along_axis, mdot,

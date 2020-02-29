@@ -50,10 +50,10 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 from warnings import warn
 
 import numpy as np
+import sparse
 from numpy import linalg, ndarray
 from opt_einsum import contract, contract_expression
 from scipy.integrate import trapz
-import sparse
 
 from .basis import Basis, ggm_expand
 from .plotting import plot_infidelity_convergence
@@ -61,12 +61,11 @@ from .types import Coefficients, Operator
 from .util import (abs2, cexp, get_indices_from_identifiers, progressbar,
                    symmetrize_spectrum)
 
-__all__ = ['diagonalize', 'liouville_representation',
+__all__ = ['calculate_control_matrix_from_atomic',
            'calculate_control_matrix_from_scratch',
-           'calculate_control_matrix_from_atomic',
            'calculate_filter_function',
-           'calculate_pulse_correlation_filter_function',
-           'infidelity', 'error_transfer_matrix']
+           'calculate_pulse_correlation_filter_function', 'diagonalize',
+           'error_transfer_matrix', 'infidelity', 'liouville_representation']
 
 
 def diagonalize(H: ndarray, dt: Coefficients) -> Tuple[ndarray]:
