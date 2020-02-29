@@ -795,8 +795,8 @@ def infidelity(pulse: 'PulseSequence',
             # funcs <u_k u_k> but trace tensor plays a role, cf eq. (29). For
             # traceless bases, the trace tensor term reduces to delta_ij.
             T = pulse.basis.four_element_traces
-            Tp = (sparse.diagonal(T, 0, 2, 3).sum(-1) -
-                  sparse.diagonal(T, 0, 1, 3).sum(-1)).todense()
+            Tp = (sparse.diagonal(T, axis1=2, axis2=3).sum(-1) -
+                  sparse.diagonal(T, axis1=1, axis2=3).sum(-1)).todense()
 
             R = pulse.get_control_matrix(omega)
             F = np.einsum('ako,blo,kl->abo', R.conj(), R, Tp)/pulse.d
