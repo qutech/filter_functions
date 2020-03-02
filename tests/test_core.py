@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # =============================================================================
 #     filter_functions
 #     Copyright (C) 2019 Quantum Technology Group, RWTH Aachen University
@@ -26,17 +27,15 @@ from random import sample
 
 import numpy as np
 from numpy.random import choice, randint, randn
+from tests import testutil
 
 import filter_functions as ff
 from filter_functions.numeric import (
     calculate_control_matrix_from_atomic,
     calculate_control_matrix_from_scratch,
     calculate_error_vector_correlation_functions,
-    calculate_pulse_correlation_filter_function,
-    diagonalize,
-    liouville_representation
-)
-from tests import testutil
+    calculate_pulse_correlation_filter_function, diagonalize,
+    liouville_representation)
 
 
 class CoreTest(testutil.TestCase):
@@ -309,8 +308,7 @@ class CoreTest(testutil.TestCase):
         self.assertTrue(A != B)
 
         # different bases
-        elem = testutil.rand_herm(2)
-        elem -= np.eye(2)*np.trace(elem)/2
+        elem = testutil.rand_herm_traceless(2)
         B = ff.PulseSequence(
             list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
             list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
@@ -453,7 +451,7 @@ class CoreTest(testutil.TestCase):
         for d, n_dt in zip(randint(2, 10, (3,)), randint(10, 200, (3,))):
             c_opers = testutil.rand_herm(d, 4)
             c_coeffs = randn(4, n_dt)
-            n_opers = testutil.rand_herm(d, 6)
+            n_opers = testutil.rand_herm_traceless(d, 6)
             n_coeffs = randn(6, n_dt)
             dt = np.abs(randn(n_dt))
             total_pulse = ff.PulseSequence(list(zip(c_opers, c_coeffs)),
@@ -479,12 +477,12 @@ class CoreTest(testutil.TestCase):
                       for i in range(n_dt)]
 
             phases = np.empty((n_dt, len(omega)), dtype=complex)
-            L = np.empty((n_dt, d**2-1, d**2-1))
-            R_l = np.empty((n_dt, 6, d**2-1, len(omega)), dtype=complex)
+            L = np.empty((n_dt, d**2, d**2))
+            R_l = np.empty((n_dt, 6, d**2, len(omega)), dtype=complex)
             for l, pulse in enumerate(pulses):
                 phases[l] = np.exp(1j*total_pulse.t[l]*omega)
                 L[l] = liouville_representation(total_pulse.Q[l],
-                                                total_pulse.basis)[1:, 1:]
+                                                total_pulse.basis)
                 R_l[l] = pulse.get_control_matrix(omega)
 
             # Check that both methods of calculating the control are the same
@@ -502,7 +500,10 @@ class CoreTest(testutil.TestCase):
                 t=total_pulse.t
             )
             self.assertArrayAlmostEqual(R, R_from_scratch)
-            self.assertArrayAlmostEqual(R_from_scratch, R_from_atomic)
+            # first column (identity element) always zero but susceptible to
+            # floating point error, increase atol
+            self.assertArrayAlmostEqual(R_from_scratch, R_from_atomic,
+                                        atol=1e-13)
 
             # Check if the filter functions for autocorrelated noise are real
             F = total_pulse.get_filter_function(omega)

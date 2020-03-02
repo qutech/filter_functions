@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # =============================================================================
 #     filter_functions
 #     Copyright (C) 2019 Quantum Technology Group, RWTH Aachen University
@@ -23,9 +24,9 @@ This module tests the utility functions in util.py
 import numpy as np
 import qutip as qt
 from numpy.random import randint, randn, random
+from tests import testutil
 
 from filter_functions import PulseSequence, util
-from tests import testutil
 
 
 class UtilTest(testutil.TestCase):
@@ -33,6 +34,17 @@ class UtilTest(testutil.TestCase):
     def test_abs2(self):
         x = randn(20, 100) + 1j*randn(20, 100)
         self.assertArrayAlmostEqual(np.abs(x)**2, util.abs2(x))
+
+    def test_cexp(self):
+        """Fast complex exponential."""
+        x = randn(50, 100)
+        a = util.cexp(x)
+        b = np.exp(1j*x)
+        self.assertArrayAlmostEqual(a, b)
+
+        a = util.cexp(-x)
+        b = np.exp(-1j*x)
+        self.assertArrayAlmostEqual(a, b)
 
     def test_get_indices_from_identifiers(self):
         pulse = PulseSequence(
@@ -443,12 +455,11 @@ class UtilTest(testutil.TestCase):
             result = util.oper_equiv(psi, psi+1)
             self.assertFalse(result[0])
 
-            # For some reason there is a huge error here of up to 1e-7
-            result = util.oper_equiv(U, U*np.exp(1j*phase), eps=1e-6)
+            result = util.oper_equiv(U, U*np.exp(1j*phase))
             self.assertTrue(result[0])
             self.assertAlmostEqual(result[1], phase, places=5)
 
-            result = util.oper_equiv(U*np.exp(1j*phase), U, eps=1e-6)
+            result = util.oper_equiv(U*np.exp(1j*phase), U)
             self.assertTrue(result[0])
             self.assertAlmostEqual(result[1], -phase, places=5)
 

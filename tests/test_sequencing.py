@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # =============================================================================
 #     filter_functions
 #     Copyright (C) 2019 Quantum Technology Group, RWTH Aachen University
@@ -27,10 +28,10 @@ from random import sample
 
 import numpy as np
 from numpy.random import choice, randint, randn
+from tests import testutil
 
 import filter_functions as ff
 from filter_functions.util import P_np, get_sample_frequencies, tensor
-from tests import testutil
 
 
 class ConcatenationTest(testutil.TestCase):
@@ -314,7 +315,7 @@ class ConcatenationTest(testutil.TestCase):
     def test_different_n_opers(self):
         """Test behavior when concatenating with different n_opers"""
         for d, n_dt in zip(randint(2, 5, 20), randint(1, 11, 20)):
-            opers = testutil.rand_herm(d, 10)
+            opers = testutil.rand_herm_traceless(d, 10)
             letters = np.array(sample(list(string.ascii_letters), 10))
             n_idx = sample(range(10), randint(2, 5))
             c_idx = sample(range(10), randint(2, 5))

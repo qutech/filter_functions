@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # =============================================================================
 #     filter_functions
 #     Copyright (C) 2019 Quantum Technology Group, RWTH Aachen University
@@ -21,21 +22,21 @@
 
 from . import analytic, basis, numeric, plotting, pulse_sequence, util
 from .basis import Basis
-from .numeric import (infidelity, liouville_representation,
-                      error_transfer_matrix)
-from .plotting import (plot_bloch_vector_evolution, plot_filter_function,
-                       plot_pulse_correlation_filter_function,
-                       plot_pulse_train, plot_error_transfer_matrix)
+from .numeric import (error_transfer_matrix, infidelity,
+                      liouville_representation)
+from .plotting import (
+    plot_bloch_vector_evolution, plot_error_transfer_matrix,
+    plot_filter_function, plot_pulse_correlation_filter_function,
+    plot_pulse_train)
 from .pulse_sequence import (PulseSequence, concatenate, concatenate_periodic,
                              extend, remap)
 
-__all__ = ['PulseSequence', 'concatenate', 'extend', 'Basis', 'numeric',
-           'plot_filter_function', 'plot_bloch_vector_evolution',
-           'plot_pulse_train', 'util', 'plotting', 'analytic', 'basis',
-           'infidelity', 'plot_pulse_correlation_filter_function',
-           'concatenate_periodic', 'pulse_sequence', 'remap',
-           'error_transfer_matrix', 'plot_error_transfer_matrix',
-           'liouville_representation']
+__all__ = ['Basis', 'PulseSequence', 'analytic', 'basis', 'concatenate',
+           'concatenate_periodic', 'error_transfer_matrix', 'extend',
+           'infidelity', 'liouville_representation', 'numeric',
+           'plot_bloch_vector_evolution', 'plot_error_transfer_matrix',
+           'plot_filter_function', 'plot_pulse_correlation_filter_function',
+           'plot_pulse_train', 'plotting', 'pulse_sequence', 'remap', 'util']
 
 __version__ = '0.1.0'
 __license__ = 'GNU GPLv3+'

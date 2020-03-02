@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # =============================================================================
 #     filter_functions
 #     Copyright (C) 2019 Quantum Technology Group, RWTH Aachen University
@@ -31,17 +32,17 @@ agree for
 
 Functions
 ---------
-:meth:`FID`
+:func:`FID`
     Free Induction Decay / Ramsey pulse
-:meth:`SE`
+:func:`SE`
     Spin Echo
-:meth:`PDD`
+:func:`PDD`
     Periodic Dynamical Decoupling
-:meth:`CPMG`
+:func:`CPMG`
     Carr-Purcell-Meiboom-Gill Sequence
-:meth:`CDD`
+:func:`CDD`
     Concatenated Dynamical Decoupling
-:meth:`UDD`
+:func:`UDD`
     Uhrig Dynamical Decoupling
 
 References
