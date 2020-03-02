@@ -696,11 +696,12 @@ def infidelity(pulse: 'PulseSequence',
                 \,\mathrm{tr}\bigl(S(\omega)F(\omega)\bigr) +
                 \mathcal{O}\big(\xi^4\big)
 
-    with :math:`S_{jj'}(\omega)` the two-sided noise spectral density and
-    :math:`F_{jj'}(\omega)` the first-order filter function for noise
-    sources :math:`j,j'`. The noise spectrum may include correlated noise
-    sources, that is, its entry at (j,j') corresponds to the correlations
-    between sources :math:`j` and :math:`j'`.
+    with :math:`S_{\alpha\beta}(\omega)` the two-sided noise spectral density
+    and :math:`F_{\alpha\beta}(\omega)` the first-order filter function for
+    noise sources :math:`\alpha,\beta`. The noise spectrum may include
+    correlated noise sources, that is, its entry at :math:`(\alpha,\beta)`
+    corresponds to the correlations between sources :math:`\alpha` and
+    :math:`\beta`.
 
     To convert to the average gate infidelity, use the
     following relation given by Horodecki et al. [Hor99]_ and
@@ -956,10 +957,19 @@ def error_transfer_matrix(
         \mathcal{\tilde{U}}_{ij}^{(1)} = \begin{cases}
             \sum_{k\neq i}\bigl\langle u_{1,k}^2\bigr\rangle
                 &\mathrm{if\;} i = j, \\
-            -\langle u_{1, i} u_{1, j}\bigr\rangle
-                &\mathrm{if\;} i\neq j.
+            -\frac{1}{2}\left(\bigl\langle u_{1, i} u_{1, j}\bigr\rangle
+                              \bigl\langle u_{1, j} u_{1, i}\bigr\rangle\right)
+                &\mathrm{if\;} i\neq j, \\
+            \sum_{kl} i\epsilon_{kli}\bigl\langle u_{1, k} u_{1, l}\bigr\rangle
+                &\mathrm{if\;} j = 0, \\
+            0   &\mathrm{else.}
         \end{cases}
 
+    for :math:`i\in\{1,2,3\}` and :math:`\mathcal{\tilde{U}}_{0j}^{(1)} = 0`.
+    For purely auto-correlated noise where
+    (:math:`S_{\alpha\beta}=S_{\alpha\alpha}\delta_{\alpha\beta}`) we
+    additionally have :math:`\mathcal{\tilde{U}}_{i0}^{(1)} = 0` and
+    :math:`\langle u_{1, i} u_{1, j}\rangle=\langle u_{1, j} u_{1, i}\rangle`.
     Given the above expression of the error transfer matrix, the entanglement
     infidelity is given by
 
