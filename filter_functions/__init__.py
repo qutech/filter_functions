@@ -38,6 +38,6 @@ __all__ = ['Basis', 'PulseSequence', 'analytic', 'basis', 'concatenate',
            'plot_filter_function', 'plot_pulse_correlation_filter_function',
            'plot_pulse_train', 'plotting', 'pulse_sequence', 'remap', 'util']
 
-__version__ = '0.1.0'
+__version__ = '0.2.2'
 __license__ = 'GNU GPLv3+'
 __author__ = 'Quantum Technology Group, RWTH Aachen University'
