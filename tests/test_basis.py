@@ -25,10 +25,10 @@ This module tests the operator basis module.
 from itertools import product
 
 import numpy as np
-
-import filter_functions as ff
 from sparse import COO
 from tests import testutil
+
+import filter_functions as ff
 
 
 class BasisTest(testutil.TestCase):

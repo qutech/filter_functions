@@ -28,10 +28,10 @@ from random import sample
 
 import numpy as np
 from numpy.random import choice, randint, randn
+from tests import testutil
 
 import filter_functions as ff
 from filter_functions.util import P_np, get_sample_frequencies, tensor
-from tests import testutil
 
 
 class ConcatenationTest(testutil.TestCase):

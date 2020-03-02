@@ -97,17 +97,17 @@ T = 20
 H_n = {}
 H_c = {}
 dt = {}
-H_c['Id'] = [[qt.sigmax().full(), [0]]]
-H_n['Id'] = [[qt.sigmax().full(), [1]],
-             [qt.sigmay().full(), [1]]]
+H_c['Id'] = [[qt.sigmax().full(), [0], 'X']]
+H_n['Id'] = [[qt.sigmax().full(), [1], 'X'],
+             [qt.sigmay().full(), [1], 'Y']]
 dt['Id'] = [T]
-H_c['X2'] = [[qt.sigmax().full(), [np.pi/4/T]]]
-H_n['X2'] = [[qt.sigmax().full(), [1]],
-             [qt.sigmay().full(), [1]]]
+H_c['X2'] = [[qt.sigmax().full(), [np.pi/4/T], 'X']]
+H_n['X2'] = [[qt.sigmax().full(), [1], 'X'],
+             [qt.sigmay().full(), [1], 'Y']]
 dt['X2'] = [T]
-H_c['Y2'] = [[qt.sigmay().full(), [np.pi/4/T]]]
-H_n['Y2'] = [[qt.sigmax().full(), [1]],
-             [qt.sigmay().full(), [1]]]
+H_c['Y2'] = [[qt.sigmay().full(), [np.pi/4/T], 'Y']]
+H_n['Y2'] = [[qt.sigmax().full(), [1], 'X'],
+             [qt.sigmay().full(), [1], 'Y']]
 dt['Y2'] = [T]
 
 # %% Set up PulseSequences
@@ -169,7 +169,7 @@ eps0 = 2.7241e-4
 # Scaling factor for the noise so that alpha = 0 and alpha = 0.7 have the same
 # power
 noise_scaling_factor = {
-    0.0: 0.39651222009884685,
+    0.0: 0.4415924985735799,
     0.7: 1
 }
 
@@ -200,16 +200,16 @@ fidelities = {alpha: 1 - infid for alpha, infid in state_infidelities.items()}
 for i, alpha in enumerate((0.0, 0.7)):
 
     means = np.mean(fidelities[alpha], axis=1)
-    errs = np.std(fidelities[alpha], axis=1)/np.sqrt(N_G)
+    stds = np.std(fidelities[alpha], axis=1)
 
-    popt, pcov = optimize.curve_fit(fitfun, lengths, means, [0, 1], errs,
+    popt, pcov = optimize.curve_fit(fitfun, lengths, means, [0, 1], stds,
                                     absolute_sigma=True)
 
     for j in range(N_G):
         fid = ax[i].plot(lengths, fidelities[alpha][:, j], 'k.', alpha=0.1,
                          zorder=2)
 
-    mean = ax[i].errorbar(lengths, means, errs, fmt='.', zorder=3,
+    mean = ax[i].errorbar(lengths, means, stds, fmt='.', zorder=3,
                           color='tab:red')
     fit = ax[i].plot(lengths, fitfun(lengths, *popt), '--', zorder=4,
                      color='tab:red')

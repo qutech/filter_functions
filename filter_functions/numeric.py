@@ -24,31 +24,33 @@ functions.
 
 Functions
 ---------
-:meth:`diagonalize`
+:func:`diagonalize`
     Diagonalize a Hamiltonian
-:meth:`calculate_control_matrix_from_scratch`
+:func:`calculate_control_matrix_from_scratch`
     Calculate the control matrix from scratch
-:meth:`calculate_control_matrix_from_atomic`
+:func:`calculate_control_matrix_from_atomic`
     Calculate the control matrix from those of atomic pulse sequences
-:meth:`calculate_filter_function`
+:func:`calculate_filter_function`
     Calculate the filter function from the control matrix
-:meth:`calculate_pulse_correlation_filter_function`
+:func:`calculate_pulse_correlation_filter_function`
     Calculate the pulse correlation filter function from the control matrix
-:meth:`liouville_representation`
+:func:`liouville_representation`
     Calculate the Liouville representation of a unitary with respect to a basis
-:meth:`infidelity`
+:func:`infidelity`
     Function to compute the infidelity of a pulse defined by a
     ``PulseSequence`` instance for a given noise spectral density and
     frequencies
-:meth:`error_transfer_matrix`
+:func:`error_transfer_matrix`
     Calculate the error transfer matrix of a pulse up to a unitary
     rotation and second order in noise
 """
 from collections import deque
 from itertools import accumulate, repeat
-from typing import Any, Callable, Dict, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
+from warnings import warn
 
 import numpy as np
+import sparse
 from numpy import linalg, ndarray
 from opt_einsum import contract, contract_expression
 from scipy.integrate import trapz
@@ -59,15 +61,14 @@ from .types import Coefficients, Operator
 from .util import (abs2, cexp, get_indices_from_identifiers, progressbar,
                    symmetrize_spectrum)
 
-__all__ = ['diagonalize', 'liouville_representation',
+__all__ = ['calculate_control_matrix_from_atomic',
            'calculate_control_matrix_from_scratch',
-           'calculate_control_matrix_from_atomic',
            'calculate_filter_function',
-           'calculate_pulse_correlation_filter_function',
-           'infidelity', 'error_transfer_matrix']
+           'calculate_pulse_correlation_filter_function', 'diagonalize',
+           'error_transfer_matrix', 'infidelity', 'liouville_representation']
 
 
-def diagonalize(H: ndarray, dt: Coefficients) -> Sequence[ndarray]:
+def diagonalize(H: ndarray, dt: Coefficients) -> Tuple[ndarray]:
     r"""
     Diagonalize the Hamiltonian *H* which is piecewise constant during the
     times given by *dt* and return eigenvalues, eigenvectors, and the
@@ -130,7 +131,7 @@ def calculate_control_matrix_from_scratch(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         t: Optional[Coefficients] = None,
-        show_progressbar: bool = False) -> Union[ndarray]:
+        show_progressbar: Optional[bool] = False) -> ndarray:
     r"""
     Calculate the control matrix from scratch, i.e. without knowledge of the
     control matrices of more atomic pulse sequences.
@@ -201,7 +202,7 @@ def calculate_control_matrix_from_scratch(
 
     See Also
     --------
-    :meth:`calculate_control_matrix_from_atomic`
+    :func:`calculate_control_matrix_from_atomic`
     """
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
@@ -372,9 +373,9 @@ def calculate_control_matrix_from_atomic(
 
     See Also
     --------
-    :meth:`calculate_control_matrix_from_scratch`
+    :func:`calculate_control_matrix_from_scratch`
 
-    :meth:`liouville_representation`
+    :func:`liouville_representation`
     """
     n = len(R_l)
     # Allocate memory
@@ -417,11 +418,11 @@ def calculate_filter_function(R: ndarray) -> ndarray:
 
     See Also
     --------
-    :meth:`calculate_control_matrix_from_scratch`
+    :func:`calculate_control_matrix_from_scratch`
 
-    :meth:`calculate_control_matrix_from_atomic`
+    :func:`calculate_control_matrix_from_atomic`
 
-    :meth:`calculate_pulse_correlation_filter_function`
+    :func:`calculate_pulse_correlation_filter_function`
     """
     return np.einsum('iko,jko->ijo', R.conj(), R)
 
@@ -457,11 +458,11 @@ def calculate_pulse_correlation_filter_function(R: ndarray) -> ndarray:
 
     See Also
     --------
-    :meth:`calculate_control_matrix_from_scratch`
+    :func:`calculate_control_matrix_from_scratch`
 
-    :meth:`calculate_control_matrix_from_atomic`
+    :func:`calculate_control_matrix_from_atomic`
 
-    :meth:`calculate_filter_function`
+    :func:`calculate_filter_function`
     """
     try:
         F_pc = np.einsum('gjko,hlko->ghjlo', R.conj(), R)
@@ -475,7 +476,8 @@ def calculate_error_vector_correlation_functions(
         pulse: 'PulseSequence',
         S: ndarray,
         omega: Coefficients,
-        n_oper_identifiers: Optional[Sequence[str]] = None) -> ndarray:
+        n_oper_identifiers: Optional[Sequence[str]] = None,
+        show_progressbar: Optional[bool] = False) -> ndarray:
     r"""
     Get the error vector correlation functions
     :math:`\langle u_{1,k} u_{1, l}\rangle_{\alpha\beta}` for noise sources
@@ -495,6 +497,8 @@ def calculate_error_vector_correlation_functions(
     n_oper_identifiers : array_like, optional
         The identifiers of the noise operators for which to calculate the error
         vector correlation functions. The default is all.
+    show_progressbar : bool, optional
+        Show a progress bar for the calculation of the control matrix.
 
     Raises
     ------
@@ -520,7 +524,7 @@ def calculate_error_vector_correlation_functions(
     # TODO: Implement for correlation FFs? Replace infidelity() by this?
     # Noise operator indices
     idx = get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
-    R = pulse.get_control_matrix(omega)[idx]
+    R = pulse.get_control_matrix(omega, show_progressbar)[idx]
     S = np.asarray(S)
     S_err_str = 'S should be of shape {}, not {}.'
     if S.ndim == 1:
@@ -650,7 +654,7 @@ def infidelity(pulse: 'PulseSequence',
         infidelities for each noise operator are returned, in the latter all of
         the individual infidelity contributions including the pulse
         correlations (note that in this case no checks are performed if the
-        frequencies are compliant). See :meth:`~pulse_sequence.concatenate`
+        frequencies are compliant). See :func:`~pulse_sequence.concatenate`
         for more details.
     return_smallness : bool, optional
         Return the smallness parameter :math:`\xi` for the given spectrum.
@@ -785,8 +789,23 @@ def infidelity(pulse: 'PulseSequence',
         return n_samples, convergence_infids, (fig, ax)
 
     if which == 'total':
-        F = pulse.get_filter_function(omega)
+        if not pulse.basis.istraceless:
+            # Fidelity not simply sum of all error vector auto-correlation
+            # funcs <u_k u_k> but trace tensor plays a role, cf eq. (29). For
+            # traceless bases, the trace tensor term reduces to delta_ij.
+            T = pulse.basis.four_element_traces
+            Tp = (sparse.diagonal(T, axis1=2, axis2=3).sum(-1) -
+                  sparse.diagonal(T, axis1=1, axis2=3).sum(-1)).todense()
+
+            R = pulse.get_control_matrix(omega)
+            F = np.einsum('ako,blo,kl->abo', R.conj(), R, Tp)/pulse.d
+        else:
+            F = pulse.get_filter_function(omega)
     elif which == 'correlations':
+        if not pulse.basis.istraceless:
+            warn('Calculating pulse correlation fidelities with non-' +
+                 'traceless basis. The results will be off.')
+
         F = pulse.get_pulse_correlation_filter_function()
     else:
         raise ValueError("Unrecognized option for 'which': {}.".format(which))
@@ -840,7 +859,8 @@ def error_transfer_matrix(
         pulse: 'PulseSequence',
         S: ndarray,
         omega: Coefficients,
-        n_oper_identifiers: Optional[Sequence[str]] = None) -> ndarray:
+        n_oper_identifiers: Optional[Sequence[str]] = None,
+        show_progressbar: Optional[bool] = False) -> ndarray:
     r"""
     Compute the first correction to the error transfer matrix up to unitary
     rotations and second order in noise.
@@ -867,6 +887,8 @@ def error_transfer_matrix(
     n_oper_identifiers : array_like, optional
         The identifiers of the noise operators for which to evaluate the
         error transfer matrix. The default is all.
+    show_progressbar : bool, optional
+        Show a progress bar for the calculation of the control matrix.
 
     Returns
     -------
@@ -948,13 +970,14 @@ def error_transfer_matrix(
 
     See Also
     --------
-    :meth:`calculate_error_vector_correlation_functions`
+    :func:`calculate_error_vector_correlation_functions`
 
-    :meth:`infidelity`
+    :func:`infidelity`
     """
     N, d = pulse.basis.shape[:2]
     u_kl = calculate_error_vector_correlation_functions(pulse, S, omega,
-                                                        n_oper_identifiers)
+                                                        n_oper_identifiers,
+                                                        show_progressbar)
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression

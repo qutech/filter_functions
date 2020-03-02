@@ -23,19 +23,19 @@ This module provides various plotting functions.
 
 Functions
 ---------
-:meth:`plot_bloch_vector_evolution`
+:func:`plot_bloch_vector_evolution`
     Plot the evolution of the Bloch vector on a QuTiP-generated Bloch sphere
-:meth:`plot_filter_function`
+:func:`plot_filter_function`
     Plot the filter function of a given ``PulseSequence``
-:meth:`plot_infidelity_convergence`
+:func:`plot_infidelity_convergence`
     Helper function called by
-    :meth:`~filter_functions.pulse_sequence.infidelity` to plot the convergence
+    :func:`~filter_functions.pulse_sequence.infidelity` to plot the convergence
     of the infidelity
-:meth:`plot_pulse_correlation_filter_function`
+:func:`plot_pulse_correlation_filter_function`
     Plot the pulse correlation filter function of a given ``PulseSequence``
-:meth:`plot_pulse_train`
+:func:`plot_pulse_train`
     Plot the pulse train of a given ``PulseSequence``
-:meth:`plot_error_transfer_matrix`
+:func:`plot_error_transfer_matrix`
     Plot the error transfer matrix of a ``PulseSequence`` for a given spectrum
     as an image.
 
@@ -54,9 +54,9 @@ from . import numeric, util
 from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes,
                     FigureAxesLegend, FigureGrid, Grid, Operator, State)
 
-__all__ = ['plot_pulse_train', 'plot_bloch_vector_evolution',
-           'plot_filter_function', 'plot_pulse_correlation_filter_function',
-           'plot_infidelity_convergence', 'plot_error_transfer_matrix']
+__all__ = ['plot_bloch_vector_evolution', 'plot_error_transfer_matrix',
+           'plot_filter_function', 'plot_infidelity_convergence',
+           'plot_pulse_correlation_filter_function', 'plot_pulse_train']
 
 
 def get_bloch_vector(states: Sequence[State]) -> ndarray:
@@ -234,7 +234,7 @@ def plot_pulse_train(pulse: 'PulseSequence',
         Dictionary with keyword arguments passed to the gridspec constructor
     figure_kw : optional
         Keyword argument dictionaries that are fed into the
-        :meth:`matplotlib.pyplot.subplots` function if no *fig* instance is
+        :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
         specified.
 
     Returns
@@ -328,7 +328,7 @@ def plot_filter_function(pulse: 'PulseSequence',
         Dictionary with keyword arguments passed to the gridspec constructor
     figure_kw : optional
         Keyword argument dictionaries that are fed into the
-        :meth:`matplotlib.pyplot.subplots` function if no *fig* instance is
+        :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
         specified.
 
     Returns
@@ -444,7 +444,7 @@ def plot_pulse_correlation_filter_function(
         Dictionary with keyword arguments passed to the gridspec constructor
     figure_kw : optional
         Keyword argument dictionaries that are fed into the
-        :meth:`matplotlib.pyplot.subplots` function if no *fig* instance is
+        :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
         specified.
 
     Returns
@@ -542,7 +542,7 @@ def plot_infidelity_convergence(n_samples: Sequence[int],
                                 infids: Sequence[float]) -> FigureAxes:
     """
     Plot the convergence of the infidelity integral. The function arguments are
-    those returned by :meth:`filter_functions.infidelity` with the
+    those returned by :func:`~filter_functions.numeric.infidelity` with the
     *test_convergence* flag set to ``True``.
 
     Parameters
@@ -643,7 +643,7 @@ def plot_error_transfer_matrix(
         Dictionary with keyword arguments passed to imshow.
     figure_kw : optional
         Keyword argument dictionaries that are fed into the
-        :meth:`matplotlib.pyplot.figure` function if no *fig* instance is
+        :func:`matplotlib.pyplot.figure` function if no *fig* instance is
         specified.
 
     Returns
@@ -658,8 +658,11 @@ def plot_error_transfer_matrix(
             U = np.array([U])
         n_oper_inds = np.arange(len(U))
         if n_oper_identifiers is None:
-            n_oper_identifiers = ['$B_{}$'.format(i)
-                                  for i in range(len(n_oper_inds))]
+            if pulse is not None and len(pulse.n_oper_identifiers) == len(U):
+                n_oper_identifiers = pulse.n_oper_identifiers
+            else:
+                n_oper_identifiers = ['$B_{}$'.format(i)
+                                      for i in range(len(n_oper_inds))]
         btype = ''
     else:
         if pulse is None or S is None or omega is None:

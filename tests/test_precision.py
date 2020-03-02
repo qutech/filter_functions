@@ -25,15 +25,12 @@ This module tests if the package produces the correct results numerically.
 import numpy as np
 import qutip as qt
 from numpy.random import randint, randn
-from opt_einsum import contract
+from tests import testutil
 
 import filter_functions as ff
 from filter_functions import analytic
 from filter_functions.numeric import (
-    calculate_error_vector_correlation_functions,
-    liouville_representation
-)
-from tests import testutil
+    calculate_error_vector_correlation_functions, liouville_representation)
 
 
 class PrecisionTest(testutil.TestCase):
@@ -251,18 +248,26 @@ class PrecisionTest(testutil.TestCase):
         cnot = ff.PulseSequence(H_c, H_n, dt, basis=qubit_subspace_basis)
         cnot_full = ff.PulseSequence(H_c, H_n, dt, basis=complete_basis)
 
+        # Manually set dimension of pulse as the dimension of the computational
+        # subspace
+        cnot.d = 4
         T = dt.sum()
-        omega = np.geomspace(1/T, 1e2, 125)
-        for A, alpha, MC, rtol in zip(A, (0.0, 0.7), infid_MC, (0.1, 0.02)):
+
+        for f_min, A, alpha, MC, rtol in zip((1/T, 1e-2/T), A, (0.0, 0.7),
+                                             infid_MC, (0.04, 0.02)):
+
+            omega = np.geomspace(f_min, 1e2, 250)*2*np.pi
             S_t, omega_t = ff.util.symmetrize_spectrum(A/omega**alpha, omega)
+
             infid, xi = ff.infidelity(cnot, S_t, omega_t, identifiers[:3],
                                       return_smallness=True)
-            # infid scaled with d = 6, but we actually have d = 4
-            infid *= 1.5
+
             U = ff.error_transfer_matrix(cnot_full, S_t, omega_t,
                                          identifiers[:3])
             infid_P = np.trace(U[:, :16, :16], axis1=1, axis2=2).real/4**2
 
+            print(np.abs(1 - (infid.sum()/MC)))
+            print(np.abs(1 - (infid_P.sum()/MC)))
             self.assertLessEqual(np.abs(1 - (infid.sum()/MC)), rtol)
             self.assertLessEqual(np.abs(1 - (infid_P.sum()/MC)), rtol)
             self.assertLessEqual(infid.sum(), xi**2/4)
