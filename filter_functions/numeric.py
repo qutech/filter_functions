@@ -525,7 +525,7 @@ def calculate_error_vector_correlation_functions(
     # Noise operator indices
     idx = get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
     R = pulse.get_control_matrix(omega, show_progressbar)[idx]
-    S = np.asarray(S)
+    S = np.asarray(S).squeeze()
     S_err_str = 'S should be of shape {}, not {}.'
     if S.ndim == 1:
         # Only single spectrum
@@ -811,7 +811,7 @@ def infidelity(pulse: 'PulseSequence',
     else:
         raise ValueError("Unrecognized option for 'which': {}.".format(which))
 
-    S = np.asarray(S)
+    S = np.asarray(S).squeeze()
     S_err_str = 'S should be of shape {}, not {}.'
     if S.ndim == 1:
         # Only single spectrum
