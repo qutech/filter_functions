@@ -472,6 +472,50 @@ def calculate_pulse_correlation_filter_function(R: ndarray) -> ndarray:
     return F_pc
 
 
+def _get_integrand(S: ndarray, omega: Coefficients, idx: ndarray,
+                   R: Optional[ndarray] = None,
+                   F: Optional[ndarray] = None) -> ndarray:
+    """"""
+    S = np.asarray(S)
+    S_err_str = 'S should be of shape {}, not {}.'
+    if S.ndim == 1:
+        # Only single spectrum
+        shape = (len(omega),)
+        if S.shape != shape:
+            raise ValueError(S_err_str.format(shape, S.shape))
+
+        # S is real, integrand therefore also
+        if F is not None:
+            integrand = (F*S).real
+        elif R is not None:
+            integrand = np.einsum('jko,jlo->jklo', R.conj(), S*R).real
+    elif S.ndim == 2:
+        # S is diagonal (no correlation between noise sources)
+        shape = (len(idx), len(omega))
+        if S.shape != shape:
+            raise ValueError(S_err_str.format(shape, S.shape))
+
+        # S is real, integrand therefore also
+        if F is not None:
+            integrand = (F*S).real
+        elif R is not None:
+            integrand = np.einsum('jko,jo,jlo->jklo', R.conj(), S, R).real
+    elif S.ndim == 3:
+        # General case where S is a matrix with correlation spectra on off-diag
+        shape = (len(idx), len(idx), len(omega))
+        if S.shape != shape:
+            raise ValueError(S_err_str.format(shape, S.shape))
+
+        if F is not None:
+            integrand = F*S
+        elif R is not None:
+            integrand = np.einsum('iko,ijo,jlo->ijklo', R.conj(), S, R)
+    elif S.ndim > 3:
+        raise ValueError('Expected S to be array_like with < 4 dimensions')
+
+    return integrand
+
+
 def calculate_error_vector_correlation_functions(
         pulse: 'PulseSequence',
         S: ndarray,
@@ -525,33 +569,7 @@ def calculate_error_vector_correlation_functions(
     # Noise operator indices
     idx = get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
     R = pulse.get_control_matrix(omega, show_progressbar)[idx]
-    S = np.asarray(S)
-    S_err_str = 'S should be of shape {}, not {}.'
-    if S.ndim == 1:
-        # Only single spectrum
-        shape = (len(omega),)
-        if S.shape != shape:
-            raise ValueError(S_err_str.format(shape, S.shape))
-
-        # S is real, integrand therefore also
-        integrand = np.einsum('jko,jlo->jklo', R.conj(), S*R).real
-    elif S.ndim == 2:
-        # S is diagonal (no correlation between noise sources)
-        shape = (len(idx), len(omega))
-        if S.shape != shape:
-            raise ValueError(S_err_str.format(shape, S.shape))
-
-        # S is real, integrand therefore also
-        integrand = np.einsum('jko,jo,jlo->jklo', R.conj(), S, R).real
-    elif S.ndim == 3:
-        # General case where S is a matrix with correlation spectra on off-diag
-        shape = (len(idx), len(idx), len(omega))
-        if S.shape != shape:
-            raise ValueError(S_err_str.format(shape, S.shape))
-
-        integrand = np.einsum('iko,ijo,jlo->ijklo', R.conj(), S, R)
-    elif S.ndim > 3:
-        raise ValueError('Expected S to be array_like with < 4 dimensions')
+    integrand = _get_integrand(S, omega, idx, R=R)
 
     u_kl = trapz(integrand, omega, axis=-1)/(2*np.pi)
 
@@ -812,32 +830,15 @@ def infidelity(pulse: 'PulseSequence',
         raise ValueError("Unrecognized option for 'which': {}.".format(which))
 
     S = np.asarray(S)
-    S_err_str = 'S should be of shape {}, not {}.'
-    if S.ndim == 1:
-        # Only single spectrum
-        shape = (len(omega),)
-        if S.shape != shape:
-            raise ValueError(S_err_str.format(shape, S.shape))
+    slices = [slice(None)]*F.ndim
+    if S.ndim == 3:
+        slices[-3] = idx[:, None]
+        slices[-2] = idx[None, :]
+    else:
+        slices[-3] = idx
+        slices[-2] = idx
 
-        # S is real, integrand therefore also
-        integrand = (F[..., idx, idx, :]*S).real
-    elif S.ndim == 2:
-        # S is diagonal (no correlation between noise sources)
-        shape = (len(idx), len(omega))
-        if S.shape != shape:
-            raise ValueError(S_err_str.format(shape, S.shape))
-
-        # S is real, integrand therefore also
-        integrand = (F[..., idx, idx, :]*S).real
-    elif S.ndim == 3:
-        # General case where S is a matrix with correlation spectra on off-diag
-        shape = (len(idx), len(idx), len(omega))
-        if S.shape != shape:
-            raise ValueError(S_err_str.format(shape, S.shape))
-
-        integrand = F[..., idx, :, :][..., idx, :]*S
-    elif S.ndim > 3:
-        raise ValueError('Expected S to be array_like with < 4 dimensions')
+    integrand = _get_integrand(S, omega, idx, F=F[tuple(slices)])
 
     infid = trapz(integrand, omega)/(2*np.pi*pulse.d)
 
