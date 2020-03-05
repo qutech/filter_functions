@@ -546,6 +546,12 @@ class UtilTest(testutil.TestCase):
         self.assertArrayEqual(S_symmetrized[99::-1], S_symmetrized[100:])
         self.assertArrayEqual(S_symmetrized[100:]*2, 1/asym_omega**0.7)
 
+        # zero frequency not doubled
+        omega = np.arange(10)
+        S_sym, omega_sym = util.symmetrize_spectrum(omega, omega)
+        self.assertArrayEqual(S_sym, np.abs(np.arange(-9, 10)/2))
+        self.assertArrayEqual(omega_sym, np.arange(-9, 10))
+
     def test_simple_progressbar(self):
         with self.assertRaises(TypeError):
             for i in util._simple_progressbar((i for i in range(10))):

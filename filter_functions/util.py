@@ -1000,7 +1000,7 @@ def symmetrize_spectrum(S: ndarray, omega: ndarray) -> Tuple[ndarray, ndarray]:
     S : ndarray, shape (..., n_omega)
         The one-sided power spectrum.
     omega : ndarray, shape (n_omega,)
-        The positive frequencies.
+        The positive and strictly increasing frequencies.
 
     Returns
     -------
@@ -1014,8 +1014,14 @@ def symmetrize_spectrum(S: ndarray, omega: ndarray) -> Tuple[ndarray, ndarray]:
     The two-sided power spectral density is in the symmetric case given by
     :math:`S^{(1)}(\omega) = 2S^{(2)}(\omega)`.
     """
-    omega = np.concatenate((-omega[::-1], omega))
-    S = np.concatenate((S[..., ::-1], S), axis=-1)/2
+    # Catch zero frequency component
+    if omega[0] == 0:
+        ix = 1
+    else:
+        ix = 0
+
+    omega = np.concatenate((-omega[::-1], omega[ix:]))
+    S = np.concatenate((S[..., ::-1], S[ix:]), axis=-1)/2
     return S, omega
 
 
