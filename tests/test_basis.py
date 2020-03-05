@@ -111,10 +111,14 @@ class BasisTest(testutil.TestCase):
 
             if base.d < 8:
                 # Test very resource intense
+                ref = np.einsum('iab,jbc,kcd,lda', *(base,)*4)
                 self.assertArrayAlmostEqual(base.four_element_traces.todense(),
-                                            np.einsum('iab,jbc,kcd,lda',
-                                                      *(base,)*4),
-                                            atol=1e-16)
+                                            ref, atol=1e-16)
+
+                # Test setter
+                base._four_element_traces = None
+                base.four_element_traces = ref
+                self.assertArrayEqual(base.four_element_traces, ref)
 
             base._print_checks()
 
