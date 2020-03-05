@@ -376,6 +376,10 @@ class PrecisionTest(testutil.TestCase):
             ff.infidelity(pulse, spectra[4](S0, omega)[:, [0]], omega,
                           n_oper_identifiers=['B_0'])
 
+        with self.assertRaises(ValueError):
+            # S wrong dimensions
+            ff.infidelity(pulse, np.random.randn(2, 3, 4, len(omega)), omega)
+
         with self.assertRaises(NotImplementedError):
             # smallness parameter for correlated noise source
             ff.infidelity(pulse, spectra[4](S0, omega), omega,
