@@ -400,6 +400,10 @@ class PrecisionTest(testutil.TestCase):
             # Assert fidelity is same as computed by infidelity()
             S = 1e-2/omega**2
             U = ff.error_transfer_matrix(pulse, S, omega)
+            # Calculate U in loop
+            Up = ff.error_transfer_matrix(pulse, S, omega,
+                                          memory_parsimonious=True)
+            self.assertArrayAlmostEqual(Up, U)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
@@ -417,6 +421,10 @@ class PrecisionTest(testutil.TestCase):
             # Different spectra for each noise oper
             S = np.outer(1e-2*np.arange(1, 3), 400/(omega**2 + 400))
             U = ff.error_transfer_matrix(pulse, S, omega)
+            # Calculate U in loop
+            Up = ff.error_transfer_matrix(pulse, S, omega,
+                                          memory_parsimonious=True)
+            self.assertArrayAlmostEqual(Up, U)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
@@ -439,6 +447,10 @@ class PrecisionTest(testutil.TestCase):
             S[0, 1] *= 1 + 1j
             S[1, 0] *= 1 - 1j
             U = ff.error_transfer_matrix(pulse, S, omega)
+            # Calculate U in loop
+            Up = ff.error_transfer_matrix(pulse, S, omega,
+                                          memory_parsimonious=True)
+            self.assertArrayAlmostEqual(Up, U)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
@@ -476,6 +488,10 @@ class PrecisionTest(testutil.TestCase):
             # Assert fidelity is same as computed by infidelity()
             S = 1e-2/omega**2
             U = ff.error_transfer_matrix(pulse, S, omega)
+            # Calculate U in loop
+            Up = ff.error_transfer_matrix(pulse, S, omega,
+                                          memory_parsimonious=True)
+            self.assertArrayAlmostEqual(Up, U)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
@@ -483,6 +499,10 @@ class PrecisionTest(testutil.TestCase):
             S = np.outer(1e-2*(np.arange(len(n_opers)) + 1),
                          400/(omega**2 + 400))
             U = ff.error_transfer_matrix(pulse, S, omega)
+            # Calculate U in loop
+            Up = ff.error_transfer_matrix(pulse, S, omega,
+                                          memory_parsimonious=True)
+            self.assertArrayAlmostEqual(Up, U)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
@@ -492,6 +512,10 @@ class PrecisionTest(testutil.TestCase):
                           1e-2*(np.arange(len(n_opers)) + 1),
                           400/(omega**2 + 400))
             U = ff.error_transfer_matrix(pulse, S, omega)
+            # Calculate U in loop
+            Up = ff.error_transfer_matrix(pulse, S, omega,
+                                          memory_parsimonious=True)
+            self.assertArrayAlmostEqual(Up, U)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)

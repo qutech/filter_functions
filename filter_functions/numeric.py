@@ -118,7 +118,7 @@ def calculate_control_matrix_from_atomic(
                                  optimize=[(0, 1), (0, 1)])
 
     for l in progressbar_range(n, show_progressbar=show_progressbar,
-                               prefix='Calculating control matrix: '):
+                               desc='Calculating control matrix'):
         R += R_expr(phases[l], R_l[l], Q_liouville[l])
 
     return R
@@ -237,7 +237,7 @@ def calculate_control_matrix_from_scratch(
     R_path = ['einsum_path', (0, 3), (0, 1), (0, 2), (0, 1)]
 
     for l in progressbar_range(n, show_progressbar=show_progressbar,
-                               prefix='Calculating control matrix: '):
+                               desc='Calculating control matrix'):
         # Create a (n_E, d, d)-shaped array containing the energy
         # differences in its last two dimensions
         dE = np.subtract.outer(HD[l], HD[l])
@@ -409,16 +409,16 @@ def calculate_error_vector_correlation_functions(
         return u_kl
 
     # Conserve memory by looping. Let _get_integrand determine the shape
-    integrand = _get_integrand(S, omega, idx, R=[R[:, 0:1].conj(), R])
+    integrand = _get_integrand(S, omega, idx, R=[R[:, 0:1], R])
 
     n_kl = R.shape[1]
-    u_kl = np.empty(integrand.shape[:-3] + (n_kl,)*2,
+    u_kl = np.zeros(integrand.shape[:-3] + (n_kl,)*2,
                     dtype=integrand.dtype)
     u_kl[..., 0:1, :] = trapz(integrand, omega, axis=-1)/(2*np.pi)
 
     for k in progressbar_range(1, n_kl, show_progressbar=show_progressbar,
-                               prefix='Integrating: '):
-        integrand = _get_integrand(S, omega, idx, R=[R[:, k:k+1].conj(), R])
+                               desc='Integrating'):
+        integrand = _get_integrand(S, omega, idx, R=[R[:, k:k+1], R])
         u_kl[..., k:k+1, :] = trapz(integrand, omega, axis=-1)/(2*np.pi)
 
     return u_kl
@@ -1042,10 +1042,12 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray,
 
     """
     if R is not None:
+        # R_left is the complex conjugate
+        funs = (np.conj, lambda x: x)
         if isinstance(R, (list, tuple)):
-            R_left, R_right = R
+            R_left, R_right = [f(r) for f, r in zip(funs, R)]
         else:
-            R_left, R_right = [R]*2
+            R_left, R_right = [f(r) for f, r in zip(funs, [R]*2)]
 
     S = np.asarray(S)
     S_err_str = 'S should be of shape {}, not {}.'

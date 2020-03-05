@@ -78,7 +78,7 @@ import string
 import sys
 from functools import reduce
 from itertools import zip_longest
-from typing import Generator, Iterable, List, Sequence, Tuple, Union
+from typing import Generator, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import qutip as qt
@@ -1032,7 +1032,7 @@ def all_array_equal(it: Iterable) -> bool:
     return len(set(hash(i.tobytes()) for i in it)) == 1
 
 
-def _simple_progressbar(iterable: Iterable, prefix: str = "Computing: ",
+def _simple_progressbar(iterable: Iterable, desc: str = "Computing",
                         size: int = 25, count: int = None, file=None):
     """https://stackoverflow.com/a/34482761"""
     if count is None:
@@ -1043,9 +1043,13 @@ def _simple_progressbar(iterable: Iterable, prefix: str = "Computing: ",
 
     file = sys.stdout if file is None else file
 
+    if desc:
+        # tqdm desc compatibility
+        desc = desc.strip(': ') + ': '
+
     def show(j):
         x = int(size*j/count)
-        file.write("\r{}[{}{}] {} %".format(prefix, "#"*x, "."*(size - x),
+        file.write("\r{}[{}{}] {} %".format(desc, "#"*x, "."*(size - x),
                                             int(100*j/count)))
         file.flush()
 
@@ -1074,10 +1078,26 @@ def progressbar(iterable: Iterable, *args, **kwargs):
     return _simple_progressbar(iterable, *args, **kwargs)
 
 
-def progressbar_range(*args, **kwargs):
-    """Wrapper for range() that shows a progressbar dependent on a kwarg"""
-    if kwargs.pop('show_progressbar', True):
-        return progressbar(range(*args), kwargs.pop('prefix', 'Computing: '))
+def progressbar_range(*args, show_progressbar: Optional[bool] = True,
+                      **kwargs):
+    """Wrapper for range() that shows a progressbar dependent on a kwarg.
+
+    Parameters
+    ----------
+    *args :
+        Positional arguments passed through to :func:`range`.
+    show_progressbar : bool, optional
+        Return a range iterator with or without a progressbar.
+    **kwargs :
+        Keyword arguments passed through to :func:`progressbar`.
+
+    Returns
+    -------
+    it : Iterator
+        Range iterator dressed with a progressbar if ``show_progressbar=True``.
+    """
+    if show_progressbar:
+        return progressbar(range(*args), **kwargs)
 
     return range(*args)
 
