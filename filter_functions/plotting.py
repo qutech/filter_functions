@@ -656,6 +656,7 @@ def plot_error_transfer_matrix(
     if U is not None:
         if U.ndim == 2:
             U = np.array([U])
+
         n_oper_inds = np.arange(len(U))
         if n_oper_identifiers is None:
             if pulse is not None and len(pulse.n_oper_identifiers) == len(U):
@@ -663,7 +664,7 @@ def plot_error_transfer_matrix(
             else:
                 n_oper_identifiers = ['$B_{}$'.format(i)
                                       for i in range(len(n_oper_inds))]
-        btype = ''
+
     else:
         if pulse is None or S is None or omega is None:
             raise ValueError('Require either precomputed error transfer ' +
@@ -673,7 +674,6 @@ def plot_error_transfer_matrix(
                                                         n_oper_identifiers,
                                                         'noise')
         n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
-        btype = pulse.basis.btype
         # Get the error transfer matrix
         U = numeric.error_transfer_matrix(pulse, S, omega, n_oper_identifiers)
         if U.ndim == 4:
@@ -684,6 +684,7 @@ def plot_error_transfer_matrix(
     U = U.real
 
     if basis_labels is None:
+        btype = pulse.basis.btype if pulse is not None else ''
         if btype == 'Pauli':
             n_qubits = int(np.log(U.shape[-1])/np.log(4))
             basis_labels = [''.join(tup) for tup in
