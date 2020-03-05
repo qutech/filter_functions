@@ -341,7 +341,8 @@ def calculate_error_vector_correlation_functions(
         S: ndarray,
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
-        show_progressbar: Optional[bool] = False) -> ndarray:
+        show_progressbar: Optional[bool] = False,
+        memory_parsimonious: Optional[bool] = False) -> ndarray:
     r"""
     Get the error vector correlation functions
     :math:`\langle u_{1,k} u_{1, l}\rangle_{\alpha\beta}` for noise sources
@@ -362,7 +363,19 @@ def calculate_error_vector_correlation_functions(
         The identifiers of the noise operators for which to calculate the error
         vector correlation functions. The default is all.
     show_progressbar : bool, optional
-        Show a progress bar for the calculation of the control matrix.
+        Show a progress bar for the calculation.
+    memory_parsimonious : bool, optional
+        For large dimensions, the integrand
+
+        .. math::
+
+            \mathcal{R}^\ast_{\alpha k}(\omega)S_{\alpha\beta}(\omega)
+            \mathcal{R}_{\beta l}(\omega)
+
+        can consume quite a large amount of memory if set up for all
+        :math:`\alpha,\beta,k,l` at once. If ``True``, it is only set up and
+        integrated for a single :math:`k` at a time and looped over. This is
+        slower but requires much less memory. The default is ``False``.
 
     Raises
     ------
@@ -389,9 +402,24 @@ def calculate_error_vector_correlation_functions(
     # Noise operator indices
     idx = get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
     R = pulse.get_control_matrix(omega, show_progressbar)[idx]
-    integrand = _get_integrand(S, omega, idx, R=R)
 
-    u_kl = trapz(integrand, omega, axis=-1)/(2*np.pi)
+    if not memory_parsimonious:
+        integrand = _get_integrand(S, omega, idx, R=R)
+        u_kl = trapz(integrand, omega, axis=-1)/(2*np.pi)
+        return u_kl
+
+    # Conserve memory by looping. Let _get_integrand determine the shape
+    integrand = _get_integrand(S, omega, idx, R=[R[:, 0:1].conj(), R])
+
+    n_kl = R.shape[1]
+    u_kl = np.empty(integrand.shape[:-3] + (n_kl,)*2,
+                    dtype=integrand.dtype)
+    u_kl[..., 0:1, :] = trapz(integrand, omega, axis=-1)/(2*np.pi)
+
+    for k in progressbar_range(1, n_kl, show_progressbar=show_progressbar,
+                               prefix='Integrating: '):
+        integrand = _get_integrand(S, omega, idx, R=[R[:, k:k+1].conj(), R])
+        u_kl[..., k:k+1, :] = trapz(integrand, omega, axis=-1)/(2*np.pi)
 
     return u_kl
 
@@ -525,7 +553,8 @@ def error_transfer_matrix(
         S: ndarray,
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
-        show_progressbar: Optional[bool] = False) -> ndarray:
+        show_progressbar: Optional[bool] = False,
+        memory_parsimonious: Optional[bool] = False) -> ndarray:
     r"""
     Compute the first correction to the error transfer matrix up to unitary
     rotations and second order in noise.
@@ -554,6 +583,10 @@ def error_transfer_matrix(
         error transfer matrix. The default is all.
     show_progressbar : bool, optional
         Show a progress bar for the calculation of the control matrix.
+    memory_parsimonious : bool, optional
+        Trade memory footprint for performance. See
+        :func:`~numeric.calculate_error_vector_correlation_functions`. The
+        default is ``False``.
 
     Returns
     -------
@@ -651,7 +684,8 @@ def error_transfer_matrix(
     N, d = pulse.basis.shape[:2]
     u_kl = calculate_error_vector_correlation_functions(pulse, S, omega,
                                                         n_oper_identifiers,
-                                                        show_progressbar)
+                                                        show_progressbar,
+                                                        memory_parsimonious)
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
@@ -971,7 +1005,7 @@ def liouville_representation(U: ndarray, basis: Basis) -> ndarray:
 
 
 def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray,
-                   R: Optional[ndarray] = None,
+                   R: Optional[Union[ndarray, Sequence[ndarray]]] = None,
                    F: Optional[ndarray] = None) -> ndarray:
     """
     Private function to generate the integrand for either :func:`infidelity` or
@@ -988,7 +1022,9 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray,
         Noise operator indices to consider.
     R : ndarray, optional
         Control matrix. If given, returns the integrand for
-        :func:`calculate_error_vector_correlation_functions`.
+        :func:`calculate_error_vector_correlation_functions`. If given as a
+        list or tuple, taken to be the left and right control matrices in the
+        integrand (allows for slicing up the integrand).
     F : ndarray, optional
         Filter function. If given, returns the integrand for
         :func:`infidelity`.
@@ -1005,6 +1041,12 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray,
         The integrand.
 
     """
+    if R is not None:
+        if isinstance(R, (list, tuple)):
+            R_left, R_right = R
+        else:
+            R_left, R_right = [R]*2
+
     S = np.asarray(S)
     S_err_str = 'S should be of shape {}, not {}.'
     if S.ndim == 1:
@@ -1017,7 +1059,7 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray,
         if F is not None:
             integrand = (F*S).real
         elif R is not None:
-            integrand = np.einsum('jko,jlo->jklo', R.conj(), S*R).real
+            integrand = np.einsum('jko,jlo->jklo', R_left, S*R_right).real
     elif S.ndim == 2:
         # S is diagonal (no correlation between noise sources)
         shape = (len(idx), len(omega))
@@ -1028,7 +1070,7 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray,
         if F is not None:
             integrand = (F*S).real
         elif R is not None:
-            integrand = np.einsum('jko,jo,jlo->jklo', R.conj(), S, R).real
+            integrand = np.einsum('jko,jo,jlo->jklo', R_left, S, R_right).real
     elif S.ndim == 3:
         # General case where S is a matrix with correlation spectra on off-diag
         shape = (len(idx), len(idx), len(omega))
@@ -1038,7 +1080,7 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray,
         if F is not None:
             integrand = F*S
         elif R is not None:
-            integrand = np.einsum('iko,ijo,jlo->ijklo', R.conj(), S, R)
+            integrand = np.einsum('iko,ijo,jlo->ijklo', R_left, S, R_right)
     elif S.ndim > 3:
         raise ValueError('Expected S to be array_like with < 4 dimensions')
 
