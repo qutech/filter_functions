@@ -59,13 +59,69 @@ from .basis import Basis, ggm_expand
 from .plotting import plot_infidelity_convergence
 from .types import Coefficients, Operator
 from .util import (abs2, cexp, get_indices_from_identifiers, progressbar,
-                   symmetrize_spectrum)
+                   progressbar_range, symmetrize_spectrum)
 
 __all__ = ['calculate_control_matrix_from_atomic',
            'calculate_control_matrix_from_scratch',
            'calculate_filter_function',
            'calculate_pulse_correlation_filter_function', 'diagonalize',
            'error_transfer_matrix', 'infidelity', 'liouville_representation']
+
+
+def calculate_control_matrix_from_atomic(
+        phases: ndarray, R_l: ndarray, Q_liouville: ndarray,
+        show_progressbar: Optional[bool] = None) -> ndarray:
+    r"""
+    Calculate the control matrix from the control matrices of atomic segments.
+
+    Parameters
+    ----------
+    phases : array_like, shape (n_dt, n_omega)
+        The phase factors for :math:`l\in\{0, 1, \dots, n-1\}`.
+    R_l : array_like, shape (n_dt, n_nops, d**2, n_omega)
+        The pulse control matrices for :math:`l\in\{1, 2, \dots, n\}`.
+    Q_liouville : array_like, shape (n_dt, n_nops, d**2, d**2)
+        The transfer matrices of the cumulative propagators for
+        :math:`l\in\{0, 1, \dots, n-1\}`.
+    show_progressbar : bool, optional
+        Show a progress bar for the calculation.
+
+    Returns
+    -------
+    R : ndarray, shape (n_nops, d**2, n_omega)
+        The control matrix :math:`\mathcal{R}(\omega)`.
+
+    Notes
+    -----
+    The control matrix is calculated by evaluating the sum
+
+    .. math::
+
+        \mathcal{R}(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}}
+            \mathcal{R}^{(l)}(\omega)\mathcal{Q}^{(l-1)}.
+
+    See Also
+    --------
+    :func:`calculate_control_matrix_from_scratch`
+
+    :func:`liouville_representation`
+    """
+    n = len(R_l)
+    # Allocate memory
+    R = np.zeros(R_l[0].shape, dtype=complex)
+
+    # Set up a reusable contraction expression. In some cases it is faster to
+    # also contract the time dimension in the same expression instead of
+    # looping over it, but we don't distinguish here for readability.
+    R_expr = contract_expression('o,ijo,jk->iko', phases[0].shape,
+                                 R_l[0].shape, Q_liouville[0].shape,
+                                 optimize=[(0, 1), (0, 1)])
+
+    for l in progressbar_range(n, show_progressbar=show_progressbar,
+                               prefix='Calculating control matrix: '):
+        R += R_expr(phases[l], R_l[l], Q_liouville[l])
+
+    return R
 
 
 def calculate_control_matrix_from_scratch(
@@ -163,13 +219,6 @@ def calculate_control_matrix_from_scratch(
     # Allocate memory
     R = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
 
-    # Wrapper for loop if no progress bar is desired
-    def progressbar_range(*args):
-        if show_progressbar:
-            return progressbar(range(*args), 'Calculating control matrix: ')
-
-        return range(*args)
-
     # Precompute noise opers transformed to eigenbasis of each pulse
     # segment and Q^\dagger @ HV
     if d < 4:
@@ -187,7 +236,8 @@ def calculate_control_matrix_from_scratch(
     integral = np.empty((len(E), d, d), dtype=complex)
     R_path = ['einsum_path', (0, 3), (0, 1), (0, 2), (0, 1)]
 
-    for l in progressbar_range(n):
+    for l in progressbar_range(n, show_progressbar=show_progressbar,
+                               prefix='Calculating control matrix: '):
         # Create a (n_E, d, d)-shaped array containing the energy
         # differences in its last two dimensions
         dE = np.subtract.outer(HD[l], HD[l])
@@ -284,68 +334,6 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
     # Multiply with R_at to get the final control matrix
     R_tot = (R.transpose(2, 0, 1) @ S).transpose(1, 2, 0)
     return R_tot
-
-
-def calculate_control_matrix_from_atomic(
-        phases: ndarray, R_l: ndarray, Q_liouville: ndarray,
-        show_progressbar: Optional[bool] = None) -> ndarray:
-    r"""
-    Calculate the control matrix from the control matrices of atomic segments.
-
-    Parameters
-    ----------
-    phases : array_like, shape (n_dt, n_omega)
-        The phase factors for :math:`l\in\{0, 1, \dots, n-1\}`.
-    R_l : array_like, shape (n_dt, n_nops, d**2, n_omega)
-        The pulse control matrices for :math:`l\in\{1, 2, \dots, n\}`.
-    Q_liouville : array_like, shape (n_dt, n_nops, d**2, d**2)
-        The transfer matrices of the cumulative propagators for
-        :math:`l\in\{0, 1, \dots, n-1\}`.
-    show_progressbar : bool, optional
-        Show a progress bar for the calculation.
-
-    Returns
-    -------
-    R : ndarray, shape (n_nops, d**2, n_omega)
-        The control matrix :math:`\mathcal{R}(\omega)`.
-
-    Notes
-    -----
-    The control matrix is calculated by evaluating the sum
-
-    .. math::
-
-        \mathcal{R}(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}}
-            \mathcal{R}^{(l)}(\omega)\mathcal{Q}^{(l-1)}.
-
-    See Also
-    --------
-    :func:`calculate_control_matrix_from_scratch`
-
-    :func:`liouville_representation`
-    """
-    n = len(R_l)
-    # Allocate memory
-    R = np.zeros(R_l[0].shape, dtype=complex)
-
-    # Wrapper for loop if no progress bar is desired
-    def progressbar_range(*args):
-        if show_progressbar:
-            return progressbar(range(*args), 'Calculating control matrix: ')
-
-        return range(*args)
-
-    # Set up a reusable contraction expression. In some cases it is faster to
-    # also contract the time dimension in the same expression instead of
-    # looping over it, but we don't distinguish here for readability.
-    R_expr = contract_expression('o,ijo,jk->iko', phases[0].shape,
-                                 R_l[0].shape, Q_liouville[0].shape,
-                                 optimize=[(0, 1), (0, 1)])
-
-    for l in progressbar_range(n):
-        R += R_expr(phases[l], R_l[l], Q_liouville[l])
-
-    return R
 
 
 def calculate_error_vector_correlation_functions(

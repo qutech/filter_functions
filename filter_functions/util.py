@@ -1074,7 +1074,16 @@ def progressbar(iterable: Iterable, *args, **kwargs):
     return _simple_progressbar(iterable, *args, **kwargs)
 
 
+def progressbar_range(*args, **kwargs):
+    """Wrapper for range() that shows a progressbar dependent on a kwarg"""
+    if kwargs.pop('show_progressbar', True):
+        return progressbar(range(*args), kwargs.pop('prefix', 'Computing: '))
+
+    return range(*args)
+
+
 class CalculationError(Exception):
     """Indicates a quantity could not be computed."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
