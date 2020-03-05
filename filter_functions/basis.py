@@ -368,6 +368,10 @@ class Basis(ndarray):
 
         return self._four_element_traces
 
+    @four_element_traces.setter
+    def four_element_traces(self, traces):
+        self._four_element_traces = traces
+
     def normalize(self) -> None:
         """Normalize the basis in-place"""
         if self.ndim == 2:
