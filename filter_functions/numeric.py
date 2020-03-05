@@ -58,8 +58,8 @@ from scipy.integrate import trapz
 from .basis import Basis, ggm_expand
 from .plotting import plot_infidelity_convergence
 from .types import Coefficients, Operator
-from .util import (abs2, cexp, get_indices_from_identifiers, progressbar,
-                   progressbar_range, symmetrize_spectrum)
+from .util import (abs2, cexp, get_indices_from_identifiers, progressbar_range,
+                   symmetrize_spectrum)
 
 __all__ = ['calculate_control_matrix_from_atomic',
            'calculate_control_matrix_from_scratch',
