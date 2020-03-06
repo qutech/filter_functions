@@ -24,25 +24,30 @@ functions.
 
 Functions
 ---------
-:func:`diagonalize`
-    Diagonalize a Hamiltonian
-:func:`calculate_control_matrix_from_scratch`
-    Calculate the control matrix from scratch
 :func:`calculate_control_matrix_from_atomic`
     Calculate the control matrix from those of atomic pulse sequences
+:func:`calculate_control_matrix_from_scratch`
+    Calculate the control matrix from scratch
+:func:`calculate_control_matrix_periodic`
+    Calculate the control matrix for a periodic Hamiltonian
+:func:`calculate_error_vector_correlation_functions`
+    Calculate the correlation functions of the 1st order Magnus expansion
+    coefficients
 :func:`calculate_filter_function`
     Calculate the filter function from the control matrix
 :func:`calculate_pulse_correlation_filter_function`
     Calculate the pulse correlation filter function from the control matrix
-:func:`liouville_representation`
-    Calculate the Liouville representation of a unitary with respect to a basis
+:func:`diagonalize`
+    Diagonalize a Hamiltonian
+:func:`error_transfer_matrix`
+    Calculate the error transfer matrix of a pulse up to a unitary
+    rotation and second order in noise
 :func:`infidelity`
     Function to compute the infidelity of a pulse defined by a
     ``PulseSequence`` instance for a given noise spectral density and
     frequencies
-:func:`error_transfer_matrix`
-    Calculate the error transfer matrix of a pulse up to a unitary
-    rotation and second order in noise
+:func:`liouville_representation`
+    Calculate the Liouville representation of a unitary with respect to a basis
 """
 from collections import deque
 from itertools import accumulate, repeat
