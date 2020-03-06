@@ -89,6 +89,7 @@ class Basis(ndarray):
 
     Parameters
     ----------
+
     basis_array : array_like, shape (n, d, d)
         An array or list of square matrices that are elements of an operator
         basis spanning :math:`\mathbb{C}^{d\times d}`. *n* should be smaller

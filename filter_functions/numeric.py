@@ -200,7 +200,7 @@ def calculate_control_matrix_from_scratch(
                              &= \frac{e^{i(\omega+\omega_n-\omega_m)
                                 (t_l - t_{l-1})} - 1}
                                 {i(\omega+\omega_n-\omega_m)}, \\
-        \bar{B}_\alpha^{(l)}_{j} &= V^{(l)\dagger} B_\alpha V^{(l)}, \\
+        \bar{B}_\alpha^{(l)} &= V^{(l)\dagger} B_\alpha V^{(l)}, \\
         \bar{C}_k^{(l)} &= V^{(l)\dagger} Q_{l-1} C_k Q_{l-1}^\dagger V^{(l)},
 
     and :math:`V^{(l)}` is the matrix of eigenvectors that diagonalizes
