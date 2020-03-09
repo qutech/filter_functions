@@ -1383,12 +1383,12 @@ def concatenate(pulses: Iterable[PulseSequence],
 
     .. math::
 
-        F_j^{(gg')}(\omega) = \sum_{kll'}e^{i\omega\Delta t_{gg'}}
-                            R_{jl}^{(g)\ast}(\omega) L_{lk}^{(g-1)\ast}
-                            R_{jl'}^{(g')}(\omega) L_{l'k}^{(g'-1)}
+        F_{\alpha\beta}^{(gg')}(\omega) = e^{i\omega(t_{g-1} - t_{g'-1})}
+            \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
+            \mathcal{Q}^{(g'-1)\dagger}\mathcal{R}^{(g')\dagger}(\omega),
 
-    where :math:`g,g'` index the pulse in the sequence and :math:`j` indexes
-    the noise operator.
+    where :math:`g,g'` index the pulse in the sequence and :math:`\alpha,\beta`
+    index the noise operators.
     """
     pulses = tuple(pulses)
     if len(pulses) == 1:
@@ -1548,17 +1548,16 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     .. math::
 
-        R(\omega) &= R_\mathrm{atomic}(\omega)\sum_{g=0}^{G-1}
-                     \left(e^{i\omega T} L_\mathrm{atomic}\right)^g \\
-                  &= R_\mathrm{at}(\omega)\bigl(
-                        I - e^{i\omega T} L_\mathrm{at}
-                    \bigr)^{-1}\Bigl(
-                        I - \bigl(e^{i\omega T} L_\mathrm{at}
-                    \bigr)^G\Bigr)
+        \mathcal{R}(\omega) &= \mathcal{R}^{(1)}(\omega)\sum_{g=0}^{G-1}\left(
+                               e^{i\omega T}\right)^g \\
+                            &= \mathcal{R}^{(1)}(\omega)\bigl(
+                               \mathbb{I} - e^{i\omega T}\mathcal{Q}^{(1)}
+                               \bigr)^{-1}\bigl(\mathbb{I} - \bigl(
+                               e^{i\omega T}\mathcal{Q}^{(1)}\bigr)^G\bigr).
 
     with :math:`T` the period of the control Hamiltonian and :math:`G` the
     number of periods. The last equality is valid only if
-    :math:`I - e^{i\omega T} L_\mathrm{at}` is invertible.
+    :math:`\mathbb{I} - e^{i\omega T}\mathcal{Q}^{(1)}` is invertible.
 
     See also
     --------
@@ -1623,7 +1622,7 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
 
     .. caution::
 
-        This method simply permutes the order of the tensor product
+        This function simply permutes the order of the tensor product
         elements of control and noise operators. Thus, the resultant pulse
         will have its filter functions defined for different noise operators
         than the original one.
@@ -1758,14 +1757,14 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
            cache_filter_function: Optional[bool] = None,
            omega: Optional[Coefficients] = None,
            show_progressbar: bool = False) -> PulseSequence:
-    """
+    r"""
     Map one or more pulse sequences to different qubits.
 
     Parameters
     ----------
     pulse_to_qubit_mapping : sequence of mapping tuples
         A sequence of tuples with the first entry a ``PulseSequence``
-        instance and the second an ``int`` or tuple of ``int``s indicating the
+        instance and the second an ``int`` or tuple of ``int``\s indicating the
         qubits that the ``PulseSequence`` should be mapped to. A mapping of
         operator identifiers may optionally be given as a third element of each
         tuple. By default, the index of the qubit the operator is mapped to is

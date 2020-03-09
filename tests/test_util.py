@@ -557,6 +557,20 @@ class UtilTest(testutil.TestCase):
             for i in util._simple_progressbar((i for i in range(10))):
                 pass
 
-        for i in util._simple_progressbar(range(10), prefix = "foo", size=10,
+        for i in util._simple_progressbar(range(10), desc="foo", size=10,
                                           count=5):
             pass
+
+    def test_progressbar_range(self):
+        ii = []
+        for i in util.progressbar_range(2, 125, 32, desc=""):
+            ii.append(i)
+
+        self.assertEqual(ii, list(range(2, 125, 32)))
+
+        ii = []
+        for i in util.progressbar_range(523, 123, -32, show_progressbar=True,
+                                        desc="foo"):
+            ii.append(i)
+
+        self.assertEqual(ii, list(range(523, 123, -32)))
