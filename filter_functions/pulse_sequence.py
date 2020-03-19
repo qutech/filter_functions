@@ -1356,8 +1356,8 @@ def concatenate(pulses: Iterable[PulseSequence],
         calculation of the composite filter function is forced.
     calc_pulse_correlation_ff : bool, optional
         Switch to control whether the pulse correlation filter function (see
-        :ref:`notes`) is calculated. If *omega* is not given, the cached
-        frequencies of all *pulses* need to be equal.
+        :ref:`Notes <notes>`) is calculated. If *omega* is not given, the
+        cached frequencies of all *pulses* need to be equal.
     calc_filter_function : bool, optional
         Switch to force the calculation of the filter function to be carried
         out or not. Overrides the automatic behavior of calculating it if at
@@ -1384,8 +1384,10 @@ def concatenate(pulses: Iterable[PulseSequence],
     .. math::
 
         F_{\alpha\beta}^{(gg')}(\omega) = e^{i\omega(t_{g-1} - t_{g'-1})}
-            \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
-            \mathcal{Q}^{(g'-1)\dagger}\mathcal{R}^{(g')\dagger}(\omega),
+            \left[\mathcal{Q}^{(g'-1)\dagger}
+                  \mathcal{R}^{(g')\dagger}(\omega)\right]_{k\alpha}
+            \left[\mathcal{R}^{(g)}(\omega)
+                  \mathcal{Q}^{(g-1)}\right]_{\beta l},
 
     where :math:`g,g'` index the pulse in the sequence and :math:`\alpha,\beta`
     index the noise operators.
