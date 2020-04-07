@@ -147,8 +147,11 @@ try:
                                     params={'token': ss.get('token', '')})
             for nn in json.loads(response.text):
                 if nn['kernel']['id'] == kernel_id:
-                    relative_path = nn['notebook']['path']
-                    return os.path.join(ss['notebook_dir'], relative_path)
+                    try:
+                        relative_path = nn['notebook']['path']
+                        return os.path.join(ss['notebook_dir'], relative_path)
+                    except KeyError:
+                        return ''
 
         return ''
 
