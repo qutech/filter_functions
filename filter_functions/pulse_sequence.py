@@ -1721,10 +1721,9 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
         remapped_pulse.cache_total_phases(omega, pulse.get_total_phases(omega))
 
     if pulse.is_cached('F'):
-        remapped_pulse.cache_filter_function(
-            omega,
-            F=pulse.get_filter_function(omega)[n_sort_idx][:, n_sort_idx]
-        )
+        remapped_F = pulse.get_filter_function(omega)[n_sort_idx[:, None],
+                                                      n_sort_idx[None, :]]
+        remapped_pulse.cache_filter_function(omega, F=remapped_F)
 
     if pulse.is_cached('total_Q_liouville') or pulse.is_cached('R'):
         if pulse.basis.btype != 'Pauli':
@@ -1744,9 +1743,8 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
         if pulse.is_cached('R'):
             pulse_R = pulse.get_control_matrix(omega)
             remapped_R = np.empty_like(pulse_R)
-            remapped_R[:, permutation[0]] = pulse_R
-            remapped_pulse.cache_control_matrix(omega,
-                                                R=remapped_R[n_sort_idx])
+            remapped_R[n_sort_idx.argsort()[:, None], permutation] = pulse_R
+            remapped_pulse.cache_control_matrix(omega, R=remapped_R)
 
     return remapped_pulse
 
@@ -2252,6 +2250,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
         newpulse.total_Q_liouville = liouville_representation(newpulse.total_Q,
                                                               newpulse.basis)
         newpulse.cache_control_matrix(omega, R=R[n_sort_idx])
-        newpulse.cache_filter_function(omega, F=F[n_sort_idx][:, n_sort_idx])
+        newpulse.cache_filter_function(omega, F=F[n_sort_idx[:, None],
+                                                  n_sort_idx[None, :]])
 
     return newpulse
