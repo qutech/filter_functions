@@ -74,7 +74,7 @@ __all__ = ['calculate_control_matrix_from_atomic',
 
 
 def calculate_control_matrix_from_atomic(
-        phases: ndarray, R_l: ndarray, Q_liouville: ndarray,
+        phases: ndarray, R_g: ndarray, Q_liouville: ndarray,
         show_progressbar: Optional[bool] = None) -> ndarray:
     r"""
     Calculate the control matrix from the control matrices of atomic segments.
@@ -83,7 +83,7 @@ def calculate_control_matrix_from_atomic(
     ----------
     phases : array_like, shape (n_dt, n_omega)
         The phase factors for :math:`l\in\{0, 1, \dots, n-1\}`.
-    R_l : array_like, shape (n_dt, n_nops, d**2, n_omega)
+    R_g : array_like, shape (n_dt, n_nops, d**2, n_omega)
         The pulse control matrices for :math:`l\in\{1, 2, \dots, n\}`.
     Q_liouville : array_like, shape (n_dt, n_nops, d**2, d**2)
         The transfer matrices of the cumulative propagators for
@@ -111,20 +111,19 @@ def calculate_control_matrix_from_atomic(
 
     :func:`liouville_representation`
     """
-    n = len(R_l)
+    n = len(R_g)
     # Allocate memory
-    R = np.zeros(R_l[0].shape, dtype=complex)
+    R = np.zeros(R_g.shape[1:], dtype=complex)
 
     # Set up a reusable contraction expression. In some cases it is faster to
     # also contract the time dimension in the same expression instead of
     # looping over it, but we don't distinguish here for readability.
-    R_expr = contract_expression('o,ijo,jk->iko', phases[0].shape,
-                                 R_l[0].shape, Q_liouville[0].shape,
-                                 optimize=[(0, 1), (0, 1)])
+    R_expr = contract_expression('ijo,jk->iko',
+                                 R_g.shape[1:], Q_liouville.shape[1:])
 
-    for l in progressbar_range(n, show_progressbar=show_progressbar,
+    for g in progressbar_range(n, show_progressbar=show_progressbar,
                                desc='Calculating control matrix'):
-        R += R_expr(phases[l], R_l[l], Q_liouville[l])
+        R += R_expr(phases[g]*R_g[g], Q_liouville[g])
 
     return R
 
@@ -216,7 +215,6 @@ def calculate_control_matrix_from_scratch(
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
 
     d = HV.shape[-1]
-    n = len(dt)
     # We're lazy
     E = omega
     n_coeffs = np.asarray(n_coeffs)
@@ -233,21 +231,21 @@ def calculate_control_matrix_from_scratch(
                       optimize=['einsum_path', (0, 1), (0, 1)])
     else:
         QdagV = Q[:-1].transpose(0, 2, 1).conj() @ HV
-        B = np.empty((len(n_opers), n, d, d), dtype=complex)
+        B = np.empty((len(n_opers), len(dt), d, d), dtype=complex)
         for j, n_oper in enumerate(n_opers):
             B[j] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
 
     # Allocate array for the integral
-    integral = np.empty((len(E), d, d), dtype=complex)
-    R_path = ['einsum_path', (0, 3), (0, 1), (0, 2), (0, 1)]
+    integral = np.empty((d, d, len(E)), dtype=complex)
+    R_path = ['einsum_path', (0, 1), (0, 2), (0, 1)]
 
-    for l in progressbar_range(n, show_progressbar=show_progressbar,
+    for l in progressbar_range(len(dt), show_progressbar=show_progressbar,
                                desc='Calculating control matrix'):
         # Create a (n_E, d, d)-shaped array containing the energy
         # differences in its last two dimensions
         dE = np.subtract.outer(HD[l], HD[l])
         # Add the frequencies to get EdE_nm = omega + omega_n - omega_m
-        EdE = np.add.outer(E, dE)
+        EdE = np.add.outer(dE, E)
 
         # Mask the integral to avoid convergence problems
         mask_small = np.abs(EdE*dt[l]) <= 1e-7
@@ -264,8 +262,8 @@ def calculate_control_matrix_from_scratch(
 
         # Faster for d = 2 to also contract over the time dimension instead of
         # loop, but for readability we don't distinguish.
-        R += np.einsum('o,j,jmn,omn,knm->jko',
-                       cexp(E*t[l]), n_coeffs[:, l], B[:, l], integral,
+        R += np.einsum('j,jmn,mno,knm->jko',
+                       n_coeffs[:, l], B[:, l], cexp(E*t[l])*integral,
                        QdagV[l].conj().T @ basis @ QdagV[l],
                        optimize=R_path)
 
