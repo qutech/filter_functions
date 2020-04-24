@@ -614,7 +614,8 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
 
     .. math::
         M &= \sum_j c_j C_j, \\
-        c_j &= \frac{\mathrm{tr}\big(M C_j\big)}{\mathrm{tr}\big(C_j^2\big)}.
+        c_j &= \frac{\mathrm{tr}\big(M C_j\big)}
+                    {\mathrm{tr}\big(C_j^\dagger C_j\big)}.
 
     """
     coefficients = np.einsum('...ij,bji->...b', np.asarray(M), basis)

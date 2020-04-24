@@ -773,12 +773,16 @@ def infidelity(pulse: 'PulseSequence',
         into account.
     which : str, optional
         Which infidelities should be calculated, may be either 'total'
-        (default) or 'correlations'. In the former case, only the total
-        infidelities for each noise operator are returned, in the latter all of
-        the individual infidelity contributions including the pulse
-        correlations (note that in this case no checks are performed if the
-        frequencies are compliant). See :func:`~pulse_sequence.concatenate`
-        for more details.
+        (default) or 'correlations'. In the former case, one value is returned
+        for each noise operator, corresponding to the total infidelity of the
+        pulse (or pulse sequence). In the latter, an array of infidelities is
+        returned where element (i,j) corresponds to the infidelity contribution
+        of the correlations between pulses i and j (see :ref:`Notes <notes>`).
+        Note that this option is only available if the pulse correlation filter
+        functions have been computed during concatenation (see
+        :func:`calculate_pulse_correlation_filter_function` and
+        :func:`~filter_functions.pulse_sequence.concatenate`) and that in this
+        case no checks are performed if the frequencies are compliant.
     return_smallness : bool, optional
         Return the smallness parameter :math:`\xi` for the given spectrum.
     test_convergence : bool, optional
@@ -805,19 +809,20 @@ def infidelity(pulse: 'PulseSequence',
         The matplotlib figure and axis instances used for plotting.
         Only if *test_convergence* is ``True``.
 
+    .. _notes:
+
     Notes
     -----
     The infidelity is given by
 
     .. math::
 
-        \big\langle\mathcal{I}_\mathrm{e}\big\rangle &=
-                \frac{1}{d^2}\left\langle
-                \mathrm{tr}\big\lvert\tilde{U}(\tau)\big\rvert^2
-                \right\rangle \\
-            &= \frac{1}{2\pi d}\int_{-\infty}^{\infty}\mathrm{d}\omega
-                \,\mathrm{tr}\bigl(S(\omega)F(\omega)\bigr) +
-                \mathcal{O}\big(\xi^4\big)
+        \big\langle\mathcal{I}_\mathrm{e}\big\rangle_{\alpha\beta} &=
+                \frac{1}{2\pi d}\int_{-\infty}^{\infty}\mathrm{d}\omega\,
+                S_{\alpha\beta}(\omega)F_{\alpha\beta}(\omega)
+                +\mathcal{O}\big(\xi^4\big) \\
+            &= \sum_{g,g'=1}^G \big\langle
+                \mathcal{I}_\mathrm{e}\big\rangle_{\alpha\beta}^{(gg')}
 
     with :math:`S_{\alpha\beta}(\omega)` the two-sided noise spectral density
     and :math:`F_{\alpha\beta}(\omega)` the first-order filter function for
@@ -825,6 +830,9 @@ def infidelity(pulse: 'PulseSequence',
     correlated noise sources, that is, its entry at :math:`(\alpha,\beta)`
     corresponds to the correlations between sources :math:`\alpha` and
     :math:`\beta`.
+    :math:`\big\langle\mathcal{I}_\mathrm{e}\big\rangle_{\alpha\beta}^{(gg')}`
+    are the correlation infidelities that can be computed by setting
+    ``which='correlations'``.
 
     To convert to the average gate infidelity, use the
     following relation given by Horodecki et al. [Hor99]_ and
