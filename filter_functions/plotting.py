@@ -162,7 +162,7 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
 
     See Also
     --------
-    :class:`qutip.Bloch`
+    qutip.bloch.Bloch : Qutip's Bloch sphere implementation.
     """
     # Raise an exception if not a one-qubit pulse
     if not pulse.d == 2:

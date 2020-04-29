@@ -142,10 +142,10 @@ class Basis(ndarray):
     Other than the methods inherited from ``ndarray``, a ``Basis`` instance has
     the following methods:
 
-    :meth:`normalize`
+    normalize(b)
         Normalizes the basis in-place (used internally when creating a basis
         from elements)
-    :meth:`tidyup`
+    tidyup(eps_scale=None)
         Cleans up floating point errors in-place to make zeros actual zeros.
         ``eps_scale`` is an optional argument multiplied to the data type's
         ``eps`` to get the absolute tolerance.

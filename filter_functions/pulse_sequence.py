@@ -209,21 +209,21 @@ class PulseSequence:
 
     Methods
     -------
-    :meth:`cleanup`
+    cleanup(method='conservative')
         Delete cached attributes
-    :meth:`is_cached`
+    is_cached(attr)
         Checks if a given attribute of the ``PulseSequence`` is cached
-    :meth:`diagonalize`
+    diagonalize()
         Diagonalize the Hamiltonian of the pulse sequence, computing
         eigenvalues and -vectors as well as cumulative propagators
-    :meth:`get_control_matrix`
+    get_control_matrix(omega, show_progressbar=False)
         Calculate the control matrix for frequencies omega
-    :meth:`get_filter_function`
+    get_filter_function(omega, show_progressbar=False)
         Calculate the filter function for frequencies omega
-    :meth:`get_pulse_correlation_filter_function`
+    get_pulse_correlation_filter_function()
         Get the pulse correlation filter function (only possible if computed
         during concatenation)
-    :meth:`propagator_at_arb_t`
+    propagator_at_arb_t(t)
         Calculate the propagator at arbitrary times
 
     Notes
@@ -1273,9 +1273,8 @@ def concatenate_without_filter_function(
 
     See Also
     --------
-    :func:`concatenate`
-
-    :func:`concatenate_periodic`
+    concatenate : Concatenate PulseSequences including filter functions.
+    concatenate_periodic : Concatenate PulseSequences periodically.
     """
     pulses = tuple(pulses)
     try:
@@ -1563,7 +1562,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     See also
     --------
-    :func:`concatenate`
+    concatenate : Concatenate arbitrary PulseSequences.
     """
 
     try:
@@ -1671,9 +1670,8 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
 
     See Also
     --------
-    :func:`extend`
-
-    :func:`util.tensor_transpose`
+    extend : Map PulseSequences to composite Hilbert spaces.
+    util.tensor_transpose : Transpose the order of a tensor product.
     """
     # Number of qubits
     N = int(np.log(pulse.d)/np.log(d_per_qubit))
@@ -1881,11 +1879,9 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
 
     See Also
     --------
-    :func:`remap`
-
-    :func:`concatenate`
-
-    :func:`concatenate_periodic`
+    remap : Map PulseSequence to a different qubit.
+    concatenate : Concatenate PulseSequences (in time).
+    concatenate_periodic : Periodically concatenate a PulseSequence.
     """
     # Parse pulse_to_qubit_mapping
     active_qubits_list = []

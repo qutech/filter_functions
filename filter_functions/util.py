@@ -366,13 +366,10 @@ def tensor(*args, rank: int = 2,
 
     See Also
     --------
-    :func:`numpy.kron`
-
-    :func:`tensor_insert`
-
-    :func:`tensor_merge`
-
-    :func:`tensor_transpose`
+    numpy.kron : NumPy tensor product.
+    tensor_insert : Insert array at given position in tensor product chain.
+    tensor_merge : Merge tensor product chains.
+    tensor_transpose : Transpose the order of a tensor product chain.
     """
     chars = string.ascii_letters
     # All the subscripts we need
@@ -499,15 +496,11 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
 
     See Also
     --------
-    :func:`tensor`
-
-    :func:`tensor_merge`
-
-    :func:`tensor_transpose`
-
-    :func:`numpy.kron`
-
-    :func:`numpy.insert`
+    numpy.insert : NumPy array insertion with similar syntax.
+    numpy.kron : NumPy tensor product.
+    tensor_insert : Insert array at given position in tensor product chain.
+    tensor_merge : Merge tensor product chains.
+    tensor_transpose : Transpose the order of a tensor product chain.
     """
     if len(args) == 0:
         raise ValueError('Require nonzero number of args!')
@@ -673,15 +666,11 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
 
     See Also
     --------
-    :func:`tensor`
-
-    :func:`tensor_insert`
-
-    :func:`tensor_transpose`
-
-    :func:`numpy.kron`
-
-    :func:`numpy.insert`
+    numpy.insert : NumPy array insertion with similar syntax.
+    numpy.kron : NumPy tensor product.
+    tensor : Fast tensor product with broadcasting.
+    tensor_insert : Insert array at given position in tensor product chain.
+    tensor_transpose : Transpose the order of a tensor product chain.
     """
     # Parse dimension args
     for arg_name, arg_dims in zip(('arr', 'ins'), (arr_dims, ins_dims)):
@@ -776,13 +765,11 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
 
     See Also
     --------
-    :func:`tensor`
-
-    :func:`tensor_insert`
-
-    :func:`tensor_transpose`
-
-    :func:`numpy.kron`
+    numpy.insert : NumPy array insertion with similar syntax.
+    numpy.kron : NumPy tensor product.
+    tensor : Fast tensor product with broadcasting.
+    tensor_insert : Insert array at given position in tensor product chain.
+    tensor_merge : Merge tensor product chains.
     """
     _parse_dims_arg('arr', arr_dims, rank)
 

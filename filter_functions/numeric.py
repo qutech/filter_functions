@@ -107,9 +107,8 @@ def calculate_control_matrix_from_atomic(
 
     See Also
     --------
-    :func:`calculate_control_matrix_from_scratch`
-
-    :func:`liouville_representation`
+    calculate_control_matrix_from_scratch : Control matrix from scratch.
+    liouville_representation : Liouville representation for a given basis.
     """
     n = len(R_g)
     # Allocate memory
@@ -209,7 +208,7 @@ def calculate_control_matrix_from_scratch(
 
     See Also
     --------
-    :func:`calculate_control_matrix_from_atomic`
+    calculate_control_matrix_from_atomic : Control matrix from concatenation.
     """
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
@@ -444,11 +443,9 @@ def calculate_filter_function(R: ndarray) -> ndarray:
 
     See Also
     --------
-    :func:`calculate_control_matrix_from_scratch`
-
-    :func:`calculate_control_matrix_from_atomic`
-
-    :func:`calculate_pulse_correlation_filter_function`
+    calculate_control_matrix_from_scratch : Control matrix from scratch.
+    calculate_control_matrix_from_atomic : Control matrix from concatenation.
+    calculate_pulse_correlation_filter_function : Pulse correlations.
     """
     return np.einsum('iko,jko->ijo', R.conj(), R)
 
@@ -484,11 +481,9 @@ def calculate_pulse_correlation_filter_function(R: ndarray) -> ndarray:
 
     See Also
     --------
-    :func:`calculate_control_matrix_from_scratch`
-
-    :func:`calculate_control_matrix_from_atomic`
-
-    :func:`calculate_filter_function`
+    calculate_control_matrix_from_scratch : Control matrix from scratch.
+    calculate_control_matrix_from_atomic : Control matrix from concatenation.
+    calculate_filter_function : Regular filter function.
     """
     try:
         F_pc = np.einsum('gjko,hlko->ghjlo', R.conj(), R)
@@ -680,9 +675,8 @@ def error_transfer_matrix(
 
     See Also
     --------
-    :func:`calculate_error_vector_correlation_functions`
-
-    :func:`infidelity`
+    calculate_error_vector_correlation_functions
+    infidelity : Calculate only infidelity of a pulse.
     """
     N, d = pulse.basis.shape[:2]
     u_kl = calculate_error_vector_correlation_functions(pulse, S, omega,
