@@ -214,10 +214,8 @@ def cexp(x: ndarray) -> ndarray:
     https://software.intel.com/en-us/forums/intel-distribution-for-python/topic/758148  # noqa
     """
     df_exp = np.empty(x.shape, dtype=np.complex128)
-    trig_buf = np.cos(x)
-    df_exp.real[:] = trig_buf
-    np.sin(x, out=trig_buf)
-    df_exp.imag[:] = trig_buf
+    df_exp.real = np.cos(x, out=df_exp.real)
+    df_exp.imag = np.sin(x, out=df_exp.imag)
     return df_exp
 
 
