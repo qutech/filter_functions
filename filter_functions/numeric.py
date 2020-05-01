@@ -240,24 +240,14 @@ def calculate_control_matrix_from_scratch(
 
     for l in progressbar_range(len(dt), show_progressbar=show_progressbar,
                                desc='Calculating control matrix'):
-        # Create a (n_E, d, d)-shaped array containing the energy
-        # differences in its last two dimensions
-        dE = np.subtract.outer(HD[l], HD[l])
-        # Add the frequencies to get EdE_nm = omega + omega_n - omega_m
-        EdE = np.add.outer(dE, E)
 
-        # Mask the integral to avoid convergence problems
-        mask_small = np.abs(EdE*dt[l]) <= 1e-7
-        integral[mask_small] = dt[l]
-        integral[~mask_small] = (cexp(EdE[~mask_small]*dt[l]) - 1) /\
-                                (1j*(EdE[~mask_small]))
-        """
-        # Test convergence of integral as argument of exponential -> 0
-        fn = lambda a, dt: (np.exp(a*dt) - 1)/a - dt
-        fn1 = lambda a: fn(a, 1)
-        a = np.logspace(-10, 0, 100)
-        plt.loglog(a, fn1(a))
-        """
+        dE = np.subtract.outer(HD[l], HD[l])
+        # iEdE_nm = 1j*(omega + omega_n - omega_m)
+        iEdE = np.zeros_like(integral)
+        iEdE.imag = np.add.outer(dE, E, out=iEdE.imag)
+
+        # Use expm1 for better convergence for small arguments
+        integral = np.divide(np.expm1(iEdE*dt[l]), iEdE, out=integral)
 
         # Faster for d = 2 to also contract over the time dimension instead of
         # loop, but for readability we don't distinguish.
