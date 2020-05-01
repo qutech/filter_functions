@@ -218,9 +218,6 @@ def calculate_control_matrix_from_scratch(
     E = omega
     n_coeffs = np.asarray(n_coeffs)
 
-    # Allocate memory
-    R = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
-
     # Precompute noise opers transformed to eigenbasis of each pulse
     # segment and Q^\dagger @ HV
     if d < 4:
@@ -234,8 +231,10 @@ def calculate_control_matrix_from_scratch(
         for j, n_oper in enumerate(n_opers):
             B[j] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
 
-    # Allocate array for the integral
-    integral = np.empty((d, d, len(E)), dtype=complex)
+    # Allocate result and buffers for intermediate arrays
+    R = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
+    exp_buf = np.empty((d, d, len(E)), dtype=complex)
+    int_buf = np.empty((d, d, len(E)), dtype=complex)
     R_path = ['einsum_path', (0, 1), (0, 2), (0, 1)]
 
     for l in progressbar_range(len(dt), show_progressbar=show_progressbar,
@@ -243,16 +242,20 @@ def calculate_control_matrix_from_scratch(
 
         dE = np.subtract.outer(HD[l], HD[l])
         # iEdE_nm = 1j*(omega + omega_n - omega_m)
-        iEdE = np.zeros_like(integral)
-        iEdE.imag = np.add.outer(dE, E, out=iEdE.imag)
+        int_buf.real = 0
+        int_buf.imag = np.add.outer(dE, E, out=int_buf.imag)
 
-        # Use expm1 for better convergence for small arguments
-        integral = np.divide(np.expm1(iEdE*dt[l]), iEdE, out=integral)
+        # Use expm1 for better convergence with small arguments
+        exp_buf = np.expm1(int_buf*dt[l], out=exp_buf)
+        # Catch zero-division warnings
+        mask = (int_buf != 0)
+        int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=mask)
+        int_buf[~mask] = dt[l]
 
         # Faster for d = 2 to also contract over the time dimension instead of
         # loop, but for readability we don't distinguish.
         R += np.einsum('j,jmn,mno,knm->jko',
-                       n_coeffs[:, l], B[:, l], cexp(E*t[l])*integral,
+                       n_coeffs[:, l], B[:, l], cexp(E*t[l])*int_buf,
                        QdagV[l].conj().T @ basis @ QdagV[l],
                        optimize=R_path)
 
