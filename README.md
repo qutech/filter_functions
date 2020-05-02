@@ -4,11 +4,59 @@
 [![Documentation Status](https://readthedocs.org/projects/filter-functions/badge/?version=latest)](https://filter-functions.readthedocs.io/en/latest/?badge=latest)
 [![PyPI version](https://badge.fury.io/py/filter-functions.svg)](https://badge.fury.io/py/filter-functions)
 
-Simply put, filter functions characterize a pulse's susceptibility to noise at a given frequency and can thus be used to gain insight into the decoherence of the system. The formalism allows for efficient calculation of several quantities of interest such as average gate fidelity. Moreover, the filter function of a composite pulse can be easily derived from those of the constituent pulses, allowing for efficient assembly and characterization of pulse sequences.
+## Introduction
+Simply put, filter functions characterize a quantum system's susceptibility to noise at a given frequency during a control operation and can thus be used to gain insight into its decoherence. The formalism allows for efficient calculation of several quantities of interest such as average gate fidelity and even the entire quantum process up to a unitary rotation. Moreover, the filter function of a composite pulse can be easily derived from those of the constituent pulses, allowing for efficient assembly and characterization of pulse sequences.
 
-Previously, filter functions have only been computed analytically for select pulses such as dynamical decoupling sequences [1], [2]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms. 
+Previously, filter functions have only been computed analytically for select pulses such as dynamical decoupling sequences [1, 2]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms.
 
-The package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, and comes with extensive documentation and a test suite.
+The `filter_functions` package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, and comes with extensive documentation and a test suite.
+
+As a very brief introduction, consider a Hadamard gate implemented by a pi/2 Y-gate followed by a NOT-gate using simple square pulses. We can calculate and plot the dephasing filter function of the gate with the following code:
+
+```python
+import filter_functions as ff
+import qutip as qt
+from math import pi
+
+H_c = [[qt.sigmax()/2,   [0, pi], 'X'],
+       [qt.sigmay()/2, [pi/2, 0], 'Y']]     # control Hamiltonian
+H_n = [[qt.sigmaz()/2,    [1, 1], 'Z']]     # constant coupling to z noise
+dt = [1, 1]                                 # time steps
+
+hadamard = ff.PulseSequence(H_c, H_n, dt)   # Central object representing a control pulse
+omega = ff.util.get_sample_frequencies(hadamard)
+F = hadamard.get_filter_function(omega)
+
+ff.plot_filter_function(hadamard)           # Filter function cached from before
+```
+
+![Hadamard dephasing filter function](./doc/source/_static/hadamard.png)
+
+An alternative way of obtaining the Hadamard `PulseSequence` is by concatenating the composing pulses:
+
+```python
+Y2 = ff.PulseSequence([[qt.sigmay()/2, [pi/2], 'Y']],
+                      [[qt.sigmaz()/2,    [1], 'Z']],
+                      [1])
+X = ff.PulseSequence([[qt.sigmax()/2, [pi], 'X']],
+                     [[qt.sigmaz()/2,  [1], 'Z']],
+                     [1])
+
+Y2.cache_filter_function(omega)
+X.cache_filter_function(omega)
+
+hadamard = Y2 @ X           # equivalent: ff.concatenate((Y2, X))
+hadamard.is_cached('F')
+# True  (filter function cached during concatenation)
+```
+
+To compute, for example, the infidelity of the gate in the presence of an arbitrary classical noise spectrum, we can simply call `infidelity()`:
+
+```python
+spectrum = 1e-2/abs(omega)  # omega is symmetric about zero
+infidelity = ff.infidelity(hadamard, spectrum, omega)
+# array([0.006037])  (one contribution per noise operator)
+```
 
 ## Installation
 To install the package from PyPI, run `pip install filter_functions`. It is recommended to install QuTiP before by following the [instructions on their website](http://qutip.org/docs/latest/installation.html) rather than installing it through `pip`. To install the package from source run `python setup.py develop` to install using symlinks or `python setup.py install` without.
