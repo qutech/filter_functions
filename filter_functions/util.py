@@ -931,7 +931,7 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
     return res if res.imag.any() else res.real
 
 
-def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 200,
+def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
                            spacing: str = 'log',
                            symmetric: bool = True) -> ndarray:
     """
@@ -948,7 +948,7 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 200,
     pulse : PulseSequence
         The pulse to get frequencies for.
     n_samples : int, optional
-        The number of frequency samples. Default is 200.
+        The number of frequency samples. Default is 300.
     spacing : str, optional
         The spacing of the frequencies. Either 'log' or 'linear', default is
         'log'.
