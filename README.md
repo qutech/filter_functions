@@ -9,7 +9,7 @@ Simply put, filter functions characterize a quantum system's susceptibility to n
 
 Previously, filter functions have only been computed analytically for select pulses such as dynamical decoupling sequences [1, 2]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms.
 
-The `filter_functions` package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, and comes with extensive documentation and a test suite.
+The `filter_functions` package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, and comes with extensive documentation and a test suite. Note that the project is still in pre-release and thus liable to breaking API changes.
 
 As a very brief introduction, consider a Hadamard gate implemented by a pi/2 Y-gate followed by a NOT-gate using simple square pulses. We can calculate and plot the dephasing filter function of the gate with the following code:
 
