@@ -42,13 +42,16 @@ class CoreTest(testutil.TestCase):
 
     def test_pulse_sequence_constructor(self):
         """Test constructing a PulseSequence."""
-        identifiers = ('X', 'Y', 'Z')
-        H_c = list(zip(ff.util.P_np[1:], randn(3, 5), identifiers))
-        H_n = list(zip(ff.util.P_np[1:], np.abs(randn(3, 5)), identifiers))
+        base_pulse = testutil.rand_pulse_sequence(2, 5, 3, 3)
+        H_c = list(zip(base_pulse.c_opers, base_pulse.c_coeffs,
+                       base_pulse.c_oper_identifiers))
+        H_n = list(zip(base_pulse.n_opers, base_pulse.n_coeffs,
+                       base_pulse.n_oper_identifiers))
+        dt = base_pulse.dt
+
         for i in range(3):
             H_c[i] = list(H_c[i])
             H_n[i] = list(H_n[i])
-        dt = np.abs(randn(5))
 
         with self.assertRaises(TypeError):
             # Not enough positional arguments
@@ -313,7 +316,7 @@ class CoreTest(testutil.TestCase):
             list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
             list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
             A.dt,
-            ff.Basis([elem])
+            ff.Basis(elem)
         )
         self.assertFalse(A == B)
         self.assertTrue(A != B)
@@ -434,7 +437,8 @@ class CoreTest(testutil.TestCase):
             self.assertArrayEqual(total_Q_liouville, pulse._total_Q_liouville)
 
         # Test custom identifiers
-        letters = np.random.choice(list(string.ascii_letters), size=(6, 5))
+        letters = np.random.choice(list(string.ascii_letters), size=(6, 5),
+                                   replace=False)
         ids = [''.join(l) for l in letters[:3]]
         labels = [''.join(l) for l in letters[3:]]
         pulse = ff.PulseSequence(
@@ -449,14 +453,10 @@ class CoreTest(testutil.TestCase):
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
         for d, n_dt in zip(randint(2, 10, (3,)), randint(10, 200, (3,))):
-            c_opers = testutil.rand_herm(d, 4)
-            c_coeffs = randn(4, n_dt)
-            n_opers = testutil.rand_herm_traceless(d, 6)
-            n_coeffs = randn(6, n_dt)
-            dt = np.abs(randn(n_dt))
-            total_pulse = ff.PulseSequence(list(zip(c_opers, c_coeffs)),
-                                           list(zip(n_opers, n_coeffs)),
-                                           dt)
+            total_pulse = testutil.rand_pulse_sequence(d, n_dt, 4, 6)
+            c_opers, c_coeffs = total_pulse.c_opers, total_pulse.c_coeffs
+            n_opers, n_coeffs = total_pulse.n_opers, total_pulse.n_coeffs
+            dt = total_pulse.dt
 
             total_HD, total_HV, _ = diagonalize(
                 np.einsum('il,ijk->ljk', c_coeffs, c_opers), total_pulse.dt
@@ -603,9 +603,7 @@ class CoreTest(testutil.TestCase):
 
     def test_calculate_error_vector_correlation_functions(self):
         """Test raises of numeric.error_transfer_matrix"""
-        pulse = ff.PulseSequence([[ff.util.P_np[1], [np.pi/2]]],
-                                 [[ff.util.P_np[1], [1]]],
-                                 [1])
+        pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
 
         omega = randn(43)
         # single spectrum
@@ -632,16 +630,8 @@ class CoreTest(testutil.TestCase):
         def S(omega):
             return omega**0
 
-        simple_pulse = ff.PulseSequence(
-            [[ff.util.P_qt[1], [np.pi/2]]],
-            [[ff.util.P_qt[1], [1]]],
-            [1]
-        )
-        complicated_pulse = ff.PulseSequence(
-            list(zip(ff.util.P_qt[1:], randn(3, 100))),
-            list(zip(ff.util.P_qt[1:], np.abs(randn(3, 100)))),
-            np.abs(randn(100))
-        )
+        simple_pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
+        complicated_pulse = testutil.rand_pulse_sequence(2, 100, 3, 3)
 
         with self.assertRaises(TypeError):
             n, infids, (fig, ax) = ff.infidelity(simple_pulse, S, [],
@@ -662,7 +652,8 @@ class CoreTest(testutil.TestCase):
                                              test_convergence=True)
 
         # Test with non-default args
-        identifiers = choice(['B_0', 'B_1', 'B_2'], randint(1, 4))
+        identifiers = choice(complicated_pulse.n_oper_identifiers,
+                             randint(1, 4))
 
         n, infids, (fig, ax) = ff.infidelity(complicated_pulse,
                                              S, omega, test_convergence=True,

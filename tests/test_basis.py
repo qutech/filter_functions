@@ -21,7 +21,7 @@
 """
 This module tests the operator basis module.
 """
-
+from copy import copy
 from itertools import product
 
 import numpy as np
@@ -229,7 +229,7 @@ class BasisTest(testutil.TestCase):
             # Get a random traceless hermitian operator
             oper = testutil.rand_herm_traceless(d)
             # ... and build a basis from it
-            b = ff.Basis(np.array([oper]))
+            b = ff.Basis(oper)
             self.assertTrue(b.isorthonorm)
             self.assertTrue(b.isherm)
             self.assertTrue(b.istraceless)
@@ -253,7 +253,7 @@ class BasisTest(testutil.TestCase):
             # Get a random hermitian operator
             oper = testutil.rand_herm(d)
             # ... and build a basis from it
-            b = ff.Basis(np.array([oper]))
+            b = ff.Basis(oper)
             self.assertTrue(b.isorthonorm)
             self.assertTrue(b.isherm)
             self.assertFalse(b.istraceless)
@@ -274,55 +274,43 @@ class BasisTest(testutil.TestCase):
     def test_filter_functions(self):
         """Filter functions equal for different bases"""
         # Set up random Hamiltonian
-        c_oper = testutil.rand_herm(4)
-        c_opers = (c_oper,)
-        c_coeffs = ([0, 1, 0],)
-        H_c = list(zip(c_opers, c_coeffs))
-
-        dt = np.ones(3)
-
-        n_oper = testutil.rand_herm_traceless(4)
-        n_oper[np.diag_indices(n_oper.shape[-1])] = 0
-        n_oper = ff.basis.normalize(n_oper)
-
-        H_n = [[n_oper, np.ones_like(dt)]]
-
-        omega = np.concatenate([-np.logspace(3, -3, 100),
-                                np.logspace(-3, 3, 100)])
+        base_pulse = testutil.rand_pulse_sequence(4, 3, 1, 1)
+        omega = ff.util.get_sample_frequencies(base_pulse, n_samples=200)
 
         pauli_basis = ff.Basis.pauli(2)
         ggm_basis = ff.Basis.ggm(4)
-        from_random_basis = ff.Basis([n_oper])
+        from_random_basis = ff.Basis(base_pulse.n_opers)
         bases = (pauli_basis, ggm_basis, from_random_basis)
 
-        # Get Pulses
-        pulses = [ff.PulseSequence(H_c, H_n, dt, basis=b) for b in bases]
-        F = [pulse.get_filter_function(omega).sum(0) for pulse in pulses]
+        # Get Pulses with different bases
+        F = []
+        for b in bases:
+            pulse = copy(base_pulse)
+            pulse.basis = b
+            F.append(pulse.get_filter_function(omega).sum(0))
+
         for pair in product(F, F):
             self.assertArrayAlmostEqual(*pair)
 
     def test_control_matrix(self):
         """Test control matrix for traceless and non-traceless bases"""
-        c_opers = testutil.rand_herm(3, 4)
-        c_coeffs = np.random.randn(4, 10)
 
-        n_opers_traceless = testutil.rand_herm_traceless(3, 4)
         n_opers = testutil.rand_herm(3, 4)
-        n_coeffs = np.abs(np.random.randn(4, 10))
-
-        dt = np.abs(np.random.randn(10))
+        n_opers_traceless = testutil.rand_herm_traceless(3, 4)
 
         basis = ff.Basis(testutil.rand_herm(3), traceless=False)
         basis_traceless = ff.Basis(testutil.rand_herm_traceless(3),
                                    traceless=True)
 
+        base_pulse = testutil.rand_pulse_sequence(3, 10, 4, 4)
+
         omega = np.logspace(-1, 1, 51)
 
         for i, base in enumerate((basis, basis_traceless)):
             for j, n_ops in enumerate((n_opers, n_opers_traceless)):
-                pulse = ff.PulseSequence(list(zip(c_opers, c_coeffs)),
-                                         list(zip(n_ops, n_coeffs)),
-                                         dt, base)
+                pulse = copy(base_pulse)
+                pulse.n_opers = n_ops
+                pulse.basis = base
 
                 R = pulse.get_control_matrix(omega)
 

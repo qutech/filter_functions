@@ -22,6 +22,7 @@
 This module defines some testing utilities.
 """
 
+import string
 import unittest
 from pathlib import Path
 
@@ -32,7 +33,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 from scipy.io import loadmat
 from scipy.linalg import expm
 
-from filter_functions import util
+from filter_functions import Basis, PulseSequence, util
 
 
 class TestCase(unittest.TestCase):
@@ -130,7 +131,7 @@ def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg',
 def rand_herm(d: int, n: int = 1) -> np.ndarray:
     """n random Hermitian matrices of dimension d"""
     A = randn(n, d, d) + 1j*randn(n, d, d)
-    return (A + A.conj().transpose([0, 2, 1])).squeeze()/2
+    return (A + A.conj().transpose([0, 2, 1]))/2
 
 
 def rand_herm_traceless(d: int, n: int = 1) -> np.ndarray:
@@ -147,6 +148,37 @@ def rand_unit(d: int, n: int = 1) -> np.ndarray:
         return expm(1j*H)
     else:
         return np.array([expm(1j*h) for h in H])
+
+
+def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
+                        btype: str = 'GGM', seed=None):
+    """Random pulse sequence instance"""
+    if seed is not None:
+        np.random.seed(seed)
+
+    c_opers = rand_herm_traceless(d, n_cops)
+    n_opers = rand_herm_traceless(d, n_nops)
+
+    c_coeffs = np.random.randn(n_cops, n_dt)
+    n_coeffs = np.random.rand(n_nops, n_dt)
+
+    letters = np.array(list(string.ascii_letters))
+    c_identifiers = np.random.choice(letters, n_cops, replace=False)
+    n_identifiers = np.random.choice(letters, n_nops, replace=False)
+
+    dt = 1 - np.random.rand(n_dt)  # (0, 1] instead of [0, 1)
+    if btype == 'GGM':
+        basis = Basis.ggm(d)
+    else:
+        basis = Basis.pauli(int(np.log2(d)))
+
+    pulse = PulseSequence(
+        list(zip(c_opers, c_coeffs, c_identifiers)),
+        list(zip(n_opers, n_coeffs, n_identifiers)),
+        dt,
+        basis
+    )
+    return pulse
 
 
 # Set up Hamiltonian for CNOT gate

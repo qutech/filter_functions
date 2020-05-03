@@ -571,19 +571,10 @@ class ExtensionTest(testutil.TestCase):
 
     def test_caching(self):
         """Test caching"""
-        ID, X, Y, Z = P_np
-        n_dt = 10
-        coeffs = randn(3, n_dt)
-        pulse_1 = ff.PulseSequence(
-            list(zip((X, Y, Z), coeffs)),
-            list(zip((X, Y, Z), np.ones((3, n_dt)))),
-            np.ones(n_dt), basis=ff.Basis.pauli(1)
-        )
-        pulse_2 = ff.PulseSequence(
-            list(zip((X, Y, Z), coeffs)),
-            list(zip((X, Y, Z), np.ones((3, n_dt)))),
-            np.ones(n_dt), basis=ff.Basis.pauli(1)
-        )
+        pulse_1 = testutil.rand_pulse_sequence(2, 10, btype='Pauli')
+        pulse_2 = testutil.rand_pulse_sequence(2, 10, btype='Pauli')
+        pulse_2.dt = pulse_1.dt
+        pulse_2.t = pulse_1.t
         omega = get_sample_frequencies(pulse_1, 50)
 
         # diagonalize one pulse
@@ -885,21 +876,14 @@ class ExtensionTest(testutil.TestCase):
                                     atol=1e-8)
 
     def test_exceptions(self):
-        ID, X, Y, Z = P_np
+        X = P_np[1]
         n_dt = 10
-        coeffs = randn(3, n_dt)
         omega = np.linspace(0, 1, 50)
-        pulse_1 = ff.PulseSequence(
-            list(zip((X, Y, Z), coeffs)),
-            list(zip((X, Y, Z), np.ones((3, n_dt)))),
-            np.ones(n_dt), basis=ff.Basis.pauli(1)
-        )
+
+        pulse_1 = testutil.rand_pulse_sequence(2, n_dt, btype='Pauli')
+        pulse_2 = testutil.rand_pulse_sequence(2, n_dt, btype='GGM')
+
         pulse_1.cache_filter_function(omega)
-        pulse_2 = ff.PulseSequence(
-            list(zip((X, Y, Z), coeffs)),
-            list(zip((X, Y, Z), np.ones((3, n_dt)))),
-            np.ones(n_dt)*2
-        )
         pulse_11 = ff.extend([[pulse_1, 0], [pulse_1, 1]])
         pulse_11.cache_filter_function(omega+1)
 
@@ -972,58 +956,41 @@ class ExtensionTest(testutil.TestCase):
 class RemappingTest(testutil.TestCase):
 
     def test_caching(self):
-        I, X, Y, Z = P_np
-        XY_pulse = ff.PulseSequence(
-            [[tensor(X, Y), [np.pi/2]]],
-            [[tensor(X, I), [1]],
-             [tensor(Y, I), [1]],
-             [tensor(I, X), [1]],
-             [tensor(I, Y), [1]]],
-            [1],
-            ff.Basis.pauli(2)
-        )
-        GGM_XY_pulse = ff.PulseSequence(
-            [[tensor(X, Y), [np.pi/2]]],
-            [[tensor(X, I), [1]],
-             [tensor(Y, I), [1]],
-             [tensor(I, X), [1]],
-             [tensor(I, Y), [1]]],
-            [1],
-            ff.Basis.ggm(4)
-        )
+        pauli_pulse = testutil.rand_pulse_sequence(4, 1, 1, 4, 'Pauli')
+        ggm_pulse = testutil.rand_pulse_sequence(4, 1, 1, 4, 'GGM')
         attrs = ('omega', 'HD', 'HV', 'Q', 'total_phases', 'total_Q', 'F',
                  'total_Q_liouville', 'R')
 
-        XY_pulse.cleanup('all')
-        remapped_XY_pulse = ff.remap(XY_pulse, (1, 0))
+        pauli_pulse.cleanup('all')
+        remapped_pauli_pulse = ff.remap(pauli_pulse, (1, 0))
         for attr in attrs:
-            self.assertEqual(XY_pulse.is_cached(attr),
-                             remapped_XY_pulse.is_cached(attr))
+            self.assertEqual(pauli_pulse.is_cached(attr),
+                             remapped_pauli_pulse.is_cached(attr))
 
-        omega = get_sample_frequencies(XY_pulse, n_samples=50)
-        XY_pulse.cache_filter_function(omega)
-        remapped_XY_pulse = ff.remap(XY_pulse, (1, 0))
+        omega = get_sample_frequencies(pauli_pulse, n_samples=50)
+        pauli_pulse.cache_filter_function(omega)
+        remapped_pauli_pulse = ff.remap(pauli_pulse, (1, 0))
         for attr in attrs:
-            self.assertEqual(XY_pulse.is_cached(attr),
-                             remapped_XY_pulse.is_cached(attr))
+            self.assertEqual(pauli_pulse.is_cached(attr),
+                             remapped_pauli_pulse.is_cached(attr))
 
-        GGM_XY_pulse.cleanup('all')
-        remapped_GGM_XY_pulse = ff.remap(GGM_XY_pulse, (1, 0))
+        ggm_pulse.cleanup('all')
+        remapped_ggm_pulse = ff.remap(ggm_pulse, (1, 0))
         for attr in attrs:
-            self.assertEqual(GGM_XY_pulse.is_cached(attr),
-                             remapped_GGM_XY_pulse.is_cached(attr))
+            self.assertEqual(ggm_pulse.is_cached(attr),
+                             remapped_ggm_pulse.is_cached(attr))
 
-        omega = get_sample_frequencies(GGM_XY_pulse, n_samples=50)
-        GGM_XY_pulse.cache_filter_function(omega)
+        omega = get_sample_frequencies(ggm_pulse, n_samples=50)
+        ggm_pulse.cache_filter_function(omega)
         with self.assertWarns(UserWarning):
-            remapped_GGM_XY_pulse = ff.remap(GGM_XY_pulse, (1, 0))
+            remapped_ggm_pulse = ff.remap(ggm_pulse, (1, 0))
 
         for attr in attrs[:-2]:
-            self.assertEqual(GGM_XY_pulse.is_cached(attr),
-                             remapped_GGM_XY_pulse.is_cached(attr))
+            self.assertEqual(ggm_pulse.is_cached(attr),
+                             remapped_ggm_pulse.is_cached(attr))
 
         for attr in attrs[-2:]:
-            self.assertFalse(remapped_GGM_XY_pulse.is_cached(attr))
+            self.assertFalse(remapped_ggm_pulse.is_cached(attr))
 
     def test_accuracy(self):
         paulis = np.array(P_np)

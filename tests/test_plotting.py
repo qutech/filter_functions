@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 import qutip as qt
-from numpy.random import randint, randn
+from numpy.random import randint
 
 import filter_functions as ff
 from filter_functions.plotting import (get_bloch_vector, get_states_from_prop,
@@ -45,28 +45,9 @@ from filter_functions.plotting import (get_bloch_vector, get_states_from_prop,
                                        plot_pulse_train)
 from tests import testutil
 
-simple_pulse = ff.PulseSequence(
-    [[qt.sigmax(), [np.pi/2]]],
-    [[qt.sigmax(), [1]]],
-    [1],
-    basis=ff.Basis.pauli(1)
-)
-complicated_pulse = ff.PulseSequence(
-    list(zip(ff.util.P_qt[1:], randn(3, 100))),
-    list(zip(ff.util.P_qt[1:], np.abs(randn(3, 100)))),
-    np.abs(randn(100))
-)
-two_qubit_pulse = ff.PulseSequence(
-    [[qt.tensor(qt.sigmaz(), qt.qeye(2)), [np.pi/2]]],
-    [[qt.tensor(qt.sigmax(), qt.qeye(2)), [1]],
-     [qt.tensor(qt.sigmay(), qt.qeye(2)), [1]],
-     [qt.tensor(qt.sigmaz(), qt.qeye(2)), [1]],
-     [qt.tensor(qt.qeye(2), qt.sigmax()), [1]],
-     [qt.tensor(qt.qeye(2), qt.sigmay()), [1]],
-     [qt.tensor(qt.qeye(2), qt.sigmaz()), [1]]],
-    [1],
-    ff.Basis.pauli(2)
-)
+simple_pulse = testutil.rand_pulse_sequence(2, 1, 1, 1, btype='Pauli')
+complicated_pulse = testutil.rand_pulse_sequence(2, 100, 3, 3)
+two_qubit_pulse = testutil.rand_pulse_sequence(4, 1, 1, 6, btype='Pauli')
 
 
 class PlottingTest(testutil.TestCase):
@@ -92,12 +73,6 @@ class PlottingTest(testutil.TestCase):
         self.assertArrayAlmostEqual(states_piecewise, states_total)
 
     def test_plot_bloch_vector_evolution(self):
-        two_qubit_pulse = ff.PulseSequence(
-            [[qt.tensor(qt.sigmax(), qt.sigmax()), [np.pi/2]]],
-            [[qt.tensor(qt.sigmax(), qt.sigmax()), [1]]],
-            [1]
-        )
-
         # Call with default args
         b = plot_bloch_vector_evolution(simple_pulse)
         # Call with custom args
