@@ -233,9 +233,9 @@ def calculate_control_matrix_from_scratch(
 
     # Allocate result and buffers for intermediate arrays
     R = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
-    exp_buf = np.empty((d, d, len(E)), dtype=complex)
-    int_buf = np.empty((d, d, len(E)), dtype=complex)
-    R_path = ['einsum_path', (0, 1), (0, 2), (0, 1)]
+    exp_buf = np.empty((len(E), d, d), dtype=complex)
+    int_buf = np.empty((len(E), d, d), dtype=complex)
+    R_path = ['einsum_path', (0, 3), (0, 1), (0, 2), (0, 1)]
 
     for l in progressbar_range(len(dt), show_progressbar=show_progressbar,
                                desc='Calculating control matrix'):
@@ -243,7 +243,7 @@ def calculate_control_matrix_from_scratch(
         dE = np.subtract.outer(HD[l], HD[l])
         # iEdE_nm = 1j*(omega + omega_n - omega_m)
         int_buf.real = 0
-        int_buf.imag = np.add.outer(dE, E, out=int_buf.imag)
+        int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
 
         # Use expm1 for better convergence with small arguments
         exp_buf = np.expm1(int_buf*dt[l], out=exp_buf)
@@ -254,8 +254,8 @@ def calculate_control_matrix_from_scratch(
 
         # Faster for d = 2 to also contract over the time dimension instead of
         # loop, but for readability we don't distinguish.
-        R += np.einsum('j,jmn,mno,knm->jko',
-                       n_coeffs[:, l], B[:, l], cexp(E*t[l])*int_buf,
+        R += np.einsum('o,j,jmn,omn,knm->jko',
+                       cexp(E*t[l]), n_coeffs[:, l], B[:, l], int_buf,
                        QdagV[l].conj().T @ basis @ QdagV[l],
                        optimize=R_path)
 
