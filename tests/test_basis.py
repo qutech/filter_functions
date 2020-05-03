@@ -26,9 +26,9 @@ from itertools import product
 
 import numpy as np
 from sparse import COO
-from tests import testutil
 
 import filter_functions as ff
+from tests import testutil
 
 
 class BasisTest(testutil.TestCase):

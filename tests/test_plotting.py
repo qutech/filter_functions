@@ -22,6 +22,7 @@
 This module tests the plotting functionality of the package.
 """
 import matplotlib
+
 # Needs to be executed before the pyplot import
 matplotlib.use('Agg')
 
@@ -33,7 +34,6 @@ import numpy as np
 import pytest
 import qutip as qt
 from numpy.random import randint, randn
-from tests import testutil
 
 import filter_functions as ff
 from filter_functions.plotting import (get_bloch_vector, get_states_from_prop,
@@ -43,6 +43,7 @@ from filter_functions.plotting import (get_bloch_vector, get_states_from_prop,
                                        plot_filter_function,
                                        plot_pulse_correlation_filter_function,
                                        plot_pulse_train)
+from tests import testutil
 
 simple_pulse = ff.PulseSequence(
     [[qt.sigmax(), [np.pi/2]]],

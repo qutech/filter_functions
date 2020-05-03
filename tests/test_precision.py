@@ -25,12 +25,12 @@ This module tests if the package produces the correct results numerically.
 import numpy as np
 import qutip as qt
 from numpy.random import randint, randn
-from tests import testutil
 
 import filter_functions as ff
 from filter_functions import analytic
 from filter_functions.numeric import (
     calculate_error_vector_correlation_functions, liouville_representation)
+from tests import testutil
 
 
 class PrecisionTest(testutil.TestCase):

@@ -27,7 +27,6 @@ from random import sample
 
 import numpy as np
 from numpy.random import choice, randint, randn
-from tests import testutil
 
 import filter_functions as ff
 from filter_functions.numeric import (
@@ -36,6 +35,7 @@ from filter_functions.numeric import (
     calculate_error_vector_correlation_functions,
     calculate_pulse_correlation_filter_function, diagonalize,
     liouville_representation)
+from tests import testutil
 
 
 class CoreTest(testutil.TestCase):
