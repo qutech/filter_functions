@@ -28,12 +28,14 @@ from pathlib import Path
 
 import numpy as np
 import qutip as qt
-from numpy.random import randn
+from numpy.random import RandomState
 from numpy.testing import assert_allclose, assert_array_equal
 from scipy.io import loadmat
 from scipy.linalg import expm
 
 from filter_functions import Basis, PulseSequence, util
+
+rng = RandomState()
 
 
 class TestCase(unittest.TestCase):
@@ -130,7 +132,7 @@ def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg',
 
 def rand_herm(d: int, n: int = 1) -> np.ndarray:
     """n random Hermitian matrices of dimension d"""
-    A = randn(n, d, d) + 1j*randn(n, d, d)
+    A = rng.randn(n, d, d) + 1j*rng.randn(n, d, d)
     return (A + A.conj().transpose([0, 2, 1]))/2
 
 
@@ -154,19 +156,19 @@ def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
                         btype: str = 'GGM', seed=None):
     """Random pulse sequence instance"""
     if seed is not None:
-        np.random.seed(seed)
+        rng.seed(seed)
 
     c_opers = rand_herm_traceless(d, n_cops)
     n_opers = rand_herm_traceless(d, n_nops)
 
-    c_coeffs = np.random.randn(n_cops, n_dt)
-    n_coeffs = np.random.rand(n_nops, n_dt)
+    c_coeffs = rng.randn(n_cops, n_dt)
+    n_coeffs = rng.rand(n_nops, n_dt)
 
     letters = np.array(list(string.ascii_letters))
-    c_identifiers = np.random.choice(letters, n_cops, replace=False)
-    n_identifiers = np.random.choice(letters, n_nops, replace=False)
+    c_identifiers = rng.choice(letters, n_cops, replace=False)
+    n_identifiers = rng.choice(letters, n_nops, replace=False)
 
-    dt = 1 - np.random.rand(n_dt)  # (0, 1] instead of [0, 1)
+    dt = 1 - rng.rand(n_dt)  # (0, 1] instead of [0, 1)
     if btype == 'GGM':
         basis = Basis.ggm(d)
     else:

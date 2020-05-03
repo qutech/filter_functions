@@ -24,7 +24,6 @@ This module tests if the package produces the correct results numerically.
 
 import numpy as np
 import qutip as qt
-from numpy.random import randint, randn
 
 import filter_functions as ff
 from filter_functions import analytic
@@ -37,7 +36,7 @@ class PrecisionTest(testutil.TestCase):
 
     def test_FID(self):
         """FID"""
-        tau = abs(randn())
+        tau = abs(testutil.rng.randn())
         FID_pulse = ff.PulseSequence([[ff.util.P_np[1]/2, [0]]],
                                      [[ff.util.P_np[3]/2, [1]]],
                                      [tau])
@@ -68,7 +67,7 @@ class PrecisionTest(testutil.TestCase):
 
         # Test again with a factor of one between the noise operators and
         # coefficients
-        r = randn()
+        r = testutil.rng.randn()
         H_n = [[ff.util.P_np[3]/2*r, np.ones_like(dt)/r]]
 
         SE_pulse = ff.PulseSequence(H_c, H_n, dt)
@@ -274,7 +273,7 @@ class PrecisionTest(testutil.TestCase):
 
     def test_infidelity(self):
         """Benchmark infidelity results against previous version's results"""
-        np.random.seed(123456789)
+        testutil.rng.seed(123456789)
 
         spectra = [
             lambda S0, omega: S0*omega**0,
@@ -297,9 +296,9 @@ class PrecisionTest(testutil.TestCase):
             [[0.65826575772, 0.069510589685+0.069510589685j],
              [0.069510589685-0.069510589685j, 1.042914346335]],
             [3.687399348243, 3.034914820757],
-            [2.590545568435, 3.10093804628 ],
+            [2.590545568435, 3.10093804628],
             [0.55880380219, 0.782544974968],
-            [3.687399348243, 3.10093804628 ],
+            [3.687399348243, 3.10093804628],
             [[2.590545568435, -0.114514760108-0.114514760108j],
              [-0.114514760108+0.114514760108j, 3.10093804628]],
             [2.864567451344, 1.270260393902],
@@ -316,7 +315,7 @@ class PrecisionTest(testutil.TestCase):
             pulse.n_oper_identifiers = np.array(['B_0', 'B_2'])
 
             omega = np.geomspace(0.1, 10, 51)
-            S0 = np.abs(randn())
+            S0 = np.abs(testutil.rng.randn())
             for spec in spectra:
                 S, omega_t = ff.util.symmetrize_spectrum(spec(S0, omega),
                                                          omega)
@@ -373,7 +372,8 @@ class PrecisionTest(testutil.TestCase):
 
         with self.assertRaises(ValueError):
             # S wrong dimensions
-            ff.infidelity(pulse, np.random.randn(2, 3, 4, len(omega)), omega)
+            ff.infidelity(pulse, testutil.rng.randn(2, 3, 4, len(omega)),
+                          omega)
 
         with self.assertRaises(NotImplementedError):
             # smallness parameter for correlated noise source
@@ -384,7 +384,7 @@ class PrecisionTest(testutil.TestCase):
     def test_single_qubit_error_transfer_matrix(self):
         """Test the calculation of the single-qubit transfer matrix"""
         d = 2
-        for n_dt in randint(1, 11, 10):
+        for n_dt in testutil.rng.randint(1, 11, 10):
             pulse = testutil.rand_pulse_sequence(d, n_dt, 3, 2, btype='Pauli')
             omega = ff.util.get_sample_frequencies(pulse, n_samples=51)
             n_oper_identifiers = pulse.n_oper_identifiers
@@ -464,7 +464,8 @@ class PrecisionTest(testutil.TestCase):
         """Test the calculation of the multi-qubit transfer matrix"""
         n_cops = 4
         n_nops = 2
-        for d, n_dt in zip(randint(3, 9, 10), randint(1, 11, 10)):
+        for d, n_dt in zip(testutil.rng.randint(3, 9, 10),
+                           testutil.rng.randint(1, 11, 10)):
             f, n = np.modf(np.log2(d))
             btype = 'Pauli' if f == 0.0 else 'GGM'
             pulse = testutil.rand_pulse_sequence(d, n_dt, n_cops, n_nops,

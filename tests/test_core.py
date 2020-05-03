@@ -26,7 +26,6 @@ from copy import copy
 from random import sample
 
 import numpy as np
-from numpy.random import choice, randint, randn
 
 import filter_functions as ff
 from filter_functions.numeric import (
@@ -61,7 +60,7 @@ class CoreTest(testutil.TestCase):
             # dt not a sequence
             ff.PulseSequence(H_c, H_n, dt[0])
 
-        idx = randint(0, 5)
+        idx = testutil.rng.randint(0, 5)
         with self.assertRaises(ValueError):
             # negative dt
             dt[idx] *= -1
@@ -92,7 +91,7 @@ class CoreTest(testutil.TestCase):
             # Noise Hamiltonian not list or tuple
             ff.PulseSequence(H_c, np.array(H_n), dt)
 
-        idx = randint(0, 3)
+        idx = testutil.rng.randint(0, 3)
         with self.assertRaises(TypeError):
             # Control Hamiltonian element not list or tuple
             H_c[idx] = dict(H_c[idx])
@@ -231,19 +230,19 @@ class CoreTest(testutil.TestCase):
     def test_pulse_sequence_attributes(self):
         """Test attributes of single instance"""
         X, Y, Z = ff.util.P_np[1:]
-        n_dt = randint(1, 10)
+        n_dt = testutil.rng.randint(1, 10)
 
         # trivial case
-        A = ff.PulseSequence([[X, randn(n_dt), 'X']],
-                             [[Z, randn(n_dt), 'Z']],
-                             np.abs(randn(n_dt)))
+        A = ff.PulseSequence([[X, testutil.rng.randn(n_dt), 'X']],
+                             [[Z, testutil.rng.randn(n_dt), 'Z']],
+                             np.abs(testutil.rng.randn(n_dt)))
         self.assertFalse(A == 1)
         self.assertTrue(A != 1)
 
         # different number of time steps
-        B = ff.PulseSequence([[X, randn(n_dt+1), 'X']],
-                             [[Z, randn(n_dt+1), 'Z']],
-                             np.abs(randn(n_dt+1)))
+        B = ff.PulseSequence([[X, testutil.rng.randn(n_dt+1), 'X']],
+                             [[Z, testutil.rng.randn(n_dt+1), 'Z']],
+                             np.abs(testutil.rng.randn(n_dt+1)))
         self.assertFalse(A == B)
         self.assertTrue(A != B)
 
@@ -251,7 +250,7 @@ class CoreTest(testutil.TestCase):
         B = ff.PulseSequence(
             list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
             list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
-            np.abs(randn(n_dt))
+            np.abs(testutil.rng.randn(n_dt))
         )
         self.assertFalse(A == B)
         self.assertTrue(A != B)
@@ -267,7 +266,8 @@ class CoreTest(testutil.TestCase):
 
         # different control coeffs
         B = ff.PulseSequence(
-            list(zip(A.c_opers, [randn(n_dt)], A.c_oper_identifiers)),
+            list(zip(A.c_opers, [testutil.rng.randn(n_dt)],
+                     A.c_oper_identifiers)),
             list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
             A.dt
         )
@@ -286,7 +286,8 @@ class CoreTest(testutil.TestCase):
         # different noise coeffs
         B = ff.PulseSequence(
             list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
-            list(zip(A.n_opers, [randn(n_dt)], A.n_oper_identifiers)),
+            list(zip(A.n_opers, [testutil.rng.randn(n_dt)],
+                     A.n_oper_identifiers)),
             A.dt
         )
         self.assertFalse(A == B)
@@ -364,30 +365,30 @@ class CoreTest(testutil.TestCase):
     def test_pulse_sequence_attributes_concat(self):
         """Test attributes of concatenated sequence."""
         X, Y, Z = ff.util.P_np[1:]
-        n_dt_1 = randint(5, 11)
-        x_coeff_1 = randn(n_dt_1)
-        z_coeff_1 = randn(n_dt_1)
-        dt_1 = np.abs(randn(n_dt_1))
-        n_dt_2 = randint(5, 11)
-        y_coeff_2 = randn(n_dt_2)
-        z_coeff_2 = randn(n_dt_2)
-        dt_2 = np.abs(randn(n_dt_2))
+        n_dt_1 = testutil.rng.randint(5, 11)
+        x_coeff_1 = testutil.rng.randn(n_dt_1)
+        z_coeff_1 = testutil.rng.randn(n_dt_1)
+        dt_1 = np.abs(testutil.rng.randn(n_dt_1))
+        n_dt_2 = testutil.rng.randint(5, 11)
+        y_coeff_2 = testutil.rng.randn(n_dt_2)
+        z_coeff_2 = testutil.rng.randn(n_dt_2)
+        dt_2 = np.abs(testutil.rng.randn(n_dt_2))
         pulse_1 = ff.PulseSequence([[X, x_coeff_1]],
                                    [[Z, z_coeff_1]],
                                    dt_1)
         pulse_2 = ff.PulseSequence([[Y, y_coeff_2]],
                                    [[Z, z_coeff_2]],
                                    dt_2)
-        pulse_3 = ff.PulseSequence([[Y, randn(2)],
-                                    [X, randn(2)]],
-                                   [[Z, np.abs(randn(2))]],
+        pulse_3 = ff.PulseSequence([[Y, testutil.rng.randn(2)],
+                                    [X, testutil.rng.randn(2)]],
+                                   [[Z, np.abs(testutil.rng.randn(2))]],
                                    [1, 1])
 
         pulse_12 = pulse_1 @ pulse_2
         pulse_21 = pulse_2 @ pulse_1
 
         with self.assertRaises(TypeError):
-            _ = pulse_1 @ randn(2, 2)
+            _ = pulse_1 @ testutil.rng.randn(2, 2)
 
         # Concatenate pulses with same operators but different labels
         with self.assertRaises(ValueError):
@@ -437,13 +438,13 @@ class CoreTest(testutil.TestCase):
             self.assertArrayEqual(total_Q_liouville, pulse._total_Q_liouville)
 
         # Test custom identifiers
-        letters = np.random.choice(list(string.ascii_letters), size=(6, 5),
-                                   replace=False)
+        letters = testutil.rng.choice(list(string.ascii_letters), size=(6, 5),
+                                      replace=False)
         ids = [''.join(l) for l in letters[:3]]
         labels = [''.join(l) for l in letters[3:]]
         pulse = ff.PulseSequence(
-            list(zip([X, Y, Z], np.random.randn(3, 2), ids, labels)),
-            list(zip([X, Y, Z], np.random.randn(3, 2), ids, labels)),
+            list(zip([X, Y, Z], testutil.rng.randn(3, 2), ids, labels)),
+            list(zip([X, Y, Z], testutil.rng.randn(3, 2), ids, labels)),
             [1, 1]
         )
 
@@ -452,7 +453,8 @@ class CoreTest(testutil.TestCase):
 
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
-        for d, n_dt in zip(randint(2, 10, (3,)), randint(10, 200, (3,))):
+        for d, n_dt in zip(testutil.rng.randint(2, 10, (3,)),
+                           testutil.rng.randint(10, 200, (3,))):
             total_pulse = testutil.rand_pulse_sequence(d, n_dt, 4, 6)
             c_opers, c_coeffs = total_pulse.c_opers, total_pulse.c_coeffs
             n_opers, n_coeffs = total_pulse.n_opers, total_pulse.n_coeffs
@@ -574,7 +576,7 @@ class CoreTest(testutil.TestCase):
             infid_1 = ff.infidelity(pulse_1, S, omega, which='foobar')
 
         for _ in range(10):
-            n_nops = randint(1, 4)
+            n_nops = testutil.rng.randint(1, 4)
             identifiers = sample(['B_0', 'B_1', 'B_2'], n_nops)
 
             infid_X = ff.infidelity(pulses['X'], S, omega, which='total',
@@ -605,9 +607,9 @@ class CoreTest(testutil.TestCase):
         """Test raises of numeric.error_transfer_matrix"""
         pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
 
-        omega = randn(43)
+        omega = testutil.rng.randn(43)
         # single spectrum
-        S = randn(78)
+        S = testutil.rng.randn(78)
         for i in range(4):
             with self.assertRaises(ValueError):
                 calculate_error_vector_correlation_functions(
@@ -652,8 +654,8 @@ class CoreTest(testutil.TestCase):
                                              test_convergence=True)
 
         # Test with non-default args
-        identifiers = choice(complicated_pulse.n_oper_identifiers,
-                             randint(1, 4))
+        identifiers = testutil.rng.choice(complicated_pulse.n_oper_identifiers,
+                                          testutil.rng.randint(1, 4))
 
         n, infids, (fig, ax) = ff.infidelity(complicated_pulse,
                                              S, omega, test_convergence=True,

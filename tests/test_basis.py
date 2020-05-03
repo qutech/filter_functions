@@ -51,7 +51,7 @@ class BasisTest(testutil.TestCase):
 
         # Too many elements
         with self.assertRaises(ValueError):
-            _ = ff.Basis(np.random.randn(5, 2, 2))
+            _ = ff.Basis(testutil.rng.randn(5, 2, 2))
 
         # Properly normalized
         self.assertEqual(ff.Basis.pauli(1), ff.Basis(ff.util.P_np))
@@ -70,8 +70,8 @@ class BasisTest(testutil.TestCase):
 
     def test_basis_properties(self):
         """Basis orthonormal and of correct dimensions"""
-        d = np.random.randint(2, 17)
-        n = np.random.randint(1, 5)
+        d = testutil.rng.randint(2, 17)
+        n = testutil.rng.randint(1, 5)
 
         ggm_basis = ff.Basis.ggm(d)
         pauli_basis = ff.Basis.pauli(n)
@@ -87,11 +87,12 @@ class BasisTest(testutil.TestCase):
             if not btype == 'Pauli':
                 self.assertEqual(d, base.d)
                 # Check if __contains__ works as expected
-                self.assertTrue(base[np.random.randint(0, d**2)] in base)
+                self.assertTrue(base[testutil.rng.randint(0, d**2)] in base)
             else:
                 self.assertEqual(2**n, base.d)
                 # Check if __contains__ works as expected
-                self.assertTrue(base[np.random.randint(0, (2**n)**2)] in base)
+                self.assertTrue(base[testutil.rng.randint(0, (2**n)**2)]
+                                in base)
             # Check if all elements of each basis are orthonormal and hermitian
             self.assertArrayEqual(base.T,
                                   base.view(np.ndarray).swapaxes(-1, -2))
@@ -129,13 +130,13 @@ class BasisTest(testutil.TestCase):
     def test_basis_expansion_and_normalization(self):
         """Correct expansion of operators and normalization of bases"""
         for _ in range(10):
-            d = np.random.randint(2, 16)
+            d = testutil.rng.randint(2, 16)
             ggm_basis = ff.Basis.ggm(d)
             basis = ff.Basis(
-                np.einsum('i,ijk->ijk', np.random.randn(d**2), ggm_basis),
+                np.einsum('i,ijk->ijk', testutil.rng.randn(d**2), ggm_basis),
                 skip_check=True
             )
-            M = np.random.randn(d, d) + 1j*np.random.randn(d, d)
+            M = testutil.rng.randn(d, d) + 1j*testutil.rng.randn(d, d)
             M -= np.trace(M)/d
             coeffs = ff.basis.expand(M, basis, normalized=False)
             self.assertArrayAlmostEqual(M, np.einsum('i,ijk', coeffs, basis))
@@ -146,8 +147,8 @@ class BasisTest(testutil.TestCase):
                                         ff.basis.ggm_expand(M, traceless=True),
                                         atol=1e-14)
 
-            n = np.random.randint(1, 50)
-            M = np.random.randn(n, d, d) + 1j*np.random.randn(n, d, d)
+            n = testutil.rng.randint(1, 50)
+            M = testutil.rng.randn(n, d, d) + 1j*testutil.rng.randn(n, d, d)
             coeffs = ff.basis.expand(M, basis, normalized=False)
             self.assertArrayAlmostEqual(M, np.einsum('li,ijk->ljk', coeffs,
                                                      basis))
@@ -180,11 +181,11 @@ class BasisTest(testutil.TestCase):
         # Do 100 test runs with random elements from a GGM basis in (2 ... 8)
         # dimensions
         for _ in range(50):
-            d = np.random.randint(2, 9)
+            d = testutil.rng.randint(2, 9)
             b = ff.Basis.ggm(d)
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(np.random.randint(0, len(inds)))
-                        for _ in range(np.random.randint(1, d**2)))
+            tup = tuple(inds.pop(testutil.rng.randint(0, len(inds)))
+                        for _ in range(testutil.rng.randint(1, d**2)))
             elems = b[tup, ...]
             basis = ff.Basis(elems)
             self.assertTrue(basis.isorthonorm)
@@ -198,12 +199,12 @@ class BasisTest(testutil.TestCase):
         # Do 100 test runs with random elements from a Pauli basis in (2 ... 8)
         # dimensions
         for _ in range(50):
-            n = np.random.randint(1, 4)
+            n = testutil.rng.randint(1, 4)
             d = 2**n
             b = ff.Basis.pauli(n)
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(np.random.randint(0, len(inds)))
-                        for _ in range(np.random.randint(1, d**2)))
+            tup = tuple(inds.pop(testutil.rng.randint(0, len(inds)))
+                        for _ in range(testutil.rng.randint(1, d**2)))
             elems = b[tup, ...]
             basis = ff.Basis(elems)
             self.assertTrue(basis.isorthonorm)
@@ -225,7 +226,7 @@ class BasisTest(testutil.TestCase):
         # Do 25 test runs with random elements from a random basis in
         # (2 ... 8) dimensions
         for _ in range(25):
-            d = np.random.randint(2, 7)
+            d = testutil.rng.randint(2, 7)
             # Get a random traceless hermitian operator
             oper = testutil.rand_herm_traceless(d)
             # ... and build a basis from it
@@ -237,8 +238,8 @@ class BasisTest(testutil.TestCase):
             # Choose random elements from that basis and generate a new basis
             # from it
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(np.random.randint(0, len(inds)))
-                        for _ in range(np.random.randint(1, d**2)))
+            tup = tuple(inds.pop(testutil.rng.randint(0, len(inds)))
+                        for _ in range(testutil.rng.randint(1, d**2)))
             elems = b[tup, ...]
             basis = ff.Basis(elems)
             self.assertTrue(basis.isorthonorm)
@@ -249,7 +250,7 @@ class BasisTest(testutil.TestCase):
 
         # Test runs with non-traceless opers
         for _ in range(25):
-            d = np.random.randint(2, 7)
+            d = testutil.rng.randint(2, 7)
             # Get a random hermitian operator
             oper = testutil.rand_herm(d)
             # ... and build a basis from it
@@ -261,8 +262,8 @@ class BasisTest(testutil.TestCase):
             # Choose random elements from that basis and generate a new basis
             # from it
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(np.random.randint(0, len(inds)))
-                        for _ in range(np.random.randint(1, d**2)))
+            tup = tuple(inds.pop(testutil.rng.randint(0, len(inds)))
+                        for _ in range(testutil.rng.randint(1, d**2)))
             elems = b[tup, ...]
             basis = ff.Basis(elems)
             self.assertTrue(basis.isorthonorm)
