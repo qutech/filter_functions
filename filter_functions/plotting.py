@@ -163,7 +163,6 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     See Also
     --------
     qutip.bloch.Bloch : Qutip's Bloch sphere implementation.
-    scipy.linalg.expm : asdf
     """
     # Raise an exception if not a one-qubit pulse
     if not pulse.d == 2:
