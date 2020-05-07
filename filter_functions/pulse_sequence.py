@@ -873,7 +873,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
         # expression for a basis expansion
         basis = Basis.ggm(d)
     else:
-        if not all(hasattr(basis, attr) for attr in ('_atol', '_rtol')):
+        if not hasattr(basis, 'btype'):
             raise ValueError("Expected basis to be an instance of the " +
                              "'filter_functions.basis.Basis' class, not " +
                              "{}!".format(type(basis)))
