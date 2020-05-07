@@ -145,7 +145,7 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     show** : bool, optional
         Whether to show the sphere (by calling :code:`b.make_sphere()`).
     return_Bloch : bool, optional
-        Whether to return the ``qutip.Bloch`` instance
+        Whether to return the :class:`qutip.bloch.Bloch` instance
     bloch_kwargs : dict, optional
         A dictionary with keyword arguments to be fed into the Bloch
         constructor (if *b* not given).
@@ -163,6 +163,7 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     See Also
     --------
     qutip.bloch.Bloch : Qutip's Bloch sphere implementation.
+    scipy.linalg.expm : asdf
     """
     # Raise an exception if not a one-qubit pulse
     if not pulse.d == 2:

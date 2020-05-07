@@ -87,9 +87,9 @@ class PulseSequence:
     ----------
     H_c : list of lists
         A nested list of *n_cops* nested lists as taken by QuTiP functions
-        (see for example :func:`~qutip.propagator`) describing the control
-        part of the Hamiltonian. The *i*-th entry of the list should be a
-        list consisting of the *i*-th operator :math:`A_i` making up the
+        (see for example :func:`qutip.propagator.propagator`) describing the
+        control part of the Hamiltonian. The *i*-th entry of the list should be
+        a list consisting of the *i*-th operator :math:`A_i` making up the
         control Hamiltonian and a list or array :math:`a_i(t)` describing the
         magnitude of that operator during the time intervals *dt*. Optionally,
         the list may also include operator identifiers. That is, *H_c* should
@@ -106,8 +106,8 @@ class PulseSequence:
 
     H_n : list of lists
         A nested list of *n_nops* nested lists as taken by QuTiP functions
-        (see for example :func:`~qutip.propagator`) describing the noise
-        part of the Hamiltonian. The *j*-th entry of the list should be a
+        (see for example :func:`qutip.propagator.propagator`) describing the
+        noise part of the Hamiltonian. The *j*-th entry of the list should be a
         list consisting of the *j*-th operator :math:`B_j` making up the noise
         Hamiltonian and a list or array describing the sensitivity
         :math:`s_j(t)` of the system to the noise operator during the time
