@@ -48,20 +48,14 @@ from typing import (Any, Dict, Iterable, List, Mapping, Optional, Sequence,
 from warnings import warn
 
 import numpy as np
-from numpy import linalg, ndarray
+from numpy import linalg as nla
+from numpy import ndarray
 from qutip import Qobj
 
+from . import numeric, util
 from .basis import (Basis, equivalent_pauli_basis_elements,
                     remap_pauli_basis_elements)
-from .numeric import (
-    calculate_control_matrix_from_atomic,
-    calculate_control_matrix_from_scratch, calculate_control_matrix_periodic,
-    calculate_filter_function, calculate_pulse_correlation_filter_function,
-    diagonalize, liouville_representation)
 from .types import Coefficients, Hamiltonian, Operator, PulseMapping
-from .util import (CalculationError, all_array_equal, cexp,
-                   get_indices_from_identifiers, hash_array_along_axis, mdot,
-                   tensor, tensor_insert, tensor_merge, tensor_transpose)
 
 __all__ = ['PulseSequence', 'concatenate', 'concatenate_periodic', 'extend',
            'remap']
@@ -404,7 +398,7 @@ class PulseSequence:
         if not all(self.is_cached(attr) for attr in ('HD', 'HV', 'Q')):
             # Control Hamiltonian as a (n_dt, d, d) array
             H = np.einsum('ijk,il->ljk', self.c_opers, self.c_coeffs)
-            self.HD, self.HV, self.Q = diagonalize(H, self.dt)
+            self.HD, self.HV, self.Q = numeric.diagonalize(H, self.dt)
 
         # Set the total propagator
         self.total_Q = self.Q[-1]
@@ -443,7 +437,7 @@ class PulseSequence:
         # Make sure the Hamiltonian has been diagonalized
         self.diagonalize()
 
-        R = calculate_control_matrix_from_scratch(
+        R = numeric.calculate_control_matrix_from_scratch(
             self.HD, self.HV, self.Q, omega, self.basis, self.n_opers,
             self.n_coeffs, self.dt, self.t, show_progressbar=show_progressbar
         )
@@ -478,8 +472,9 @@ class PulseSequence:
         # Cache total phase and total transfer matrices as well
         self.cache_total_phases(omega)
         if not self.is_cached('total_Q_liouville'):
-            self.total_Q_liouville = liouville_representation(self.total_Q,
-                                                              self.basis)
+            self.total_Q_liouville = numeric.liouville_representation(
+                self.total_Q, self.basis
+            )
 
     def get_filter_function(self, omega: Coefficients,
                             show_progressbar: bool = False) -> ndarray:
@@ -561,18 +556,19 @@ class PulseSequence:
 
             if R.ndim == 4:
                 # Cache regular control matrix
-                self.cache_control_matrix(omega, R.sum(axis=0),
-                                          show_progressbar=show_progressbar)
+                self.cache_control_matrix(omega, R.sum(axis=0), False)
                 # Calculate pulse correlation FF and derive canonical FF from
                 # it
-                self._F_pc = calculate_pulse_correlation_filter_function(R)
+                self._F_pc = \
+                    numeric.calculate_pulse_correlation_filter_function(R)
+
                 F = np.einsum('ghjlo->jlo', self._F_pc)
 
             else:
                 # Regular case
                 self.cache_control_matrix(omega, R,
                                           show_progressbar=show_progressbar)
-                F = calculate_filter_function(R)
+                F = numeric.calculate_filter_function(R)
 
         self.omega = omega
         self._F = F
@@ -621,11 +617,11 @@ class PulseSequence:
         if self.is_cached('F_pc'):
             return self._F_pc
 
-        raise CalculationError("Could not get the pulse correlation " +
-                               "function since it was not computed during " +
-                               "concatenation. Please run the concatenation " +
-                               "again with 'calc_pulse_correlation_ff' set " +
-                               "to True.")
+        raise util.CalculationError(
+            "Could not get the pulse correlation function since it was not " +
+            "computed during concatenation. Please run the concatenation " +
+            "again with 'calc_pulse_correlation_ff' set to True."
+        )
 
     def get_total_phases(self, omega: Coefficients) -> ndarray:
         """Get the (cached) total phase factors for this pulse and omega."""
@@ -658,7 +654,7 @@ class PulseSequence:
             they are computed.
         """
         if total_phases is None:
-            total_phases = cexp(np.asarray(omega)*self.t[-1])
+            total_phases = util.cexp(np.asarray(omega)*self.t[-1])
 
         self.omega = omega
         self._total_phases = total_phases
@@ -719,8 +715,8 @@ class PulseSequence:
     def total_Q_liouville(self) -> ndarray:
         """Get the transfer matrix for the total propagator of the pulse."""
         if not self.is_cached('total_Q_liouville'):
-            self._total_Q_liouville = liouville_representation(self.total_Q,
-                                                               self.basis)
+            self._total_Q_liouville = numeric.liouville_representation(
+                self.total_Q, self.basis)
 
         return self._total_Q_liouville
 
@@ -813,7 +809,7 @@ class PulseSequence:
         idx[idx < 0] = 0
         Q_prev = self.Q[idx]
         U_curr = np.einsum('lij,jl,lkj->lik', self.HV[idx],
-                           cexp((self.t[idx] - t)*self.HD[idx].T),
+                           util.cexp((self.t[idx] - t)*self.HD[idx].T),
                            self.HV[idx].conj())
 
         return U_curr @ Q_prev
@@ -1042,7 +1038,7 @@ def _concatenate_Hamiltonian(
     all_opers = np.concatenate(opers, axis=0)
     all_identifiers = np.concatenate(identifiers)
     hashed_identifiers = [hash(i) for i in all_identifiers]
-    hashed_opers = hash_array_along_axis(all_opers, axis=0)
+    hashed_opers = util.hash_array_along_axis(all_opers, axis=0)
     concat_hashed_opers, concat_idx, inverse_idx = np.unique(
         hashed_opers, return_index=True, return_inverse=True
     )
@@ -1144,9 +1140,10 @@ def _merge_attrs(old_attrs: List[ndarray], new_attrs: List[ndarray],
     pos = [bisect.bisect(registers, q) for q in qubits]
     attrs = []
     for old_attr, new_attr in zip(old_attrs, new_attrs):
-        attrs.append(tensor_merge(old_attr, new_attr, pos,
-                                  arr_dims=[[d_per_qubit]*len(registers)]*2,
-                                  ins_dims=[[d_per_qubit]*len(pos)]*2))
+        attrs.append(util.tensor_merge(
+            old_attr, new_attr, pos, arr_dims=[[d_per_qubit]*len(registers)]*2,
+            ins_dims=[[d_per_qubit]*len(pos)]*2
+        ))
 
     # Update the registers
     for q in qubits:
@@ -1170,8 +1167,10 @@ def _insert_attrs(old_attrs: List[ndarray], new_attrs: List[ndarray],
     pos = bisect.bisect(registers, qubit)
     attrs = []
     for old_attr, new_attr in zip(old_attrs, new_attrs):
-        attrs.append(tensor_insert(old_attr, new_attr, pos=pos,
-                                   arr_dims=[[d_per_qubit]*len(registers)]*2))
+        attrs.append(util.tensor_insert(
+            old_attr, new_attr, pos=pos,
+            arr_dims=[[d_per_qubit]*len(registers)]*2
+        ))
     # Update the registers
     bisect.insort(registers, qubit)
 
@@ -1292,7 +1291,7 @@ def concatenate_without_filter_function(
                          'instances with incompatible Hamiltonian shapes')
 
     # Check if the bases are the same by hashing them and creating a set
-    if not all_array_equal((pulse.basis for pulse in pulses)):
+    if not util.all_array_equal((pulse.basis for pulse in pulses)):
         raise ValueError('Trying to concatenate two PulseSequence ' +
                          'instances with different bases!')
 
@@ -1400,7 +1399,7 @@ def concatenate(pulses: Iterable[PulseSequence],
     )
 
     if all(pls.is_cached('total_Q') for pls in pulses):
-        newpulse.total_Q = mdot([pls.total_Q for pls in pulses][::-1])
+        newpulse.total_Q = util.mdot([pls.total_Q for pls in pulses][::-1])
 
     if calc_filter_function is False and not calc_pulse_correlation_ff:
         return newpulse
@@ -1431,7 +1430,7 @@ def concatenate(pulses: Iterable[PulseSequence],
     equal_n_opers = (n_opers_present.sum(axis=0) > 1).any()
     if omega is None:
         cached_ctrl_mat = [pls.is_cached('R') for pls in pulses]
-        equal_omega = all_array_equal(
+        equal_omega = util.all_array_equal(
             (pls.omega for pls in compress(pulses, cached_ctrl_mat))
         )
         if not equal_omega:
@@ -1489,7 +1488,7 @@ def concatenate(pulses: Iterable[PulseSequence],
         if not idx.all():
             # calculate the control matrix for the noise operators that are
             # not present in pulse
-            R_g[i, ~idx] = calculate_control_matrix_from_scratch(
+            R_g[i, ~idx] = numeric.calculate_control_matrix_from_scratch(
                 pulse.HD, pulse.HV, pulse.Q, omega, pulse.basis,
                 newpulse.n_opers[~idx],
                 newpulse.n_coeffs[~idx, seg_idx[i]:seg_idx[i+1]],
@@ -1499,18 +1498,18 @@ def concatenate(pulses: Iterable[PulseSequence],
     # Set the total propagator for possible future concatenations (if not done
     # so above)
     if not newpulse.is_cached('total_Q'):
-        newpulse.total_Q = mdot([pls.total_Q for pls in pulses][::-1])
+        newpulse.total_Q = util.mdot([pls.total_Q for pls in pulses][::-1])
 
     newpulse.cache_total_phases(omega)
-    newpulse.total_Q_liouville = liouville_representation(newpulse.total_Q,
-                                                          newpulse.basis)
+    newpulse.total_Q_liouville = numeric.liouville_representation(
+        newpulse.total_Q, newpulse.basis)
 
     if calc_pulse_correlation_ff:
         path = ['einsum_path', (1, 2), (0, 1)]
-        R = np.einsum('go,gjlo,glk->gjko', phases, R_g, L, optimize=path)
+        R = np.einsum('go,galo,glk->gako', phases, R_g, L, optimize=path)
     else:
-        R = calculate_control_matrix_from_atomic(phases, R_g, L,
-                                                 show_progressbar)
+        R = numeric.calculate_control_matrix_from_atomic(phases, R_g, L,
+                                                         show_progressbar)
 
     # Set the attribute and calculate filter function (if the pulse correlation
     # FF has been calculated, this is a little overhead but negligible)
@@ -1601,14 +1600,14 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     R_at = pulse.get_control_matrix(pulse.omega)
     L_at = pulse.total_Q_liouville
 
-    newpulse.total_Q = linalg.matrix_power(pulse.total_Q, repeats)
+    newpulse.total_Q = nla.matrix_power(pulse.total_Q, repeats)
     newpulse.cache_total_phases(pulse.omega)
     # Might be cheaper for small repeats to use matrix_power, but this function
     # is aimed at a large number so we calculate it explicitly
     newpulse.total_Q_liouville = newpulse.total_Q_liouville
 
-    R_tot = calculate_control_matrix_periodic(phases_at, R_at, L_at,
-                                              repeats)
+    R_tot = numeric.calculate_control_matrix_periodic(phases_at, R_at, L_at,
+                                                      repeats)
 
     newpulse.cache_filter_function(pulse.omega, R_tot)
 
@@ -1677,8 +1676,8 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
     N = int(np.log(pulse.d)/np.log(d_per_qubit))
 
     # Transpose control and noise operators
-    c_opers = tensor_transpose(pulse.c_opers, order, [[d_per_qubit]*N]*2)
-    n_opers = tensor_transpose(pulse.n_opers, order, [[d_per_qubit]*N]*2)
+    c_opers = util.tensor_transpose(pulse.c_opers, order, [[d_per_qubit]*N]*2)
+    n_opers = util.tensor_transpose(pulse.n_opers, order, [[d_per_qubit]*N]*2)
 
     # Remap identifiers
     c_oper_identifiers, c_sort_idx = _map_identifiers(pulse.c_oper_identifiers,
@@ -1700,12 +1699,12 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
     )
 
     if pulse.is_cached('HD'):
-        remapped_pulse.HD = tensor_transpose(pulse.HD, order,
-                                             [[d_per_qubit]*N], rank=1)
+        remapped_pulse.HD = util.tensor_transpose(pulse.HD, order,
+                                                  [[d_per_qubit]*N], rank=1)
 
     for attr in ('HV', 'Q', 'total_Q'):
         if pulse.is_cached(attr):
-            setattr(remapped_pulse, attr, tensor_transpose(
+            setattr(remapped_pulse, attr, util.tensor_transpose(
                 getattr(pulse, attr), order, [[d_per_qubit]*N]*2
             ))
 
@@ -1952,7 +1951,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
     pulses = multi_qubit_pulses + single_qubit_pulses
     idx = multi_qubit_idx + single_qubit_idx
 
-    if not all_array_equal((pulse.dt for pulse in pulses)):
+    if not util.all_array_equal((pulse.dt for pulse in pulses)):
         raise ValueError('All pulses should be defined on the same time steps')
 
     active_qubits = set(active_qubits_list)
@@ -1986,7 +1985,8 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
         is_cached = all(pulse.is_cached('R') for pulse in pulses)
 
         try:
-            equal_omega = all_array_equal((pulse.omega for pulse in pulses))
+            equal_omega = util.all_array_equal((pulse.omega
+                                                for pulse in pulses))
         except AttributeError:
             equal_omega = False
 
@@ -2041,10 +2041,14 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
 
         c_oper_identifiers.extend(c_oper_identifier)
         n_oper_identifiers.extend(n_oper_identifier)
-        c_opers.extend(tensor_insert(pulse.c_opers, *[ID]*len(pos), pos=pos,
-                                     arr_dims=[[d_per_qubit]*len(qubits)]*2))
-        n_opers.extend(tensor_insert(pulse.n_opers, *[ID]*len(pos), pos=pos,
-                                     arr_dims=[[d_per_qubit]*len(qubits)]*2))
+        c_opers.extend(util.tensor_insert(
+            pulse.c_opers, *[ID]*len(pos), pos=pos,
+            arr_dims=[[d_per_qubit]*len(qubits)]*2
+        ))
+        n_opers.extend(util.tensor_insert(
+            pulse.n_opers, *[ID]*len(pos), pos=pos,
+            arr_dims=[[d_per_qubit]*len(qubits)]*2
+        ))
 
         c_coeffs.extend(pulse.c_coeffs)
         n_coeffs.extend(pulse.n_coeffs)
@@ -2067,8 +2071,8 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
         c_oper_identifiers.extend(c_oper_identifier)
         n_oper_identifiers.extend(n_oper_identifier)
         # extend control and noise operators
-        c_opers.extend(tensor(*(ID_pre + [pulse.c_opers] + ID_post)))
-        n_opers.extend(tensor(*(ID_pre + [pulse.n_opers] + ID_post)))
+        c_opers.extend(util.tensor(*(ID_pre + [pulse.c_opers] + ID_post)))
+        n_opers.extend(util.tensor(*(ID_pre + [pulse.n_opers] + ID_post)))
         c_coeffs.extend(pulse.c_coeffs)
         n_coeffs.extend(pulse.n_coeffs)
 
@@ -2144,9 +2148,10 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
             HD_pos = [bisect.bisect(qubits, q)
                       for q in all_qubits.difference(qubits)]
 
-            HD += tensor_insert(pulse.HD, *np.ones((len(HD_pos), d_per_qubit)),
-                                pos=HD_pos, rank=1,
-                                arr_dims=[[d_per_qubit]*len(qubits)])
+            HD += util.tensor_insert(pulse.HD,
+                                     *np.ones((len(HD_pos), d_per_qubit)),
+                                     pos=HD_pos, rank=1,
+                                     arr_dims=[[d_per_qubit]*len(qubits)])
 
             (HV, Q), registers = _merge_attrs([HV, Q], [pulse.HV, pulse.Q],
                                               d_per_qubit, registers, qubits)
@@ -2156,7 +2161,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
             ones_pre = [np.ones(d_per_qubit**qubit)] if qubit > 0 else []
             ones_post = [np.ones(d_per_qubit**(N - qubit - 1))] \
                 if qubit < N - 1 else []
-            HD += tensor(*(ones_pre + [pulse.HD] + ones_post), rank=1)
+            HD += util.tensor(*(ones_pre + [pulse.HD] + ones_post), rank=1)
 
             (HV, Q), registers = _insert_attrs([HV, Q], [pulse.HV, pulse.Q],
                                                d_per_qubit, registers, qubit)
@@ -2228,23 +2233,22 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
             )*scaling_factor
 
         if additional_noise_Hamiltonian is not None:
-            newpulse_n_oper_inds = get_indices_from_identifiers(
+            newpulse_n_oper_inds = util.get_indices_from_identifiers(
                 newpulse, n_oper_identifiers[n_ops_counter:], 'noise'
             )
-            R[n_ops_counter:] = calculate_control_matrix_from_scratch(
+            R[n_ops_counter:] = numeric.calculate_control_matrix_from_scratch(
                 newpulse.HD, newpulse.HV, newpulse.Q, omega, newpulse.basis,
                 newpulse.n_opers[newpulse_n_oper_inds],
                 newpulse.n_coeffs[newpulse_n_oper_inds],
                 newpulse.dt, newpulse.t, show_progressbar=show_progressbar
             )
 
-            F[n_ops_counter:, n_ops_counter:] = calculate_filter_function(
-                R[n_ops_counter:]
-            )
+            F[n_ops_counter:, n_ops_counter:] = \
+                numeric.calculate_filter_function(R[n_ops_counter:])
 
         newpulse.cache_total_phases(omega)
-        newpulse.total_Q_liouville = liouville_representation(newpulse.total_Q,
-                                                              newpulse.basis)
+        newpulse.total_Q_liouville = numeric.liouville_representation(
+            newpulse.total_Q, newpulse.basis)
         newpulse.cache_control_matrix(omega, R=R[n_sort_idx])
         newpulse.cache_filter_function(omega, F=F[n_sort_idx[:, None],
                                                   n_sort_idx[None, :]])

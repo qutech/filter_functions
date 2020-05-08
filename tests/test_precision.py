@@ -26,9 +26,7 @@ import numpy as np
 import qutip as qt
 
 import filter_functions as ff
-from filter_functions import analytic
-from filter_functions.numeric import (
-    calculate_error_vector_correlation_functions, liouville_representation)
+from filter_functions import analytic, numeric
 from tests import testutil
 
 
@@ -165,8 +163,8 @@ class PrecisionTest(testutil.TestCase):
             U = testutil.rand_unit(d, 2)
 
             # Works on matrices and arrays of matrices
-            U_liouville = liouville_representation(U[0], basis)
-            U_liouville = liouville_representation(U, basis)
+            U_liouville = numeric.liouville_representation(U[0], basis)
+            U_liouville = numeric.liouville_representation(U, basis)
 
             # should have dimension d^2 x d^2
             self.assertEqual(U_liouville.shape, (U.shape[0], d**2, d**2))
@@ -180,8 +178,8 @@ class PrecisionTest(testutil.TestCase):
             )
 
             if d == 2:
-                U_liouville = liouville_representation(ff.util.P_np[1:],
-                                                       basis)
+                U_liouville = numeric.liouville_representation(
+                    ff.util.P_np[1:], basis)
                 self.assertArrayAlmostEqual(U_liouville[0],
                                             np.diag([1, 1, -1, -1]),
                                             atol=np.finfo(float).eps)
@@ -404,7 +402,7 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = calculate_error_vector_correlation_functions(
+            u_kl = numeric.calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
             U_multi = (np.einsum('...kl,klij->...ij', u_kl, traces)/2 +
@@ -425,7 +423,7 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = calculate_error_vector_correlation_functions(
+            u_kl = numeric.calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
             U_multi = (np.einsum('...kl,klij->...ij', u_kl, traces)/2 +
@@ -451,7 +449,7 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = calculate_error_vector_correlation_functions(
+            u_kl = numeric.calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
             U_multi = np.zeros_like(U)

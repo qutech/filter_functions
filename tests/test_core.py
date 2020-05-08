@@ -28,12 +28,7 @@ from random import sample
 import numpy as np
 
 import filter_functions as ff
-from filter_functions.numeric import (
-    calculate_control_matrix_from_atomic,
-    calculate_control_matrix_from_scratch,
-    calculate_error_vector_correlation_functions,
-    calculate_pulse_correlation_filter_function, diagonalize,
-    liouville_representation)
+from filter_functions import numeric
 from tests import testutil
 
 
@@ -460,7 +455,7 @@ class CoreTest(testutil.TestCase):
             n_opers, n_coeffs = total_pulse.n_opers, total_pulse.n_coeffs
             dt = total_pulse.dt
 
-            total_HD, total_HV, _ = diagonalize(
+            total_HD, total_HV, _ = numeric.diagonalize(
                 np.einsum('il,ijk->ljk', c_coeffs, c_opers), total_pulse.dt
             )
             omega = ff.util.get_sample_frequencies(total_pulse, n_samples=100)
@@ -483,14 +478,14 @@ class CoreTest(testutil.TestCase):
             R_l = np.empty((n_dt, 6, d**2, len(omega)), dtype=complex)
             for l, pulse in enumerate(pulses):
                 phases[l] = np.exp(1j*total_pulse.t[l]*omega)
-                L[l] = liouville_representation(total_pulse.Q[l],
-                                                total_pulse.basis)
+                L[l] = numeric.liouville_representation(total_pulse.Q[l],
+                                                        total_pulse.basis)
                 R_l[l] = pulse.get_control_matrix(omega)
 
             # Check that both methods of calculating the control are the same
-            R_from_atomic = calculate_control_matrix_from_atomic(phases, R_l,
-                                                                 L)
-            R_from_scratch = calculate_control_matrix_from_scratch(
+            R_from_atomic = numeric.calculate_control_matrix_from_atomic(
+                phases, R_l, L)
+            R_from_scratch = numeric.calculate_control_matrix_from_scratch(
                 HD=total_HD,
                 HV=total_HV,
                 Q=total_pulse.Q,
@@ -550,7 +545,7 @@ class CoreTest(testutil.TestCase):
                                  calc_pulse_correlation_ff=True)
 
         with self.assertRaises(ValueError):
-            calculate_pulse_correlation_filter_function(pulse_1._R)
+            numeric.calculate_pulse_correlation_filter_function(pulse_1._R)
 
         # Check if the filter functions on the diagonals are real
         F = pulse_2.get_pulse_correlation_filter_function()
@@ -612,7 +607,7 @@ class CoreTest(testutil.TestCase):
         S = testutil.rng.randn(78)
         for i in range(4):
             with self.assertRaises(ValueError):
-                calculate_error_vector_correlation_functions(
+                numeric.calculate_error_vector_correlation_functions(
                     pulse, np.tile(S, [1]*i), omega
                 )
 

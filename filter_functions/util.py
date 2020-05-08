@@ -69,6 +69,7 @@ Exceptions
     was not computed during concatenation
 
 """
+import functools
 import io
 import json
 import operator
@@ -76,13 +77,14 @@ import os
 import re
 import string
 import sys
-from functools import reduce
 from itertools import zip_longest
-from typing import Generator, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import (Callable, Generator, Iterable, List, Optional, Sequence,
+                    Tuple, Union)
 
 import numpy as np
 import qutip as qt
-from numpy import linalg, ndarray
+from numpy import linalg as nla
+from numpy import ndarray
 
 from .types import Operator, State
 
@@ -241,9 +243,9 @@ def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int],
     # Shape of the actual tensor product is product of each dimension,
     # again broadcasting if need be
     tensor_shape = tuple(
-        reduce(operator.mul, dimensions) for dimensions in zip_longest(
-            shape_A[:-rank-1:-1], shape_B[:-rank-1:-1], fillvalue=1
-        )
+        functools.reduce(operator.mul, dimensions)
+        for dimensions in zip_longest(shape_A[:-rank-1:-1],
+                                      shape_B[:-rank-1:-1], fillvalue=1)
     )[::-1]
 
     return broadcast_shape + tensor_shape
@@ -802,7 +804,7 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
 
 def mdot(arr: Sequence, axis: int = 0) -> ndarray:
     """Multiple matrix products along axis"""
-    return reduce(np.matmul, np.swapaxes(arr, 0, axis))
+    return functools.reduce(np.matmul, np.swapaxes(arr, 0, axis))
 
 
 def remove_float_errors(arr: ndarray, eps_scale: float = None):
@@ -876,7 +878,7 @@ def oper_equiv(psi: Union[Operator, State],
     if normalized:
         norm = 1
     else:
-        norm = linalg.norm(psi)*linalg.norm(phi)
+        norm = nla.norm(psi)*nla.norm(phi)
 
     phase = np.angle(inner_product)
     modulus = abs(inner_product)

@@ -45,13 +45,13 @@ from warnings import warn
 
 import numpy as np
 import opt_einsum as oe
+from numpy import linalg as nla
 from numpy.core import ndarray
-from numpy.linalg import norm
 from qutip import Qobj
-from scipy.linalg import null_space
+from scipy import linalg as sla
 from sparse import COO
 
-from .util import P_np, remove_float_errors, tensor
+from . import util
 
 __all__ = ['Basis', 'expand', 'ggm_expand', 'normalize']
 
@@ -284,7 +284,7 @@ class Basis(ndarray):
         """
         if self._istraceless is None:
             trace = np.einsum('...jj', self)
-            trace = remove_float_errors(trace, self.d)
+            trace = util.remove_float_errors(trace, self.d)
             nonzero = trace.nonzero()
             if nonzero[0].size == 0:
                 self._istraceless = True
@@ -375,9 +375,9 @@ class Basis(ndarray):
     def normalize(self) -> None:
         """Normalize the basis in-place"""
         if self.ndim == 2:
-            self /= norm(self)
+            self /= nla.norm(self)
         elif self.ndim == 3:
-            np.einsum('ijk,i->ijk', self, 1/norm(self, axis=(1, 2)),
+            np.einsum('ijk,i->ijk', self, 1/nla.norm(self, axis=(1, 2)),
                       out=self)
 
     def tidyup(self, eps_scale: Optional[float] = None) -> None:
@@ -424,7 +424,8 @@ class Basis(ndarray):
         """
         normalization = np.sqrt(2**n)
         combinations = np.indices((4,)*n).reshape(n, 4**n)
-        sigma = tensor(*np.array(P_np)[combinations], rank=2)/normalization
+        sigma = util.tensor(*np.array(util.P_np)[combinations], rank=2)
+        sigma /= normalization
         return cls(sigma, btype='Pauli', skip_check=True)
 
     @classmethod
@@ -534,7 +535,7 @@ def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
         # Those together with coeffs span the whole space, and therefore also
         # the linear combinations of GGMs weighted with the coefficients will
         # span the whole matrix space
-        coeffs = np.concatenate((coeffs, null_space(coeffs).T))
+        coeffs = np.concatenate((coeffs, sla.null_space(coeffs).T))
         # Our new basis is given by linear combinations of GGMs with coeffs
         basis = np.einsum('ij,jkl', coeffs, ggm)
     else:
@@ -572,9 +573,10 @@ def normalize(b: Sequence) -> Basis:
     """
     b = np.asanyarray(b)
     if b.ndim == 2:
-        return (b/norm(b)).view(Basis)
+        return (b/nla.norm(b)).view(Basis)
     if b.ndim == 3:
-        return np.einsum('ijk,i->ijk', b, 1/norm(b, axis=(1, 2))).view(Basis)
+        return np.einsum('ijk,i->ijk',
+                         b, 1/nla.norm(b, axis=(1, 2))).view(Basis)
 
     raise ValueError('Expected b.ndim to be either 2 or 3, not ' +
                      '{}.'.format(b.ndim))
@@ -622,7 +624,7 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
     if not normalized:
         coefficients /= np.einsum('bij,bji->b', basis, basis).real
 
-    return remove_float_errors(coefficients) if tidyup else coefficients
+    return util.remove_float_errors(coefficients) if tidyup else coefficients
 
 
 def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False) -> ndarray:

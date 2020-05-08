@@ -55,16 +55,16 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 from warnings import warn
 
 import numpy as np
+import opt_einsum as oe
 import sparse
-from numpy import linalg, ndarray
-from opt_einsum import contract, contract_expression
-from scipy.integrate import trapz
+from numpy import linalg as nla
+from numpy import ndarray
+from scipy import integrate
 
+from . import util
 from .basis import Basis, ggm_expand
 from .plotting import plot_infidelity_convergence
 from .types import Coefficients, Operator
-from .util import (abs2, cexp, get_indices_from_identifiers, progressbar_range,
-                   symmetrize_spectrum)
 
 __all__ = ['calculate_control_matrix_from_atomic',
            'calculate_control_matrix_from_scratch',
@@ -117,11 +117,11 @@ def calculate_control_matrix_from_atomic(
     # Set up a reusable contraction expression. In some cases it is faster to
     # also contract the time dimension in the same expression instead of
     # looping over it, but we don't distinguish here for readability.
-    R_expr = contract_expression('ijo,jk->iko',
-                                 R_g.shape[1:], Q_liouville.shape[1:])
+    R_expr = oe.contract_expression('ijo,jk->iko',
+                                    R_g.shape[1:], Q_liouville.shape[1:])
 
-    for g in progressbar_range(n, show_progressbar=show_progressbar,
-                               desc='Calculating control matrix'):
+    for g in util.progressbar_range(n, show_progressbar=show_progressbar,
+                                    desc='Calculating control matrix'):
         R += R_expr(phases[g]*R_g[g], Q_liouville[g])
 
     return R
@@ -237,8 +237,8 @@ def calculate_control_matrix_from_scratch(
     int_buf = np.empty((len(E), d, d), dtype=complex)
     R_path = ['einsum_path', (0, 3), (0, 1), (0, 2), (0, 1)]
 
-    for l in progressbar_range(len(dt), show_progressbar=show_progressbar,
-                               desc='Calculating control matrix'):
+    for l in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
+                                    desc='Calculating control matrix'):
 
         dE = np.subtract.outer(HD[l], HD[l])
         # iEdE_nm = 1j*(omega + omega_n - omega_m)
@@ -255,7 +255,7 @@ def calculate_control_matrix_from_scratch(
         # Faster for d = 2 to also contract over the time dimension instead of
         # loop, but for readability we don't distinguish.
         R += np.einsum('o,j,jmn,omn,knm->jko',
-                       cexp(E*t[l]), n_coeffs[:, l], B[:, l], int_buf,
+                       util.cexp(E*t[l]), n_coeffs[:, l], B[:, l], int_buf,
                        QdagV[l].conj().T @ basis @ QdagV[l],
                        optimize=R_path)
 
@@ -312,14 +312,14 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
 
     # Mask the invertible frequencies. The chosen atol is somewhat empiric.
     M = eye - T
-    M_inv = linalg.inv(M)
+    M_inv = nla.inv(M)
     good_inverse = np.isclose(M_inv @ M, eye, atol=1e-10, rtol=0).all((1, 2))
 
     # Allocate memory
     S = np.empty((*phases.shape, *Q_liouville.shape), dtype=complex)
     # Evaluate the sum for invertible frequencies
     S[good_inverse] = (M_inv[good_inverse] @
-                       (eye - linalg.matrix_power(T[good_inverse], repeats)))
+                       (eye - nla.matrix_power(T[good_inverse], repeats)))
 
     # Evaluate the sum for non-invertible frequencies
     if (~good_inverse).any():
@@ -395,12 +395,12 @@ def calculate_error_vector_correlation_functions(
     """
     # TODO: Implement for correlation FFs? Replace infidelity() by this?
     # Noise operator indices
-    idx = get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
     R = pulse.get_control_matrix(omega, show_progressbar)[idx]
 
     if not memory_parsimonious:
         integrand = _get_integrand(S, omega, idx, R=R)
-        u_kl = trapz(integrand, omega, axis=-1)/(2*np.pi)
+        u_kl = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
         return u_kl
 
     # Conserve memory by looping. Let _get_integrand determine the shape
@@ -409,12 +409,13 @@ def calculate_error_vector_correlation_functions(
     n_kl = R.shape[1]
     u_kl = np.zeros(integrand.shape[:-3] + (n_kl,)*2,
                     dtype=integrand.dtype)
-    u_kl[..., 0:1, :] = trapz(integrand, omega, axis=-1)/(2*np.pi)
+    u_kl[..., 0:1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
 
-    for k in progressbar_range(1, n_kl, show_progressbar=show_progressbar,
-                               desc='Integrating'):
+    for k in util.progressbar_range(1, n_kl, show_progressbar=show_progressbar,
+                                    desc='Integrating'):
         integrand = _get_integrand(S, omega, idx, R=[R[:, k:k+1], R])
-        u_kl[..., k:k+1, :] = trapz(integrand, omega, axis=-1)/(2*np.pi)
+        u_kl[..., k:k+1, :] = integrate.trapz(integrand, omega,
+                                              axis=-1)/(2*np.pi)
 
     return u_kl
 
@@ -518,7 +519,7 @@ def diagonalize(H: ndarray, dt: Coefficients) -> Tuple[ndarray]:
     """
     d = H.shape[-1]
     # Calculate Eigenvalues and -vectors
-    HD, HV = linalg.eigh(H)
+    HD, HV = nla.eigh(H)
     # Propagator P = V exp(-j D dt) V^\dag. Middle term is of shape
     # (d, n_dt) due to transpose, so switch around indices in einsum
     # instead of transposing again. Same goes for the last term. This saves
@@ -527,7 +528,8 @@ def diagonalize(H: ndarray, dt: Coefficients) -> Tuple[ndarray]:
     # P = np.empty((500, 4, 4), dtype=complex)
     # for l, (V, D) in enumerate(zip(HV, np.exp(-1j*dt*HD.T).T)):
     #     P[l] = (V * D) @ V.conj().T
-    P = np.einsum('lij,jl,lkj->lik', HV, cexp(-np.asarray(dt)*HD.T), HV.conj())
+    P = np.einsum('lij,jl,lkj->lik',
+                  HV, util.cexp(-np.asarray(dt)*HD.T), HV.conj())
     # The cumulative propagator Q with the identity operator as first
     # element (Q_0 = P_0 = I), i.e.
     # Q = [Q_0, Q_1, ..., Q_n] = [P_0, P_1 @ P_0, ..., P_n @ ... @ P_0]
@@ -705,10 +707,10 @@ def error_transfer_matrix(
                                          u_kl[..., 1:, 1:], eps_kli)
     else:
         # Multi qubit case. Use general expression.
-        traces = pulse.basis.four_element_traces
-        U = (contract('...kl,klij->...ij', u_kl, traces, backend='sparse')/2 +
-             contract('...kl,klji->...ij', u_kl, traces, backend='sparse')/2 -
-             contract('...kl,kilj->...ij', u_kl, traces, backend='sparse'))
+        T = pulse.basis.four_element_traces
+        U = (oe.contract('...kl,klij->...ij', u_kl, T, backend='sparse')/2 +
+             oe.contract('...kl,klji->...ij', u_kl, T, backend='sparse')/2 -
+             oe.contract('...kl,kilj->...ij', u_kl, T, backend='sparse'))
 
     return U
 
@@ -859,7 +861,7 @@ def infidelity(pulse: 'PulseSequence',
 
     """
     # Noise operator indices
-    idx = get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
 
     if test_convergence:
         if not callable(S):
@@ -895,7 +897,7 @@ def infidelity(pulse: 'PulseSequence',
         for i, n in enumerate(n_samples):
             freqs = xspace(omega_IR, omega_UV, n//2)
             convergence_infids[i] = infidelity(
-                pulse, *symmetrize_spectrum(S(freqs), freqs),
+                pulse, *util.symmetrize_spectrum(S(freqs), freqs),
                 n_oper_identifiers, which='total', return_smallness=False,
                 test_convergence=False
             )
@@ -938,16 +940,16 @@ def infidelity(pulse: 'PulseSequence',
 
     integrand = _get_integrand(S, omega, idx, F=F[tuple(slices)])
 
-    infid = trapz(integrand, omega)/(2*np.pi*pulse.d)
+    infid = integrate.trapz(integrand, omega)/(2*np.pi*pulse.d)
 
     if return_smallness:
         if S.ndim > 2:
             raise NotImplementedError('Smallness parameter only implemented' +
                                       'for uncorrelated noise sources')
 
-        T1 = trapz(S, omega)/(2*np.pi)
+        T1 = integrate.trapz(S, omega)/(2*np.pi)
         T2 = (pulse.dt*pulse.n_coeffs[idx]).sum(axis=-1)**2
-        T3 = abs2(pulse.n_opers[idx]).sum(axis=(1, 2))
+        T3 = util.abs2(pulse.n_opers[idx]).sum(axis=(1, 2))
         xi = np.sqrt((T1*T2*T3).sum())
 
         return infid, xi

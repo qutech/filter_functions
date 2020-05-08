@@ -30,8 +30,8 @@ import numpy as np
 import qutip as qt
 from numpy.random import RandomState
 from numpy.testing import assert_allclose, assert_array_equal
-from scipy.io import loadmat
-from scipy.linalg import expm
+from scipy import io
+from scipy import linalg as sla
 
 from filter_functions import Basis, PulseSequence, util
 
@@ -147,9 +147,9 @@ def rand_unit(d: int, n: int = 1) -> np.ndarray:
     """n random unitary matrices of dimension d"""
     H = rand_herm(d, n)
     if n == 1:
-        return expm(1j*H)
+        return sla.expm(1j*H)
     else:
-        return np.array([expm(1j*h) for h in H])
+        return np.array([sla.expm(1j*h) for h in H])
 
 
 def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
@@ -185,7 +185,7 @@ def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
 
 # Set up Hamiltonian for CNOT gate
 data_path = Path(__file__).parent.parent / 'examples/data'
-struct = loadmat(str(data_path / 'CNOT.mat'))
+struct = io.loadmat(str(data_path / 'CNOT.mat'))
 eps = np.asarray(struct['eps'], order='C')
 dt = np.asarray(struct['t'].ravel(), order='C')
 B = np.asarray(struct['B'].ravel(), order='C')

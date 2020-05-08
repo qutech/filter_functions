@@ -29,7 +29,7 @@ from random import sample
 import numpy as np
 
 import filter_functions as ff
-from filter_functions.util import P_np, get_sample_frequencies, tensor
+from filter_functions import util
 from tests import testutil
 
 
@@ -45,7 +45,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        n_oper = P_np[3]
+        n_oper = util.P_np[3]
         H_n_SE = [[n_oper, np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
@@ -63,7 +63,7 @@ class ConcatenationTest(testutil.TestCase):
 
         # Test if calculation of composite filter function can be enforced with
         # omega != None
-        omega = get_sample_frequencies(SE_1)
+        omega = util.get_sample_frequencies(SE_1)
         CPMG_concat = ff.concatenate((SE_1, SE_2), omega=omega)
         self.assertIsNotNone(CPMG_concat._F)
 
@@ -80,7 +80,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
 
@@ -88,7 +88,7 @@ class ConcatenationTest(testutil.TestCase):
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
         SE_1.cache_filter_function(omega)
@@ -122,7 +122,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
 
@@ -130,7 +130,7 @@ class ConcatenationTest(testutil.TestCase):
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
         SE_2.cache_filter_function(omega)
@@ -162,7 +162,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
 
@@ -170,7 +170,7 @@ class ConcatenationTest(testutil.TestCase):
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
         SE_1.cache_filter_function(omega)
@@ -208,14 +208,14 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
         SE = [ff.PulseSequence(H_c_SE, H_n_SE, dt_SE) for _ in range(4)]
 
         H_c_CPMG, dt_CPMG = testutil.generate_dd_hamiltonian(4*n, tau=4*tau,
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
         SE[testutil.rng.randint(0, len(SE)-1)].cache_filter_function(omega)
@@ -403,7 +403,7 @@ class ConcatenationTest(testutil.TestCase):
 
     def test_concatenation_periodic(self):
         """Test concatenation for periodic Hamiltonians"""
-        X, Y, Z = P_np[1:]
+        X, Y, Z = util.P_np[1:]
         A = 0.01
         omega_0 = 1
         omega_d = omega_0
@@ -466,7 +466,7 @@ class ExtensionTest(testutil.TestCase):
 
     def test_extend_with_identity(self):
         """Test extending a pulse to more qubits"""
-        ID, X, Y, Z = P_np
+        ID, X, Y, Z = util.P_np
         n_dt = 10
         coeffs = testutil.rng.randn(3, n_dt)
         ids = ['X', 'Y', 'Z']
@@ -476,12 +476,12 @@ class ExtensionTest(testutil.TestCase):
             np.ones(n_dt), basis=ff.Basis.pauli(1)
         )
 
-        omega = get_sample_frequencies(pulse, spacing='log', n_samples=50)
+        omega = util.get_sample_frequencies(pulse, spacing='log', n_samples=50)
         for N in testutil.rng.randint(2, 5, 4):
             for target in testutil.rng.randint(0, N-1, 2):
                 pulse.cleanup('all')
-                ext_opers = tensor(*np.insert(np.tile(ID, (N-1, 3, 1, 1)),
-                                              target, (X, Y, Z), axis=0))
+                ext_opers = util.tensor(*np.insert(np.tile(ID, (N-1, 3, 1, 1)),
+                                                   target, (X, Y, Z), axis=0))
 
                 # By default, extend should add the target qubit as suffix to
                 # identifiers
@@ -578,7 +578,7 @@ class ExtensionTest(testutil.TestCase):
         pulse_2 = testutil.rand_pulse_sequence(2, 10, btype='Pauli')
         pulse_2.dt = pulse_1.dt
         pulse_2.t = pulse_1.t
-        omega = get_sample_frequencies(pulse_1, 50)
+        omega = util.get_sample_frequencies(pulse_1, 50)
 
         # diagonalize one pulse
         pulse_1.diagonalize()
@@ -663,36 +663,36 @@ class ExtensionTest(testutil.TestCase):
         self.assertIsNone(extended_pulse._F)
 
     def test_accuracy(self):
-        ID, X, Y, Z = P_np
-        XI = tensor(X, ID)
-        IX = tensor(ID, X)
-        XII = tensor(X, ID, ID)
-        IXI = tensor(ID, X, ID)
-        IIX = tensor(ID, ID, X)
-        XIII = tensor(X, ID, ID, ID)
-        IXII = tensor(ID, X, ID, ID)
-        IIXI = tensor(ID, ID, X, ID)
-        IIIX = tensor(ID, ID, ID, X)
-        YI = tensor(Y, ID)
-        IY = tensor(ID, Y)
-        YII = tensor(Y, ID, ID)
-        IYI = tensor(ID, Y, ID)
-        IIY = tensor(ID, ID, Y)
-        YIII = tensor(Y, ID, ID, ID)
-        IYII = tensor(ID, Y, ID, ID)
-        IIYI = tensor(ID, ID, Y, ID)
-        IIIY = tensor(ID, ID, ID, Y)
-        ZI = tensor(Z, ID)
-        IZ = tensor(ID, Z)
-        ZII = tensor(Z, ID, ID)
-        IZI = tensor(ID, Z, ID)
-        ZIII = tensor(Z, ID, ID, ID)
-        IZII = tensor(ID, Z, ID, ID)
-        IIZI = tensor(ID, ID, Z, ID)
-        IIIZ = tensor(ID, ID, ID, Z)
+        ID, X, Y, Z = util.P_np
+        XI = util.tensor(X, ID)
+        IX = util.tensor(ID, X)
+        XII = util.tensor(X, ID, ID)
+        IXI = util.tensor(ID, X, ID)
+        IIX = util.tensor(ID, ID, X)
+        XIII = util.tensor(X, ID, ID, ID)
+        IXII = util.tensor(ID, X, ID, ID)
+        IIXI = util.tensor(ID, ID, X, ID)
+        IIIX = util.tensor(ID, ID, ID, X)
+        YI = util.tensor(Y, ID)
+        IY = util.tensor(ID, Y)
+        YII = util.tensor(Y, ID, ID)
+        IYI = util.tensor(ID, Y, ID)
+        IIY = util.tensor(ID, ID, Y)
+        YIII = util.tensor(Y, ID, ID, ID)
+        IYII = util.tensor(ID, Y, ID, ID)
+        IIYI = util.tensor(ID, ID, Y, ID)
+        IIIY = util.tensor(ID, ID, ID, Y)
+        ZI = util.tensor(Z, ID)
+        IZ = util.tensor(ID, Z)
+        ZII = util.tensor(Z, ID, ID)
+        IZI = util.tensor(ID, Z, ID)
+        ZIII = util.tensor(Z, ID, ID, ID)
+        IZII = util.tensor(ID, Z, ID, ID)
+        IIZI = util.tensor(ID, ID, Z, ID)
+        IIIZ = util.tensor(ID, ID, ID, Z)
 
-        IIZ = tensor(ID, ID, Z)
-        XXX = tensor(X, X, X)
+        IIZ = util.tensor(ID, ID, Z)
+        XXX = util.tensor(X, X, X)
 
         n_dt = 10
         coeffs = testutil.rng.randn(3, n_dt)
@@ -879,7 +879,7 @@ class ExtensionTest(testutil.TestCase):
                                     atol=1e-8)
 
     def test_exceptions(self):
-        X = P_np[1]
+        X = util.P_np[1]
         n_dt = 10
         omega = np.linspace(0, 1, 50)
 
@@ -926,7 +926,7 @@ class ExtensionTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             # cache_diagonalization == False and additional_noise_Hamiltonian
             # is not None
-            additional_noise_Hamiltonian = [[tensor(X, X), np.ones(n_dt)]]
+            additional_noise_Hamiltonian = [[util.tensor(X, X), np.ones(n_dt)]]
             ff.extend(
                 [(pulse_1, 0), (pulse_1, 1)], cache_diagonalization=False,
                 additional_noise_Hamiltonian=additional_noise_Hamiltonian
@@ -935,8 +935,8 @@ class ExtensionTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             # additional noise Hamiltonian defines existing identifier
             additional_noise_Hamiltonian = [
-                [tensor(X, X), np.ones(n_dt), 'foo'],
-                [tensor(X, X), np.ones(n_dt), 'foo'],
+                [util.tensor(X, X), np.ones(n_dt), 'foo'],
+                [util.tensor(X, X), np.ones(n_dt), 'foo'],
             ]
             ff.extend(
                 [(pulse_1, 0), (pulse_1, 1)],
@@ -945,7 +945,8 @@ class ExtensionTest(testutil.TestCase):
 
         with self.assertRaises(ValueError):
             # additional_noise_Hamiltonian has wrong dimensions
-            additional_noise_Hamiltonian = [[tensor(X, X, X), np.ones(n_dt)]]
+            additional_noise_Hamiltonian = [[util.tensor(X, X, X),
+                                             np.ones(n_dt)]]
             ff.extend(
                 [(pulse_1, 0), (pulse_1, 1)],
                 additional_noise_Hamiltonian=additional_noise_Hamiltonian
@@ -970,7 +971,7 @@ class RemappingTest(testutil.TestCase):
             self.assertEqual(pauli_pulse.is_cached(attr),
                              remapped_pauli_pulse.is_cached(attr))
 
-        omega = get_sample_frequencies(pauli_pulse, n_samples=50)
+        omega = util.get_sample_frequencies(pauli_pulse, n_samples=50)
         pauli_pulse.cache_filter_function(omega)
         remapped_pauli_pulse = ff.remap(pauli_pulse, (1, 0))
         for attr in attrs:
@@ -983,7 +984,7 @@ class RemappingTest(testutil.TestCase):
             self.assertEqual(ggm_pulse.is_cached(attr),
                              remapped_ggm_pulse.is_cached(attr))
 
-        omega = get_sample_frequencies(ggm_pulse, n_samples=50)
+        omega = util.get_sample_frequencies(ggm_pulse, n_samples=50)
         ggm_pulse.cache_filter_function(omega)
         with self.assertWarns(UserWarning):
             remapped_ggm_pulse = ff.remap(ggm_pulse, (1, 0))
@@ -996,29 +997,29 @@ class RemappingTest(testutil.TestCase):
             self.assertFalse(remapped_ggm_pulse.is_cached(attr))
 
     def test_accuracy(self):
-        paulis = np.array(P_np)
+        paulis = np.array(util.P_np)
         I, X, Y, Z = paulis
         amps = testutil.rng.randn(testutil.rng.randint(1, 11))
         pulse = ff.PulseSequence(
-            [[tensor(X, Y, Z), amps]],
-            [[tensor(X, I, I), np.ones_like(amps), 'XII'],
-             [tensor(I, X, I), np.ones_like(amps), 'IXI'],
-             [tensor(I, I, X), np.ones_like(amps), 'IIX']],
+            [[util.tensor(X, Y, Z), amps]],
+            [[util.tensor(X, I, I), np.ones_like(amps), 'XII'],
+             [util.tensor(I, X, I), np.ones_like(amps), 'IXI'],
+             [util.tensor(I, I, X), np.ones_like(amps), 'IIX']],
             np.ones_like(amps),
             ff.Basis.pauli(3)
         )
-        omega = get_sample_frequencies(pulse, 50)
+        omega = util.get_sample_frequencies(pulse, 50)
         pulse.cache_filter_function(omega)
 
         for _ in range(100):
             order = testutil.rng.permutation(range(3))
             reordered_pulse = ff.PulseSequence(
-                [[tensor(*paulis[1:][order]), amps]],
-                [[tensor(*paulis[[1, 0, 0]][order]), np.ones_like(amps),
+                [[util.tensor(*paulis[1:][order]), amps]],
+                [[util.tensor(*paulis[[1, 0, 0]][order]), np.ones_like(amps),
                   (''.join(['XII'[o] for o in order]))],
-                 [tensor(*paulis[[0, 1, 0]][order]), np.ones_like(amps),
+                 [util.tensor(*paulis[[0, 1, 0]][order]), np.ones_like(amps),
                   (''.join(['IXI'[o] for o in order]))],
-                 [tensor(*paulis[[0, 0, 1]][order]), np.ones_like(amps),
+                 [util.tensor(*paulis[[0, 0, 1]][order]), np.ones_like(amps),
                   (''.join(['IIX'[o] for o in order]))]],
                 np.ones_like(amps),
                 ff.Basis.pauli(3)
