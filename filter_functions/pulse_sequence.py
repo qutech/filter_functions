@@ -435,10 +435,7 @@ class PulseSequence:
         else:
             # Getting with different frequencies. Remove all cached attributes
             # that are frequency-dependent
-            self._R = None
-            self._F = None
-            self._F_pc = None
-            self._total_phases = None
+            self.cleanup('frequency dependent')
 
         # Make sure the Hamiltonian has been diagonalized
         self.diagonalize()
@@ -554,10 +551,7 @@ class PulseSequence:
         else:
             # Getting with different frequencies. Remove all cached attributes
             # that are frequency-dependent
-            self._R = None
-            self._F = None
-            self._F_pc = None
-            self._total_phases = None
+            self.cleanup('frequency dependent')
 
         self.cache_filter_function(
             omega, R=self.get_control_matrix(omega, show_progressbar),
@@ -705,10 +699,7 @@ class PulseSequence:
         else:
             # Getting with different frequencies. Remove all cached attributes
             # that are frequency-dependent
-            self._R = None
-            self._F = None
-            self._F_pc = None
-            self._total_phases = None
+            self.cleanup('frequency dependent')
 
         self.cache_total_phases(omega)
         return self._total_phases
@@ -823,6 +814,8 @@ class PulseSequence:
 
         return sum(_nbytes)
 
+    @util.parse_optional_parameter(
+        'method', ('conservative', 'greedy', 'frequency dependent', 'all'))
     def cleanup(self, method: str = 'conservative') -> None:
         """
         Delete cached byproducts of the calculation of the filter function that
@@ -830,7 +823,7 @@ class PulseSequence:
 
         Parameters
         ----------
-        method : {'conservative', 'greedy', 'all'}, optional
+        method : optional
             If set to 'conservative' (the default), only the following
             attributes are deleted:
 
@@ -841,28 +834,43 @@ class PulseSequence:
             If set to 'greedy', all of the above as well as the following
             attributes are deleted:
 
-                - _total_phases
                 - _total_Q
                 - _total_Q_liouville
+                - _total_phases
                 - _R
+                - _R_pc
 
             If set to 'all', all of the above as well as the following
             attributes are deleted:
 
                 - omega
                 - _F
+                - _F_kl
                 - _F_pc
+                - _F_pc_kl
+
+            If set to 'frequency dependent' only attributes that are functions
+            of frequency are initalized to ``None``.
 
             Note that if this ``PulseSequence`` is concatenated with another
             one, some of the attributes might need to be calculated again,
             resulting in slower execution of the concatenation.
         """
-        attrs = ['_HD', '_HV', '_Q']
-        if method != 'conservative':
-            attrs.extend(['_R', '_total_phases', '_total_Q',
-                          '_total_Q_liouville'])
-            if method != 'greedy':
-                attrs.extend(['omega', '_F', '_F_pc'])
+        default_attrs = {'_HD', '_HV', '_Q'}
+        concatenation_attrs = {'_total_Q', '_total_Q_liouville', '_R', '_R_kl',
+                               '_total_phases'}
+        filter_function_attrs = {'omega', '_F', '_F_kl', '_F_pc', '_F_pc_kl'}
+
+        if method == 'conservative':
+            attrs = default_attrs
+        elif method == 'greedy':
+            attrs = default_attrs.union(concatenation_attrs)
+        elif method == 'frequency dependent':
+            attrs = filter_function_attrs.union({'_R', '_R_kl',
+                                                 '_total_phases'})
+        else:
+            attrs = filter_function_attrs.union(default_attrs,
+                                                concatenation_attrs)
 
         for attr in attrs:
             setattr(self, attr, None)

@@ -365,6 +365,16 @@ class CoreTest(testutil.TestCase):
         for attr in attrs + ['_F_kl', '_F_pc_kl']:
             self.assertIsNone(getattr(C, attr))
 
+        C.cache_filter_function(A.omega, which='fidelity')
+        C.cleanup('frequency dependent')
+        freq_attrs = {'omega', '_R', '_F', '_F_kl', '_F_pc', '_F_pc_kl',
+                      '_total_phases'}
+        for attr in freq_attrs:
+            self.assertIsNone(getattr(C, attr))
+
+        for attr in set(attrs).difference(freq_attrs):
+            self.assertIsNotNone(getattr(C, attr))
+
     def test_pulse_sequence_attributes_concat(self):
         """Test attributes of concatenated sequence."""
         X, Y, Z = ff.util.P_np[1:]
