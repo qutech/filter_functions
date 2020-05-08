@@ -212,9 +212,9 @@ class PulseSequence:
         eigenvalues and -vectors as well as cumulative propagators
     get_control_matrix(omega, show_progressbar=False)
         Calculate the control matrix for frequencies omega
-    get_filter_function(omega, show_progressbar=False)
+    get_filter_function(omega, which='fidelity', show_progressbar=False)
         Calculate the filter function for frequencies omega
-    get_pulse_correlation_filter_function()
+    get_pulse_correlation_filter_function(which='fidelity')
         Get the pulse correlation filter function (only possible if computed
         during concatenation)
     propagator_at_arb_t(t)
@@ -268,13 +268,15 @@ class PulseSequence:
         self._HD = None
         self._HV = None
         self._Q = None
-        # Attributes that are cached during calculation of the filter function
         self._total_phases = None
         self._total_Q = None
         self._total_Q_liouville = None
         self._R = None
+        self._R_pc = None
         self._F = None
+        self._F_kl = None
         self._F_pc = None
+        self._F_pc_kl = None
 
     def __str__(self):
         """String method."""
@@ -426,6 +428,10 @@ class PulseSequence:
         if np.array_equal(self.omega, omega):
             if self.is_cached('R'):
                 return self._R
+            else:
+                if self.is_cached('R_pc'):
+                    self._R = self._R_pc.sum(axis=0)
+                    return self._R
         else:
             # Getting with different frequencies. Remove all cached attributes
             # that are frequency-dependent
@@ -457,7 +463,7 @@ class PulseSequence:
         ----------
         omega : array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R : array_like, shape (n_nops [, n_nops], d**2, n_omega), optional
+        R : array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed.
         show_progressbar : bool
@@ -467,7 +473,11 @@ class PulseSequence:
             R = self.get_control_matrix(omega, show_progressbar)
 
         self.omega = omega
-        self._R = R
+        if R.ndim == 4:
+            # Pulse correlation control matrix
+            self._R_pc = R
+        else:
+            self._R = R
 
         # Cache total phase and total transfer matrices as well
         self.cache_total_phases(omega)
@@ -476,20 +486,22 @@ class PulseSequence:
                 self.total_Q, self.basis
             )
 
-    def get_filter_function(self, omega: Coefficients,
+    def get_pulse_correlation_control_matrix(self) -> ndarray:
+        """Get the pulse correlation control matrix if it was cached."""
+        if self.is_cached('R_pc'):
+            return self._R_pc
+
+        raise util.CalculationError(
+            "Could not get the pulse correlation control matrix since it " +
+            "was not computed during concatenation. Please run the " +
+            "concatenation again with 'calc_pulse_correlation_ff' set to " +
+            "True."
+        )
+
+    @util.parse_which_FF_parameter
+    def get_filter_function(self, omega: Coefficients, which: str = 'fidelity',
                             show_progressbar: bool = False) -> ndarray:
-        r"""
-        Calculate the first-order filter function
-
-        .. math::
-
-            F_{\alpha\beta}(\omega) = \left[\mathcal{R}\mathcal{R}^\dagger
-                                      \right]_{\alpha\beta}(\omega),
-
-        where :math:`\alpha,\beta` are indices counting the noise operators
-        :math:`B_\alpha`. Thus, the filter function :math:`\alpha,\beta`
-        corresponds to the noise correlations between :math:`B_\alpha` and
-        :math:`B_{\beta}`.
+        r"""Get the first-order filter function.
 
         The filter function is cached so it doesn't need to be calculated
         twice for the same frequencies.
@@ -498,19 +510,47 @@ class PulseSequence:
         ----------
         omega : array_like, shape (n_omega,)
             The frequencies at which to evaluate the filter function.
-        show_progressbar : bool
+        which : str, optional
+            Which filter function to return. Either 'fidelity' (default) or
+            'generalized' (see :ref:`Notes <notes>`).
+        show_progressbar : bool, optional
             Show a progress bar for the calculation of the control matrix.
 
         Returns
         -------
-        F : ndarray, shape (n_nops, n_nops, n_omega)
+        F : ndarray, shape (n_nops, n_nops, [d**2, d**2,] n_omega)
             The filter function for each combination of noise operators as a
             function of omega.
+
+        Notes
+        -----
+        The generalized filter function is given by
+
+        .. math::
+
+            F_{\alpha\beta,kl}(\omega) = \mathcal{R}_{\alpha k}^\ast(\omega)
+                                         \mathcal{R}_{\beta l}(\omega),
+
+        where :math:`\alpha,\beta` are indices counting the noise operators
+        :math:`B_\alpha` and :math:`k,l` indices counting the basis elements
+        :math:`C_k`.
+
+        The fidelity filter function is obtained by tracing over the basis
+        indices:
+
+        .. math::
+
+            F_{\alpha\beta}(\omega) = \sum_{k} F_{\alpha\beta,kk}(\omega).
+
         """
         # Only calculate if not calculated before for the same frequencies
         if np.array_equal(self.omega, omega):
-            if self.is_cached('F'):
-                return self._F
+            if which == 'fidelity':
+                if self.is_cached('F'):
+                    return self._F
+            elif which == 'generalized':
+                if self.is_cached('F_kl'):
+                    return self._F_kl
         else:
             # Getting with different frequencies. Remove all cached attributes
             # that are frequency-dependent
@@ -519,16 +559,21 @@ class PulseSequence:
             self._F_pc = None
             self._total_phases = None
 
-        # Cache filter function
         self.cache_filter_function(
-            omega, R=self.get_control_matrix(omega, show_progressbar)
+            omega, R=self.get_control_matrix(omega, show_progressbar),
+            which=which
         )
 
-        return self._F
+        if which == 'fidelity':
+            return self._F
+        elif which == 'generalized':
+            return self._F_kl
 
+    @util.parse_which_FF_parameter
     def cache_filter_function(self, omega: Coefficients,
                               R: Optional[ndarray] = None,
                               F: Optional[ndarray] = None,
+                              which: str = 'fidelity',
                               show_progressbar: bool = False) -> None:
         r"""
         Cache the filter function. If R.ndim == 4, it is taken to be the 'pulse
@@ -541,39 +586,52 @@ class PulseSequence:
         ----------
         omega : array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R : array_like, shape (n_nops [, n_nops], d**2, n_omega), optional
+        R : array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed and the filter function derived from it.
-        F : array_like, shape (n_nops, n_nops, n_omega), optional
+        F : array_like, shape (n_nops, n_nops, [d**2, d**2,] n_omega), optional
             The filter function for the frequencies *omega*. If ``None``, it is
             computed from R.
+        which : str, optional
+            Which filter function to return. Either 'fidelity' (default) or
+            'generalized'.
         show_progressbar : bool
             Show a progress bar for the calculation of the control matrix.
+
+        See Also
+        --------
+        PulseSequence.get_filter_function : Getter method
         """
         if F is None:
             if R is None:
                 R = self.get_control_matrix(omega, show_progressbar)
 
+            self.cache_control_matrix(omega, R)
             if R.ndim == 4:
-                # Cache regular control matrix
-                self.cache_control_matrix(omega, R.sum(axis=0), False)
                 # Calculate pulse correlation FF and derive canonical FF from
                 # it
-                self._F_pc = \
-                    numeric.calculate_pulse_correlation_filter_function(R)
+                F_pc = numeric.calculate_pulse_correlation_filter_function(
+                    R, which)
 
-                F = np.einsum('ghjlo->jlo', self._F_pc)
+                if which == 'fidelity':
+                    self._F_pc = F_pc
+                elif which == 'generalized':
+                    self._F_pc_kl = F_pc
 
+                F = F_pc.sum(axis=(0, 1))
             else:
                 # Regular case
-                self.cache_control_matrix(omega, R,
-                                          show_progressbar=show_progressbar)
-                F = numeric.calculate_filter_function(R)
+                F = numeric.calculate_filter_function(R, which=which)
 
         self.omega = omega
-        self._F = F
+        if which == 'fidelity':
+            self._F = F
+        elif which == 'generalized':
+            self._F_kl = F
 
-    def get_pulse_correlation_filter_function(self) -> ndarray:
+    @util.parse_which_FF_parameter
+    def get_pulse_correlation_filter_function(
+            self, which: str = 'fidelity') -> ndarray:
         r"""
         Get the pulse correlation filter function given by
 
@@ -614,13 +672,28 @@ class PulseSequence:
 
             for :math:`g,g'\in\{A, B, C\}`.
         """
-        if self.is_cached('F_pc'):
-            return self._F_pc
+        if which == 'fidelity':
+            if self.is_cached('F_pc'):
+                return self._F_pc
+        elif which == 'generalized':
+            if self.is_cached('F_pc_kl'):
+                return self._F_pc_kl
+
+        if self.is_cached('R_pc'):
+            F_pc = numeric.calculate_pulse_correlation_filter_function(
+                self._R_Pc, which)
+
+            if which == 'fidelity':
+                self._F_pc = F_pc
+            elif which == 'generalized':
+                self._F_pc_kl = F_pc
+
+            return F_pc
 
         raise util.CalculationError(
-            "Could not get the pulse correlation function since it was not " +
-            "computed during concatenation. Please run the concatenation " +
-            "again with 'calc_pulse_correlation_ff' set to True."
+            "Could not get the pulse correlation filter function since it " +
+            "was not computed during concatenation. Please run the " +
+            "concatenation again with 'calc_pulse_correlation_ff' set to True."
         )
 
     def get_total_phases(self, omega: Coefficients) -> ndarray:
@@ -1328,9 +1401,11 @@ def concatenate_without_filter_function(
     return newpulse
 
 
+@util.parse_which_FF_parameter
 def concatenate(pulses: Iterable[PulseSequence],
                 calc_pulse_correlation_ff: bool = False,
                 calc_filter_function: Optional[bool] = None,
+                which: str = 'fidelity',
                 omega: Optional[Coefficients] = None,
                 show_progressbar: bool = False) -> PulseSequence:
     r"""
@@ -1354,14 +1429,19 @@ def concatenate(pulses: Iterable[PulseSequence],
         calculation of the composite filter function is forced.
     calc_pulse_correlation_ff : bool, optional
         Switch to control whether the pulse correlation filter function (see
-        :ref:`Notes <notes>`) is calculated. If *omega* is not given, the
-        cached frequencies of all *pulses* need to be equal.
+        :meth:`PulseSequence.get_pulse_correlation_filter_function`) is
+        calculated. If *omega* is not given, the cached frequencies of all
+        *pulses* need to be equal.
     calc_filter_function : bool, optional
         Switch to force the calculation of the filter function to be carried
         out or not. Overrides the automatic behavior of calculating it if at
         least one pulse has a cached control matrix. If ``True`` and no pulse
         has a cached control matrix, a list of frequencies must be supplied
         as *omega*.
+    which : str, optional
+        Which filter function to compute. Either 'fidelity' (default) or
+        'generalized' (see :meth:`PulseSequence.get_filter_function` and
+        :meth:`PulseSequence.get_pulse_correlation_filter_function`).
     omega : array_like, optional
         Frequencies at which to evaluate the (pulse correlation) filter
         functions. If ``None``, an attempt is made to use cached frequencies.
@@ -1373,22 +1453,6 @@ def concatenate(pulses: Iterable[PulseSequence],
     pulse : PulseSequence
         The concatenated pulse.
 
-    .. _notes:
-
-    Notes
-    -----
-    The pulse correlation filter function is given by
-
-    .. math::
-
-        F_{\alpha\beta}^{(gg')}(\omega) = e^{i\omega(t_{g-1} - t_{g'-1})}
-            \left[\mathcal{Q}^{(g'-1)\dagger}
-                  \mathcal{R}^{(g')\dagger}(\omega)\right]_{k\alpha}
-            \left[\mathcal{R}^{(g)}(\omega)
-                  \mathcal{Q}^{(g-1)}\right]_{\beta l},
-
-    where :math:`g,g'` index the pulse in the sequence and :math:`\alpha,\beta`
-    index the noise operators.
     """
     pulses = tuple(pulses)
     if len(pulses) == 1:
@@ -1459,7 +1523,7 @@ def concatenate(pulses: Iterable[PulseSequence],
 
     if not equal_n_opers:
         # Cannot reuse atomic filter functions
-        newpulse.cache_filter_function(omega)
+        newpulse.cache_filter_function(omega, which=which)
         return newpulse
 
     # Get the phase factors at the correct times (the individual gate
@@ -1513,7 +1577,7 @@ def concatenate(pulses: Iterable[PulseSequence],
 
     # Set the attribute and calculate filter function (if the pulse correlation
     # FF has been calculated, this is a little overhead but negligible)
-    newpulse.cache_filter_function(omega, R)
+    newpulse.cache_filter_function(omega, R, which=which)
 
     return newpulse
 

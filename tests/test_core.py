@@ -328,9 +328,9 @@ class CoreTest(testutil.TestCase):
 
         # Test cleanup
         C = ff.concatenate((A, A), calc_pulse_correlation_ff=True,
+                           which='generalized',
                            omega=ff.util.get_sample_frequencies(A))
         C.diagonalize()
-        C.cache_filter_function(ff.util.get_sample_frequencies(A))
         attrs = ['_HD', '_HV', '_Q']
         for attr in attrs:
             self.assertIsNotNone(getattr(C, attr))
@@ -340,6 +340,7 @@ class CoreTest(testutil.TestCase):
             self.assertIsNone(getattr(C, attr))
 
         C.diagonalize()
+        C.cache_control_matrix(A.omega)
         attrs.extend(['_R', '_total_phases', '_total_Q', '_total_Q_liouville'])
         for attr in attrs:
             self.assertIsNotNone(getattr(C, attr))
@@ -348,13 +349,20 @@ class CoreTest(testutil.TestCase):
         for attr in attrs:
             self.assertIsNone(getattr(C, attr))
 
-        C.cache_filter_function(ff.util.get_sample_frequencies(A))
+        C.cache_filter_function(A.omega, which='generalized')
+        for attr in attrs + ['omega', '_F_kl', '_F_pc_kl']:
+            self.assertIsNotNone(getattr(C, attr))
+
+        C = ff.concatenate((A, A), calc_pulse_correlation_ff=True,
+                           which='fidelity', omega=A.omega)
+        C.diagonalize()
+        C.cache_filter_function(A.omega, which='fidelity')
         attrs.extend(['omega', '_F', '_F_pc'])
         for attr in attrs:
             self.assertIsNotNone(getattr(C, attr))
 
         C.cleanup('all')
-        for attr in attrs:
+        for attr in attrs + ['_F_kl', '_F_pc_kl']:
             self.assertIsNone(getattr(C, attr))
 
     def test_pulse_sequence_attributes_concat(self):

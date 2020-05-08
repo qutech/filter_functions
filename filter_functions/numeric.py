@@ -420,20 +420,42 @@ def calculate_error_vector_correlation_functions(
     return u_kl
 
 
-def calculate_filter_function(R: ndarray) -> ndarray:
-    """
-    Compute the filter function from the control matrix.
+@util.parse_which_FF_parameter
+def calculate_filter_function(R: ndarray, which: str = 'fidelity') -> ndarray:
+    r"""Compute the filter function from the control matrix.
 
     Parameters
     ----------
     R : array_like, shape (n_nops, d**2, n_omega)
         The control matrix.
+    which : str, optional
+        Which filter function to return. Either 'fidelity' (default) or
+        'generalized' (see :ref:`Notes <notes>`).
 
     Returns
     -------
-    F : ndarray, shape (n_nops, n_nops, n_omega)
+    F : ndarray, shape (n_nops, n_nops, [d**2, d**2], n_omega)
         The filter functions for each noise operator correlation. The diagonal
         corresponds to the filter functions for uncorrelated noise sources.
+
+    Notes
+    -----
+    The generalized filter function is given by
+
+    .. math::
+
+        F_{\alpha\beta,kl}(\omega) = \mathcal{R}_{\alpha k}^\ast(\omega)
+                                     \mathcal{R}_{\beta l}(\omega),
+
+    where :math:`\alpha,\beta` are indices counting the noise operators
+    :math:`B_\alpha` and :math:`k,l` indices counting the basis elements
+    :math:`C_k`.
+
+    The fidelity filter function is obtained by tracing over the basis indices:
+
+    .. math::
+
+        F_{\alpha\beta}(\omega) = \sum_{k} F_{\alpha\beta,kk}(\omega).
 
     See Also
     --------
@@ -441,12 +463,16 @@ def calculate_filter_function(R: ndarray) -> ndarray:
     calculate_control_matrix_from_atomic : Control matrix from concatenation.
     calculate_pulse_correlation_filter_function : Pulse correlations.
     """
-    return np.einsum('iko,jko->ijo', R.conj(), R)
+    if which == 'fidelity':
+        return np.einsum('ako,bko->abo', R.conj(), R)
+    elif which == 'generalized':
+        return np.einsum('ako,blo->abklo', R.conj(), R)
 
 
-def calculate_pulse_correlation_filter_function(R: ndarray) -> ndarray:
-    r"""
-    Compute the pulse correlation filter function from the control matrix.
+@util.parse_which_FF_parameter
+def calculate_pulse_correlation_filter_function(
+        R: ndarray, which: str = 'fidelity') -> ndarray:
+    r"""Compute pulse correlation filter function from the control matrix.
 
     Parameters
     ----------
@@ -455,23 +481,34 @@ def calculate_pulse_correlation_filter_function(R: ndarray) -> ndarray:
 
     Returns
     -------
-    F_pc : ndarray, shape (n_pulses, n_pulses, n_nops, n_nops, n_omega)
+    F_pc : ndarray, shape (n_pulses, n_pulses, n_nops, n_nops, [d**2, d**2], n_omega)  # noqa
         The pulse correlation filter functions for each pulse and noise
         operator correlations. The first two axes hold the pulse correlations,
         the second two the noise correlations.
+    which : str, optional
+        Which filter function to return. Either 'fidelity' (default) or
+        'generalized' (see :ref:`Notes <notes>`).
 
     Notes
     -----
-    The pulse correlation filter function is given by
+    The generalized pulse correlation filter function is given by
 
     .. math::
 
-        F_{\alpha\beta}^{(gg')}(\omega) = e^{i\omega(t_{g-1} - t_{g'-1})}
-            \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
+        F_{\alpha\beta,kl}^{(gg')}(\omega) = \bigl[
             \mathcal{Q}^{(g'-1)\dagger}\mathcal{R}^{(g')\dagger}(\omega)
+        \bigr]_{k\alpha} \bigl[
+            \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
+        \bigr]_{\beta l} e^{i\omega(t_{g-1} - t_{g'-1})},
 
     with :math:`\mathcal{R}^{(g)}` the control matrix of the :math:`g`-th
-    pulse.
+    pulse. The fidelity pulse correlation function is obtained by tracing out
+    the basis indices,
+
+    .. math::
+
+        F_{\alpha\beta}^{(gg')}(\omega) =
+          \sum_{k} F_{\alpha\beta,kk}^{(gg')}(\omega)
 
     See Also
     --------
@@ -479,16 +516,18 @@ def calculate_pulse_correlation_filter_function(R: ndarray) -> ndarray:
     calculate_control_matrix_from_atomic : Control matrix from concatenation.
     calculate_filter_function : Regular filter function.
     """
-    try:
-        F_pc = np.einsum('gjko,hlko->ghjlo', R.conj(), R)
-    except ValueError:
+    if R.ndim != 4:
         raise ValueError('Expected R.ndim == 4.')
 
-    return F_pc
+    if which == 'fidelity':
+        return np.einsum('gako,hbko->ghabo', R.conj(), R)
+    elif which == 'generalized':
+        return np.einsum('gako,hblo->ghabklo', R.conj(), R)
 
 
 def diagonalize(H: ndarray, dt: Coefficients) -> Tuple[ndarray]:
-    r"""
+    r"""Diagonalize a Hamiltonian.
+
     Diagonalize the Hamiltonian *H* which is piecewise constant during the
     times given by *dt* and return eigenvalues, eigenvectors, and the
     cumulative propagators :math:`Q_l`. Note that we calculate in units where
