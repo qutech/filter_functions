@@ -385,8 +385,29 @@ class PulseSequence:
 
     def is_cached(self, attr: str) -> bool:
         """Returns True if the attribute is cached"""
-        if not attr.startswith('_'):
-            attr = '_' + attr
+        # Define some aliases so that this method can be used by humans
+        aliases = {'eigenvalues': '_HD',
+                   'eigenvectors': '_HV',
+                   'propagators': '_Q',
+                   'total propagator': '_total_Q',
+                   'total propagator liouville': '_total_Q_liouville',
+                   'frequencies': '_omega',
+                   'total phases': '_total_phases',
+                   'filter function': '_F',
+                   'fidelity filter function': '_F',
+                   'generalized filter function': '_F_kl',
+                   'pulse correlation filter function': '_F_pc',
+                   'fidelity pulse correlation filter function': '_F_pc',
+                   'generalized pulse correlation filter function': '_F_pc_kl',
+                   'control matrix': '_R',
+                   'pulse correlation control matrix': '_R_pc'}
+
+        alias = attr.lower().replace('_', ' ')
+        if alias in aliases:
+            attr = aliases[alias]
+        else:
+            if not attr.startswith('_'):
+                attr = '_' + attr
 
         return getattr(self, attr) is not None
 

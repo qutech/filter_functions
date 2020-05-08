@@ -324,7 +324,45 @@ class CoreTest(testutil.TestCase):
                 with self.assertRaises(AttributeError):
                     _ = A.is_cached(attr)
             else:
-                self.assertFalse(A.is_cached(attr))
+                # set mock attribute at random
+                if testutil.rng.randint(0, 2):
+                    setattr(A, attr, 'foo')
+                    assertion = self.assertTrue
+                else:
+                    assertion = self.assertFalse
+
+                assertion(A.is_cached(attr))
+                setattr(A, attr, None)
+
+        aliases = {'eigenvalues': '_HD',
+                   'eigenvectors': '_HV',
+                   'propagators': '_Q',
+                   'total propagator': '_total_Q',
+                   'total propagator liouville': '_total_Q_liouville',
+                   'frequencies': '_omega',
+                   'total phases': '_total_phases',
+                   'filter function': '_F',
+                   'fidelity filter function': '_F',
+                   'generalized filter function': '_F_kl',
+                   'pulse correlation filter function': '_F_pc',
+                   'fidelity pulse correlation filter function': '_F_pc',
+                   'generalized pulse correlation filter function': '_F_pc_kl',
+                   'control matrix': '_R',
+                   'pulse correlation control matrix': '_R'}
+
+        for alias, attr in aliases.items():
+            # set mock attribute at random
+            if testutil.rng.randint(0, 2):
+                setattr(A, attr, 'foo')
+                assertion = self.assertTrue
+            else:
+                assertion = self.assertFalse
+
+            assertion(A.is_cached(alias))
+            assertion(A.is_cached(alias.upper()))
+            assertion(A.is_cached(alias.replace(' ', '_')))
+
+            setattr(A, attr, None)
 
         # Test cleanup
         C = ff.concatenate((A, A), calc_pulse_correlation_ff=True,
