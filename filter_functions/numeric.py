@@ -73,6 +73,72 @@ __all__ = ['calculate_control_matrix_from_atomic',
            'error_transfer_matrix', 'infidelity', 'liouville_representation']
 
 
+def calculate_noise_operators_from_atomic(
+        phases: ndarray, B_g: ndarray, Q: ndarray,
+        show_progressbar: Optional[bool] = None) -> ndarray:
+    r"""
+    Calculate the control matrix from the control matrices of atomic segments.
+
+    Parameters
+    ----------
+    phases: array_like, shape (n_dt, n_omega)
+        The phase factors for :math:`l\in\{0, 1, \dots, n-1\}`.
+    B_g: array_like, shape (n_dt, n_nops, d, d, n_omega)
+        The pulse control matrices for :math:`l\in\{1, 2, \dots, n\}`.
+    Q: array_like, shape (n_dt, d, d)
+        The transfer matrices of the cumulative propagators for
+        :math:`l\in\{0, 1, \dots, n-1\}`.
+    show_progressbar: bool, optional
+        Show a progress bar for the calculation.
+
+    Returns
+    -------
+    R: ndarray, shape (n_nops, d**2, n_omega)
+        The control matrix :math:`\mathcal{R}(\omega)`.
+
+    Notes
+    -----
+    The control matrix is calculated by evaluating the sum
+
+    .. math::
+
+        \mathcal{R}(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}}
+            \mathcal{R}^{(l)}(\omega)\mathcal{Q}^{(l-1)}.
+
+    See Also
+    --------
+    :func:`calculate_control_matrix_from_scratch`
+
+    :func:`liouville_representation`
+    """
+    # B = np.moveaxis((
+    #     Q.conj().swapaxes(1, 2) @
+    #     (B_g.transpose(1, 2, 3, 0, 4) * phases).transpose(4, 0, 3, 1, 2) @ Q
+    # ).sum(2), 0, -1)
+
+    n = len(B_g)
+    # Allocate memory
+    intermediate = np.empty(B_g.shape[1:], dtype=complex)
+    B = np.zeros(B_g.shape[1:], dtype=complex)
+
+    # Set up a reusable contraction expression. In some cases it is faster to
+    # also contract the time dimension in the same expression instead of
+    # looping over it, but we don't distinguish here for readability.
+    # B_expr = contract_expression('ji,ajko,kl->ailo',
+    #                              Q.shape[1:], B_g.shape[1:], Q.shape[1:],
+    #                              optimize=[(0, 1), (0, 1)])
+
+    for g in util.progressbar_range(n, show_progressbar=show_progressbar,
+                                    desc='Calculating noise operators'):
+        # B += B_expr(Q[g].conj(), phases[g]*B_g[g], Q[g])
+
+        intermediate = np.einsum('o,o...->o...', phases[g], B_g[g],
+                                 out=intermediate)
+        B += Q[g].conj().T @ intermediate @ Q[g]
+
+    return B
+
+
 def calculate_control_matrix_from_atomic(
         phases: ndarray, R_g: ndarray, Q_liouville: ndarray,
         show_progressbar: Optional[bool] = None) -> ndarray:
@@ -125,6 +191,145 @@ def calculate_control_matrix_from_atomic(
         R += R_expr(phases[g]*R_g[g], Q_liouville[g])
 
     return R
+
+
+def calculate_noise_operators_from_scratch(
+        HD: ndarray,
+        HV: ndarray,
+        Q: ndarray,
+        omega: Coefficients,
+        basis,
+        n_opers: Sequence[Operator],
+        n_coeffs: Sequence[Coefficients],
+        dt: Coefficients,
+        t: Optional[Coefficients] = None,
+        show_progressbar: Optional[bool] = False) -> ndarray:
+    r"""
+    Calculate the control matrix from scratch, i.e. without knowledge of the
+    control matrices of more atomic pulse sequences.
+
+    Parameters
+    ----------
+    HD: array_like, shape (n_dt, d)
+        Eigenvalue vectors for each time pulse segment *l* with the first
+        axis counting the pulse segment, i.e.
+        ``HD == array([D_0, D_1, ...])``.
+    HV: array_like, shape (n_dt, d, d)
+        Eigenvector matrices for each time pulse segment *l* with the first
+        axis counting the pulse segment, i.e.
+        ``HV == array([V_0, V_1, ...])``.
+    Q: array_like, shape (n_dt+1, d, d)
+        The propagators :math:`Q_l = P_l P_{l-1}\cdots P_0` as a (d, d) array
+        with *d* the dimension of the Hilbert space.
+    omega: array_like, shape (n_omega,)
+        Frequencies at which the pulse control matrix is to be evaluated.
+    n_opers: array_like, shape (n_nops, d, d)
+        Noise operators :math:`B_\alpha`.
+    n_coeffs: array_like, shape (n_nops, n_dt)
+        The sensitivities of the system to the noise operators given by
+        *n_opers* at the given time step.
+    dt: array_like, shape (n_dt)
+        Sequence duration, i.e. for the :math:`l`-th pulse
+        :math:`t_l - t_{l-1}`.
+    t: array_like, shape (n_dt+1), optional
+        The absolute times of the different segments. Can also be computed from
+        *dt*.
+    show_progressbar: bool, optional
+        Show a progress bar for the calculation.
+
+    Returns
+    -------
+    R: ndarray, shape (n_nops, d**2, n_omega)
+        The control matrix :math:`\mathcal{R}(\omega)`
+
+    Notes
+    -----
+    The control matrix is calculated according to
+
+    .. math::
+
+        \mathcal{R}_{\alpha k}(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}}
+            s_\alpha^{(l)}\mathrm{tr}\left(
+                [\bar{B}_\alpha^{(l)}\circ I(\omega)] \bar{C}_k^{(l)}
+            \right)
+
+    where
+
+    .. math::
+
+        I^{(l)}_{nm}(\omega) &= \int_0^{t_l - t_{l-1}}\mathrm{d}t\,
+                                e^{i(\omega+\omega_n-\omega_m)t} \\
+                             &= \frac{e^{i(\omega+\omega_n-\omega_m)
+                                (t_l - t_{l-1})} - 1}
+                                {i(\omega+\omega_n-\omega_m)}, \\
+        \bar{B}_\alpha^{(l)} &= V^{(l)\dagger} B_\alpha V^{(l)}, \\
+        \bar{C}_k^{(l)} &= V^{(l)\dagger} Q_{l-1} C_k Q_{l-1}^\dagger V^{(l)},
+
+    and :math:`V^{(l)}` is the matrix of eigenvectors that diagonalizes
+    :math:`\tilde{\mathcal{H}}_n^{(l)}`, :math:`B_\alpha` the :math:`\alpha`-th
+    noise operator :math:`s_\alpha^{(l)}` the noise sensitivity during interval
+    :math:`l`, and :math:`C_k` the :math:`k`-th basis element.
+
+    See Also
+    --------
+    :func:`calculate_control_matrix_from_atomic`
+    """
+    if t is None:
+        t = np.concatenate(([0], np.asarray(dt).cumsum()))
+
+    d = HV.shape[-1]
+    # We're lazy
+    E = omega
+    n_coeffs = np.asarray(n_coeffs)
+
+    # Precompute noise opers transformed to eigenbasis of each pulse
+    # segment and Q^\dagger @ HV
+    if d < 4:
+        # Einsum contraction faster
+        VdagQ = np.einsum('lba,lbc->lac', HV.conj(), Q[:-1])
+        B = np.einsum('lba,jbc,lcd->jlad', HV.conj(), n_opers, HV,
+                      optimize=['einsum_path', (0, 1), (0, 1)])
+    else:
+        VdagQ = HV.transpose(0, 2, 1).conj() @ Q[:-1]
+        B = np.empty((len(n_opers), len(dt), d, d), dtype=complex)
+        for alpha, n_oper in enumerate(n_opers):
+            B[alpha] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
+
+    # Allocate memory
+    integral = np.empty((d, d, len(E)), dtype=complex)
+    intermediate = np.empty((len(E), len(n_opers), d, d), dtype=complex)
+    B_omega = np.zeros((len(E), len(n_opers), d, d), dtype=complex)
+
+    # path = ['einsum_path', (0, 2), (0, 3), (1, 2), (0, 1)]
+    # path = ['einsum_path', (0, 1), (0, 1), (0, 2), (0, 1)]
+
+    for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
+                                    desc='Calculating noise operators'):
+
+        dE = np.subtract.outer(HD[g], HD[g])
+        # iEdE_nm = 1j*(omega + omega_n - omega_m)
+        iEdE = np.zeros_like(integral)
+        iEdE.imag = np.add.outer(dE, E, out=iEdE.imag)
+
+        # Use expm1 for better convergence for small arguments
+        integral = np.divide(np.expm1(iEdE*dt[g]), iEdE, out=integral)
+
+        intermediate = oe.contract('a,akl,klo->oakl',
+                                   n_coeffs[:, g], B[:, g],
+                                   util.cexp(E*t[g])*integral,
+                                   optimize=[(0, 1), (0, 1)], out=intermediate)
+
+        B_omega += oe.contract('ji,...jk,kl',
+                               VdagQ[g].conj(), intermediate, VdagQ[g],
+                               optimize=[(0, 1), (0, 1)])
+        # B_omega += VdagQ[g].conj().T @ intermediate @ VdagQ[g]
+
+        # B_omega += np.einsum('a,ki,akl,klo,lj->aijo',
+        #                      n_coeffs[:, g], VdagQ[g].conj(), B[:, g],
+        #                      cexp(E*t[g])*integral, VdagQ[g],
+        #                      optimize=path)
+
+    return B_omega
 
 
 def calculate_control_matrix_from_scratch(
