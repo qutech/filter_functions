@@ -342,7 +342,8 @@ def calculate_control_matrix_from_scratch(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         t: Optional[Coefficients] = None,
-        show_progressbar: Optional[bool] = False) -> ndarray:
+        show_progressbar: Optional[bool] = False,
+        out: ndarray = None) -> ndarray:
     r"""
     Calculate the control matrix from scratch, i.e. without knowledge of the
     control matrices of more atomic pulse sequences.
@@ -377,6 +378,8 @@ def calculate_control_matrix_from_scratch(
         *dt*.
     show_progressbar : bool, optional
         Show a progress bar for the calculation.
+    out: ndarray, shape (n_nops, d**2, n_omega), optional
+        Array to place the result in
 
     Returns
     -------
@@ -439,9 +442,14 @@ def calculate_control_matrix_from_scratch(
         for j, n_oper in enumerate(n_opers):
             B[j] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
 
-    # Allocate array for the integral
-    integral = np.empty((d, d, len(E)), dtype=complex)
-    R_path = ['einsum_path', (0, 1), (0, 2), (0, 1)]
+    # Allocate result and buffers for intermediate arrays
+    if out is None:
+        out = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
+
+    exp_buf = np.empty((len(E), d, d), dtype=complex)
+    int_buf = np.empty((len(E), d, d), dtype=complex)
+    msk_buf = np.empty((len(E), d, d), dtype=bool)
+    R_path = ['einsum_path', (0, 3), (0, 1), (0, 2), (0, 1)]
 
     for l in progressbar_range(len(dt), show_progressbar=show_progressbar,
                                desc='Calculating control matrix'):
@@ -451,17 +459,21 @@ def calculate_control_matrix_from_scratch(
         iEdE = np.zeros_like(integral)
         iEdE.imag = np.add.outer(dE, E, out=iEdE.imag)
 
-        # Use expm1 for better convergence for small arguments
-        integral = np.divide(np.expm1(iEdE*dt[l]), iEdE, out=integral)
+        # Use expm1 for better convergence with small arguments
+        exp_buf = np.expm1(int_buf*dt[l], out=exp_buf)
+        # Catch zero-division warnings
+        msk_buf = np.not_equal(int_buf, 0, out=msk_buf)
+        int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=msk_buf)
+        int_buf[~msk_buf] = dt[l]
 
         # Faster for d = 2 to also contract over the time dimension instead of
         # loop, but for readability we don't distinguish.
-        R += np.einsum('j,jmn,mno,knm->jko',
-                       n_coeffs[:, l], B[:, l], cexp(E*t[l])*integral,
-                       QdagV[l].conj().T @ basis @ QdagV[l],
-                       optimize=R_path)
+        out += np.einsum('o,j,jmn,omn,knm->jko',
+                         util.cexp(E*t[l]), n_coeffs[:, l], B[:, l], int_buf,
+                         QdagV[l].conj().T @ basis @ QdagV[l],
+                         optimize=R_path)
 
-    return R
+    return out
 
 
 def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
