@@ -89,21 +89,21 @@ class Basis(ndarray):
 
     Parameters
     ----------
-    basis_array : array_like, shape (n, d, d)
+    basis_array: array_like, shape (n, d, d)
         An array or list of square matrices that are elements of an operator
         basis spanning :math:`\mathbb{C}^{d\times d}`. *n* should be smaller
         than or equal to *d**2*.
-    traceless : bool, optional (default: auto)
+    traceless: bool, optional (default: auto)
         Controls whether a traceless basis is forced. Here, traceless means
         that the first element of the basis is the identity and the remaining
         elements are matrices of trace zero. If an element of ``basis_array``
         is neither traceless nor the identity and ``traceless == True``, an
         exception will be raised. Defaults to ``True`` if basis_array is
         traceless and ``False`` if not.
-    btype : str, optional (default: ``'custom'``)
+    btype: str, optional (default: ``'custom'``)
         A string describing the basis type. For example, a basis created by the
         factory method :meth:`pauli` has *btype* 'pauli'.
-    skip_check : bool, optional (default: ``False``)
+    skip_check: bool, optional (default: ``False``)
         Skip the internal routine for checking ``basis_array``'s
         orthonormality and completeness. Use with caution.
 
@@ -112,23 +112,23 @@ class Basis(ndarray):
     Other than the attributes inherited from ``ndarray``, a ``Basis`` instance
     has the following attributes:
 
-    btype : str
+    btype: str
         Basis type.
-    d : int
+    d: int
         Dimension of the space spanned by the basis.
-    H : Basis
+    H: Basis
         Hermitian conjugate.
-    isherm : bool
+    isherm: bool
         If the basis is hermitian.
-    isorthonorm : bool
+    isorthonorm: bool
         If the basis is orthonormal.
-    istraceless : bool
+    istraceless: bool
         If the basis is traceless except for an identity element
-    iscomplete : bool
+    iscomplete: bool
         If the basis is complete, ie spans the full space.
-    sparse : COO, shape (n, d, d)
+    sparse: COO, shape (n, d, d)
         Representation in the COO format supplied by the ``sparse`` package.
-    four_element_traces : COO, shape (n, n, n, n)
+    four_element_traces: COO, shape (n, n, n, n)
         Traces over all possible combinations of four elements of self. This is
         required for the calculation of the error transfer matrix and thus
         cached in the Basis instance.
@@ -414,12 +414,12 @@ class Basis(ndarray):
 
         Parameters
         ----------
-        n : int
+        n: int
             The number of qubits.
 
         Returns
         -------
-        basis : Basis
+        basis: Basis
             The Basis object representing the Pauli basis.
         """
         normalization = np.sqrt(2**n)
@@ -443,12 +443,12 @@ class Basis(ndarray):
 
         Parameters
         ----------
-        d : int
+        d: int
             The dimensionality of the space spanned by the basis
 
         Returns
         -------
-        basis : Basis
+        basis: Basis
             The Basis object representing the GGM.
 
         References
@@ -589,19 +589,19 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
 
     Parameters
     ----------
-    M : array_like
+    M: array_like
         The square matrix (d, d) or array of square matrices (..., d, d) to be
         expanded in *basis*
-    basis : array_like
+    basis: array_like
         The basis of shape (m, d, d) in which to expand.
-    normalized : bool {True}
+    normalized: bool {True}
         Wether the basis is normalized.
-    tidyup : bool {False}
+    tidyup: bool {False}
         Whether to set values below the floating point eps to zero.
 
     Returns
     -------
-    coefficients : ndarray
+    coefficients: ndarray
         The coefficient array with shape (..., m) or (m,) if *M* was 2-d
 
     Notes
@@ -636,17 +636,17 @@ def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False) -> ndarray:
 
     Parameters
     ----------
-    M : array_like
+    M: array_like
         The square matrix (d, d) or array of square matrices (..., d, d) to be
         expanded in a GGM basis.
-    traceless : bool (default: False)
+    traceless: bool (default: False)
         Include the basis element proportional to the identity in the
         expansion. If it is known beforehand that M is traceless, the
         corresponding coefficient is zero and thus doesn't need to be computed.
 
     Returns
     -------
-    coefficients : ndarray
+    coefficients: ndarray
         The coefficient array with shape (d**2,) or (..., d**2)
 
     References
