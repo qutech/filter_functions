@@ -314,14 +314,13 @@ def calculate_noise_operators_from_scratch(
         # Use expm1 for better convergence for small arguments
         integral = np.divide(np.expm1(iEdE*dt[g]), iEdE, out=integral)
 
-        intermediate = oe.contract('a,akl,klo->oakl',
-                                   n_coeffs[:, g], B[:, g],
-                                   cexp(E*t[g])*integral,
-                                   optimize=[(0, 1), (0, 1)], out=intermediate)
+        intermediate = contract('a,akl,klo->oakl',
+                                n_coeffs[:, g], B[:, g], cexp(E*t[g])*integral,
+                                optimize=[(0, 1), (0, 1)], out=intermediate)
 
-        B_omega += oe.contract('ji,...jk,kl',
-                               VdagQ[g].conj(), intermediate, VdagQ[g],
-                               optimize=[(0, 1), (0, 1)])
+        B_omega += contract('ji,...jk,kl',
+                            VdagQ[g].conj(), intermediate, VdagQ[g],
+                            optimize=[(0, 1), (0, 1)])
         # B_omega += VdagQ[g].conj().T @ intermediate @ VdagQ[g]
 
         # B_omega += np.einsum('a,ki,akl,klo,lj->aijo',
