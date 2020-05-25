@@ -314,14 +314,13 @@ def calculate_noise_operators_from_scratch(
         # Use expm1 for better convergence for small arguments
         integral = np.divide(np.expm1(iEdE*dt[g]), iEdE, out=integral)
 
-        intermediate = oe.contract('a,akl,klo->oakl',
-                                   n_coeffs[:, g], B[:, g],
-                                   cexp(E*t[g])*integral,
-                                   optimize=[(0, 1), (0, 1)], out=intermediate)
+        intermediate = contract('a,akl,klo->oakl',
+                                n_coeffs[:, g], B[:, g], cexp(E*t[g])*integral,
+                                optimize=[(0, 1), (0, 1)], out=intermediate)
 
-        B_omega += oe.contract('ji,...jk,kl',
-                               VdagQ[g].conj(), intermediate, VdagQ[g],
-                               optimize=[(0, 1), (0, 1)])
+        B_omega += contract('ji,...jk,kl',
+                            VdagQ[g].conj(), intermediate, VdagQ[g],
+                            optimize=[(0, 1), (0, 1)])
         # B_omega += VdagQ[g].conj().T @ intermediate @ VdagQ[g]
 
         # B_omega += np.einsum('a,ki,akl,klo,lj->aijo',
@@ -427,7 +426,7 @@ def calculate_control_matrix_from_scratch(
     n_coeffs = np.asarray(n_coeffs)
 
     # Allocate memory
-    R = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
+    out = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
 
     # Precompute noise opers transformed to eigenbasis of each pulse
     # segment and Q^\dagger @ HV
@@ -456,8 +455,8 @@ def calculate_control_matrix_from_scratch(
 
         dE = np.subtract.outer(HD[l], HD[l])
         # iEdE_nm = 1j*(omega + omega_n - omega_m)
-        iEdE = np.zeros_like(integral)
-        iEdE.imag = np.add.outer(dE, E, out=iEdE.imag)
+        int_buf.real = 0
+        int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
 
         # Use expm1 for better convergence with small arguments
         exp_buf = np.expm1(int_buf*dt[l], out=exp_buf)
