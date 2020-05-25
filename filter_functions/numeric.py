@@ -128,8 +128,8 @@ def calculate_noise_operators_from_atomic(
     #                              Q.shape[1:], B_g.shape[1:], Q.shape[1:],
     #                              optimize=[(0, 1), (0, 1)])
 
-    for g in util.progressbar_range(n, show_progressbar=show_progressbar,
-                                    desc='Calculating noise operators'):
+    for g in progressbar_range(n, show_progressbar=show_progressbar,
+                               desc='Calculating noise operators'):
         # B += B_expr(Q[g].conj(), phases[g]*B_g[g], Q[g])
 
         intermediate = np.einsum('o,o...->o...', phases[g], B_g[g],
@@ -303,8 +303,8 @@ def calculate_noise_operators_from_scratch(
     # path = ['einsum_path', (0, 2), (0, 3), (1, 2), (0, 1)]
     # path = ['einsum_path', (0, 1), (0, 1), (0, 2), (0, 1)]
 
-    for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
-                                    desc='Calculating noise operators'):
+    for g in progressbar_range(len(dt), show_progressbar=show_progressbar,
+                               desc='Calculating noise operators'):
 
         dE = np.subtract.outer(HD[g], HD[g])
         # iEdE_nm = 1j*(omega + omega_n - omega_m)
@@ -316,7 +316,7 @@ def calculate_noise_operators_from_scratch(
 
         intermediate = oe.contract('a,akl,klo->oakl',
                                    n_coeffs[:, g], B[:, g],
-                                   util.cexp(E*t[g])*integral,
+                                   cexp(E*t[g])*integral,
                                    optimize=[(0, 1), (0, 1)], out=intermediate)
 
         B_omega += oe.contract('ji,...jk,kl',
@@ -469,7 +469,7 @@ def calculate_control_matrix_from_scratch(
         # Faster for d = 2 to also contract over the time dimension instead of
         # loop, but for readability we don't distinguish.
         out += np.einsum('o,j,jmn,omn,knm->jko',
-                         util.cexp(E*t[l]), n_coeffs[:, l], B[:, l], int_buf,
+                         cexp(E*t[l]), n_coeffs[:, l], B[:, l], int_buf,
                          QdagV[l].conj().T @ basis @ QdagV[l],
                          optimize=R_path)
 
