@@ -696,7 +696,7 @@ class PulseSequence:
 
         if self.is_cached('R_pc'):
             F_pc = numeric.calculate_pulse_correlation_filter_function(
-                self._R_Pc, which)
+                self._R_pc, which)
 
             if which == 'fidelity':
                 self._F_pc = F_pc

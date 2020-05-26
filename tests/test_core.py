@@ -28,7 +28,7 @@ from random import sample
 import numpy as np
 
 import filter_functions as ff
-from filter_functions import numeric
+from filter_functions import numeric, util
 from tests import testutil
 
 
@@ -213,10 +213,10 @@ class CoreTest(testutil.TestCase):
 
         # Fewer identifiers than opers
         pulse_2 = ff.PulseSequence(
-            [[ff.util.P_np[1], [1], 'X'],
-             [ff.util.P_np[2], [1]]],
-            [[ff.util.P_np[1], [1]],
-             [ff.util.P_np[2], [1], 'Y']],
+            [[util.P_np[1], [1], 'X'],
+             [util.P_np[2], [1]]],
+            [[util.P_np[1], [1]],
+             [util.P_np[2], [1], 'Y']],
             [1]
         )
         self.assertArrayEqual(pulse_2.c_oper_identifiers, ('A_1', 'X'))
@@ -224,7 +224,7 @@ class CoreTest(testutil.TestCase):
 
     def test_pulse_sequence_attributes(self):
         """Test attributes of single instance"""
-        X, Y, Z = ff.util.P_np[1:]
+        X, Y, Z = util.P_np[1:]
         n_dt = testutil.rng.randint(1, 10)
 
         # trivial case
@@ -368,7 +368,7 @@ class CoreTest(testutil.TestCase):
         # Test cleanup
         C = ff.concatenate((A, A), calc_pulse_correlation_ff=True,
                            which='generalized',
-                           omega=ff.util.get_sample_frequencies(A))
+                           omega=util.get_sample_frequencies(A))
         C.diagonalize()
         attrs = ['_HD', '_HV', '_Q']
         for attr in attrs:
@@ -416,7 +416,7 @@ class CoreTest(testutil.TestCase):
 
     def test_pulse_sequence_attributes_concat(self):
         """Test attributes of concatenated sequence."""
-        X, Y, Z = ff.util.P_np[1:]
+        X, Y, Z = util.P_np[1:]
         n_dt_1 = testutil.rng.randint(5, 11)
         x_coeff_1 = testutil.rng.randn(n_dt_1)
         z_coeff_1 = testutil.rng.randn(n_dt_1)
@@ -515,7 +515,7 @@ class CoreTest(testutil.TestCase):
             total_HD, total_HV, _ = numeric.diagonalize(
                 np.einsum('il,ijk->ljk', c_coeffs, c_opers), total_pulse.dt
             )
-            omega = ff.util.get_sample_frequencies(total_pulse, n_samples=100)
+            omega = util.get_sample_frequencies(total_pulse, n_samples=100)
             # Try the progress bar
             R = total_pulse.get_control_matrix(omega, show_progressbar=True)
 
@@ -566,8 +566,11 @@ class CoreTest(testutil.TestCase):
             )
 
     def test_pulse_correlation_filter_function(self):
-        """Test calculation of pulse correlation filter function"""
-        X, Y, Z = ff.util.P_np[1:]
+        """
+        Test calculation of pulse correlation filter function and control
+        matrix.
+        """
+        X, Y, Z = util.P_np[1:]
         T = 1
         omega = np.linspace(-2e1, 2e1, 250)
         H_c, H_n, dt = dict(), dict(), dict()
@@ -600,9 +603,9 @@ class CoreTest(testutil.TestCase):
         pulse_1 = pulses['X'] @ pulses['Y']
         pulse_2 = ff.concatenate([pulses['X'], pulses['Y']],
                                  calc_pulse_correlation_ff=True)
-
-        with self.assertRaises(ValueError):
-            numeric.calculate_pulse_correlation_filter_function(pulse_1._R)
+        pulse_3 = ff.concatenate([pulses['X'], pulses['Y']],
+                                 calc_pulse_correlation_ff=True,
+                                 which='generalized')
 
         # Check if the filter functions on the diagonals are real
         F = pulse_2.get_pulse_correlation_filter_function()
@@ -620,8 +623,32 @@ class CoreTest(testutil.TestCase):
         self.assertArrayAlmostEqual(pulse_1.get_filter_function(omega),
                                     pulse_2._F)
 
+        # Test the behavior of the pulse correlation control matrix
+        with self.assertRaises(ValueError):
+            # R wrong dimension
+            numeric.calculate_pulse_correlation_filter_function(pulse_1._R)
+
+        with self.assertRaises(util.CalculationError):
+            # not calculated
+            pulse_1.get_pulse_correlation_control_matrix()
+
+        R_pc = pulse_2.get_pulse_correlation_control_matrix()
+        self.assertArrayEqual(
+            F, numeric.calculate_pulse_correlation_filter_function(
+                R_pc, 'fidelity'
+            )
+        )
+
+        F = pulse_3.get_pulse_correlation_filter_function()
+        R_pc = pulse_3.get_pulse_correlation_control_matrix()
+        self.assertArrayEqual(
+            F, numeric.calculate_pulse_correlation_filter_function(
+                R_pc, 'fidelity'
+            )
+        )
+
         S = omega**0*1e-2
-        with self.assertRaises(ff.util.CalculationError):
+        with self.assertRaises(util.CalculationError):
             infid_1 = ff.infidelity(pulse_1, S, omega, which='correlations')
 
         with self.assertRaises(ValueError):
