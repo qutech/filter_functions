@@ -878,7 +878,7 @@ class PulseSequence:
             resulting in slower execution of the concatenation.
         """
         default_attrs = {'_HD', '_HV', '_Q'}
-        concatenation_attrs = {'_total_Q', '_total_Q_liouville', '_R', '_R_kl',
+        concatenation_attrs = {'_total_Q', '_total_Q_liouville', '_R', '_R_pc',
                                '_total_phases'}
         filter_function_attrs = {'omega', '_F', '_F_kl', '_F_pc', '_F_pc_kl'}
 
@@ -887,7 +887,7 @@ class PulseSequence:
         elif method == 'greedy':
             attrs = default_attrs.union(concatenation_attrs)
         elif method == 'frequency dependent':
-            attrs = filter_function_attrs.union({'_R', '_R_kl',
+            attrs = filter_function_attrs.union({'_R', '_R_pc',
                                                  '_total_phases'})
         else:
             attrs = filter_function_attrs.union(default_attrs,

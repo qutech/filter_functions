@@ -329,10 +329,10 @@ class CoreTest(testutil.TestCase):
                     setattr(A, attr, 'foo')
                     assertion = self.assertTrue
                 else:
+                    setattr(A, attr, None)
                     assertion = self.assertFalse
 
                 assertion(A.is_cached(attr))
-                setattr(A, attr, None)
 
         aliases = {'eigenvalues': '_HD',
                    'eigenvectors': '_HV',
@@ -348,7 +348,7 @@ class CoreTest(testutil.TestCase):
                    'fidelity pulse correlation filter function': '_F_pc',
                    'generalized pulse correlation filter function': '_F_pc_kl',
                    'control matrix': '_R',
-                   'pulse correlation control matrix': '_R'}
+                   'pulse correlation control matrix': '_R_pc'}
 
         for alias, attr in aliases.items():
             # set mock attribute at random
@@ -356,13 +356,14 @@ class CoreTest(testutil.TestCase):
                 setattr(A, attr, 'foo')
                 assertion = self.assertTrue
             else:
+                setattr(A, attr, None)
                 assertion = self.assertFalse
 
             assertion(A.is_cached(alias))
             assertion(A.is_cached(alias.upper()))
             assertion(A.is_cached(alias.replace(' ', '_')))
 
-            setattr(A, attr, None)
+        A.cleanup('all')
 
         # Test cleanup
         C = ff.concatenate((A, A), calc_pulse_correlation_ff=True,
