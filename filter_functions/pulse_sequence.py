@@ -942,7 +942,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
     object.
     """
 
-    if not hasattr(dt, '__getitem__'):
+    if not hasattr(dt, '__len__'):
         raise TypeError('Expected a sequence of time steps, not {}'.format(
             type(dt)))
 
@@ -1016,7 +1016,7 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
         raise TypeError('Expected operators in '.format(H_str) +
                         'to be NumPy arrays or QuTiP Qobjs!')
 
-    if not all(hasattr(coeff, '__getitem__') for coeff in coeffs):
+    if not all(hasattr(coeff, '__len__') for coeff in coeffs):
         raise TypeError('Expected coefficients in '.format(H_str) +
                         'to be a sequence')
 

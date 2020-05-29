@@ -172,6 +172,14 @@ class CoreTest(testutil.TestCase):
         for hn in H_n:
             hn[0] = hn[0].reshape(2, 2)
         with self.assertRaises(ValueError):
+            # Control and noise operators not same dimension
+            for hn in H_n:
+                hn[0] = np.block([[hn[0], hn[0]], [hn[0], hn[0]]])
+            ff.PulseSequence(H_c, H_n, dt)
+
+        for hn in H_n:
+            hn[0] = hn[0][:2, :2]
+        with self.assertRaises(ValueError):
             # Control identifiers not unique
             identifier = H_c[idx][2]
             H_c[idx][2] = H_c[idx-1][2]
@@ -333,6 +341,17 @@ class CoreTest(testutil.TestCase):
                     assertion = self.assertFalse
 
                 assertion(A.is_cached(attr))
+
+        # Diagonalization attributes
+        A.diagonalize()
+        self.assertIsNotNone(A.HD)
+        self.assertIsNotNone(A.HV)
+        self.assertIsNotNone(A.Q)
+
+        A.cleanup('conservative')
+        self.assertIsNotNone(A.HD)
+        self.assertIsNotNone(A.HV)
+        self.assertIsNotNone(A.Q)
 
         aliases = {'eigenvalues': '_HD',
                    'eigenvectors': '_HV',
@@ -565,6 +584,40 @@ class CoreTest(testutil.TestCase):
                 np.isreal(F[np.eye(len(n_opers), dtype=bool)]).all()
             )
 
+            # Check switch between fidelity and generalized filter function
+            F_generalized = total_pulse.get_filter_function(
+                omega, which='generalized')
+
+            F_fidelity = total_pulse.get_filter_function(
+                omega, which='fidelity')
+
+            # Check that F_fidelity is correctly reduced from F_generalized
+            self.assertArrayAlmostEqual(F_fidelity,
+                                        F_generalized.trace(axis1=2, axis2=3))
+
+            # Hit getters again to check caching functionality
+            F_generalized = total_pulse.get_filter_function(
+                omega, which='generalized')
+
+            F_fidelity = total_pulse.get_filter_function(
+                omega, which='fidelity')
+
+            # Check that F_fidelity is correctly reduced from F_generalized
+            self.assertArrayAlmostEqual(F_fidelity,
+                                        F_generalized.trace(axis1=2, axis2=3))
+
+            # Different set of frequencies than cached
+            F_generalized = total_pulse.get_filter_function(
+                omega + 1, which='generalized')
+
+            F_fidelity = total_pulse.get_filter_function(
+                omega + 1, which='fidelity')
+
+            # Check that F_fidelity is correctly reduced from F_generalized
+            self.assertArrayAlmostEqual(F_fidelity,
+                                        F_generalized.trace(axis1=2, axis2=3))
+
+
     def test_pulse_correlation_filter_function(self):
         """
         Test calculation of pulse correlation filter function and control
@@ -602,10 +655,16 @@ class CoreTest(testutil.TestCase):
 
         pulse_1 = pulses['X'] @ pulses['Y']
         pulse_2 = ff.concatenate([pulses['X'], pulses['Y']],
-                                 calc_pulse_correlation_ff=True)
+                                 calc_pulse_correlation_ff=True,
+                                 which='fidelity')
         pulse_3 = ff.concatenate([pulses['X'], pulses['Y']],
                                  calc_pulse_correlation_ff=True,
                                  which='generalized')
+
+        self.assertTrue(pulse_2.is_cached('R_pc'))
+        self.assertTrue(pulse_2.is_cached('F_pc'))
+        self.assertTrue(pulse_3.is_cached('R_pc'))
+        self.assertTrue(pulse_3.is_cached('F_pc_kl'))
 
         # Check if the filter functions on the diagonals are real
         F = pulse_2.get_pulse_correlation_filter_function()
@@ -639,11 +698,37 @@ class CoreTest(testutil.TestCase):
             )
         )
 
-        F = pulse_3.get_pulse_correlation_filter_function()
         R_pc = pulse_3.get_pulse_correlation_control_matrix()
+        F = pulse_3.get_pulse_correlation_filter_function(which='fidelity')
         self.assertArrayEqual(
             F, numeric.calculate_pulse_correlation_filter_function(
                 R_pc, 'fidelity'
+            )
+        )
+
+        F = pulse_3.get_pulse_correlation_filter_function(which='generalized')
+        self.assertArrayEqual(
+            F, numeric.calculate_pulse_correlation_filter_function(
+                R_pc, 'generalized'
+            )
+        )
+
+        # If for some reason F_pc_xy is removed, check if recovered from R_pc
+        pulse_2._F_pc = None
+        pulse_3._F_pc_kl = None
+
+        R_pc = pulse_3.get_pulse_correlation_control_matrix()
+        F = pulse_3.get_pulse_correlation_filter_function(which='fidelity')
+        self.assertArrayEqual(
+            F, numeric.calculate_pulse_correlation_filter_function(
+                R_pc, 'fidelity'
+            )
+        )
+
+        F = pulse_3.get_pulse_correlation_filter_function(which='generalized')
+        self.assertArrayEqual(
+            F, numeric.calculate_pulse_correlation_filter_function(
+                R_pc, 'generalized'
             )
         )
 
