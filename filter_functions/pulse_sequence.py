@@ -18,9 +18,8 @@
 #
 #     Contact email: tobias.hangleiter@rwth-aachen.de
 # =============================================================================
-"""
-This module defines the PulseSequence class, the central object of the
-formalism.
+
+"""This module defines the PulseSequence class, the package's central object.
 
 Classes
 -------
@@ -1033,10 +1032,6 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
         raise ValueError('Expected all operators in {} '.format(H_str) +
                          'to be two-dimensional!')
 
-    if len(set(oper.shape for oper in opers)) != 1:
-        raise ValueError('Expected all operators in {} '.format(H_str) +
-                         'to have the same dimensions!')
-
     if len(set(opers[0].shape)) != 1:
         raise ValueError('Expected operators in {} '.format(H_str) +
                          'to be square!')
@@ -1523,18 +1518,25 @@ def concatenate(pulses: Iterable[PulseSequence],
     equal_n_opers = (n_opers_present.sum(axis=0) > 1).any()
     if omega is None:
         cached_ctrl_mat = [pls.is_cached('R') for pls in pulses]
-        equal_omega = util.all_array_equal(
-            (pls.omega for pls in compress(pulses, cached_ctrl_mat))
-        )
+        if any(cached_ctrl_mat):
+            equal_omega = util.all_array_equal(
+                (pls.omega for pls in compress(pulses, cached_ctrl_mat))
+            )
+        else:
+            cached_omega = [pls.is_cached('omega') for pls in pulses]
+            equal_omega = util.all_array_equal(
+                (pls.omega for pls in compress(pulses, cached_omega))
+            )
+
         if not equal_omega:
             if calc_filter_function:
                 raise ValueError("Calculation of filter function forced " +
-                                 "but not all pulses have the same " +
-                                 "frequencies cached and none were supplied!")
+                                "but not all pulses have the same " +
+                                "frequencies cached and none were supplied!")
             if calc_pulse_correlation_ff:
                 raise ValueError("Cannot compute the pulse correlation " +
-                                 "filter functions; do not have the " +
-                                 "frequencies at which to evaluate.")
+                                "filter functions; do not have the " +
+                                "frequencies at which to evaluate.")
 
             return newpulse
 
@@ -1547,7 +1549,11 @@ def concatenate(pulses: Iterable[PulseSequence],
         # Can reuse cached filter functions or calculation explicitly asked
         # for; run calculation. Get the index of the first pulse with cached FF
         # to steal some attributes from.
-        ind = np.nonzero(cached_ctrl_mat)[0][0]
+        if any(cached_ctrl_mat):
+            ind = np.nonzero(cached_ctrl_mat)[0][0]
+        else:
+            ind = np.nonzero(cached_omega)[0][0]
+
         omega = pulses[ind].omega
 
     if not equal_n_opers:

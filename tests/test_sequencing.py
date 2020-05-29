@@ -22,6 +22,7 @@
 This module tests the concatenation functionality for PulseSequence's.
 """
 
+from copy import copy
 import string
 from itertools import product
 from random import sample
@@ -29,11 +30,36 @@ from random import sample
 import numpy as np
 
 import filter_functions as ff
-from filter_functions import util
+from filter_functions import pulse_sequence, util
 from tests import testutil
 
 
 class ConcatenationTest(testutil.TestCase):
+
+    def test_concatenate_base(self):
+        """Basic functionality."""
+        pulse_1, pulse_2 = [testutil.rand_pulse_sequence(2, 1, 2, 3)
+                            for _ in range(2)]
+
+        # Trivial case, copy
+        c_pulse = ff.concatenate([pulse_1])
+        self.assertEqual(pulse_1, c_pulse)
+        self.assertFalse(pulse_1 is c_pulse)
+
+        # Don't cache filter function, expect same result as with
+        # concatenate_without_filter_function
+        c_pulse_1 = ff.concatenate([pulse_1, pulse_2],
+                                   calc_filter_function=False)
+        c_pulse_2 = pulse_sequence.concatenate_without_filter_function(
+            [pulse_1, pulse_2], return_identifier_mappings=False
+        )
+        self.assertEqual(c_pulse_1, c_pulse_2)
+
+        # Try concatenation with different frequencies but FF calc. forced
+        with self.assertRaises(ValueError):
+            pulse_1.omega = [1, 2]
+            pulse_2.omega = [3, 4]
+            ff.concatenate([pulse_1, pulse_2], calc_filter_function=True)
 
     def test_concatenate_without_filter_function(self):
         """Concatenate two Spin Echos without filter functions."""
@@ -66,6 +92,35 @@ class ConcatenationTest(testutil.TestCase):
         omega = util.get_sample_frequencies(SE_1)
         CPMG_concat = ff.concatenate((SE_1, SE_2), omega=omega)
         self.assertIsNotNone(CPMG_concat._F)
+
+        pulse = testutil.rand_pulse_sequence(2, 1, 2, 3)
+        # Concatenate pulses without filter functions
+        with self.assertRaises(TypeError):
+            # Not all pulse sequence
+            pulse_sequence.concatenate_without_filter_function([pulse, 2])
+
+        with self.assertRaises(TypeError):
+            # Not iterable
+            pulse_sequence.concatenate_without_filter_function(pulse)
+
+        with self.assertRaises(ValueError):
+            # Incompatible Hamiltonian shapes
+            pulse_sequence.concatenate_without_filter_function(
+                [testutil.rand_pulse_sequence(2, 1),
+                 testutil.rand_pulse_sequence(3, 1)]
+            )
+
+        with self.assertRaises(ValueError):
+            # Incompatible bases
+            pulse = testutil.rand_pulse_sequence(4, 1, btype='GGM')
+            cpulse = copy(pulse)
+            cpulse.basis = ff.Basis.pauli(2)
+            pulse_sequence.concatenate_without_filter_function([pulse, cpulse])
+
+        pulse = pulse_sequence.concatenate_without_filter_function(
+            [pulse, pulse], return_identifier_mappings=False
+        )
+        self.assertFalse(pulse.is_cached('filter function'))
 
     def test_concatenate_with_filter_function_SE1(self):
         """
@@ -312,7 +367,7 @@ class ConcatenationTest(testutil.TestCase):
                                         rtol, atol)
 
     def test_different_n_opers(self):
-        """Test behavior when concatenating with different n_opers"""
+        """Test behavior when concatenating with different n_opers."""
         for d, n_dt in zip(testutil.rng.randint(2, 5, 20),
                            testutil.rng.randint(1, 11, 20)):
             opers = testutil.rand_herm_traceless(d, 10)

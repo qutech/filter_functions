@@ -63,7 +63,7 @@ class CoreTest(testutil.TestCase):
 
         dt[idx] *= -1
         with self.assertRaises(ValueError):
-            # imagniary dt
+            # imaginary dt
             dt = dt.astype(complex)
             dt[idx] += 1j
             ff.PulseSequence(H_c, H_n, dt)
@@ -85,6 +85,14 @@ class CoreTest(testutil.TestCase):
         with self.assertRaises(TypeError):
             # Noise Hamiltonian not list or tuple
             ff.PulseSequence(H_c, np.array(H_n), dt)
+
+        with self.assertRaises(TypeError):
+            # Element of control Hamiltonian not list or tuple
+            ff.PulseSequence([np.array(H_c[0])], H_n, dt)
+
+        with self.assertRaises(TypeError):
+            # Element of noise Hamiltonian not list or tuple
+            ff.PulseSequence(H_c, [np.array(H_n[0])], dt)
 
         idx = testutil.rng.randint(0, 3)
         with self.assertRaises(TypeError):
@@ -350,7 +358,9 @@ class CoreTest(testutil.TestCase):
 
         A.cleanup('conservative')
         self.assertIsNotNone(A.HD)
+        A.cleanup('conservative')
         self.assertIsNotNone(A.HV)
+        A.cleanup('conservative')
         self.assertIsNotNone(A.Q)
 
         aliases = {'eigenvalues': '_HD',
@@ -454,6 +464,13 @@ class CoreTest(testutil.TestCase):
                                     [X, testutil.rng.randn(2)]],
                                    [[Z, np.abs(testutil.rng.randn(2))]],
                                    [1, 1])
+
+        # Concatenate with different noise opers
+        pulses = [testutil.rand_pulse_sequence(2, 1) for _ in range(2)]
+        pulses[0].omega = np.arange(10)
+        pulses[1].omega = np.arange(10)
+        newpulse = ff.concatenate(pulses, calc_filter_function=True)
+        self.assertTrue(newpulse.is_cached('filter function'))
 
         pulse_12 = pulse_1 @ pulse_2
         pulse_21 = pulse_2 @ pulse_1
@@ -616,7 +633,6 @@ class CoreTest(testutil.TestCase):
             # Check that F_fidelity is correctly reduced from F_generalized
             self.assertArrayAlmostEqual(F_fidelity,
                                         F_generalized.trace(axis1=2, axis2=3))
-
 
     def test_pulse_correlation_filter_function(self):
         """
