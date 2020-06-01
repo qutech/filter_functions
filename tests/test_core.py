@@ -372,6 +372,7 @@ class CoreTest(testutil.TestCase):
                    'total phases': '_total_phases',
                    'filter function': '_F',
                    'fidelity filter function': '_F',
+                   'generalized filter function': '_F_kl',
                    'pulse correlation filter function': '_F_pc',
                    'fidelity pulse correlation filter function': '_F_pc',
                    'generalized pulse correlation filter function': '_F_pc_kl',
