@@ -78,7 +78,7 @@ class PulseSequence:
 
     Parameters
     ----------
-    H_c : list of lists
+    H_c: list of lists
         A nested list of *n_cops* nested lists as taken by QuTiP functions
         (see for example :func:`qutip.propagator.propagator`) describing the
         control part of the Hamiltonian. The *i*-th entry of the list should be
@@ -97,7 +97,7 @@ class PulseSequence:
         sublist (read: operator) was given a identifier, they are automatically
         filled up with 'A_i' where i is the position of the operator.
 
-    H_n : list of lists
+    H_n: list of lists
         A nested list of *n_nops* nested lists as taken by QuTiP functions
         (see for example :func:`qutip.propagator.propagator`) describing the
         noise part of the Hamiltonian. The *j*-th entry of the list should be a
@@ -115,12 +115,12 @@ class PulseSequence:
         as *dt*, and should be given in units of :math:`\hbar`. If not every
         sublist (read: operator) was given a identifier, they are automatically
         filled up with 'A_i' where i is the position of the operator.
-    dt : array_like, shape (n_dt,)
+    dt: array_like, shape (n_dt,)
         The segment durations of the Hamiltonian (i.e. durations of
         constant control). Internally, the control operation is taken to
         start at :math:`t_0\equiv 0`, i.e. the edges of the constant
         control segments are at times ``t = [0, *np.cumsum(dt)]``.
-    basis : Basis, shape (d**2, d, d), optional
+    basis: Basis, shape (d**2, d, d), optional
         The operator basis in which to calculate. If a Generalized Gell-Mann
         basis (see :meth:`~basis.Basis.ggm`) is chosen, some calculations will
         be faster for large dimensions due to a simpler basis expansion.
@@ -157,43 +157,43 @@ class PulseSequence:
 
     Attributes
     ----------
-    c_opers : ndarray, shape (n_cops, d, d)
+    c_opers: ndarray, shape (n_cops, d, d)
         Control operators
-    n_opers : ndarray, shape (n_nops, d, d)
+    n_opers: ndarray, shape (n_nops, d, d)
         Noise operators
-    c_oper_identifers : sequence of str
+    c_oper_identifers: sequence of str
         Identifiers for the control operators of the system
-    n_oper_identifers : sequence of str
+    n_oper_identifers: sequence of str
         Identifiers for the noise operators of the system
-    c_coeffs : ndarray, shape (n_cops, n_dt)
+    c_coeffs: ndarray, shape (n_cops, n_dt)
         Control parameters in units of :math:`\hbar`
-    n_coeffs : ndarray, shape (n_nops, n_dt)
+    n_coeffs: ndarray, shape (n_nops, n_dt)
         Noise sensitivities in units of :math:`\hbar`
-    dt : ndarray, shape (n_dt,)
+    dt: ndarray, shape (n_dt,)
         Time steps
-    t : ndarray, shape (n_dt + 1,)
+    t: ndarray, shape (n_dt + 1,)
         Absolute times taken to start at :math:`t_0\equiv 0`
-    d : int
+    d: int
         Dimension of the Hamiltonian
-    basis : Basis, shape (d**2, d, d)
+    basis: Basis, shape (d**2, d, d)
         The operator basis used for calculation
-    nbytes : int
+    nbytes: int
         An estimate of the memory consumed by the PulseSequence instance and
         its attributes
 
     If the Hamiltonian was diagonalized, the eigenvalues and -vectors as well
     as the cumulative propagators are cached:
 
-    HD : ndarray, shape (n_dt, d)
+    HD: ndarray, shape (n_dt, d)
         Eigenvalues
-    HV : ndarray, shape (n_dt, d, d)
+    HV: ndarray, shape (n_dt, d, d)
         Eigenvectors
-    Q : ndarray, shape (n_dt+1, d, d)
+    Q: ndarray, shape (n_dt+1, d, d)
         Cumulative propagators
-    total_Q : ndarray, shape (d, d)
+    total_Q: ndarray, shape (d, d)
         The total propagator :math:`Q` of the pulse alone. That is,
         :math:`|\psi(\tau)\rangle = Q|\psi(0)\rangle`.
-    total_Q_liouville : array_like, shape (d**2, d**2)
+    total_Q_liouville: array_like, shape (d**2, d**2)
         The transfer matrix for the total propagator of the pulse. Given by
         ``liouville_representation(pulse.total_Q, pulse.basis)``.
 
@@ -396,12 +396,9 @@ class PulseSequence:
                    'total phases': '_total_phases',
                    'filter function': '_F',
                    'fidelity filter function': '_F',
-                   'generalized filter function': '_F_kl',
                    'pulse correlation filter function': '_F_pc',
                    'fidelity pulse correlation filter function': '_F_pc',
-                   'generalized pulse correlation filter function': '_F_pc_kl',
-                   'control matrix': '_R',
-                   'pulse correlation control matrix': '_R_pc'}
+                   'control matrix': '_R'}
 
         alias = attr.lower().replace('_', ' ')
         if alias in aliases:
@@ -434,14 +431,14 @@ class PulseSequence:
 
         Parameters
         ----------
-        omega : array_like, shape (n_omega,)
+        omega: array_like, shape (n_omega,)
             The frequencies at which to evaluate the control matrix.
-        show_progressbar : bool
+        show_progressbar: bool
             Show a progress bar for the calculation of the control matrix.
 
         Returns
         -------
-        R : ndarray, shape (n_nops, d**2, n_omega)
+        R: ndarray, shape (n_nops, d**2, n_omega)
             The control matrix for the noise operators.
         """
         # Only calculate if not calculated before for the same frequencies
@@ -478,12 +475,12 @@ class PulseSequence:
 
         Parameters
         ----------
-        omega : array_like, shape (n_omega,)
+        omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R : array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
+        R: array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed.
-        show_progressbar : bool
+        show_progressbar: bool
             Show a progress bar for the calculation of the control matrix.
         """
         if R is None:
@@ -525,17 +522,17 @@ class PulseSequence:
 
         Parameters
         ----------
-        omega : array_like, shape (n_omega,)
+        omega: array_like, shape (n_omega,)
             The frequencies at which to evaluate the filter function.
-        which : str, optional
+        which: str, optional
             Which filter function to return. Either 'fidelity' (default) or
             'generalized' (see :ref:`Notes <notes>`).
-        show_progressbar : bool, optional
+        show_progressbar: bool, optional
             Show a progress bar for the calculation of the control matrix.
 
         Returns
         -------
-        F : ndarray, shape (n_nops, n_nops, [d**2, d**2,] n_omega)
+        F: ndarray, shape (n_nops, n_nops, [d**2, d**2,] n_omega)
             The filter function for each combination of noise operators as a
             function of omega.
 
@@ -598,18 +595,18 @@ class PulseSequence:
 
         Parameters
         ----------
-        omega : array_like, shape (n_omega,)
+        omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R : array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
+        R: array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed and the filter function derived from it.
-        F : array_like, shape (n_nops, n_nops, [d**2, d**2,] n_omega), optional
+        F: array_like, shape (n_nops, n_nops, [d**2, d**2,] n_omega), optional
             The filter function for the frequencies *omega*. If ``None``, it is
             computed from R.
-        which : str, optional
+        which: str, optional
             Which filter function to return. Either 'fidelity' (default) or
             'generalized'.
-        show_progressbar : bool
+        show_progressbar: bool
             Show a progress bar for the calculation of the control matrix.
 
         See Also
@@ -667,7 +664,7 @@ class PulseSequence:
 
         Returns
         -------
-        F_pc : ndarray, shape (n_pulses, n_pulses, n_nops, n_nops, n_omega)
+        F_pc: ndarray, shape (n_pulses, n_pulses, n_nops, n_nops, n_omega)
             The pulse correlation filter function for each noise operator as a
             function of omega. The first two axes correspond to the pulses in
             the sequence, i.e. if the concatenated pulse sequence is
@@ -731,9 +728,9 @@ class PulseSequence:
 
         Parameters
         ----------
-        omega : array_like, shape (n_omega,)
+        omega: array_like, shape (n_omega,)
             The frequencies for which to cache the phase factors.
-        total_phases : array_like, shape (n_omega,), optional
+        total_phases: array_like, shape (n_omega,), optional
             The total phase factors for the frequencies *omega*. If ``None``,
             they are computed.
         """
@@ -843,7 +840,7 @@ class PulseSequence:
 
         Parameters
         ----------
-        method : optional
+        method: optional
             If set to 'conservative' (the default), only the following
             attributes are deleted:
 
@@ -1091,28 +1088,28 @@ def _concatenate_Hamiltonian(
 
     Parameters
     ----------
-    opers : array_like
+    opers: array_like
         The operators, should be of structure::
 
         ((A_oper_1, A_oper_2, ...), (B_oper_1, ...), (...), ...)
 
         for Hamiltonians *A*, *B*, ...
-    identifiers : array_like
+    identifiers: array_like
         The identifiers, should be of same structure as opers.
-    coeffs : array_like
+    coeffs: array_like
         The coefficients, should be of same structure as opers.
-    kind : str
+    kind: str
         The type of Hamiltonian, either 'control' or 'noise'.
 
     Returns
     -------
-    concat_opers : ndarray, shape (n_opers, d, d)
+    concat_opers: ndarray, shape (n_opers, d, d)
         The operators of the concatenated Hamiltonian.
-    concat_identifiers : ndarray, shape (n_opers,)
+    concat_identifiers: ndarray, shape (n_opers,)
         The identifiers of the concatenated Hamiltonian.
-    concat_coeffs : ndarray, shape (n_opers, n_dt)
+    concat_coeffs: ndarray, shape (n_opers, n_dt)
         The coefficients of the concatenated Hamiltonian.
-    pulse_identifier_mapping : Dict[int, Dict[str, str]]
+    pulse_identifier_mapping: Dict[int, Dict[str, str]]
         Dictionary that maps the operator identifiers of the original
         pulses to those of the new pulse.
     """
@@ -1282,16 +1279,16 @@ def _map_identifiers(identifiers: Sequence[str],
 
     Parameters
     ----------
-    identifiers : sequence of str
+    identifiers: sequence of str
         The identifiers to remap.
-    mapping : dict_like
+    mapping: dict_like
         The mapping according to which to remap.
 
     Returns
     -------
-    identifiers : ndarray
+    identifiers: ndarray
         The identifiers.
-    sort_idx : ndarray
+    sort_idx: ndarray
         The indices which sort the identifiers.
     """
     # Remap identifiers
@@ -1315,16 +1312,16 @@ def _default_extend_mapping(identifiers: Sequence[str],
 
     Parameters
     ----------
-    identifiers : Sequence[str]
+    identifiers: Sequence[str]
         The identifiers to remap.
-    qubits : Union[Sequence[int], int]
+    qubits: Union[Sequence[int], int]
         The qubits the pulse was mapped to.
 
     Returns
     -------
-    identifiers : ndarray
+    identifiers: ndarray
         The identifiers.
-    mapping : ndarray
+    mapping: ndarray
         The default mapping.
 
     """
@@ -1348,9 +1345,9 @@ def concatenate_without_filter_function(
 
     Parameters
     ----------
-    pulses : iterable of PulseSequences
+    pulses: iterable of PulseSequences
         The PulseSequence instances to be concatenated.
-    return_identifier_mappings : bool, optional
+    return_identifier_mappings: bool, optional
         Return dictionaries which map the identifiers of control and noise
         operators of the input pulses to those of the new pulse. This mapping
         is only non-trivial if any of the pulses have two different operators
@@ -1358,19 +1355,19 @@ def concatenate_without_filter_function(
 
     Returns
     -------
-    newpulse : PulseSequence
+    newpulse: PulseSequence
         The concatenated PulseSequence
-    c_oper_identifier_mapping : Dict[int: Dict[str, str]]
+    c_oper_identifier_mapping: Dict[int: Dict[str, str]]
         A dictionary that maps the control operator identifiers of the original
         pulses to those of the new pulse.
-    n_oper_identifier_mapping : Dict[int: Dict[str, str]]
+    n_oper_identifier_mapping: Dict[int: Dict[str, str]]
         A dictionary that maps the noise operator identifiers of the original
         pulses to those of the new pulse.
 
     See Also
     --------
-    concatenate : Concatenate PulseSequences including filter functions.
-    concatenate_periodic : Concatenate PulseSequences periodically.
+    concatenate: Concatenate PulseSequences including filter functions.
+    concatenate_periodic: Concatenate PulseSequences periodically.
     """
     pulses = tuple(pulses)
     try:
@@ -1445,36 +1442,36 @@ def concatenate(pulses: Iterable[PulseSequence],
 
     Parameters
     ----------
-    pulses : sequence of PulseSequences
+    pulses: sequence of PulseSequences
         The PulseSequence instances to be concatenated. If any of the instances
         have a cached filter function, the filter function for the composite
         pulse will also be calculated in order to make use of the speedup
         gained from concatenating the filter functions. If *omega* is given,
         calculation of the composite filter function is forced.
-    calc_pulse_correlation_ff : bool, optional
+    calc_pulse_correlation_ff: bool, optional
         Switch to control whether the pulse correlation filter function (see
         :meth:`PulseSequence.get_pulse_correlation_filter_function`) is
         calculated. If *omega* is not given, the cached frequencies of all
         *pulses* need to be equal.
-    calc_filter_function : bool, optional
+    calc_filter_function: bool, optional
         Switch to force the calculation of the filter function to be carried
         out or not. Overrides the automatic behavior of calculating it if at
         least one pulse has a cached control matrix. If ``True`` and no pulse
         has a cached control matrix, a list of frequencies must be supplied
         as *omega*.
-    which : str, optional
+    which: str, optional
         Which filter function to compute. Either 'fidelity' (default) or
         'generalized' (see :meth:`PulseSequence.get_filter_function` and
         :meth:`PulseSequence.get_pulse_correlation_filter_function`).
-    omega : array_like, optional
+    omega: array_like, optional
         Frequencies at which to evaluate the (pulse correlation) filter
         functions. If ``None``, an attempt is made to use cached frequencies.
-    show_progressbar : bool
+    show_progressbar: bool
         Show a progress bar for the calculation of the control matrix.
 
     Returns
     -------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The concatenated pulse.
 
     """
@@ -1629,16 +1626,16 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The ``PulseSequence`` instance to be repeated. If it has a cached
         filter function, the filter function for the new pulse will also be
         computed.
-    repeats : int
+    repeats: int
         The number of repetitions
 
     Returns
     -------
-    newpulse : PulseSequence
+    newpulse: PulseSequence
         The concatenated ``PulseSequence``
 
     Notes
@@ -1660,7 +1657,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     See also
     --------
-    concatenate : Concatenate arbitrary PulseSequences.
+    concatenate: Concatenate arbitrary PulseSequences.
     """
 
     try:
@@ -1728,20 +1725,20 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The pulse whose qubit order should be permuted.
-    order : sequence of ints
+    order: sequence of ints
         A list of permutation indices. E.g., if *pulse* is defined for two
         qubits, ``order == [1, 0]`` will reverse the order of qubits.
-    d_per_qubit : int (default: 2)
+    d_per_qubit: int (default: 2)
         The size of the Hilbert space a single qubit inhabitates.
-    oper_identifier_mapping : dict_like
+    oper_identifier_mapping: dict_like
         A mapping that maps operator identifiers from the old pulse to
         the remapped pulse. The default is the identity mapping.
 
     Returns
     -------
-    remapped_pulse : PulseSequence
+    remapped_pulse: PulseSequence
         A new ``PulseSequence`` instance with the order of the qubits permuted
         according to *order*.
 
@@ -1768,8 +1765,8 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
 
     See Also
     --------
-    extend : Map PulseSequences to composite Hilbert spaces.
-    util.tensor_transpose : Transpose the order of a tensor product.
+    extend: Map PulseSequences to composite Hilbert spaces.
+    util.tensor_transpose: Transpose the order of a tensor product.
     """
     # Number of qubits
     N = int(np.log(pulse.d)/np.log(d_per_qubit))
@@ -1858,7 +1855,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
 
     Parameters
     ----------
-    pulse_to_qubit_mapping : sequence of mapping tuples
+    pulse_to_qubit_mapping: sequence of mapping tuples
         A sequence of tuples with the first entry a ``PulseSequence``
         instance and the second an ``int`` or tuple of ``int``\s indicating the
         qubits that the ``PulseSequence`` should be mapped to. A mapping of
@@ -1870,21 +1867,21 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
         to non-neighboring qubits. Note that for multi-qubit pulses the order
         of the qubits is respected, i.e. mapping a pulse to (1, 0) is different
         from mapping it to (0, 1).
-    N : int
+    N: int
         The total number of qubits the new ``PulseSequence`` should be defined
         for. By default, this is inferred from ``pulse_to_qubit_mapping``.
-    d_per_qubit : int
+    d_per_qubit: int
         The size of the Hilbert space a single qubit requires.
-    additional_noise_Hamiltonian : list of lists
+    additional_noise_Hamiltonian: list of lists
         Additional noise operators and corresponding sensitivities for the new
         pulse sequence.
-    cache_diagonalization : bool
+    cache_diagonalization: bool
         Force diagonalizing the new pulse sequence. By default, diagonalization
         is cached if all pulses in ``pulse_to_qubit_mapping`` have been
         diagonalized since it is much cheaper to get the relevant quantities
         as tensor products from the mapped pulses instead of diagonalizing the
         new pulse.
-    cache_filter_function : bool
+    cache_filter_function: bool
         Force computing the filter functions for the new pulse sequence. Noise
         operators of individual pulses will be extended to the new Hilbert
         space. By default, this is done if all pulses in
@@ -1892,16 +1889,16 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
 
         Note that extending the filter functions is only possible if they the
         mapped pulses are using a separable basis like the Pauli basis.
-    omega : array_like
+    omega: array_like
         Frequencies for which to compute the filter functions if
         ``cache_filter_function == True``. Defaults to ``None``, in which case
         the cached frequencies of the individual pulses need to be the same.
-    show_progressbar : bool
+    show_progressbar: bool
         Show a progress bar for the calculation of the control matrix.
 
     Returns
     -------
-    newpulse : PulseSequence
+    newpulse: PulseSequence
         The new pulse sequence on the larger qubit register. The noise
         operators (and possibly filter functions) are stored in the following
         order: first those of the multi-qubit pulses in the order they appeared
@@ -1977,9 +1974,9 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
 
     See Also
     --------
-    remap : Map PulseSequence to a different qubit.
-    concatenate : Concatenate PulseSequences (in time).
-    concatenate_periodic : Periodically concatenate a PulseSequence.
+    remap: Map PulseSequence to a different qubit.
+    concatenate: Concatenate PulseSequences (in time).
+    concatenate_periodic: Periodically concatenate a PulseSequence.
     """
     # Parse pulse_to_qubit_mapping
     active_qubits_list = []

@@ -132,27 +132,27 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The PulseSequence instance whose control Hamiltonian determines the
         time evolution of the Bloch vector.
-    psi0 : Qobj or array_like, optional
+    psi0: Qobj or array_like, optional
         The initial state before the pulse is applied. Defaults to
         :math:`|0\rangle`.
-    b : Bloch, optional
+    b: Bloch, optional
         If given, the QuTiP Bloch instance on which to plot the time evolution.
-    n_samples : int, optional
+    n_samples: int, optional
         The number of time points to be sampled.
-    show** : bool, optional
+    show**: bool, optional
         Whether to show the sphere (by calling :code:`b.make_sphere()`).
-    return_Bloch : bool, optional
+    return_Bloch: bool, optional
         Whether to return the :class:`qutip.bloch.Bloch` instance
-    bloch_kwargs : dict, optional
+    bloch_kwargs: dict, optional
         A dictionary with keyword arguments to be fed into the Bloch
         constructor (if *b* not given).
 
     Returns
     -------
-    b : Bloch
+    b: Bloch
         The Bloch instance
 
     Raises
@@ -162,7 +162,7 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
 
     See Also
     --------
-    qutip.bloch.Bloch : Qutip's Bloch sphere implementation.
+    qutip.bloch.Bloch: Qutip's Bloch sphere implementation.
     """
     # Raise an exception if not a one-qubit pulse
     if not pulse.d == 2:
@@ -216,34 +216,34 @@ def plot_pulse_train(pulse: 'PulseSequence',
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The pulse sequence whose pulse train to plot.
-    n_oper_identifiers : array_like, optional
+    n_oper_identifiers: array_like, optional
         The identifiers of the control operators for which the pulse train
         should be plotted. All identifiers can be accessed via
         ``pulse.c_oper_identifiers``. Defaults to all.
-    fig : matplotlib figure, optional
+    fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
-    axes : matplotlib axes, optional
+    axes: matplotlib axes, optional
         A matplotlib axes instance to use for plotting.
-    plot_kw : dict, optional
+    plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
-    subplot_kw : dict, optional
+    subplot_kw: dict, optional
         Dictionary with keyword arguments passed to the subplots constructor
-    gridspec_kw : dict, optional
+    gridspec_kw: dict, optional
         Dictionary with keyword arguments passed to the gridspec constructor
-    figure_kw : optional
+    figure_kw: optional
         Keyword argument dictionaries that are fed into the
         :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
         specified.
 
     Returns
     -------
-    fig : matplotlib figure
+    fig: matplotlib figure
         The matplotlib figure instance used for plotting.
-    axes : matplotlib axes
+    axes: matplotlib axes
         The matplotlib axes instance used for plotting.
-    legend : matplotlib legend
+    legend: matplotlib legend
         The matplotlib legend instance in the plot.
 
     Raises
@@ -300,44 +300,44 @@ def plot_filter_function(pulse: 'PulseSequence',
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The pulse sequence whose filter function to plot.
-    omega : array_like, optional
+    omega: array_like, optional
         The frequencies at which to evaluate the filter function. If not given,
         the pulse sequence's omega attribute is used (if set) or sensible
         values are chosen automatically (if ``None``)
-    n_oper_identifiers : array_like, optional
+    n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which the filter function
         should be plotted. All identifiers can be accessed via
         ``pulse.n_oper_identifiers``. Defaults to all.
-    fig : matplotlib figure, optional
+    fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
-    axes : matplotlib axes, optional
+    axes: matplotlib axes, optional
         A matplotlib axes instance to use for plotting.
-    xscale : str, optional
+    xscale: str, optional
         x-axis scaling. One of ('linear', 'log').
-    yscale : str, optional
+    yscale: str, optional
         y-axis scaling. One of ('linear', 'log').
-    omega_in_units_of_tau : bool, optional
+    omega_in_units_of_tau: bool, optional
         Plot :math:`\omega\tau` or just :math:`\omega` on x-axis.
-    plot_kw : dict, optional
+    plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
-    subplot_kw : dict, optional
+    subplot_kw: dict, optional
         Dictionary with keyword arguments passed to the subplots constructor
-    gridspec_kw : dict, optional
+    gridspec_kw: dict, optional
         Dictionary with keyword arguments passed to the gridspec constructor
-    figure_kw : optional
+    figure_kw: optional
         Keyword argument dictionaries that are fed into the
         :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
         specified.
 
     Returns
     -------
-    fig : matplotlib figure
+    fig: matplotlib figure
         The matplotlib figure instance used for plotting.
-    axes : matplotlib axes
+    axes: matplotlib axes
         The matplotlib axes instance used for plotting.
-    legend : matplotlib legend
+    legend: matplotlib legend
         The matplotlib legend instance in the plot.
 
     Raises
@@ -423,38 +423,38 @@ def plot_pulse_correlation_filter_function(
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The pulse sequence whose filter function to plot.
-    n_oper_identifiers : array_like, optional
+    n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which the filter function
         should be plotted. All identifiers can be accessed via
         ``pulse.n_oper_identifiers``. Defaults to all.
-    fig : matplotlib figure, optional
+    fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
-    xscale : str, optional
+    xscale: str, optional
         x-axis scaling. One of ('linear', 'log').
-    yscale : str, optional
+    yscale: str, optional
         y-axis scaling. One of ('linear', 'log').
-    omega_in_units_of_tau : bool, optional
+    omega_in_units_of_tau: bool, optional
         Plot :math:`\omega\tau` or just :math:`\omega` on x-axis.
-    plot_kw : dict, optional
+    plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
-    subplot_kw : dict, optional
+    subplot_kw: dict, optional
         Dictionary with keyword arguments passed to the subplots constructor
-    gridspec_kw : dict, optional
+    gridspec_kw: dict, optional
         Dictionary with keyword arguments passed to the gridspec constructor
-    figure_kw : optional
+    figure_kw: optional
         Keyword argument dictionaries that are fed into the
         :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
         specified.
 
     Returns
     -------
-    fig : matplotlib figure
+    fig: matplotlib figure
         The matplotlib figure instance used for plotting.
-    axes : matplotlib axes
+    axes: matplotlib axes
         The matplotlib axes instances used for plotting.
-    legend : matplotlib legend
+    legend: matplotlib legend
         The matplotlib legend instance in the plot.
 
     Raises
@@ -548,17 +548,17 @@ def plot_infidelity_convergence(n_samples: Sequence[int],
 
     Parameters
     ----------
-    n_samples : array_like
+    n_samples: array_like
         Array with the number of samples at which the integral was evaluated
-    infids : array_like, shape (n_samples, [n_oper_inds, optional])
+    infids: array_like, shape (n_samples, [n_oper_inds, optional])
         Array with the calculated infidelities for each noise operator on the
         second axis or the second axis already traced out.
 
     Returns
     -------
-    fig : matplotlib figure
+    fig: matplotlib figure
         The matplotlib figure instance used for plotting.
-    axes : matplotlib axes
+    axes: matplotlib axes
         The matplotlib axes instances used for plotting.
 
     """
@@ -605,53 +605,53 @@ def plot_error_transfer_matrix(
 
     Parameters
     ----------
-    pulse : 'PulseSequence'
+    pulse: 'PulseSequence'
         The pulse sequence.
-    S : ndarray
+    S: ndarray
         The two-sided noise spectrum.
-    omega : array_like
+    omega: array_like
         The frequencies for which to evaluate the error transfer matrix. Note
         that they should be symmetric around zero, that is, include negative
         frequencies.
-    U : ndarray, shape
+    U: ndarray, shape
         A precomputed error transfer matrix. If given, *pulse*, *S*, *omega*
         are not required.
-    n_oper_identifiers : array_like, optional
+    n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which the error transfer
         matrix should be plotted. All identifiers can be accessed via
         ``pulse.n_oper_identifiers``. Defaults to all.
-    basis_labels : array_like (str), optional
+    basis_labels: array_like (str), optional
         Labels for the elements of the error transfer matrix (the basis
         elements).
-    colorscale : str, optional
+    colorscale: str, optional
         The scale of the color code ('linear' or 'log' (default))
     linthresh: float, optional
         The threshold below which the colorscale will be linear (only for
         'log') colorscale
-    cbar_label : str, optional
+    cbar_label: str, optional
         The label for the colorbar. Default: 'Error transfer matrix'.
-    basis_labelsize : int, optional
+    basis_labelsize: int, optional
         The size in points for the basis labels.
-    fig : matplotlib figure, optional
+    fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
-    grid : matplotlib ImageGrid, optional
+    grid: matplotlib ImageGrid, optional
         An ImageGrid instance to use for plotting.
-    cmap : matplotlib colormap, optional
+    cmap: matplotlib colormap, optional
         The colormap for the matrix plot.
-    subplot_kw : dict, optional
+    subplot_kw: dict, optional
         Dictionary with keyword arguments passed to the ImageGrid constructor.
-    imshow_kw : dict, optional
+    imshow_kw: dict, optional
         Dictionary with keyword arguments passed to imshow.
-    figure_kw : optional
+    figure_kw: optional
         Keyword argument dictionaries that are fed into the
         :func:`matplotlib.pyplot.figure` function if no *fig* instance is
         specified.
 
     Returns
     -------
-    fig : matplotlib figure
+    fig: matplotlib figure
         The matplotlib figure instance used for plotting.
-    grid : matplotlib ImageGrid
+    grid: matplotlib ImageGrid
         The ImageGrid instance used for plotting.
     """
     if U is not None:
