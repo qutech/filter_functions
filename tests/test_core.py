@@ -26,29 +26,26 @@ from copy import copy
 from random import sample
 
 import numpy as np
-from numpy.random import choice, randint, randn
-from tests import testutil
 
 import filter_functions as ff
-from filter_functions.numeric import (
-    calculate_control_matrix_from_atomic,
-    calculate_control_matrix_from_scratch,
-    calculate_error_vector_correlation_functions,
-    calculate_pulse_correlation_filter_function, diagonalize,
-    liouville_representation)
+from filter_functions import numeric
+from tests import testutil
 
 
 class CoreTest(testutil.TestCase):
 
     def test_pulse_sequence_constructor(self):
         """Test constructing a PulseSequence."""
-        identifiers = ('X', 'Y', 'Z')
-        H_c = list(zip(ff.util.P_np[1:], randn(3, 5), identifiers))
-        H_n = list(zip(ff.util.P_np[1:], np.abs(randn(3, 5)), identifiers))
+        base_pulse = testutil.rand_pulse_sequence(2, 5, 3, 3)
+        H_c = list(zip(base_pulse.c_opers, base_pulse.c_coeffs,
+                       base_pulse.c_oper_identifiers))
+        H_n = list(zip(base_pulse.n_opers, base_pulse.n_coeffs,
+                       base_pulse.n_oper_identifiers))
+        dt = base_pulse.dt
+
         for i in range(3):
             H_c[i] = list(H_c[i])
             H_n[i] = list(H_n[i])
-        dt = np.abs(randn(5))
 
         with self.assertRaises(TypeError):
             # Not enough positional arguments
@@ -58,7 +55,7 @@ class CoreTest(testutil.TestCase):
             # dt not a sequence
             ff.PulseSequence(H_c, H_n, dt[0])
 
-        idx = randint(0, 5)
+        idx = testutil.rng.randint(0, 5)
         with self.assertRaises(ValueError):
             # negative dt
             dt[idx] *= -1
@@ -89,7 +86,7 @@ class CoreTest(testutil.TestCase):
             # Noise Hamiltonian not list or tuple
             ff.PulseSequence(H_c, np.array(H_n), dt)
 
-        idx = randint(0, 3)
+        idx = testutil.rng.randint(0, 3)
         with self.assertRaises(TypeError):
             # Control Hamiltonian element not list or tuple
             H_c[idx] = dict(H_c[idx])
@@ -228,19 +225,19 @@ class CoreTest(testutil.TestCase):
     def test_pulse_sequence_attributes(self):
         """Test attributes of single instance"""
         X, Y, Z = ff.util.P_np[1:]
-        n_dt = randint(1, 10)
+        n_dt = testutil.rng.randint(1, 10)
 
         # trivial case
-        A = ff.PulseSequence([[X, randn(n_dt), 'X']],
-                             [[Z, randn(n_dt), 'Z']],
-                             np.abs(randn(n_dt)))
+        A = ff.PulseSequence([[X, testutil.rng.randn(n_dt), 'X']],
+                             [[Z, testutil.rng.randn(n_dt), 'Z']],
+                             np.abs(testutil.rng.randn(n_dt)))
         self.assertFalse(A == 1)
         self.assertTrue(A != 1)
 
         # different number of time steps
-        B = ff.PulseSequence([[X, randn(n_dt+1), 'X']],
-                             [[Z, randn(n_dt+1), 'Z']],
-                             np.abs(randn(n_dt+1)))
+        B = ff.PulseSequence([[X, testutil.rng.randn(n_dt+1), 'X']],
+                             [[Z, testutil.rng.randn(n_dt+1), 'Z']],
+                             np.abs(testutil.rng.randn(n_dt+1)))
         self.assertFalse(A == B)
         self.assertTrue(A != B)
 
@@ -248,7 +245,7 @@ class CoreTest(testutil.TestCase):
         B = ff.PulseSequence(
             list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
             list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
-            np.abs(randn(n_dt))
+            np.abs(testutil.rng.randn(n_dt))
         )
         self.assertFalse(A == B)
         self.assertTrue(A != B)
@@ -264,7 +261,8 @@ class CoreTest(testutil.TestCase):
 
         # different control coeffs
         B = ff.PulseSequence(
-            list(zip(A.c_opers, [randn(n_dt)], A.c_oper_identifiers)),
+            list(zip(A.c_opers, [testutil.rng.randn(n_dt)],
+                     A.c_oper_identifiers)),
             list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
             A.dt
         )
@@ -283,7 +281,8 @@ class CoreTest(testutil.TestCase):
         # different noise coeffs
         B = ff.PulseSequence(
             list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
-            list(zip(A.n_opers, [randn(n_dt)], A.n_oper_identifiers)),
+            list(zip(A.n_opers, [testutil.rng.randn(n_dt)],
+                     A.n_oper_identifiers)),
             A.dt
         )
         self.assertFalse(A == B)
@@ -313,7 +312,7 @@ class CoreTest(testutil.TestCase):
             list(zip(A.c_opers, A.c_coeffs, A.c_oper_identifiers)),
             list(zip(A.n_opers, A.n_coeffs, A.n_oper_identifiers)),
             A.dt,
-            ff.Basis([elem])
+            ff.Basis(elem)
         )
         self.assertFalse(A == B)
         self.assertTrue(A != B)
@@ -325,7 +324,42 @@ class CoreTest(testutil.TestCase):
                 with self.assertRaises(AttributeError):
                     _ = A.is_cached(attr)
             else:
-                self.assertFalse(A.is_cached(attr))
+                # set mock attribute at random
+                if testutil.rng.randint(0, 2):
+                    setattr(A, attr, 'foo')
+                    assertion = self.assertTrue
+                else:
+                    assertion = self.assertFalse
+
+                assertion(A.is_cached(attr))
+                setattr(A, attr, None)
+
+        aliases = {'eigenvalues': '_HD',
+                   'eigenvectors': '_HV',
+                   'propagators': '_Q',
+                   'total propagator': '_total_Q',
+                   'total propagator liouville': '_total_Q_liouville',
+                   'frequencies': '_omega',
+                   'total phases': '_total_phases',
+                   'filter function': '_F',
+                   'fidelity filter function': '_F',
+                   'pulse correlation filter function': '_F_pc',
+                   'fidelity pulse correlation filter function': '_F_pc',
+                   'control matrix': '_R'}
+
+        for alias, attr in aliases.items():
+            # set mock attribute at random
+            if testutil.rng.randint(0, 2):
+                setattr(A, attr, 'foo')
+                assertion = self.assertTrue
+            else:
+                assertion = self.assertFalse
+
+            assertion(A.is_cached(alias))
+            assertion(A.is_cached(alias.upper()))
+            assertion(A.is_cached(alias.replace(' ', '_')))
+
+            setattr(A, attr, None)
 
         # Test cleanup
         C = ff.concatenate((A, A), calc_pulse_correlation_ff=True,
@@ -361,30 +395,30 @@ class CoreTest(testutil.TestCase):
     def test_pulse_sequence_attributes_concat(self):
         """Test attributes of concatenated sequence."""
         X, Y, Z = ff.util.P_np[1:]
-        n_dt_1 = randint(5, 11)
-        x_coeff_1 = randn(n_dt_1)
-        z_coeff_1 = randn(n_dt_1)
-        dt_1 = np.abs(randn(n_dt_1))
-        n_dt_2 = randint(5, 11)
-        y_coeff_2 = randn(n_dt_2)
-        z_coeff_2 = randn(n_dt_2)
-        dt_2 = np.abs(randn(n_dt_2))
+        n_dt_1 = testutil.rng.randint(5, 11)
+        x_coeff_1 = testutil.rng.randn(n_dt_1)
+        z_coeff_1 = testutil.rng.randn(n_dt_1)
+        dt_1 = np.abs(testutil.rng.randn(n_dt_1))
+        n_dt_2 = testutil.rng.randint(5, 11)
+        y_coeff_2 = testutil.rng.randn(n_dt_2)
+        z_coeff_2 = testutil.rng.randn(n_dt_2)
+        dt_2 = np.abs(testutil.rng.randn(n_dt_2))
         pulse_1 = ff.PulseSequence([[X, x_coeff_1]],
                                    [[Z, z_coeff_1]],
                                    dt_1)
         pulse_2 = ff.PulseSequence([[Y, y_coeff_2]],
                                    [[Z, z_coeff_2]],
                                    dt_2)
-        pulse_3 = ff.PulseSequence([[Y, randn(2)],
-                                    [X, randn(2)]],
-                                   [[Z, np.abs(randn(2))]],
+        pulse_3 = ff.PulseSequence([[Y, testutil.rng.randn(2)],
+                                    [X, testutil.rng.randn(2)]],
+                                   [[Z, np.abs(testutil.rng.randn(2))]],
                                    [1, 1])
 
         pulse_12 = pulse_1 @ pulse_2
         pulse_21 = pulse_2 @ pulse_1
 
         with self.assertRaises(TypeError):
-            _ = pulse_1 @ randn(2, 2)
+            _ = pulse_1 @ testutil.rng.randn(2, 2)
 
         # Concatenate pulses with same operators but different labels
         with self.assertRaises(ValueError):
@@ -434,12 +468,13 @@ class CoreTest(testutil.TestCase):
             self.assertArrayEqual(total_Q_liouville, pulse._total_Q_liouville)
 
         # Test custom identifiers
-        letters = np.random.choice(list(string.ascii_letters), size=(6, 5))
+        letters = testutil.rng.choice(list(string.ascii_letters), size=(6, 5),
+                                      replace=False)
         ids = [''.join(l) for l in letters[:3]]
         labels = [''.join(l) for l in letters[3:]]
         pulse = ff.PulseSequence(
-            list(zip([X, Y, Z], np.random.randn(3, 2), ids, labels)),
-            list(zip([X, Y, Z], np.random.randn(3, 2), ids, labels)),
+            list(zip([X, Y, Z], testutil.rng.randn(3, 2), ids, labels)),
+            list(zip([X, Y, Z], testutil.rng.randn(3, 2), ids, labels)),
             [1, 1]
         )
 
@@ -448,17 +483,14 @@ class CoreTest(testutil.TestCase):
 
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
-        for d, n_dt in zip(randint(2, 10, (3,)), randint(10, 200, (3,))):
-            c_opers = testutil.rand_herm(d, 4)
-            c_coeffs = randn(4, n_dt)
-            n_opers = testutil.rand_herm_traceless(d, 6)
-            n_coeffs = randn(6, n_dt)
-            dt = np.abs(randn(n_dt))
-            total_pulse = ff.PulseSequence(list(zip(c_opers, c_coeffs)),
-                                           list(zip(n_opers, n_coeffs)),
-                                           dt)
+        for d, n_dt in zip(testutil.rng.randint(2, 10, (3,)),
+                           testutil.rng.randint(10, 200, (3,))):
+            total_pulse = testutil.rand_pulse_sequence(d, n_dt, 4, 6)
+            c_opers, c_coeffs = total_pulse.c_opers, total_pulse.c_coeffs
+            n_opers, n_coeffs = total_pulse.n_opers, total_pulse.n_coeffs
+            dt = total_pulse.dt
 
-            total_HD, total_HV, _ = diagonalize(
+            total_HD, total_HV, _ = numeric.diagonalize(
                 np.einsum('il,ijk->ljk', c_coeffs, c_opers), total_pulse.dt
             )
             omega = ff.util.get_sample_frequencies(total_pulse, n_samples=100)
@@ -481,14 +513,14 @@ class CoreTest(testutil.TestCase):
             R_l = np.empty((n_dt, 6, d**2, len(omega)), dtype=complex)
             for l, pulse in enumerate(pulses):
                 phases[l] = np.exp(1j*total_pulse.t[l]*omega)
-                L[l] = liouville_representation(total_pulse.Q[l],
-                                                total_pulse.basis)
+                L[l] = numeric.liouville_representation(total_pulse.Q[l],
+                                                        total_pulse.basis)
                 R_l[l] = pulse.get_control_matrix(omega)
 
             # Check that both methods of calculating the control are the same
-            R_from_atomic = calculate_control_matrix_from_atomic(phases, R_l,
-                                                                 L)
-            R_from_scratch = calculate_control_matrix_from_scratch(
+            R_from_atomic = numeric.calculate_control_matrix_from_atomic(
+                phases, R_l, L)
+            R_from_scratch = numeric.calculate_control_matrix_from_scratch(
                 HD=total_HD,
                 HV=total_HV,
                 Q=total_pulse.Q,
@@ -548,7 +580,7 @@ class CoreTest(testutil.TestCase):
                                  calc_pulse_correlation_ff=True)
 
         with self.assertRaises(ValueError):
-            calculate_pulse_correlation_filter_function(pulse_1._R)
+            numeric.calculate_pulse_correlation_filter_function(pulse_1._R)
 
         # Check if the filter functions on the diagonals are real
         F = pulse_2.get_pulse_correlation_filter_function()
@@ -574,7 +606,7 @@ class CoreTest(testutil.TestCase):
             infid_1 = ff.infidelity(pulse_1, S, omega, which='foobar')
 
         for _ in range(10):
-            n_nops = randint(1, 4)
+            n_nops = testutil.rng.randint(1, 4)
             identifiers = sample(['B_0', 'B_1', 'B_2'], n_nops)
 
             infid_X = ff.infidelity(pulses['X'], S, omega, which='total',
@@ -603,16 +635,14 @@ class CoreTest(testutil.TestCase):
 
     def test_calculate_error_vector_correlation_functions(self):
         """Test raises of numeric.error_transfer_matrix"""
-        pulse = ff.PulseSequence([[ff.util.P_np[1], [np.pi/2]]],
-                                 [[ff.util.P_np[1], [1]]],
-                                 [1])
+        pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
 
-        omega = randn(43)
+        omega = testutil.rng.randn(43)
         # single spectrum
-        S = randn(78)
+        S = testutil.rng.randn(78)
         for i in range(4):
             with self.assertRaises(ValueError):
-                calculate_error_vector_correlation_functions(
+                numeric.calculate_error_vector_correlation_functions(
                     pulse, np.tile(S, [1]*i), omega
                 )
 
@@ -632,16 +662,8 @@ class CoreTest(testutil.TestCase):
         def S(omega):
             return omega**0
 
-        simple_pulse = ff.PulseSequence(
-            [[ff.util.P_qt[1], [np.pi/2]]],
-            [[ff.util.P_qt[1], [1]]],
-            [1]
-        )
-        complicated_pulse = ff.PulseSequence(
-            list(zip(ff.util.P_qt[1:], randn(3, 100))),
-            list(zip(ff.util.P_qt[1:], np.abs(randn(3, 100)))),
-            np.abs(randn(100))
-        )
+        simple_pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
+        complicated_pulse = testutil.rand_pulse_sequence(2, 100, 3, 3)
 
         with self.assertRaises(TypeError):
             n, infids, (fig, ax) = ff.infidelity(simple_pulse, S, [],
@@ -662,7 +684,8 @@ class CoreTest(testutil.TestCase):
                                              test_convergence=True)
 
         # Test with non-default args
-        identifiers = choice(['B_0', 'B_1', 'B_2'], randint(1, 4))
+        identifiers = testutil.rng.choice(complicated_pulse.n_oper_identifiers,
+                                          testutil.rng.randint(1, 4))
 
         n, infids, (fig, ax) = ff.infidelity(complicated_pulse,
                                              S, omega, test_convergence=True,

@@ -27,11 +27,10 @@ from itertools import product
 from random import sample
 
 import numpy as np
-from numpy.random import choice, randint, randn
-from tests import testutil
 
 import filter_functions as ff
-from filter_functions.util import P_np, get_sample_frequencies, tensor
+from filter_functions import util
+from tests import testutil
 
 
 class ConcatenationTest(testutil.TestCase):
@@ -46,7 +45,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        n_oper = P_np[3]
+        n_oper = util.P_np[3]
         H_n_SE = [[n_oper, np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
@@ -64,7 +63,7 @@ class ConcatenationTest(testutil.TestCase):
 
         # Test if calculation of composite filter function can be enforced with
         # omega != None
-        omega = get_sample_frequencies(SE_1)
+        omega = util.get_sample_frequencies(SE_1)
         CPMG_concat = ff.concatenate((SE_1, SE_2), omega=omega)
         self.assertIsNotNone(CPMG_concat._F)
 
@@ -81,7 +80,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
 
@@ -89,7 +88,7 @@ class ConcatenationTest(testutil.TestCase):
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
         SE_1.cache_filter_function(omega)
@@ -123,7 +122,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
 
@@ -131,7 +130,7 @@ class ConcatenationTest(testutil.TestCase):
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
         SE_2.cache_filter_function(omega)
@@ -163,7 +162,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
 
@@ -171,7 +170,7 @@ class ConcatenationTest(testutil.TestCase):
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
         SE_1.cache_filter_function(omega)
@@ -209,17 +208,17 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
         SE = [ff.PulseSequence(H_c_SE, H_n_SE, dt_SE) for _ in range(4)]
 
         H_c_CPMG, dt_CPMG = testutil.generate_dd_hamiltonian(4*n, tau=4*tau,
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
-        SE[randint(0, len(SE)-1)].cache_filter_function(omega)
+        SE[testutil.rng.randint(0, len(SE)-1)].cache_filter_function(omega)
         CPMG.cache_filter_function(omega)
 
         CPMG_concat_1 = ff.concatenate(SE)
@@ -227,7 +226,7 @@ class ConcatenationTest(testutil.TestCase):
         for se in SE:
             se.cleanup('all')
 
-        SE[randint(0, len(SE)-1)].cache_filter_function(omega)
+        SE[testutil.rng.randint(0, len(SE)-1)].cache_filter_function(omega)
         CPMG_concat_2 = SE[0] @ SE[1] @ SE[2] @ SE[3]
 
         self.assertEqual(CPMG, CPMG_concat_1)
@@ -314,40 +313,43 @@ class ConcatenationTest(testutil.TestCase):
 
     def test_different_n_opers(self):
         """Test behavior when concatenating with different n_opers"""
-        for d, n_dt in zip(randint(2, 5, 20), randint(1, 11, 20)):
+        for d, n_dt in zip(testutil.rng.randint(2, 5, 20),
+                           testutil.rng.randint(1, 11, 20)):
             opers = testutil.rand_herm_traceless(d, 10)
             letters = np.array(sample(list(string.ascii_letters), 10))
-            n_idx = sample(range(10), randint(2, 5))
-            c_idx = sample(range(10), randint(2, 5))
+            n_idx = sample(range(10), testutil.rng.randint(2, 5))
+            c_idx = sample(range(10), testutil.rng.randint(2, 5))
             n_opers = opers[n_idx]
             c_opers = opers[c_idx]
             n_coeffs = np.ones((n_opers.shape[0], n_dt))
-            n_coeffs *= np.abs(randn(n_opers.shape[0], 1))
-            c_coeffs = randn(c_opers.shape[0], n_dt)
-            dt = np.abs(randn(n_dt))
+            n_coeffs *= np.abs(testutil.rng.randn(n_opers.shape[0], 1))
+            c_coeffs = testutil.rng.randn(c_opers.shape[0], n_dt)
+            dt = np.abs(testutil.rng.randn(n_dt))
             n_ids = np.array([''.join(l) for l in letters[n_idx]])
             c_ids = np.array([''.join(l) for l in letters[c_idx]])
 
             pulse_1 = ff.PulseSequence(list(zip(c_opers, c_coeffs, c_ids)),
                                        list(zip(n_opers, n_coeffs, n_ids)),
                                        dt)
-            permutation = np.random.permutation(range(n_opers.shape[0]))
+            permutation = testutil.rng.permutation(range(n_opers.shape[0]))
             pulse_2 = ff.PulseSequence(list(zip(c_opers, c_coeffs, c_ids)),
                                        list(zip(n_opers[permutation],
                                                 n_coeffs[permutation],
                                                 n_ids[permutation])),
                                        dt)
-            more_n_idx = sample(range(10), randint(2, 5))
+            more_n_idx = sample(range(10), testutil.rng.randint(2, 5))
             more_n_opers = opers[more_n_idx]
             more_n_coeffs = np.ones((more_n_opers.shape[0], n_dt))
-            more_n_coeffs *= np.abs(randn(more_n_opers.shape[0], 1))
+            more_n_coeffs *= np.abs(testutil.rng.randn(
+                more_n_opers.shape[0], 1))
             more_n_ids = np.array([''.join(l) for l in letters[more_n_idx]])
             pulse_3 = ff.PulseSequence(list(zip(c_opers, c_coeffs, c_ids)),
                                        list(zip(more_n_opers, more_n_coeffs,
                                                 more_n_ids)),
                                        dt)
 
-            nontrivial_n_coeffs = np.abs(randn(n_opers.shape[0], n_dt))
+            nontrivial_n_coeffs = np.abs(testutil.rng.randn(
+                n_opers.shape[0], n_dt))
             pulse_4 = ff.PulseSequence(list(zip(c_opers, c_coeffs, c_ids)),
                                        list(zip(more_n_opers,
                                                 nontrivial_n_coeffs,
@@ -401,7 +403,7 @@ class ConcatenationTest(testutil.TestCase):
 
     def test_concatenation_periodic(self):
         """Test concatenation for periodic Hamiltonians"""
-        X, Y, Z = P_np[1:]
+        X, Y, Z = util.P_np[1:]
         A = 0.01
         omega_0 = 1
         omega_d = omega_0
@@ -464,9 +466,9 @@ class ExtensionTest(testutil.TestCase):
 
     def test_extend_with_identity(self):
         """Test extending a pulse to more qubits"""
-        ID, X, Y, Z = P_np
+        ID, X, Y, Z = util.P_np
         n_dt = 10
-        coeffs = randn(3, n_dt)
+        coeffs = testutil.rng.randn(3, n_dt)
         ids = ['X', 'Y', 'Z']
         pulse = ff.PulseSequence(
             list(zip((X, Y, Z), coeffs, ids)),
@@ -474,12 +476,12 @@ class ExtensionTest(testutil.TestCase):
             np.ones(n_dt), basis=ff.Basis.pauli(1)
         )
 
-        omega = get_sample_frequencies(pulse, spacing='log', n_samples=50)
-        for N in randint(2, 5, 4):
-            for target in randint(0, N-1, 2):
+        omega = util.get_sample_frequencies(pulse, spacing='log', n_samples=50)
+        for N in testutil.rng.randint(2, 5, 4):
+            for target in testutil.rng.randint(0, N-1, 2):
                 pulse.cleanup('all')
-                ext_opers = tensor(*np.insert(np.tile(ID, (N-1, 3, 1, 1)),
-                                              target, (X, Y, Z), axis=0))
+                ext_opers = util.tensor(*np.insert(np.tile(ID, (N-1, 3, 1, 1)),
+                                                   target, (X, Y, Z), axis=0))
 
                 # By default, extend should add the target qubit as suffix to
                 # identifiers
@@ -491,7 +493,8 @@ class ExtensionTest(testutil.TestCase):
                 )
 
                 # Use custom mapping for identifiers and or labels
-                letters = choice(list(string.ascii_letters), size=(3, 5))
+                letters = testutil.rng.choice(list(string.ascii_letters),
+                                              size=(3, 5))
                 mapped_ids = np.array([''.join(l) for l in letters])
                 mapping = {i: new_id for i, new_id in zip(ids, mapped_ids)}
                 ext_pulse_mapped_identifiers = ff.PulseSequence(
@@ -512,7 +515,7 @@ class ExtensionTest(testutil.TestCase):
                     np.ones(n_dt), basis=ff.Basis.pauli(N)
                 )
 
-                calc_FF = randint(0, 2)
+                calc_FF = testutil.rng.randint(0, 2)
                 if calc_FF:
                     # Expect things to be cached in extended pulse if original
                     # also was cached
@@ -571,20 +574,11 @@ class ExtensionTest(testutil.TestCase):
 
     def test_caching(self):
         """Test caching"""
-        ID, X, Y, Z = P_np
-        n_dt = 10
-        coeffs = randn(3, n_dt)
-        pulse_1 = ff.PulseSequence(
-            list(zip((X, Y, Z), coeffs)),
-            list(zip((X, Y, Z), np.ones((3, n_dt)))),
-            np.ones(n_dt), basis=ff.Basis.pauli(1)
-        )
-        pulse_2 = ff.PulseSequence(
-            list(zip((X, Y, Z), coeffs)),
-            list(zip((X, Y, Z), np.ones((3, n_dt)))),
-            np.ones(n_dt), basis=ff.Basis.pauli(1)
-        )
-        omega = get_sample_frequencies(pulse_1, 50)
+        pulse_1 = testutil.rand_pulse_sequence(2, 10, btype='Pauli')
+        pulse_2 = testutil.rand_pulse_sequence(2, 10, btype='Pauli')
+        pulse_2.dt = pulse_1.dt
+        pulse_2.t = pulse_1.t
+        omega = util.get_sample_frequencies(pulse_1, 50)
 
         # diagonalize one pulse
         pulse_1.diagonalize()
@@ -669,39 +663,39 @@ class ExtensionTest(testutil.TestCase):
         self.assertIsNone(extended_pulse._F)
 
     def test_accuracy(self):
-        ID, X, Y, Z = P_np
-        XI = tensor(X, ID)
-        IX = tensor(ID, X)
-        XII = tensor(X, ID, ID)
-        IXI = tensor(ID, X, ID)
-        IIX = tensor(ID, ID, X)
-        XIII = tensor(X, ID, ID, ID)
-        IXII = tensor(ID, X, ID, ID)
-        IIXI = tensor(ID, ID, X, ID)
-        IIIX = tensor(ID, ID, ID, X)
-        YI = tensor(Y, ID)
-        IY = tensor(ID, Y)
-        YII = tensor(Y, ID, ID)
-        IYI = tensor(ID, Y, ID)
-        IIY = tensor(ID, ID, Y)
-        YIII = tensor(Y, ID, ID, ID)
-        IYII = tensor(ID, Y, ID, ID)
-        IIYI = tensor(ID, ID, Y, ID)
-        IIIY = tensor(ID, ID, ID, Y)
-        ZI = tensor(Z, ID)
-        IZ = tensor(ID, Z)
-        ZII = tensor(Z, ID, ID)
-        IZI = tensor(ID, Z, ID)
-        ZIII = tensor(Z, ID, ID, ID)
-        IZII = tensor(ID, Z, ID, ID)
-        IIZI = tensor(ID, ID, Z, ID)
-        IIIZ = tensor(ID, ID, ID, Z)
+        ID, X, Y, Z = util.P_np
+        XI = util.tensor(X, ID)
+        IX = util.tensor(ID, X)
+        XII = util.tensor(X, ID, ID)
+        IXI = util.tensor(ID, X, ID)
+        IIX = util.tensor(ID, ID, X)
+        XIII = util.tensor(X, ID, ID, ID)
+        IXII = util.tensor(ID, X, ID, ID)
+        IIXI = util.tensor(ID, ID, X, ID)
+        IIIX = util.tensor(ID, ID, ID, X)
+        YI = util.tensor(Y, ID)
+        IY = util.tensor(ID, Y)
+        YII = util.tensor(Y, ID, ID)
+        IYI = util.tensor(ID, Y, ID)
+        IIY = util.tensor(ID, ID, Y)
+        YIII = util.tensor(Y, ID, ID, ID)
+        IYII = util.tensor(ID, Y, ID, ID)
+        IIYI = util.tensor(ID, ID, Y, ID)
+        IIIY = util.tensor(ID, ID, ID, Y)
+        ZI = util.tensor(Z, ID)
+        IZ = util.tensor(ID, Z)
+        ZII = util.tensor(Z, ID, ID)
+        IZI = util.tensor(ID, Z, ID)
+        ZIII = util.tensor(Z, ID, ID, ID)
+        IZII = util.tensor(ID, Z, ID, ID)
+        IIZI = util.tensor(ID, ID, Z, ID)
+        IIIZ = util.tensor(ID, ID, ID, Z)
 
-        IIZ = tensor(ID, ID, Z)
-        XXX = tensor(X, X, X)
+        IIZ = util.tensor(ID, ID, Z)
+        XXX = util.tensor(X, X, X)
 
         n_dt = 10
-        coeffs = np.random.randn(3, n_dt)
+        coeffs = testutil.rng.randn(3, n_dt)
         X_pulse = ff.PulseSequence(
             [[X, coeffs[0], 'X']],
             list(zip((X, Y, Z), np.ones((3, n_dt)), ('X', 'Y', 'Z'))),
@@ -885,21 +879,14 @@ class ExtensionTest(testutil.TestCase):
                                     atol=1e-8)
 
     def test_exceptions(self):
-        ID, X, Y, Z = P_np
+        X = util.P_np[1]
         n_dt = 10
-        coeffs = randn(3, n_dt)
         omega = np.linspace(0, 1, 50)
-        pulse_1 = ff.PulseSequence(
-            list(zip((X, Y, Z), coeffs)),
-            list(zip((X, Y, Z), np.ones((3, n_dt)))),
-            np.ones(n_dt), basis=ff.Basis.pauli(1)
-        )
+
+        pulse_1 = testutil.rand_pulse_sequence(2, n_dt, btype='Pauli')
+        pulse_2 = testutil.rand_pulse_sequence(2, n_dt, btype='GGM')
+
         pulse_1.cache_filter_function(omega)
-        pulse_2 = ff.PulseSequence(
-            list(zip((X, Y, Z), coeffs)),
-            list(zip((X, Y, Z), np.ones((3, n_dt)))),
-            np.ones(n_dt)*2
-        )
         pulse_11 = ff.extend([[pulse_1, 0], [pulse_1, 1]])
         pulse_11.cache_filter_function(omega+1)
 
@@ -939,7 +926,7 @@ class ExtensionTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             # cache_diagonalization == False and additional_noise_Hamiltonian
             # is not None
-            additional_noise_Hamiltonian = [[tensor(X, X), np.ones(n_dt)]]
+            additional_noise_Hamiltonian = [[util.tensor(X, X), np.ones(n_dt)]]
             ff.extend(
                 [(pulse_1, 0), (pulse_1, 1)], cache_diagonalization=False,
                 additional_noise_Hamiltonian=additional_noise_Hamiltonian
@@ -948,8 +935,8 @@ class ExtensionTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             # additional noise Hamiltonian defines existing identifier
             additional_noise_Hamiltonian = [
-                [tensor(X, X), np.ones(n_dt), 'foo'],
-                [tensor(X, X), np.ones(n_dt), 'foo'],
+                [util.tensor(X, X), np.ones(n_dt), 'foo'],
+                [util.tensor(X, X), np.ones(n_dt), 'foo'],
             ]
             ff.extend(
                 [(pulse_1, 0), (pulse_1, 1)],
@@ -958,7 +945,8 @@ class ExtensionTest(testutil.TestCase):
 
         with self.assertRaises(ValueError):
             # additional_noise_Hamiltonian has wrong dimensions
-            additional_noise_Hamiltonian = [[tensor(X, X, X), np.ones(n_dt)]]
+            additional_noise_Hamiltonian = [[util.tensor(X, X, X),
+                                             np.ones(n_dt)]]
             ff.extend(
                 [(pulse_1, 0), (pulse_1, 1)],
                 additional_noise_Hamiltonian=additional_noise_Hamiltonian
@@ -972,83 +960,66 @@ class ExtensionTest(testutil.TestCase):
 class RemappingTest(testutil.TestCase):
 
     def test_caching(self):
-        I, X, Y, Z = P_np
-        XY_pulse = ff.PulseSequence(
-            [[tensor(X, Y), [np.pi/2]]],
-            [[tensor(X, I), [1]],
-             [tensor(Y, I), [1]],
-             [tensor(I, X), [1]],
-             [tensor(I, Y), [1]]],
-            [1],
-            ff.Basis.pauli(2)
-        )
-        GGM_XY_pulse = ff.PulseSequence(
-            [[tensor(X, Y), [np.pi/2]]],
-            [[tensor(X, I), [1]],
-             [tensor(Y, I), [1]],
-             [tensor(I, X), [1]],
-             [tensor(I, Y), [1]]],
-            [1],
-            ff.Basis.ggm(4)
-        )
+        pauli_pulse = testutil.rand_pulse_sequence(4, 1, 1, 4, 'Pauli')
+        ggm_pulse = testutil.rand_pulse_sequence(4, 1, 1, 4, 'GGM')
         attrs = ('omega', 'HD', 'HV', 'Q', 'total_phases', 'total_Q', 'F',
                  'total_Q_liouville', 'R')
 
-        XY_pulse.cleanup('all')
-        remapped_XY_pulse = ff.remap(XY_pulse, (1, 0))
+        pauli_pulse.cleanup('all')
+        remapped_pauli_pulse = ff.remap(pauli_pulse, (1, 0))
         for attr in attrs:
-            self.assertEqual(XY_pulse.is_cached(attr),
-                             remapped_XY_pulse.is_cached(attr))
+            self.assertEqual(pauli_pulse.is_cached(attr),
+                             remapped_pauli_pulse.is_cached(attr))
 
-        omega = get_sample_frequencies(XY_pulse, n_samples=50)
-        XY_pulse.cache_filter_function(omega)
-        remapped_XY_pulse = ff.remap(XY_pulse, (1, 0))
+        omega = util.get_sample_frequencies(pauli_pulse, n_samples=50)
+        pauli_pulse.cache_filter_function(omega)
+        remapped_pauli_pulse = ff.remap(pauli_pulse, (1, 0))
         for attr in attrs:
-            self.assertEqual(XY_pulse.is_cached(attr),
-                             remapped_XY_pulse.is_cached(attr))
+            self.assertEqual(pauli_pulse.is_cached(attr),
+                             remapped_pauli_pulse.is_cached(attr))
 
-        GGM_XY_pulse.cleanup('all')
-        remapped_GGM_XY_pulse = ff.remap(GGM_XY_pulse, (1, 0))
+        ggm_pulse.cleanup('all')
+        remapped_ggm_pulse = ff.remap(ggm_pulse, (1, 0))
         for attr in attrs:
-            self.assertEqual(GGM_XY_pulse.is_cached(attr),
-                             remapped_GGM_XY_pulse.is_cached(attr))
+            self.assertEqual(ggm_pulse.is_cached(attr),
+                             remapped_ggm_pulse.is_cached(attr))
 
-        omega = get_sample_frequencies(GGM_XY_pulse, n_samples=50)
-        GGM_XY_pulse.cache_filter_function(omega)
+        omega = util.get_sample_frequencies(ggm_pulse, n_samples=50)
+        ggm_pulse.cache_filter_function(omega)
         with self.assertWarns(UserWarning):
-            remapped_GGM_XY_pulse = ff.remap(GGM_XY_pulse, (1, 0))
+            remapped_ggm_pulse = ff.remap(ggm_pulse, (1, 0))
 
         for attr in attrs[:-2]:
-            self.assertEqual(GGM_XY_pulse.is_cached(attr),
-                             remapped_GGM_XY_pulse.is_cached(attr))
+            self.assertEqual(ggm_pulse.is_cached(attr),
+                             remapped_ggm_pulse.is_cached(attr))
 
         for attr in attrs[-2:]:
-            self.assertFalse(remapped_GGM_XY_pulse.is_cached(attr))
+            self.assertFalse(remapped_ggm_pulse.is_cached(attr))
 
     def test_accuracy(self):
-        paulis = np.array(P_np)
+        paulis = np.array(util.P_np)
         I, X, Y, Z = paulis
-        amps = randn(randint(1, 11))
+        amps = testutil.rng.randn(testutil.rng.randint(1, 11))
         pulse = ff.PulseSequence(
-            [[tensor(X, Y, Z), amps]],
-            [[tensor(X, I, I), np.ones_like(amps), 'XII'],
-             [tensor(I, X, I), np.ones_like(amps), 'IXI'],
-             [tensor(I, I, X), np.ones_like(amps), 'IIX']],
+            [[util.tensor(X, Y, Z), amps]],
+            [[util.tensor(X, I, I), np.ones_like(amps), 'XII'],
+             [util.tensor(I, X, I), np.ones_like(amps), 'IXI'],
+             [util.tensor(I, I, X), np.ones_like(amps), 'IIX']],
             np.ones_like(amps),
             ff.Basis.pauli(3)
         )
-        omega = get_sample_frequencies(pulse, 50)
+        omega = util.get_sample_frequencies(pulse, 50)
         pulse.cache_filter_function(omega)
 
         for _ in range(100):
-            order = np.random.permutation(range(3))
+            order = testutil.rng.permutation(range(3))
             reordered_pulse = ff.PulseSequence(
-                [[tensor(*paulis[1:][order]), amps]],
-                [[tensor(*paulis[[1, 0, 0]][order]), np.ones_like(amps),
+                [[util.tensor(*paulis[1:][order]), amps]],
+                [[util.tensor(*paulis[[1, 0, 0]][order]), np.ones_like(amps),
                   (''.join(['XII'[o] for o in order]))],
-                 [tensor(*paulis[[0, 1, 0]][order]), np.ones_like(amps),
+                 [util.tensor(*paulis[[0, 1, 0]][order]), np.ones_like(amps),
                   (''.join(['IXI'[o] for o in order]))],
-                 [tensor(*paulis[[0, 0, 1]][order]), np.ones_like(amps),
+                 [util.tensor(*paulis[[0, 0, 1]][order]), np.ones_like(amps),
                   (''.join(['IIX'[o] for o in order]))]],
                 np.ones_like(amps),
                 ff.Basis.pauli(3)

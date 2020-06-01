@@ -69,6 +69,7 @@ Exceptions
     was not computed during concatenation
 
 """
+import functools
 import io
 import json
 import operator
@@ -76,13 +77,14 @@ import os
 import re
 import string
 import sys
-from functools import reduce
 from itertools import zip_longest
-from typing import Generator, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import (Callable, Generator, Iterable, List, Optional, Sequence,
+                    Tuple, Union)
 
 import numpy as np
 import qutip as qt
-from numpy import linalg, ndarray
+from numpy import linalg as nla
+from numpy import ndarray
 
 from .types import Operator, State
 
@@ -201,12 +203,12 @@ def cexp(x: ndarray) -> ndarray:
 
     Parameters
     ----------
-    x : ndarray
+    x: ndarray
         Argument of the complex exponential :math:`\exp(i x)`.
 
     Returns
     -------
-    y : ndarray
+    y: ndarray
         Complex exponential :math:`y = \exp(i x)`.
 
     References
@@ -214,10 +216,8 @@ def cexp(x: ndarray) -> ndarray:
     https://software.intel.com/en-us/forums/intel-distribution-for-python/topic/758148  # noqa
     """
     df_exp = np.empty(x.shape, dtype=np.complex128)
-    trig_buf = np.cos(x)
-    df_exp.real[:] = trig_buf
-    np.sin(x, out=trig_buf)
-    df_exp.imag[:] = trig_buf
+    df_exp.real = np.cos(x, out=df_exp.real)
+    df_exp.imag = np.sin(x, out=df_exp.imag)
     return df_exp
 
 
@@ -243,9 +243,9 @@ def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int],
     # Shape of the actual tensor product is product of each dimension,
     # again broadcasting if need be
     tensor_shape = tuple(
-        reduce(operator.mul, dimensions) for dimensions in zip_longest(
-            shape_A[:-rank-1:-1], shape_B[:-rank-1:-1], fillvalue=1
-        )
+        functools.reduce(operator.mul, dimensions)
+        for dimensions in zip_longest(shape_A[:-rank-1:-1],
+                                      shape_B[:-rank-1:-1], fillvalue=1)
     )[::-1]
 
     return broadcast_shape + tensor_shape
@@ -272,11 +272,11 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The PulseSequence instance for which to get the indices.
-    identifiers : sequence of str
+    identifiers: sequence of str
         The identifiers whose indices to get.
-    kind : str
+    kind: str
         Whether to get 'control' or 'noise' operator indices.
     """
     if kind == 'noise':
@@ -322,12 +322,12 @@ def tensor(*args, rank: int = 2,
 
     Parameters
     ----------
-    args : array_like
+    args: array_like
         The elements of the tensor product
-    rank : int, optional (default: 2)
+    rank: int, optional (default: 2)
         The rank of the tensors. E.g., for a Kronecker product between two
         matrices ``rank == 2``. The remaining axes are broadcast over.
-    optimize : bool|str, optional (default: False)
+    optimize: bool|str, optional (default: False)
         Optimize the tensor contraction order. Passed through to
         :func:`numpy.einsum`.
 
@@ -366,13 +366,10 @@ def tensor(*args, rank: int = 2,
 
     See Also
     --------
-    :func:`numpy.kron`
-
-    :func:`tensor_insert`
-
-    :func:`tensor_merge`
-
-    :func:`tensor_transpose`
+    numpy.kron: NumPy tensor product.
+    tensor_insert: Insert array at given position in tensor product chain.
+    tensor_merge: Merge tensor product chains.
+    tensor_transpose: Transpose the order of a tensor product chain.
     """
     chars = string.ascii_letters
     # All the subscripts we need
@@ -433,17 +430,17 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
 
     Parameters
     ----------
-    arr : ndarray
+    arr: ndarray
         The tensor product in whose chain the other args should be inserted
-    *args : ndarray
+    *args: ndarray
         The tensors to be inserted in the product chain
-    pos : int|sequence of ints
+    pos: int|sequence of ints
         The position(s) at which the args are inserted in the product chain. If
         an int and ``len(args) > 1``, it is repeated so that all args are
         inserted in a row. If a sequence, it should indicate the indices in the
         original tensor product chain that led to *arr* before which *args*
         should be inserted.
-    arr_dims : array_like, shape (rank, n_const)
+    arr_dims: array_like, shape (rank, n_const)
         The last *rank* dimensions of the *n_const* constituent tensors of the
         tensor product *arr* as a list of lists with the list at position *i*
         containing the *i*-th relevant dimension of all args. Since the remaing
@@ -452,11 +449,11 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
         For example, if ``arr = tensor(a, b, c, rank=2)`` and ``a,b,c`` have
         shapes ``(2, 3, 4), (5, 2, 2, 1), (2, 2)``,
         ``arr_dims = [[3, 2, 2], [4, 1, 2]]``.
-    rank : int, optional (default: 2)
+    rank: int, optional (default: 2)
         The rank of the tensors. E.g., for a Kronecker product between two
         vectors, ``rank == 1``, and between two matrices ``rank == 2``. The
         remaining axes are broadcast over.
-    optimize : bool|str, optional (default: False)
+    optimize: bool|str, optional (default: False)
         Optimize the tensor contraction order. Passed through to
         :func:`numpy.einsum`.
 
@@ -499,15 +496,11 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
 
     See Also
     --------
-    :func:`tensor`
-
-    :func:`tensor_merge`
-
-    :func:`tensor_transpose`
-
-    :func:`numpy.kron`
-
-    :func:`numpy.insert`
+    numpy.insert: NumPy array insertion with similar syntax.
+    numpy.kron: NumPy tensor product.
+    tensor_insert: Insert array at given position in tensor product chain.
+    tensor_merge: Merge tensor product chains.
+    tensor_transpose: Transpose the order of a tensor product chain.
     """
     if len(args) == 0:
         raise ValueError('Require nonzero number of args!')
@@ -607,16 +600,16 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
 
     Parameters
     ----------
-    arr : ndarray
+    arr: ndarray
         The tensor product in whose chain the other args should be inserted
-    ins : ndarray
+    ins: ndarray
         The tensor product to be inserted in the product chain
-    pos : sequence of ints
+    pos: sequence of ints
         The positions at which the constituent tensors of *ins* are inserted in
         the product chain. Should indicate the indices in the original tensor
         product chain that led to *arr* before which the constituents of *ins*
         should be inserted.
-    arr_dims : array_like, shape (rank, n_const)
+    arr_dims: array_like, shape (rank, n_const)
         The last *rank* dimensions of the *n_const* constituent tensors of the
         tensor product *arr* as a list of lists with the list at position *i*
         containing the *i*-th relevant dimension of all args. Since the remaing
@@ -625,16 +618,16 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
         For example, if ``arr = tensor(a, b, c, rank=2)`` and ``a,b,c`` have
         shapes ``(2, 3, 4), (5, 2, 2, 1), (2, 2)``,
         ``arr_dims = [[3, 2, 2], [4, 1, 2]]``.
-    ins_dims : array_like, shape (rank, n_const)
+    ins_dims: array_like, shape (rank, n_const)
         The last *rank* dimensions of the *n_const* constituent tensors of the
         tensor product *ins* as a list of lists with the list at position *i*
         containing the *i*-th relevant dimension of *ins*. Since the remaing
         axes are broadcast over, their shape is irrelevant.
-    rank : int, optional (default: 2)
+    rank: int, optional (default: 2)
         The rank of the tensors. E.g., for a Kronecker product between two
         vectors, ``rank == 1``, and between two matrices ``rank == 2``. The
         remaining axes are broadcast over.
-    optimize : bool|str, optional (default: False)
+    optimize: bool|str, optional (default: False)
         Optimize the tensor contraction order. Passed through to
         :func:`numpy.einsum`.
 
@@ -673,15 +666,11 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
 
     See Also
     --------
-    :func:`tensor`
-
-    :func:`tensor_insert`
-
-    :func:`tensor_transpose`
-
-    :func:`numpy.kron`
-
-    :func:`numpy.insert`
+    numpy.insert: NumPy array insertion with similar syntax.
+    numpy.kron: NumPy tensor product.
+    tensor: Fast tensor product with broadcasting.
+    tensor_insert: Insert array at given position in tensor product chain.
+    tensor_transpose: Transpose the order of a tensor product chain.
     """
     # Parse dimension args
     for arg_name, arg_dims in zip(('arr', 'ins'), (arr_dims, ins_dims)):
@@ -742,12 +731,12 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
 
     Parameters
     ----------
-    arr : ndarray
+    arr: ndarray
         The tensor product whose chain should be reordered.
-    order : sequence of ints
+    order: sequence of ints
         The transposition order. If ``arr == tensor(A, B)`` and
         ``order == (1, 0)``, the result will be ``tensor(B, A)``.
-    arr_dims : array_like, shape (rank, n_const)
+    arr_dims: array_like, shape (rank, n_const)
         The last *rank* dimensions of the *n_const* constituent tensors of the
         tensor product *arr* as a list of lists with the list at position *i*
         containing the *i*-th relevant dimension of all args. Since the remaing
@@ -756,14 +745,14 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
         For example, if ``arr = tensor(a, b, c, rank=2)`` and ``a,b,c`` have
         shapes ``(2, 3, 4), (5, 2, 2, 1), (2, 2)``,
         ``arr_dims = [[3, 2, 2], [4, 1, 2]]``.
-    rank : int, optional (default: 2)
+    rank: int, optional (default: 2)
         The rank of the tensors. E.g., for a Kronecker product between two
         vectors, ``rank == 1``, and between two matrices ``rank == 2``. The
         remaining axes are broadcast over.
 
     Returns
     -------
-    transposed_arr : ndarray
+    transposed_arr: ndarray
         The tensor product *arr* with its order transposed according to *order*
 
     Examples
@@ -776,13 +765,11 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
 
     See Also
     --------
-    :func:`tensor`
-
-    :func:`tensor_insert`
-
-    :func:`tensor_transpose`
-
-    :func:`numpy.kron`
+    numpy.insert: NumPy array insertion with similar syntax.
+    numpy.kron: NumPy tensor product.
+    tensor: Fast tensor product with broadcasting.
+    tensor_insert: Insert array at given position in tensor product chain.
+    tensor_merge: Merge tensor product chains.
     """
     _parse_dims_arg('arr', arr_dims, rank)
 
@@ -817,7 +804,7 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
 
 def mdot(arr: Sequence, axis: int = 0) -> ndarray:
     """Multiple matrix products along axis"""
-    return reduce(np.matmul, np.swapaxes(arr, 0, axis))
+    return functools.reduce(np.matmul, np.swapaxes(arr, 0, axis))
 
 
 def remove_float_errors(arr: ndarray, eps_scale: float = None):
@@ -859,12 +846,12 @@ def oper_equiv(psi: Union[Operator, State],
 
     Parameters
     ----------
-    psi, phi : Qobj or array_like
+    psi, phi: Qobj or array_like
         Vectors or operators to be compared
-    eps : float
+    eps: float
         The tolerance below which the two objects are treated as equal, i.e.,
         the function returns ``True`` if ``abs(1 - modulus) <= eps``.
-    normalized : bool
+    normalized: bool
         Flag indicating if *psi* and *phi* are normalized with respect to the
         Hilbert-Schmidt inner product :func:`dot_HS`.
 
@@ -891,7 +878,7 @@ def oper_equiv(psi: Union[Operator, State],
     if normalized:
         norm = 1
     else:
-        norm = linalg.norm(psi)*linalg.norm(phi)
+        norm = nla.norm(psi)*nla.norm(phi)
 
     phase = np.angle(inner_product)
     modulus = abs(inner_product)
@@ -907,12 +894,12 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
 
     Parameters
     ----------
-    U, V : Qobj or ndarray
+    U, V: Qobj or ndarray
         Objects to compute the inner product of.
 
     Returns
     -------
-    result : float, complex
+    result: float, complex
         The result rounded to precision eps.
 
     Examples
@@ -946,7 +933,7 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
     return res if res.imag.any() else res.real
 
 
-def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 200,
+def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
                            spacing: str = 'log',
                            symmetric: bool = True) -> ndarray:
     """
@@ -960,20 +947,20 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 200,
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The pulse to get frequencies for.
-    n_samples : int, optional
-        The number of frequency samples. Default is 200.
-    spacing : str, optional
+    n_samples: int, optional
+        The number of frequency samples. Default is 300.
+    spacing: str, optional
         The spacing of the frequencies. Either 'log' or 'linear', default is
         'log'.
-    symmetric : bool, optional
+    symmetric: bool, optional
         Whether the frequencies should be symmetric around zero or positive
         only. Default is True.
 
     Returns
     -------
-    omega : ndarray
+    omega: ndarray
         The frequencies.
     """
     tau = pulse.t[-1]
@@ -1000,16 +987,16 @@ def symmetrize_spectrum(S: ndarray, omega: ndarray) -> Tuple[ndarray, ndarray]:
 
     Parameters
     ----------
-    S : ndarray, shape (..., n_omega)
+    S: ndarray, shape (..., n_omega)
         The one-sided power spectrum.
-    omega : ndarray, shape (n_omega,)
+    omega: ndarray, shape (n_omega,)
         The positive and strictly increasing frequencies.
 
     Returns
     -------
-    S : ndarray, shape (..., 2*n_omega)
+    S: ndarray, shape (..., 2*n_omega)
         The two-sided power spectrum.
-    omega : ndarray, shape (2*n_omega,)
+    omega: ndarray, shape (2*n_omega,)
         The frequencies mirrored about zero.
 
     Notes
@@ -1095,14 +1082,14 @@ def progressbar_range(*args, show_progressbar: Optional[bool] = True,
     ----------
     *args :
         Positional arguments passed through to :func:`range`.
-    show_progressbar : bool, optional
+    show_progressbar: bool, optional
         Return a range iterator with or without a progressbar.
     **kwargs :
         Keyword arguments passed through to :func:`progressbar`.
 
     Returns
     -------
-    it : Iterator
+    it: Iterator
         Range iterator dressed with a progressbar if ``show_progressbar=True``.
     """
     if show_progressbar:

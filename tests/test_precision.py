@@ -24,20 +24,17 @@ This module tests if the package produces the correct results numerically.
 
 import numpy as np
 import qutip as qt
-from numpy.random import randint, randn
-from tests import testutil
 
 import filter_functions as ff
-from filter_functions import analytic
-from filter_functions.numeric import (
-    calculate_error_vector_correlation_functions, liouville_representation)
+from filter_functions import analytic, numeric
+from tests import testutil
 
 
 class PrecisionTest(testutil.TestCase):
 
     def test_FID(self):
         """FID"""
-        tau = abs(randn())
+        tau = abs(testutil.rng.randn())
         FID_pulse = ff.PulseSequence([[ff.util.P_np[1]/2, [0]]],
                                      [[ff.util.P_np[3]/2, [1]]],
                                      [tau])
@@ -68,7 +65,7 @@ class PrecisionTest(testutil.TestCase):
 
         # Test again with a factor of one between the noise operators and
         # coefficients
-        r = randn()
+        r = testutil.rng.randn()
         H_n = [[ff.util.P_np[3]/2*r, np.ones_like(dt)/r]]
 
         SE_pulse = ff.PulseSequence(H_c, H_n, dt)
@@ -166,8 +163,8 @@ class PrecisionTest(testutil.TestCase):
             U = testutil.rand_unit(d, 2)
 
             # Works on matrices and arrays of matrices
-            U_liouville = liouville_representation(U[0], basis)
-            U_liouville = liouville_representation(U, basis)
+            U_liouville = numeric.liouville_representation(U[0], basis)
+            U_liouville = numeric.liouville_representation(U, basis)
 
             # should have dimension d^2 x d^2
             self.assertEqual(U_liouville.shape, (U.shape[0], d**2, d**2))
@@ -181,8 +178,8 @@ class PrecisionTest(testutil.TestCase):
             )
 
             if d == 2:
-                U_liouville = liouville_representation(ff.util.P_np[1:],
-                                                       basis)
+                U_liouville = numeric.liouville_representation(
+                    ff.util.P_np[1:], basis)
                 self.assertArrayAlmostEqual(U_liouville[0],
                                             np.diag([1, 1, -1, -1]),
                                             atol=np.finfo(float).eps)
@@ -274,7 +271,7 @@ class PrecisionTest(testutil.TestCase):
 
     def test_infidelity(self):
         """Benchmark infidelity results against previous version's results"""
-        np.random.seed(123456789)
+        testutil.rng.seed(123456789)
 
         spectra = [
             lambda S0, omega: S0*omega**0,
@@ -290,38 +287,33 @@ class PrecisionTest(testutil.TestCase):
         ]
 
         ref_infids = (
-            [0.136323822128, 0.503088456605],
-            [0.203378761555, 0.518332209649],
-            [0.053296418553, 0.136876219234],
-            [0.136323822128, 0.518332209649],
-            [[0.203378761555, -0.055616969909 - 0.055616969909j],
-             [-0.055616969909 + 0.055616969909j, 0.518332209649]],
-            [3.546546324306, 2.647853348679],
-            [3.280981606059, 2.337134644933],
-            [0.762362817296, 0.579758833611],
-            [3.546546324306, 2.337134644933],
-            [[3.280981606059, -0.41174629763 - 0.41174629763j],
-             [-0.41174629763 + 0.41174629763j, 2.337134644933]],
-            [5.412527279325, 1.491940249915],
-            [3.036289753366, 1.227000243671],
-            [0.556478695119, 0.294389833858],
-            [5.412527279325, 1.227000243671],
-            [[3.036289753366, -0.090100013088-0.090100013088j],
-             [-0.090100013088+0.090100013088j, 1.227000243671]]
+            [0.448468950307, 0.941871479562],
+            [0.65826575772, 1.042914346335],
+            [0.163303005479, 0.239032549377],
+            [0.448468950307, 1.042914346335],
+            [[0.65826575772, 0.069510589685+0.069510589685j],
+             [0.069510589685-0.069510589685j, 1.042914346335]],
+            [3.687399348243, 3.034914820757],
+            [2.590545568435, 3.10093804628],
+            [0.55880380219, 0.782544974968],
+            [3.687399348243, 3.10093804628],
+            [[2.590545568435, -0.114514760108-0.114514760108j],
+             [-0.114514760108+0.114514760108j, 3.10093804628]],
+            [2.864567451344, 1.270260393902],
+            [1.847740998731, 1.559401345443],
+            [0.362116177417, 0.388022992097],
+            [2.864567451344, 1.559401345443],
+            [[1.847740998731, 0.088373663409+0.088373663409j],
+             [0.088373663409-0.088373663409j, 1.559401345443]]
         )
 
         count = 0
         for d in (2, 3, 4):
-            c_opers = testutil.rand_herm(d, 2)
-            n_opers = testutil.rand_herm_traceless(d, 3)
-            pulse = ff.PulseSequence(
-                list(zip(c_opers, randn(2, 10))),
-                list(zip(n_opers, np.abs(randn(3, 10)))),
-                np.abs(randn(10))
-            )
+            pulse = testutil.rand_pulse_sequence(d, 10, 2, 3)
+            pulse.n_oper_identifiers = np.array(['B_0', 'B_2'])
 
             omega = np.geomspace(0.1, 10, 51)
-            S0 = np.abs(randn())
+            S0 = np.abs(testutil.rng.randn())
             for spec in spectra:
                 S, omega_t = ff.util.symmetrize_spectrum(spec(S0, omega),
                                                          omega)
@@ -378,7 +370,8 @@ class PrecisionTest(testutil.TestCase):
 
         with self.assertRaises(ValueError):
             # S wrong dimensions
-            ff.infidelity(pulse, np.random.randn(2, 3, 4, len(omega)), omega)
+            ff.infidelity(pulse, testutil.rng.randn(2, 3, 4, len(omega)),
+                          omega)
 
         with self.assertRaises(NotImplementedError):
             # smallness parameter for correlated noise source
@@ -389,15 +382,10 @@ class PrecisionTest(testutil.TestCase):
     def test_single_qubit_error_transfer_matrix(self):
         """Test the calculation of the single-qubit transfer matrix"""
         d = 2
-        for n_dt in randint(1, 11, 10):
-            pulse = ff.PulseSequence(
-                list(zip(ff.util.P_np[1:], randn(3, n_dt))),
-                list(zip(ff.util.P_np[2:], np.abs(randn(3, n_dt)))),
-                np.abs(randn(n_dt)),
-                basis=ff.Basis.pauli(1)
-            )
+        for n_dt in testutil.rng.randint(1, 11, 10):
+            pulse = testutil.rand_pulse_sequence(d, n_dt, 3, 2, btype='Pauli')
             omega = ff.util.get_sample_frequencies(pulse, n_samples=51)
-            n_oper_identifiers = ['B_0', 'B_1']
+            n_oper_identifiers = pulse.n_oper_identifiers
             traces = pulse.basis.four_element_traces.todense()
 
             # Single spectrum
@@ -414,7 +402,7 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = calculate_error_vector_correlation_functions(
+            u_kl = numeric.calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
             U_multi = (np.einsum('...kl,klij->...ij', u_kl, traces)/2 +
@@ -435,7 +423,7 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = calculate_error_vector_correlation_functions(
+            u_kl = numeric.calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
             U_multi = (np.einsum('...kl,klij->...ij', u_kl, traces)/2 +
@@ -461,7 +449,7 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = calculate_error_vector_correlation_functions(
+            u_kl = numeric.calculate_error_vector_correlation_functions(
                 pulse, S, omega, n_oper_identifiers
             )
             U_multi = np.zeros_like(U)
@@ -472,21 +460,14 @@ class PrecisionTest(testutil.TestCase):
 
     def test_multi_qubit_error_transfer_matrix(self):
         """Test the calculation of the multi-qubit transfer matrix"""
-        for d, n_dt in zip(randint(3, 13, 10), randint(1, 11, 10)):
+        n_cops = 4
+        n_nops = 2
+        for d, n_dt in zip(testutil.rng.randint(3, 9, 10),
+                           testutil.rng.randint(1, 11, 10)):
             f, n = np.modf(np.log2(d))
-            if f == 0.0:
-                basis = ff.Basis.pauli(int(n))
-            else:
-                basis = ff.Basis.ggm(d)
-
-            c_opers = testutil.rand_herm(d, randint(2, 4))
-            n_opers = testutil.rand_herm_traceless(d, randint(2, 4))
-            pulse = ff.PulseSequence(
-                list(zip(c_opers, randn(len(c_opers), n_dt))),
-                list(zip(n_opers, np.abs(randn(len(n_opers), n_dt)))),
-                np.abs(randn(n_dt)),
-                basis
-            )
+            btype = 'Pauli' if f == 0.0 else 'GGM'
+            pulse = testutil.rand_pulse_sequence(d, n_dt, n_cops, n_nops,
+                                                 btype)
             omega = ff.util.get_sample_frequencies(pulse, n_samples=51)
 
             # Assert fidelity is same as computed by infidelity()
@@ -500,7 +481,7 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
 
-            S = np.outer(1e-2*(np.arange(len(n_opers)) + 1),
+            S = np.outer(1e-2*(np.arange(n_nops) + 1),
                          400/(omega**2 + 400))
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop
@@ -512,8 +493,8 @@ class PrecisionTest(testutil.TestCase):
             self.assertArrayAlmostEqual(I_transfer, I_fidelity)
 
             S = np.einsum('i,j,o->ijo',
-                          1e-2*(np.arange(len(n_opers)) + 1),
-                          1e-2*(np.arange(len(n_opers)) + 1),
+                          1e-2*(np.arange(n_nops) + 1),
+                          1e-2*(np.arange(n_nops) + 1),
                           400/(omega**2 + 400))
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop

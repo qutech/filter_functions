@@ -21,14 +21,14 @@
 """
 This module tests the operator basis module.
 """
-
+from copy import copy
 from itertools import product
 
 import numpy as np
 from sparse import COO
-from tests import testutil
 
 import filter_functions as ff
+from tests import testutil
 
 
 class BasisTest(testutil.TestCase):
@@ -51,7 +51,7 @@ class BasisTest(testutil.TestCase):
 
         # Too many elements
         with self.assertRaises(ValueError):
-            _ = ff.Basis(np.random.randn(5, 2, 2))
+            _ = ff.Basis(testutil.rng.randn(5, 2, 2))
 
         # Properly normalized
         self.assertEqual(ff.Basis.pauli(1), ff.Basis(ff.util.P_np))
@@ -70,8 +70,8 @@ class BasisTest(testutil.TestCase):
 
     def test_basis_properties(self):
         """Basis orthonormal and of correct dimensions"""
-        d = np.random.randint(2, 17)
-        n = np.random.randint(1, 5)
+        d = testutil.rng.randint(2, 17)
+        n = testutil.rng.randint(1, 5)
 
         ggm_basis = ff.Basis.ggm(d)
         pauli_basis = ff.Basis.pauli(n)
@@ -87,11 +87,12 @@ class BasisTest(testutil.TestCase):
             if not btype == 'Pauli':
                 self.assertEqual(d, base.d)
                 # Check if __contains__ works as expected
-                self.assertTrue(base[np.random.randint(0, d**2)] in base)
+                self.assertTrue(base[testutil.rng.randint(0, d**2)] in base)
             else:
                 self.assertEqual(2**n, base.d)
                 # Check if __contains__ works as expected
-                self.assertTrue(base[np.random.randint(0, (2**n)**2)] in base)
+                self.assertTrue(base[testutil.rng.randint(0, (2**n)**2)]
+                                in base)
             # Check if all elements of each basis are orthonormal and hermitian
             self.assertArrayEqual(base.T,
                                   base.view(np.ndarray).swapaxes(-1, -2))
@@ -129,13 +130,13 @@ class BasisTest(testutil.TestCase):
     def test_basis_expansion_and_normalization(self):
         """Correct expansion of operators and normalization of bases"""
         for _ in range(10):
-            d = np.random.randint(2, 16)
+            d = testutil.rng.randint(2, 16)
             ggm_basis = ff.Basis.ggm(d)
             basis = ff.Basis(
-                np.einsum('i,ijk->ijk', np.random.randn(d**2), ggm_basis),
+                np.einsum('i,ijk->ijk', testutil.rng.randn(d**2), ggm_basis),
                 skip_check=True
             )
-            M = np.random.randn(d, d) + 1j*np.random.randn(d, d)
+            M = testutil.rng.randn(d, d) + 1j*testutil.rng.randn(d, d)
             M -= np.trace(M)/d
             coeffs = ff.basis.expand(M, basis, normalized=False)
             self.assertArrayAlmostEqual(M, np.einsum('i,ijk', coeffs, basis))
@@ -146,8 +147,8 @@ class BasisTest(testutil.TestCase):
                                         ff.basis.ggm_expand(M, traceless=True),
                                         atol=1e-14)
 
-            n = np.random.randint(1, 50)
-            M = np.random.randn(n, d, d) + 1j*np.random.randn(n, d, d)
+            n = testutil.rng.randint(1, 50)
+            M = testutil.rng.randn(n, d, d) + 1j*testutil.rng.randn(n, d, d)
             coeffs = ff.basis.expand(M, basis, normalized=False)
             self.assertArrayAlmostEqual(M, np.einsum('li,ijk->ljk', coeffs,
                                                      basis))
@@ -180,11 +181,11 @@ class BasisTest(testutil.TestCase):
         # Do 100 test runs with random elements from a GGM basis in (2 ... 8)
         # dimensions
         for _ in range(50):
-            d = np.random.randint(2, 9)
+            d = testutil.rng.randint(2, 9)
             b = ff.Basis.ggm(d)
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(np.random.randint(0, len(inds)))
-                        for _ in range(np.random.randint(1, d**2)))
+            tup = tuple(inds.pop(testutil.rng.randint(0, len(inds)))
+                        for _ in range(testutil.rng.randint(1, d**2)))
             elems = b[tup, ...]
             basis = ff.Basis(elems)
             self.assertTrue(basis.isorthonorm)
@@ -198,12 +199,12 @@ class BasisTest(testutil.TestCase):
         # Do 100 test runs with random elements from a Pauli basis in (2 ... 8)
         # dimensions
         for _ in range(50):
-            n = np.random.randint(1, 4)
+            n = testutil.rng.randint(1, 4)
             d = 2**n
             b = ff.Basis.pauli(n)
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(np.random.randint(0, len(inds)))
-                        for _ in range(np.random.randint(1, d**2)))
+            tup = tuple(inds.pop(testutil.rng.randint(0, len(inds)))
+                        for _ in range(testutil.rng.randint(1, d**2)))
             elems = b[tup, ...]
             basis = ff.Basis(elems)
             self.assertTrue(basis.isorthonorm)
@@ -225,11 +226,11 @@ class BasisTest(testutil.TestCase):
         # Do 25 test runs with random elements from a random basis in
         # (2 ... 8) dimensions
         for _ in range(25):
-            d = np.random.randint(2, 7)
+            d = testutil.rng.randint(2, 7)
             # Get a random traceless hermitian operator
             oper = testutil.rand_herm_traceless(d)
             # ... and build a basis from it
-            b = ff.Basis(np.array([oper]))
+            b = ff.Basis(oper)
             self.assertTrue(b.isorthonorm)
             self.assertTrue(b.isherm)
             self.assertTrue(b.istraceless)
@@ -237,8 +238,8 @@ class BasisTest(testutil.TestCase):
             # Choose random elements from that basis and generate a new basis
             # from it
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(np.random.randint(0, len(inds)))
-                        for _ in range(np.random.randint(1, d**2)))
+            tup = tuple(inds.pop(testutil.rng.randint(0, len(inds)))
+                        for _ in range(testutil.rng.randint(1, d**2)))
             elems = b[tup, ...]
             basis = ff.Basis(elems)
             self.assertTrue(basis.isorthonorm)
@@ -249,11 +250,11 @@ class BasisTest(testutil.TestCase):
 
         # Test runs with non-traceless opers
         for _ in range(25):
-            d = np.random.randint(2, 7)
+            d = testutil.rng.randint(2, 7)
             # Get a random hermitian operator
             oper = testutil.rand_herm(d)
             # ... and build a basis from it
-            b = ff.Basis(np.array([oper]))
+            b = ff.Basis(oper)
             self.assertTrue(b.isorthonorm)
             self.assertTrue(b.isherm)
             self.assertFalse(b.istraceless)
@@ -261,8 +262,8 @@ class BasisTest(testutil.TestCase):
             # Choose random elements from that basis and generate a new basis
             # from it
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(np.random.randint(0, len(inds)))
-                        for _ in range(np.random.randint(1, d**2)))
+            tup = tuple(inds.pop(testutil.rng.randint(0, len(inds)))
+                        for _ in range(testutil.rng.randint(1, d**2)))
             elems = b[tup, ...]
             basis = ff.Basis(elems)
             self.assertTrue(basis.isorthonorm)
@@ -274,55 +275,43 @@ class BasisTest(testutil.TestCase):
     def test_filter_functions(self):
         """Filter functions equal for different bases"""
         # Set up random Hamiltonian
-        c_oper = testutil.rand_herm(4)
-        c_opers = (c_oper,)
-        c_coeffs = ([0, 1, 0],)
-        H_c = list(zip(c_opers, c_coeffs))
-
-        dt = np.ones(3)
-
-        n_oper = testutil.rand_herm_traceless(4)
-        n_oper[np.diag_indices(n_oper.shape[-1])] = 0
-        n_oper = ff.basis.normalize(n_oper)
-
-        H_n = [[n_oper, np.ones_like(dt)]]
-
-        omega = np.concatenate([-np.logspace(3, -3, 100),
-                                np.logspace(-3, 3, 100)])
+        base_pulse = testutil.rand_pulse_sequence(4, 3, 1, 1)
+        omega = ff.util.get_sample_frequencies(base_pulse, n_samples=200)
 
         pauli_basis = ff.Basis.pauli(2)
         ggm_basis = ff.Basis.ggm(4)
-        from_random_basis = ff.Basis([n_oper])
+        from_random_basis = ff.Basis(base_pulse.n_opers)
         bases = (pauli_basis, ggm_basis, from_random_basis)
 
-        # Get Pulses
-        pulses = [ff.PulseSequence(H_c, H_n, dt, basis=b) for b in bases]
-        F = [pulse.get_filter_function(omega).sum(0) for pulse in pulses]
+        # Get Pulses with different bases
+        F = []
+        for b in bases:
+            pulse = copy(base_pulse)
+            pulse.basis = b
+            F.append(pulse.get_filter_function(omega).sum(0))
+
         for pair in product(F, F):
             self.assertArrayAlmostEqual(*pair)
 
     def test_control_matrix(self):
         """Test control matrix for traceless and non-traceless bases"""
-        c_opers = testutil.rand_herm(3, 4)
-        c_coeffs = np.random.randn(4, 10)
 
-        n_opers_traceless = testutil.rand_herm_traceless(3, 4)
         n_opers = testutil.rand_herm(3, 4)
-        n_coeffs = np.abs(np.random.randn(4, 10))
-
-        dt = np.abs(np.random.randn(10))
+        n_opers_traceless = testutil.rand_herm_traceless(3, 4)
 
         basis = ff.Basis(testutil.rand_herm(3), traceless=False)
         basis_traceless = ff.Basis(testutil.rand_herm_traceless(3),
                                    traceless=True)
 
+        base_pulse = testutil.rand_pulse_sequence(3, 10, 4, 4)
+
         omega = np.logspace(-1, 1, 51)
 
         for i, base in enumerate((basis, basis_traceless)):
             for j, n_ops in enumerate((n_opers, n_opers_traceless)):
-                pulse = ff.PulseSequence(list(zip(c_opers, c_coeffs)),
-                                         list(zip(n_ops, n_coeffs)),
-                                         dt, base)
+                pulse = copy(base_pulse)
+                pulse.n_opers = n_ops
+                pulse.basis = base
 
                 R = pulse.get_control_matrix(omega)
 

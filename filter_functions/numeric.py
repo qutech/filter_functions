@@ -55,16 +55,16 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 from warnings import warn
 
 import numpy as np
+import opt_einsum as oe
 import sparse
-from numpy import linalg, ndarray
-from opt_einsum import contract, contract_expression
-from scipy.integrate import trapz
+from numpy import linalg as nla
+from numpy import ndarray
+from scipy import integrate
 
+from . import util
 from .basis import Basis, ggm_expand
 from .plotting import plot_infidelity_convergence
 from .types import Coefficients, Operator
-from .util import (abs2, cexp, get_indices_from_identifiers, progressbar_range,
-                   symmetrize_spectrum)
 
 __all__ = ['calculate_control_matrix_from_atomic',
            'calculate_control_matrix_from_scratch',
@@ -74,26 +74,26 @@ __all__ = ['calculate_control_matrix_from_atomic',
 
 
 def calculate_control_matrix_from_atomic(
-        phases: ndarray, R_l: ndarray, Q_liouville: ndarray,
+        phases: ndarray, R_g: ndarray, Q_liouville: ndarray,
         show_progressbar: Optional[bool] = None) -> ndarray:
     r"""
     Calculate the control matrix from the control matrices of atomic segments.
 
     Parameters
     ----------
-    phases : array_like, shape (n_dt, n_omega)
+    phases: array_like, shape (n_dt, n_omega)
         The phase factors for :math:`l\in\{0, 1, \dots, n-1\}`.
-    R_l : array_like, shape (n_dt, n_nops, d**2, n_omega)
+    R_g: array_like, shape (n_dt, n_nops, d**2, n_omega)
         The pulse control matrices for :math:`l\in\{1, 2, \dots, n\}`.
-    Q_liouville : array_like, shape (n_dt, n_nops, d**2, d**2)
+    Q_liouville: array_like, shape (n_dt, n_nops, d**2, d**2)
         The transfer matrices of the cumulative propagators for
         :math:`l\in\{0, 1, \dots, n-1\}`.
-    show_progressbar : bool, optional
+    show_progressbar: bool, optional
         Show a progress bar for the calculation.
 
     Returns
     -------
-    R : ndarray, shape (n_nops, d**2, n_omega)
+    R: ndarray, shape (n_nops, d**2, n_omega)
         The control matrix :math:`\mathcal{R}(\omega)`.
 
     Notes
@@ -107,24 +107,22 @@ def calculate_control_matrix_from_atomic(
 
     See Also
     --------
-    :func:`calculate_control_matrix_from_scratch`
-
-    :func:`liouville_representation`
+    calculate_control_matrix_from_scratch: Control matrix from scratch.
+    liouville_representation: Liouville representation for a given basis.
     """
-    n = len(R_l)
+    n = len(R_g)
     # Allocate memory
-    R = np.zeros(R_l[0].shape, dtype=complex)
+    R = np.zeros(R_g.shape[1:], dtype=complex)
 
     # Set up a reusable contraction expression. In some cases it is faster to
     # also contract the time dimension in the same expression instead of
     # looping over it, but we don't distinguish here for readability.
-    R_expr = contract_expression('o,ijo,jk->iko', phases[0].shape,
-                                 R_l[0].shape, Q_liouville[0].shape,
-                                 optimize=[(0, 1), (0, 1)])
+    R_expr = oe.contract_expression('ijo,jk->iko',
+                                    R_g.shape[1:], Q_liouville.shape[1:])
 
-    for l in progressbar_range(n, show_progressbar=show_progressbar,
-                               desc='Calculating control matrix'):
-        R += R_expr(phases[l], R_l[l], Q_liouville[l])
+    for g in util.progressbar_range(n, show_progressbar=show_progressbar,
+                                    desc='Calculating control matrix'):
+        R += R_expr(phases[g]*R_g[g], Q_liouville[g])
 
     return R
 
@@ -146,38 +144,38 @@ def calculate_control_matrix_from_scratch(
 
     Parameters
     ----------
-    HD : array_like, shape (n_dt, d)
+    HD: array_like, shape (n_dt, d)
         Eigenvalue vectors for each time pulse segment *l* with the first
         axis counting the pulse segment, i.e.
         ``HD == array([D_0, D_1, ...])``.
-    HV : array_like, shape (n_dt, d, d)
+    HV: array_like, shape (n_dt, d, d)
         Eigenvector matrices for each time pulse segment *l* with the first
         axis counting the pulse segment, i.e.
         ``HV == array([V_0, V_1, ...])``.
-    Q : array_like, shape (n_dt+1, d, d)
+    Q: array_like, shape (n_dt+1, d, d)
         The propagators :math:`Q_l = P_l P_{l-1}\cdots P_0` as a (d, d) array
         with *d* the dimension of the Hilbert space.
-    omega : array_like, shape (n_omega,)
+    omega: array_like, shape (n_omega,)
         Frequencies at which the pulse control matrix is to be evaluated.
-    basis : Basis, shape (d**2, d, d)
+    basis: Basis, shape (d**2, d, d)
         The basis elements in which the pulse control matrix will be expanded.
-    n_opers : array_like, shape (n_nops, d, d)
+    n_opers: array_like, shape (n_nops, d, d)
         Noise operators :math:`B_\alpha`.
-    n_coeffs : array_like, shape (n_nops, n_dt)
+    n_coeffs: array_like, shape (n_nops, n_dt)
         The sensitivities of the system to the noise operators given by
         *n_opers* at the given time step.
-    dt : array_like, shape (n_dt)
+    dt: array_like, shape (n_dt)
         Sequence duration, i.e. for the :math:`l`-th pulse
         :math:`t_l - t_{l-1}`.
-    t : array_like, shape (n_dt+1), optional
+    t: array_like, shape (n_dt+1), optional
         The absolute times of the different segments. Can also be computed from
         *dt*.
-    show_progressbar : bool, optional
+    show_progressbar: bool, optional
         Show a progress bar for the calculation.
 
     Returns
     -------
-    R : ndarray, shape (n_nops, d**2, n_omega)
+    R: ndarray, shape (n_nops, d**2, n_omega)
         The control matrix :math:`\mathcal{R}(\omega)`
 
     Notes
@@ -210,19 +208,15 @@ def calculate_control_matrix_from_scratch(
 
     See Also
     --------
-    :func:`calculate_control_matrix_from_atomic`
+    calculate_control_matrix_from_atomic: Control matrix from concatenation.
     """
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
 
     d = HV.shape[-1]
-    n = len(dt)
     # We're lazy
     E = omega
     n_coeffs = np.asarray(n_coeffs)
-
-    # Allocate memory
-    R = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
 
     # Precompute noise opers transformed to eigenbasis of each pulse
     # segment and Q^\dagger @ HV
@@ -233,39 +227,35 @@ def calculate_control_matrix_from_scratch(
                       optimize=['einsum_path', (0, 1), (0, 1)])
     else:
         QdagV = Q[:-1].transpose(0, 2, 1).conj() @ HV
-        B = np.empty((len(n_opers), n, d, d), dtype=complex)
+        B = np.empty((len(n_opers), len(dt), d, d), dtype=complex)
         for j, n_oper in enumerate(n_opers):
             B[j] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
 
-    # Allocate array for the integral
-    integral = np.empty((len(E), d, d), dtype=complex)
+    # Allocate result and buffers for intermediate arrays
+    R = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
+    exp_buf = np.empty((len(E), d, d), dtype=complex)
+    int_buf = np.empty((len(E), d, d), dtype=complex)
     R_path = ['einsum_path', (0, 3), (0, 1), (0, 2), (0, 1)]
 
-    for l in progressbar_range(n, show_progressbar=show_progressbar,
-                               desc='Calculating control matrix'):
-        # Create a (n_E, d, d)-shaped array containing the energy
-        # differences in its last two dimensions
-        dE = np.subtract.outer(HD[l], HD[l])
-        # Add the frequencies to get EdE_nm = omega + omega_n - omega_m
-        EdE = np.add.outer(E, dE)
+    for l in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
+                                    desc='Calculating control matrix'):
 
-        # Mask the integral to avoid convergence problems
-        mask_small = np.abs(EdE*dt[l]) <= 1e-7
-        integral[mask_small] = dt[l]
-        integral[~mask_small] = (cexp(EdE[~mask_small]*dt[l]) - 1) /\
-                                (1j*(EdE[~mask_small]))
-        """
-        # Test convergence of integral as argument of exponential -> 0
-        fn = lambda a, dt: (np.exp(a*dt) - 1)/a - dt
-        fn1 = lambda a: fn(a, 1)
-        a = np.logspace(-10, 0, 100)
-        plt.loglog(a, fn1(a))
-        """
+        dE = np.subtract.outer(HD[l], HD[l])
+        # iEdE_nm = 1j*(omega + omega_n - omega_m)
+        int_buf.real = 0
+        int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
+
+        # Use expm1 for better convergence with small arguments
+        exp_buf = np.expm1(int_buf*dt[l], out=exp_buf)
+        # Catch zero-division warnings
+        mask = (int_buf != 0)
+        int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=mask)
+        int_buf[~mask] = dt[l]
 
         # Faster for d = 2 to also contract over the time dimension instead of
         # loop, but for readability we don't distinguish.
         R += np.einsum('o,j,jmn,omn,knm->jko',
-                       cexp(E*t[l]), n_coeffs[:, l], B[:, l], integral,
+                       util.cexp(E*t[l]), n_coeffs[:, l], B[:, l], int_buf,
                        QdagV[l].conj().T @ basis @ QdagV[l],
                        optimize=R_path)
 
@@ -282,19 +272,19 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
 
     Parameters
     ----------
-    phases : ndarray, shape (n_omega,)
+    phases: ndarray, shape (n_omega,)
         The phase factors :math:`e^{i\omega T}` of the atomic pulse.
-    R : ndarray, shape (n_nops, d**2, n_omega)
+    R: ndarray, shape (n_nops, d**2, n_omega)
         The control matrix :math:`\mathcal{R}^{(1)}(\omega)` of the atomic
         pulse.
-    Q_liouville : ndarray, shape (d**2, d**2)
+    Q_liouville: ndarray, shape (d**2, d**2)
         The transfer matrix :math:`\mathcal{Q}^{(1)}` of the atomic pulse.
-    repeats : int
+    repeats: int
         The number of repetitions.
 
     Returns
     -------
-    R : ndarray, shape (n_nops, d**2, n_omega)
+    R: ndarray, shape (n_nops, d**2, n_omega)
         The control matrix :math:`\mathcal{R}(\omega)` of the repeated pulse.
 
     Notes
@@ -322,14 +312,14 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
 
     # Mask the invertible frequencies. The chosen atol is somewhat empiric.
     M = eye - T
-    M_inv = linalg.inv(M)
+    M_inv = nla.inv(M)
     good_inverse = np.isclose(M_inv @ M, eye, atol=1e-10, rtol=0).all((1, 2))
 
     # Allocate memory
     S = np.empty((*phases.shape, *Q_liouville.shape), dtype=complex)
     # Evaluate the sum for invertible frequencies
     S[good_inverse] = (M_inv[good_inverse] @
-                       (eye - linalg.matrix_power(T[good_inverse], repeats)))
+                       (eye - nla.matrix_power(T[good_inverse], repeats)))
 
     # Evaluate the sum for non-invertible frequencies
     if (~good_inverse).any():
@@ -356,20 +346,20 @@ def calculate_error_vector_correlation_functions(
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The ``PulseSequence`` instance for which to compute the error vector
         correlation functions.
-    S : array_like, shape (..., n_omega)
+    S: array_like, shape (..., n_omega)
         The two-sided noise power spectral density.
-    omega : array_like,
+    omega: array_like,
         The frequencies. Note that the frequencies are assumed to be symmetric
         about zero.
-    n_oper_identifiers : array_like, optional
+    n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to calculate the error
         vector correlation functions. The default is all.
-    show_progressbar : bool, optional
+    show_progressbar: bool, optional
         Show a progress bar for the calculation.
-    memory_parsimonious : bool, optional
+    memory_parsimonious: bool, optional
         For large dimensions, the integrand
 
         .. math::
@@ -389,7 +379,7 @@ def calculate_error_vector_correlation_functions(
 
     Returns
     -------
-    u_kl : ndarray, shape (..., d**2, d**2)
+    u_kl: ndarray, shape (..., d**2, d**2)
         The error vector correlation functions.
 
     Notes
@@ -405,12 +395,12 @@ def calculate_error_vector_correlation_functions(
     """
     # TODO: Implement for correlation FFs? Replace infidelity() by this?
     # Noise operator indices
-    idx = get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
     R = pulse.get_control_matrix(omega, show_progressbar)[idx]
 
     if not memory_parsimonious:
         integrand = _get_integrand(S, omega, idx, R=R)
-        u_kl = trapz(integrand, omega, axis=-1)/(2*np.pi)
+        u_kl = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
         return u_kl
 
     # Conserve memory by looping. Let _get_integrand determine the shape
@@ -419,12 +409,13 @@ def calculate_error_vector_correlation_functions(
     n_kl = R.shape[1]
     u_kl = np.zeros(integrand.shape[:-3] + (n_kl,)*2,
                     dtype=integrand.dtype)
-    u_kl[..., 0:1, :] = trapz(integrand, omega, axis=-1)/(2*np.pi)
+    u_kl[..., 0:1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
 
-    for k in progressbar_range(1, n_kl, show_progressbar=show_progressbar,
-                               desc='Integrating'):
+    for k in util.progressbar_range(1, n_kl, show_progressbar=show_progressbar,
+                                    desc='Integrating'):
         integrand = _get_integrand(S, omega, idx, R=[R[:, k:k+1], R])
-        u_kl[..., k:k+1, :] = trapz(integrand, omega, axis=-1)/(2*np.pi)
+        u_kl[..., k:k+1, :] = integrate.trapz(integrand, omega,
+                                              axis=-1)/(2*np.pi)
 
     return u_kl
 
@@ -435,22 +426,20 @@ def calculate_filter_function(R: ndarray) -> ndarray:
 
     Parameters
     ----------
-    R : array_like, shape (n_nops, d**2, n_omega)
+    R: array_like, shape (n_nops, d**2, n_omega)
         The control matrix.
 
     Returns
     -------
-    F : ndarray, shape (n_nops, n_nops, n_omega)
+    F: ndarray, shape (n_nops, n_nops, n_omega)
         The filter functions for each noise operator correlation. The diagonal
         corresponds to the filter functions for uncorrelated noise sources.
 
     See Also
     --------
-    :func:`calculate_control_matrix_from_scratch`
-
-    :func:`calculate_control_matrix_from_atomic`
-
-    :func:`calculate_pulse_correlation_filter_function`
+    calculate_control_matrix_from_scratch: Control matrix from scratch.
+    calculate_control_matrix_from_atomic: Control matrix from concatenation.
+    calculate_pulse_correlation_filter_function: Pulse correlations.
     """
     return np.einsum('iko,jko->ijo', R.conj(), R)
 
@@ -461,12 +450,12 @@ def calculate_pulse_correlation_filter_function(R: ndarray) -> ndarray:
 
     Parameters
     ----------
-    R : array_like, shape (n_pulses, n_nops, d**2, n_omega)
+    R: array_like, shape (n_pulses, n_nops, d**2, n_omega)
         The control matrix.
 
     Returns
     -------
-    F_pc : ndarray, shape (n_pulses, n_pulses, n_nops, n_nops, n_omega)
+    F_pc: ndarray, shape (n_pulses, n_pulses, n_nops, n_nops, n_omega)
         The pulse correlation filter functions for each pulse and noise
         operator correlations. The first two axes hold the pulse correlations,
         the second two the noise correlations.
@@ -486,11 +475,9 @@ def calculate_pulse_correlation_filter_function(R: ndarray) -> ndarray:
 
     See Also
     --------
-    :func:`calculate_control_matrix_from_scratch`
-
-    :func:`calculate_control_matrix_from_atomic`
-
-    :func:`calculate_filter_function`
+    calculate_control_matrix_from_scratch: Control matrix from scratch.
+    calculate_control_matrix_from_atomic: Control matrix from concatenation.
+    calculate_filter_function: Regular filter function.
     """
     try:
         F_pc = np.einsum('gjko,hlko->ghjlo', R.conj(), R)
@@ -515,24 +502,24 @@ def diagonalize(H: ndarray, dt: Coefficients) -> Tuple[ndarray]:
 
     Parameters
     ----------
-    H : array_like, shape (n_dt, d, d)
+    H: array_like, shape (n_dt, d, d)
         Hamiltonian of shape (n_dt, d, d) with d the dimensionality of the
         system
-    dt : array_like
+    dt: array_like
         The time differences
 
     Returns
     -------
-    HD : ndarray
+    HD: ndarray
         Array of eigenvalues of shape (n_dt, d)
-    HV : ndarray
+    HV: ndarray
         Array of eigenvectors of shape (n_dt, d, d)
-    Q : ndarray
+    Q: ndarray
         Array of cumulative propagators of shape (n_dt+1, d, d)
     """
     d = H.shape[-1]
     # Calculate Eigenvalues and -vectors
-    HD, HV = linalg.eigh(H)
+    HD, HV = nla.eigh(H)
     # Propagator P = V exp(-j D dt) V^\dag. Middle term is of shape
     # (d, n_dt) due to transpose, so switch around indices in einsum
     # instead of transposing again. Same goes for the last term. This saves
@@ -541,7 +528,8 @@ def diagonalize(H: ndarray, dt: Coefficients) -> Tuple[ndarray]:
     # P = np.empty((500, 4, 4), dtype=complex)
     # for l, (V, D) in enumerate(zip(HV, np.exp(-1j*dt*HD.T).T)):
     #     P[l] = (V * D) @ V.conj().T
-    P = np.einsum('lij,jl,lkj->lik', HV, cexp(-np.asarray(dt)*HD.T), HV.conj())
+    P = np.einsum('lij,jl,lkj->lik',
+                  HV, util.cexp(-np.asarray(dt)*HD.T), HV.conj())
     # The cumulative propagator Q with the identity operator as first
     # element (Q_0 = P_0 = I), i.e.
     # Q = [Q_0, Q_1, ..., Q_n] = [P_0, P_1 @ P_0, ..., P_n @ ... @ P_0]
@@ -566,10 +554,10 @@ def error_transfer_matrix(
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The ``PulseSequence`` instance for which to compute the error transfer
         matrix.
-    S : array_like, shape (..., n_omega)
+    S: array_like, shape (..., n_omega)
         The two-sided noise power spectral density in units of inverse
         frequencies as an array of shape (n_omega,), (n_nops, n_omega), or
         (n_nops, n_nops, n_omega). In the first case, the same spectrum is
@@ -580,22 +568,22 @@ def error_transfer_matrix(
         corresponding to the correlations between them. n_nops is the number of
         noise operators considered and should be equal to
         ``len(n_oper_identifiers)``.
-    omega : array_like,
+    omega: array_like,
         The frequencies. Note that the frequencies are assumed to be symmetric
         about zero.
-    n_oper_identifiers : array_like, optional
+    n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to evaluate the
         error transfer matrix. The default is all.
-    show_progressbar : bool, optional
+    show_progressbar: bool, optional
         Show a progress bar for the calculation of the control matrix.
-    memory_parsimonious : bool, optional
+    memory_parsimonious: bool, optional
         Trade memory footprint for performance. See
         :func:`~numeric.calculate_error_vector_correlation_functions`. The
         default is ``False``.
 
     Returns
     -------
-    U : ndarray, shape (..., d**2, d**2)
+    U: ndarray, shape (..., d**2, d**2)
         The first correction to the error transfer matrix. The individual noise
         operator contributions chosen by ``n_oper_identifiers`` are on the
         first axis / axes, depending on whether the noise is cross-correlated
@@ -682,9 +670,8 @@ def error_transfer_matrix(
 
     See Also
     --------
-    :func:`calculate_error_vector_correlation_functions`
-
-    :func:`infidelity`
+    calculate_error_vector_correlation_functions
+    infidelity: Calculate only infidelity of a pulse.
     """
     N, d = pulse.basis.shape[:2]
     u_kl = calculate_error_vector_correlation_functions(pulse, S, omega,
@@ -720,10 +707,10 @@ def error_transfer_matrix(
                                          u_kl[..., 1:, 1:], eps_kli)
     else:
         # Multi qubit case. Use general expression.
-        traces = pulse.basis.four_element_traces
-        U = (contract('...kl,klij->...ij', u_kl, traces, backend='sparse')/2 +
-             contract('...kl,klji->...ij', u_kl, traces, backend='sparse')/2 -
-             contract('...kl,kilj->...ij', u_kl, traces, backend='sparse'))
+        T = pulse.basis.four_element_traces
+        U = (oe.contract('...kl,klij->...ij', u_kl, T, backend='sparse')/2 +
+             oe.contract('...kl,klji->...ij', u_kl, T, backend='sparse')/2 -
+             oe.contract('...kl,kilj->...ij', u_kl, T, backend='sparse'))
 
     return U
 
@@ -741,10 +728,10 @@ def infidelity(pulse: 'PulseSequence',
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The ``PulseSequence`` instance for which to calculate the infidelity
         for.
-    S : array_like or callable
+    S: array_like or callable
         The two-sided noise power spectral density in units of inverse
         frequencies as an array of shape (n_omega,), (n_nops, n_omega), or
         (n_nops, n_nops, n_omega). In the first case, the same spectrum is
@@ -759,51 +746,57 @@ def infidelity(pulse: 'PulseSequence',
         If *test_convergence* is ``True``, a function handle to
         compute the power spectral density from a sequence of frequencies is
         expected.
-    omega : array_like or dict
+    omega: array_like or dict
         The frequencies at which the integration is to be carried out. If
         *test_convergence* is ``True``, a dict with possible keys ('omega_IR',
         'omega_UV', 'spacing', 'n_min', 'n_max', 'n_points'), where all
         entries are integers except for ``spacing`` which should be a string,
         either 'linear' or 'log'. 'n_points' controls how many steps are taken.
         Note that the frequencies are assumed to be symmetric about zero.
-    n_oper_identifiers : array_like, optional
+    n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to calculate the
         infidelity  contribution. If given, the infidelities for each noise
         operator will be returned. Otherwise, all noise operators will be taken
         into account.
-    which : str, optional
+    which: str, optional
         Which infidelities should be calculated, may be either 'total'
-        (default) or 'correlations'. In the former case, only the total
-        infidelities for each noise operator are returned, in the latter all of
-        the individual infidelity contributions including the pulse
-        correlations (note that in this case no checks are performed if the
-        frequencies are compliant). See :func:`~pulse_sequence.concatenate`
-        for more details.
-    return_smallness : bool, optional
+        (default) or 'correlations'. In the former case, one value is returned
+        for each noise operator, corresponding to the total infidelity of the
+        pulse (or pulse sequence). In the latter, an array of infidelities is
+        returned where element (i,j) corresponds to the infidelity contribution
+        of the correlations between pulses i and j (see :ref:`Notes <notes>`).
+        Note that this option is only available if the pulse correlation filter
+        functions have been computed during concatenation (see
+        :func:`calculate_pulse_correlation_filter_function` and
+        :func:`~filter_functions.pulse_sequence.concatenate`) and that in this
+        case no checks are performed if the frequencies are compliant.
+    return_smallness: bool, optional
         Return the smallness parameter :math:`\xi` for the given spectrum.
-    test_convergence : bool, optional
+    test_convergence: bool, optional
         Test the convergence of the integral with respect to the number of
         frequency samples. Plots the infidelities against the number of
         frequency samples. See *S* and *omega* for more information.
 
     Returns
     -------
-    infid : ndarray
+    infid: ndarray
         Array with the infidelity contributions for each spectrum *S* on the
         last axis or axes, depending on the shape of *S* and *which*. If
         ``which`` is ``correlations``, the first two axes are the individual
         pulse contributions. If *S* is 2-d (3-d), the last axis (two axes) are
         the individual spectral contributions.
         Only if *test_convergence* is ``False``.
-    n_samples : array_like
+    n_samples: array_like
         Array with number of frequency samples used for convergence test.
         Only if *test_convergence* is ``True``.
-    convergence_infids : array_like
+    convergence_infids: array_like
         Array with infidelities calculated in convergence test.
         Only if *test_convergence* is ``True``.
-    (fig, ax) : tuple
+    (fig, ax): tuple
         The matplotlib figure and axis instances used for plotting.
         Only if *test_convergence* is ``True``.
+
+    .. _notes:
 
     Notes
     -----
@@ -811,13 +804,12 @@ def infidelity(pulse: 'PulseSequence',
 
     .. math::
 
-        \big\langle\mathcal{I}_\mathrm{e}\big\rangle &=
-                \frac{1}{d^2}\left\langle
-                \mathrm{tr}\big\lvert\tilde{U}(\tau)\big\rvert^2
-                \right\rangle \\
-            &= \frac{1}{2\pi d}\int_{-\infty}^{\infty}\mathrm{d}\omega
-                \,\mathrm{tr}\bigl(S(\omega)F(\omega)\bigr) +
-                \mathcal{O}\big(\xi^4\big)
+        \big\langle\mathcal{I}_\mathrm{e}\big\rangle_{\alpha\beta} &=
+                \frac{1}{2\pi d}\int_{-\infty}^{\infty}\mathrm{d}\omega\,
+                S_{\alpha\beta}(\omega)F_{\alpha\beta}(\omega)
+                +\mathcal{O}\big(\xi^4\big) \\
+            &= \sum_{g,g'=1}^G \big\langle
+                \mathcal{I}_\mathrm{e}\big\rangle_{\alpha\beta}^{(gg')}
 
     with :math:`S_{\alpha\beta}(\omega)` the two-sided noise spectral density
     and :math:`F_{\alpha\beta}(\omega)` the first-order filter function for
@@ -825,6 +817,9 @@ def infidelity(pulse: 'PulseSequence',
     correlated noise sources, that is, its entry at :math:`(\alpha,\beta)`
     corresponds to the correlations between sources :math:`\alpha` and
     :math:`\beta`.
+    :math:`\big\langle\mathcal{I}_\mathrm{e}\big\rangle_{\alpha\beta}^{(gg')}`
+    are the correlation infidelities that can be computed by setting
+    ``which='correlations'``.
 
     To convert to the average gate infidelity, use the
     following relation given by Horodecki et al. [Hor99]_ and
@@ -866,7 +861,7 @@ def infidelity(pulse: 'PulseSequence',
 
     """
     # Noise operator indices
-    idx = get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
 
     if test_convergence:
         if not callable(S):
@@ -902,7 +897,7 @@ def infidelity(pulse: 'PulseSequence',
         for i, n in enumerate(n_samples):
             freqs = xspace(omega_IR, omega_UV, n//2)
             convergence_infids[i] = infidelity(
-                pulse, *symmetrize_spectrum(S(freqs), freqs),
+                pulse, *util.symmetrize_spectrum(S(freqs), freqs),
                 n_oper_identifiers, which='total', return_smallness=False,
                 test_convergence=False
             )
@@ -945,16 +940,16 @@ def infidelity(pulse: 'PulseSequence',
 
     integrand = _get_integrand(S, omega, idx, F=F[tuple(slices)])
 
-    infid = trapz(integrand, omega)/(2*np.pi*pulse.d)
+    infid = integrate.trapz(integrand, omega)/(2*np.pi*pulse.d)
 
     if return_smallness:
         if S.ndim > 2:
             raise NotImplementedError('Smallness parameter only implemented' +
                                       'for uncorrelated noise sources')
 
-        T1 = trapz(S, omega)/(2*np.pi)
+        T1 = integrate.trapz(S, omega)/(2*np.pi)
         T2 = (pulse.dt*pulse.n_coeffs[idx]).sum(axis=-1)**2
-        T3 = abs2(pulse.n_opers[idx]).sum(axis=(1, 2))
+        T3 = util.abs2(pulse.n_opers[idx]).sum(axis=(1, 2))
         xi = np.sqrt((T1*T2*T3).sum())
 
         return infid, xi
@@ -969,14 +964,14 @@ def liouville_representation(U: ndarray, basis: Basis) -> ndarray:
 
     Parameters
     ----------
-    U : ndarray, shape (..., d, d)
+    U: ndarray, shape (..., d, d)
         The unitary.
     basis: Basis, shape (d**2, d, d)
         The basis used for the representation, e.g. a Pauli basis.
 
     Returns
     -------
-    R : ndarray, shape (..., d**2, d**2)
+    R: ndarray, shape (..., d**2, d**2)
         The Liouville representation of U.
 
     Notes
@@ -1018,19 +1013,19 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray,
 
     Parameters
     ----------
-    S : array_like, shape (..., n_omega)
+    S: array_like, shape (..., n_omega)
         The two-sided noise power spectral density.
-    omega : array_like,
+    omega: array_like,
         The frequencies. Note that the frequencies are assumed to be symmetric
         about zero.
-    idx : ndarray
+    idx: ndarray
         Noise operator indices to consider.
-    R : ndarray, optional
+    R: ndarray, optional
         Control matrix. If given, returns the integrand for
         :func:`calculate_error_vector_correlation_functions`. If given as a
         list or tuple, taken to be the left and right control matrices in the
         integrand (allows for slicing up the integrand).
-    F : ndarray, optional
+    F: ndarray, optional
         Filter function. If given, returns the integrand for
         :func:`infidelity`.
 
@@ -1042,7 +1037,7 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray,
 
     Returns
     -------
-    integrand : ndarray, shape (..., n_omega)
+    integrand: ndarray, shape (..., n_omega)
         The integrand.
 
     """
