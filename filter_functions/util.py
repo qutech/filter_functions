@@ -70,6 +70,7 @@ Exceptions
 
 """
 import functools
+import inspect
 import io
 import json
 import operator
@@ -1096,6 +1097,36 @@ def progressbar_range(*args, show_progressbar: Optional[bool] = True,
         return progressbar(range(*args), **kwargs)
 
     return range(*args)
+
+
+def parse_optional_parameter(name: str, allowed: Sequence) -> Callable:
+    """Decorator factory to parse optional parameter with certain legal values.
+
+    If the parameter value corresponding to ``name`` (either in args or kwargs)
+    is not contained in ``allowed`` a ``ValueError`` is raised.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            parameters = inspect.signature(func).parameters
+            idx = tuple(parameters).index(name)
+            try:
+                value = args[idx]
+            except IndexError:
+                value = kwargs.get(name, parameters[name].default)
+
+            if value not in allowed:
+                raise ValueError(
+                    "Invalid value for {}: {}. ".format(name, value) +
+                    "Should be one of {}.".format(allowed)
+                )
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+parse_which_FF_parameter = parse_optional_parameter(
+    'which', ('fidelity', 'generalized'))
 
 
 class CalculationError(Exception):

@@ -293,8 +293,8 @@ def plot_filter_function(pulse: 'PulseSequence',
                          gridspec_kw: Optional[dict] = None,
                          **figure_kw) -> FigureAxesLegend:
     r"""
-    Plot the filter function(s) of the given PulseSequence for positive
-    frequencies. As of now only the diagonal elements of
+    Plot the fidelity filter function(s) of the given PulseSequence for
+    positive frequencies. As of now only the diagonal elements of
     :math:`F_{\alpha\beta}` are implemented, i.e. the filter functions
     corresponding to uncorrelated noise sources.
 
@@ -412,8 +412,9 @@ def plot_pulse_correlation_filter_function(
         gridspec_kw: Optional[dict] = None,
         **figure_kw) -> FigureAxesLegend:
     r"""
-    Plot the pulse correlation filter functions of the given PulseSequence if
-    they were computed during concatenation for positive frequencies.
+    Plot the fidelity pulse correlation filter functions of the given
+    PulseSequence if they were computed during concatenation for positive
+    frequencies.
 
     Returns a figure with *n* by *n* subplots where *n* is the number of pulses
     that were concatenated. As of now only the diagonal elements of
