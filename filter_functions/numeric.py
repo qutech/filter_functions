@@ -30,9 +30,9 @@ Functions
     Calculate the control matrix from scratch
 :func:`calculate_control_matrix_periodic`
     Calculate the control matrix for a periodic Hamiltonian
-:func:`calculate_error_vector_correlation_functions`
-    Calculate the correlation functions of the 1st order Magnus expansion
-    coefficients
+:func:`calculate_decay_amplitudes`
+    Calculate the decay amplitudes, corresponding to first order terms of the
+    Magnus expansion
 :func:`calculate_filter_function`
     Calculate the filter function from the control matrix
 :func:`calculate_pulse_correlation_filter_function`
@@ -331,7 +331,7 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
     return R_tot
 
 
-def calculate_error_vector_correlation_functions(
+def calculate_decay_amplitudes(
         pulse: 'PulseSequence',
         S: ndarray,
         omega: Coefficients,
@@ -339,24 +339,22 @@ def calculate_error_vector_correlation_functions(
         show_progressbar: Optional[bool] = False,
         memory_parsimonious: Optional[bool] = False) -> ndarray:
     r"""
-    Get the error vector correlation functions
-    :math:`\langle u_{1,k} u_{1, l}\rangle_{\alpha\beta}` for noise sources
+    Get the decay amplitudes :math:`\Gamma_{\alpha\beta, kl}` for noise sources
     :math:`\alpha,\beta` and basis elements :math:`k,l`.
-
 
     Parameters
     ----------
     pulse: PulseSequence
-        The ``PulseSequence`` instance for which to compute the error vector
-        correlation functions.
+        The ``PulseSequence`` instance for which to compute the decay
+        amplitudes.
     S: array_like, shape (..., n_omega)
         The two-sided noise power spectral density.
     omega: array_like,
         The frequencies. Note that the frequencies are assumed to be symmetric
         about zero.
     n_oper_identifiers: array_like, optional
-        The identifiers of the noise operators for which to calculate the error
-        vector correlation functions. The default is all.
+        The identifiers of the noise operators for which to calculate the decay
+        amplitudes. The default is all.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
     memory_parsimonious: bool, optional
@@ -379,16 +377,16 @@ def calculate_error_vector_correlation_functions(
 
     Returns
     -------
-    u_kl: ndarray, shape (..., d**2, d**2)
-        The error vector correlation functions.
+    Gamma: ndarray, shape (..., d**2, d**2)
+        The decay amplitudes.
 
     Notes
     -----
-    The correlation functions are given by
+    The decay amplitudes are given by
 
     .. math::
 
-        \langle u_{1,k} u_{1, l}\rangle_{\alpha\beta} = \int
+        \Gamma_{\alpha\beta, kl} = \int
             \frac{\mathrm{d}\omega}{2\pi}\mathcal{R}^\ast_{\alpha k}(\omega)
             S_{\alpha\beta}(\omega)\mathcal{R}_{\beta l}(\omega).
 
@@ -400,24 +398,24 @@ def calculate_error_vector_correlation_functions(
 
     if not memory_parsimonious:
         integrand = _get_integrand(S, omega, idx, R=R)
-        u_kl = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
-        return u_kl
+        Gamma = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
+        return Gamma
 
     # Conserve memory by looping. Let _get_integrand determine the shape
     integrand = _get_integrand(S, omega, idx, R=[R[:, 0:1], R])
 
     n_kl = R.shape[1]
-    u_kl = np.zeros(integrand.shape[:-3] + (n_kl,)*2,
-                    dtype=integrand.dtype)
-    u_kl[..., 0:1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
+    Gamma = np.zeros(integrand.shape[:-3] + (n_kl,)*2,
+                     dtype=integrand.dtype)
+    Gamma[..., 0:1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
 
     for k in util.progressbar_range(1, n_kl, show_progressbar=show_progressbar,
                                     desc='Integrating'):
         integrand = _get_integrand(S, omega, idx, R=[R[:, k:k+1], R])
-        u_kl[..., k:k+1, :] = integrate.trapz(integrand, omega,
-                                              axis=-1)/(2*np.pi)
+        Gamma[..., k:k+1, :] = integrate.trapz(integrand, omega,
+                                               axis=-1)/(2*np.pi)
 
-    return u_kl
+    return Gamma
 
 
 @util.parse_which_FF_parameter
@@ -617,8 +615,7 @@ def error_transfer_matrix(
         Show a progress bar for the calculation of the control matrix.
     memory_parsimonious: bool, optional
         Trade memory footprint for performance. See
-        :func:`~numeric.calculate_error_vector_correlation_functions`. The
-        default is ``False``.
+        :func:`~numeric.calculate_decay_amplitudes`. The default is ``False``.
 
     Returns
     -------
@@ -709,47 +706,37 @@ def error_transfer_matrix(
 
     See Also
     --------
-    calculate_error_vector_correlation_functions
+    calculate_decay_amplitudes
     infidelity: Calculate only infidelity of a pulse.
     """
     N, d = pulse.basis.shape[:2]
-    u_kl = calculate_error_vector_correlation_functions(pulse, S, omega,
-                                                        n_oper_identifiers,
-                                                        show_progressbar,
-                                                        memory_parsimonious)
+    Gamma = calculate_decay_amplitudes(pulse, S, omega, n_oper_identifiers,
+                                       show_progressbar, memory_parsimonious)
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
-        U = np.zeros_like(u_kl)
+        U = np.zeros_like(Gamma)
         diag_mask = np.eye(N, dtype=bool)
 
         # Offdiagonal terms
         U[..., ~diag_mask] = -(
-            u_kl[..., ~diag_mask] + u_kl.swapaxes(-1, -2)[..., ~diag_mask]
+            Gamma[..., ~diag_mask] + Gamma.swapaxes(-1, -2)[..., ~diag_mask]
         )/2
 
-        # Diagonal terms U_ii given by sum over diagonal of u_kl excluding u_ii
-        # Since the Pauli basis is traceless, U_00 is zero, therefore start at
-        # U_11
+        # Diagonal terms U_ii given by sum over diagonal of Gamma excluding
+        # Gamma_ii. Since the Pauli basis is traceless, U_00 is zero, therefore
+        # start at U_11.
         diag_items = deque((True, False, True, True))
         for i in range(1, N):
-            U[..., i, i] = u_kl[..., diag_items, diag_items].sum(axis=-1)
+            U[..., i, i] = Gamma[..., diag_items, diag_items].sum(axis=-1)
             # shift the item not summed over by one
             diag_items.rotate()
-
-        if S.ndim == 3:
-            # Cross-correlated noise induces non-unitality, thus U[..., 0] != 0
-            k, l, i = np.indices((3, 3, 3))
-            eps_kli = (l - k)*(i - l)*(i - k)/2
-
-            U[..., 1:, 0] = 1j*np.einsum('...kl,kli',
-                                         u_kl[..., 1:, 1:], eps_kli)
     else:
         # Multi qubit case. Use general expression.
         T = pulse.basis.four_element_traces
-        U = (oe.contract('...kl,klij->...ij', u_kl, T, backend='sparse')/2 +
-             oe.contract('...kl,klji->...ij', u_kl, T, backend='sparse')/2 -
-             oe.contract('...kl,kilj->...ij', u_kl, T, backend='sparse'))
+        U = (oe.contract('...kl,klij->...ij', Gamma, T, backend='sparse')/2 +
+             oe.contract('...kl,klji->...ij', Gamma, T, backend='sparse')/2 -
+             oe.contract('...kl,kilj->...ij', Gamma, T, backend='sparse'))
 
     return U
 
@@ -948,9 +935,9 @@ def infidelity(pulse: 'PulseSequence',
 
     if which == 'total':
         if not pulse.basis.istraceless:
-            # Fidelity not simply sum of all error vector auto-correlation
-            # funcs <u_k u_k> but trace tensor plays a role, cf eq. (29). For
-            # traceless bases, the trace tensor term reduces to delta_ij.
+            # Fidelity not simply sum of diagonal of decay amplitudes Gamma_kk
+            # but trace tensor plays a role, cf eq. (39). For traceless bases,
+            # the trace tensor term reduces to delta_ij.
             T = pulse.basis.four_element_traces
             Tp = (sparse.diagonal(T, axis1=2, axis2=3).sum(-1) -
                   sparse.diagonal(T, axis1=1, axis2=3).sum(-1)).todense()
@@ -1048,7 +1035,7 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray,
                    F: Optional[ndarray] = None) -> ndarray:
     """
     Private function to generate the integrand for either :func:`infidelity` or
-    :func:`calculate_error_vector_correlation_functions`.
+    :func:`calculate_decay_amplitudes`.
 
     Parameters
     ----------
@@ -1061,9 +1048,9 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray,
         Noise operator indices to consider.
     R: ndarray, optional
         Control matrix. If given, returns the integrand for
-        :func:`calculate_error_vector_correlation_functions`. If given as a
-        list or tuple, taken to be the left and right control matrices in the
-        integrand (allows for slicing up the integrand).
+        :func:`calculate_decay_amplitudes`. If given as a list or tuple, taken
+        to be the left and right control matrices in the integrand (allows for
+        slicing up the integrand).
     F: ndarray, optional
         Filter function. If given, returns the integrand for
         :func:`infidelity`.

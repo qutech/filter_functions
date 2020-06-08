@@ -402,12 +402,11 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = numeric.calculate_error_vector_correlation_functions(
-                pulse, S, omega, n_oper_identifiers
-            )
-            U_multi = (np.einsum('...kl,klij->...ij', u_kl, traces)/2 +
-                       np.einsum('...kl,klji->...ij', u_kl, traces)/2 -
-                       np.einsum('...kl,kilj->...ij', u_kl, traces))
+            Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega,
+                                                       n_oper_identifiers)
+            U_multi = (np.einsum('...kl,klij->...ij', Gamma, traces)/2 +
+                       np.einsum('...kl,klji->...ij', Gamma, traces)/2 -
+                       np.einsum('...kl,kilj->...ij', Gamma, traces))
             self.assertArrayAlmostEqual(U, U_multi, atol=1e-14)
 
             # Different spectra for each noise oper
@@ -423,12 +422,11 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = numeric.calculate_error_vector_correlation_functions(
-                pulse, S, omega, n_oper_identifiers
-            )
-            U_multi = (np.einsum('...kl,klij->...ij', u_kl, traces)/2 +
-                       np.einsum('...kl,klji->...ij', u_kl, traces)/2 -
-                       np.einsum('...kl,kilj->...ij', u_kl, traces))
+            Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega,
+                                                       n_oper_identifiers)
+            U_multi = (np.einsum('...kl,klij->...ij', Gamma, traces)/2 +
+                       np.einsum('...kl,klji->...ij', Gamma, traces)/2 -
+                       np.einsum('...kl,kilj->...ij', Gamma, traces))
             self.assertArrayAlmostEqual(U, U_multi, atol=1e-14)
 
             # Cross-correlated spectra
@@ -449,13 +447,12 @@ class PrecisionTest(testutil.TestCase):
 
             # Check that _single_qubit_error_transfer_matrix and
             # _multi_qubit_... # give the same
-            u_kl = numeric.calculate_error_vector_correlation_functions(
-                pulse, S, omega, n_oper_identifiers
-            )
+            Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega,
+                                                       n_oper_identifiers)
             U_multi = np.zeros_like(U)
-            U_multi = (np.einsum('...kl,klij->...ij', u_kl, traces)/2 +
-                       np.einsum('...kl,klji->...ij', u_kl, traces)/2 -
-                       np.einsum('...kl,kilj->...ij', u_kl, traces))
+            U_multi = (np.einsum('...kl,klij->...ij', Gamma, traces)/2 +
+                       np.einsum('...kl,klji->...ij', Gamma, traces)/2 -
+                       np.einsum('...kl,kilj->...ij', Gamma, traces))
             self.assertArrayAlmostEqual(U, U_multi, atol=1e-16)
 
     def test_multi_qubit_error_transfer_matrix(self):

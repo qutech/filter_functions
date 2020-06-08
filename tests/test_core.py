@@ -783,7 +783,7 @@ class CoreTest(testutil.TestCase):
         self.assertAlmostEqual(infid_1.sum(), infid_2.sum())
         self.assertArrayAlmostEqual(infid_1, infid_2.sum(axis=(0, 1)))
 
-    def test_calculate_error_vector_correlation_functions(self):
+    def test_calculate_decay_amplitudes(self):
         """Test raises of numeric.error_transfer_matrix"""
         pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
 
@@ -792,9 +792,8 @@ class CoreTest(testutil.TestCase):
         S = testutil.rng.randn(78)
         for i in range(4):
             with self.assertRaises(ValueError):
-                numeric.calculate_error_vector_correlation_functions(
-                    pulse, np.tile(S, [1]*i), omega
-                )
+                numeric.calculate_decay_amplitudes(pulse, np.tile(S, [1]*i),
+                                                   omega)
 
     def test_infidelity_convergence(self):
         import matplotlib
