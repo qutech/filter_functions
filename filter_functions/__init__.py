@@ -25,7 +25,7 @@ from .basis import Basis
 from .numeric import (error_transfer_matrix, infidelity,
                       liouville_representation)
 from .plotting import (
-    plot_bloch_vector_evolution, plot_error_transfer_matrix,
+    plot_bloch_vector_evolution, plot_cumulant_function,
     plot_filter_function, plot_pulse_correlation_filter_function,
     plot_pulse_train)
 from .pulse_sequence import (PulseSequence, concatenate, concatenate_periodic,
@@ -34,7 +34,7 @@ from .pulse_sequence import (PulseSequence, concatenate, concatenate_periodic,
 __all__ = ['Basis', 'PulseSequence', 'analytic', 'basis', 'concatenate',
            'concatenate_periodic', 'error_transfer_matrix', 'extend',
            'infidelity', 'liouville_representation', 'numeric',
-           'plot_bloch_vector_evolution', 'plot_error_transfer_matrix',
+           'plot_bloch_vector_evolution', 'plot_cumulant_function',
            'plot_filter_function', 'plot_pulse_correlation_filter_function',
            'plot_pulse_train', 'plotting', 'pulse_sequence', 'remap', 'util']
 

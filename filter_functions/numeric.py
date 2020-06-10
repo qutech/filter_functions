@@ -30,6 +30,8 @@ Functions
     Calculate the control matrix from scratch
 :func:`calculate_control_matrix_periodic`
     Calculate the control matrix for a periodic Hamiltonian
+:func:`calculate_cumulant_function`
+    Calculate the cumulant function for a given ``PulseSequence`` object.
 :func:`calculate_decay_amplitudes`
     Calculate the decay amplitudes, corresponding to first order terms of the
     Magnus expansion
@@ -40,8 +42,7 @@ Functions
 :func:`diagonalize`
     Diagonalize a Hamiltonian
 :func:`error_transfer_matrix`
-    Calculate the error transfer matrix of a pulse up to a unitary
-    rotation and second order in noise
+    Calculate the error transfer matrix of a pulse up to a unitary rotation
 :func:`infidelity`
     Function to compute the infidelity of a pulse defined by a
     ``PulseSequence`` instance for a given noise spectral density and
@@ -59,6 +60,7 @@ import opt_einsum as oe
 import sparse
 from numpy import linalg as nla
 from numpy import ndarray
+from scipy import linalg as sla
 from scipy import integrate
 
 from . import util
@@ -68,6 +70,8 @@ from .types import Coefficients, Operator
 
 __all__ = ['calculate_control_matrix_from_atomic',
            'calculate_control_matrix_from_scratch',
+           'calculate_cumulant_function',
+           'calculate_decay_amplitudes',
            'calculate_filter_function',
            'calculate_pulse_correlation_filter_function', 'diagonalize',
            'error_transfer_matrix', 'infidelity', 'liouville_representation']
@@ -331,6 +335,124 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
     return R_tot
 
 
+def calculate_cumulant_function(
+        pulse: 'PulseSequence',
+        S: ndarray,
+        omega: Coefficients,
+        n_oper_identifiers: Optional[Sequence[str]] = None,
+        show_progressbar: Optional[bool] = False,
+        memory_parsimonious: Optional[bool] = False) -> ndarray:
+    r"""Calculate the cumulant function :math:`K(\tau)`.
+
+    The error transfer matrix is obtained from the cumulant function by
+    exponentiation, :math:`\tilde{\mathcal{U}} = \exp K(\tau)`.
+
+    Parameters
+    ----------
+    pulse: PulseSequence
+        The ``PulseSequence`` instance for which to compute the cumulant
+        function.
+    S: array_like, shape (..., n_omega)
+        The two-sided noise power spectral density in units of inverse
+        frequencies as an array of shape (n_omega,), (n_nops, n_omega), or
+        (n_nops, n_nops, n_omega). In the first case, the same spectrum is
+        taken for all noise operators, in the second, it is assumed that there
+        are no correlations between different noise sources and thus there is
+        one spectrum for each noise operator. In the third and most general
+        case, there may be a spectrum for each pair of noise operators
+        corresponding to the correlations between them. n_nops is the number of
+        noise operators considered and should be equal to
+        ``len(n_oper_identifiers)``.
+    omega: array_like,
+        The frequencies. Note that the frequencies are assumed to be symmetric
+        about zero.
+    n_oper_identifiers: array_like, optional
+        The identifiers of the noise operators for which to evaluate the
+        cumulant function. The default is all.
+    show_progressbar: bool, optional
+        Show a progress bar for the calculation of the control matrix.
+    memory_parsimonious: bool, optional
+        Trade memory footprint for performance. See
+        :func:`~numeric.calculate_decay_amplitudes`. The default is ``False``.
+
+    Returns
+    -------
+    K: ndarray, shape ([n_nops,] n_nops, d**2, d**2)
+        The cumulant function. The individual noise operator contributions
+        chosen by ``n_oper_identifiers`` are on the first axis / axes,
+        depending on whether the noise is cross-correlated or not.
+
+    Notes
+    -----
+    The cumulant function is given by
+
+    .. math::
+
+        K_{ij}(\tau) = -\frac{1}{2}\sum_{\alpha\beta} & \sum_{kl}\biggl(
+            \Delta_{\alpha\beta,kl}\left(
+                T_{klji} - T_{lkji} - T_{klij} + T_{lkij}
+            \right) + \Gamma_{\alpha\beta,kl}\left(
+                T_{klji} - T_{kjli} - T_{kilj} + T_{kijl}
+            \right)
+        \biggr)
+
+    Here, :math:`T_{ijkl} = \mathrm{tr}(C_i C_j C_k C_l)` is a trivial function
+    of the basis elements :math:`C_i`, and :math:`\Gamma_{\alpha\beta,kl}` and
+    :math:`\Delta_{\alpha\beta,kl}` are the decay amplitudes and frequency
+    shifts which correspond to first and second order in the Magnus expansion,
+    respectively. Since the latter induce coherent errors, we can approximately
+    neglect them if we assume that the pulse has been experimentally
+    calibrated.
+
+    For a single qubit and represented in the Pauli basis, the above reduces to
+
+    .. math::
+
+        K_{ij}(\tau) = \begin{cases}
+            - \sum_{k\neq i}\Gamma_{kk}                     &\qif* i = j,   \\
+                - \Delta_{ij} + \Delta_{ji} + \Gamma_{ij}   &\qif* i\neq j,
+        \end{cases}
+
+    for :math:`i\in\{1,2,3\}` and :math:`K_{0j} = K_{i0} = 0`.
+
+    See Also
+    --------
+    calculate_decay_amplitudes: Calculate the :math:`\Gamma_{\alpha\beta,kl}`
+    error_transfer_matrix: Calculate the error transfer matrix :math:`\exp K`.
+    infidelity: Calculate only infidelity of a pulse.
+
+    """
+    N, d = pulse.basis.shape[:2]
+    Gamma = calculate_decay_amplitudes(pulse, S, omega, n_oper_identifiers,
+                                       show_progressbar, memory_parsimonious)
+
+    if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
+        # Single qubit case. Can use simplified expression
+        K = np.zeros_like(Gamma)
+        diag_mask = np.eye(N, dtype=bool)
+
+        # Offdiagonal terms
+        K[..., ~diag_mask] = Gamma[..., ~diag_mask]
+
+        # Diagonal terms K_ii given by sum over diagonal of Gamma excluding
+        # Gamma_ii. Since the Pauli basis is traceless, K_00 is zero, therefore
+        # start at K_11.
+        diag_items = deque((True, False, True, True))
+        for i in range(1, N):
+            K[..., i, i] = -Gamma[..., diag_items, diag_items].sum(axis=-1)
+            # shift the item not summed over by one
+            diag_items.rotate()
+    else:
+        # Multi qubit case. Use general expression.
+        T = pulse.basis.four_element_traces
+        K = (oe.contract('...kl,lkji->...ij', Gamma, T, backend='sparse') +
+             oe.contract('...kl,klij->...ij', Gamma, T, backend='sparse') -
+             oe.contract('...kl,klji->...ij', Gamma, T, backend='sparse') -
+             oe.contract('...kl,lkij->...ij', Gamma, T, backend='sparse'))/2
+
+    return K
+
+
 def calculate_decay_amplitudes(
         pulse: 'PulseSequence',
         S: ndarray,
@@ -432,7 +554,7 @@ def calculate_filter_function(R: ndarray, which: str = 'fidelity') -> ndarray:
 
     Returns
     -------
-    F: ndarray, shape (n_nops, n_nops, [d**2, d**2], n_omega)
+    F: ndarray, shape (n_nops, n_nops, [d**2, d**2,] n_omega)
         The filter functions for each noise operator correlation. The diagonal
         corresponds to the filter functions for uncorrelated noise sources.
 
@@ -479,7 +601,7 @@ def calculate_pulse_correlation_filter_function(
 
     Returns
     -------
-    F_pc: ndarray, shape (n_pulses, n_pulses, n_nops, n_nops, [d**2, d**2], n_omega)  # noqa
+    F_pc: ndarray, shape (n_pls, n_pls, n_nops, n_nops, [d**2, d**2,] n_omega)
         The pulse correlation filter functions for each pulse and noise
         operator correlations. The first two axes hold the pulse correlations,
         the second two the noise correlations.
@@ -585,9 +707,7 @@ def error_transfer_matrix(
         n_oper_identifiers: Optional[Sequence[str]] = None,
         show_progressbar: Optional[bool] = False,
         memory_parsimonious: Optional[bool] = False) -> ndarray:
-    r"""
-    Compute the first correction to the error transfer matrix up to unitary
-    rotations and second order in noise.
+    r"""Compute the error transfer matrix up to unitary rotations.
 
     Parameters
     ----------
@@ -619,125 +739,47 @@ def error_transfer_matrix(
 
     Returns
     -------
-    U: ndarray, shape (..., d**2, d**2)
-        The first correction to the error transfer matrix. The individual noise
-        operator contributions chosen by ``n_oper_identifiers`` are on the
-        first axis / axes, depending on whether the noise is cross-correlated
-        or not.
+    U: ndarray, shape (d**2, d**2)
+        The error transfer matrix. The individual noise operator contributions
+        are summed up before exponentiating as they might not commute.
 
     Notes
     -----
-    The error transfer matrix is up to second order in noise :math:`\xi` given
-    by
+    The error transfer matrix is given by
 
     .. math::
 
-        \mathcal{\tilde{U}}_{ij} &= \mathrm{tr}\bigl(C_i\tilde{U} C_j
-                                                     \tilde{U}^\dagger\bigr) \\
-                                 &= \mathrm{tr}(C_i C_j)
-                                    -\frac{1}{2}\left\langle\mathrm{tr}
-                                        \bigl(
-                                            (\vec{u}_1\vec{C})^2
-                                            \lbrace C_i, C_j\rbrace
-                                        \bigr)
-                                    \right\rangle + \left\langle\mathrm{tr}
-                                        \bigl(
-                                            \vec{u}_1\vec{C} C_i
-                                            \vec{u}_1\vec{C} C_j
-                                        \bigr)
-                                    \right\rangle - i\left\langle\mathrm{tr}
-                                        \bigl(
-                                            \vec{u}_2\vec{C}[C_i, C_j]
-                                        \bigr)
-                                    \right\rangle + \mathcal{O}(\xi^4).
+        \tilde{\mathcal{U}} = \exp K(\tau)
 
-    We can thus write the error transfer matrix as the identity matrix minus a
-    correction term,
+    with :math:`K(\tau)` the cumulant function (see
+    :func:`calculate_cumulant_function`). For Gaussian noise this expression is
+    exact when taking into account the decay amplitudes :math:`\Gamma` and
+    frequency shifts :math:`\Delta`. As the latter effects coherent errors it
+    can be neglected if we assume that the experimenter has calibrated their
+    pulse.
 
-    .. math::
+    For non-Gaussian noise the expression above is perturbative and includes
+    noise up to order :math:`\xi^2` and hence
+    :math:`\tilde{\mathcal{U}} = \mathbb{1} + K(\tau) + \mathcal{O}(\xi^2)`
+    (although it is evaluated as a matrix exponential in any case).
 
-        \mathcal{\tilde{U}}\approx\mathbb{I} - \mathcal{\tilde{U}}^{(1)}.
-
-    Note additionally that the above expression includes a second-order term
-    from the Magnus Expansion (:math:`\propto\vec{u}_2`). Since this term can
-    be compensated by a unitary rotation and thus calibrated out, it is not
-    included in the calculation.
-
-    For the general case of :math:`n` qubits, the correction term is calculated
-    as
-
-    .. math::
-
-        \mathcal{\tilde{U}}_{ij}^{(1)} = \sum_{k,l=0}^{d^2-1}
-            \left\langle u_{1,k}u_{1,l}\right\rangle\left[
-                \frac{1}{2}T_{k l i j} +
-                \frac{1}{2}T_{k l j i} -
-                T_{k i l j}
-            \right],
-
-    where :math:`T_{ijkl} = \mathrm{tr}(C_i C_j C_k C_l)`. For a single
-    qubit and represented in the Pauli basis, this reduces to
-
-    .. math::
-
-        \mathcal{\tilde{U}}_{ij}^{(1)} = \begin{cases}
-            \sum_{k\neq i}\bigl\langle u_{1,k}^2\bigr\rangle
-                &\mathrm{if\;} i = j, \\
-            -\frac{1}{2}\left(\bigl\langle u_{1, i} u_{1, j}\bigr\rangle
-                              \bigl\langle u_{1, j} u_{1, i}\bigr\rangle\right)
-                &\mathrm{if\;} i\neq j, \\
-            \sum_{kl} i\epsilon_{kli}\bigl\langle u_{1, k} u_{1, l}\bigr\rangle
-                &\mathrm{if\;} j = 0, \\
-            0   &\mathrm{else.}
-        \end{cases}
-
-    for :math:`i\in\{1,2,3\}` and :math:`\mathcal{\tilde{U}}_{0j}^{(1)} = 0`.
-    For purely auto-correlated noise where
-    (:math:`S_{\alpha\beta}=S_{\alpha\alpha}\delta_{\alpha\beta}`) we
-    additionally have :math:`\mathcal{\tilde{U}}_{i0}^{(1)} = 0` and
-    :math:`\langle u_{1, i} u_{1, j}\rangle=\langle u_{1, j} u_{1, i}\rangle`.
     Given the above expression of the error transfer matrix, the entanglement
-    infidelity is given by
+    fidelity is given by
 
     .. math::
 
-        \mathcal{I}_\mathrm{e} = \frac{1}{d^2}\mathrm{tr}
-                                 \bigl(\mathcal{\tilde{U}}^{(1)}\bigr).
+        \mathcal{F}_\mathrm{e} = \frac{1}{d^2}\mathrm{tr}\,\tilde{\mathcal{U}}.
 
     See Also
     --------
-    calculate_decay_amplitudes
+    calculate_cumulant_function: Calculate the cumulant function :math:`K`
+    calculate_decay_amplitudes: Calculate the :math:`\Gamma_{\alpha\beta,kl}`
     infidelity: Calculate only infidelity of a pulse.
     """
-    N, d = pulse.basis.shape[:2]
-    Gamma = calculate_decay_amplitudes(pulse, S, omega, n_oper_identifiers,
-                                       show_progressbar, memory_parsimonious)
+    K = calculate_cumulant_function(pulse, S, omega, n_oper_identifiers,
+                                    show_progressbar, memory_parsimonious)
 
-    if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
-        # Single qubit case. Can use simplified expression
-        U = np.zeros_like(Gamma)
-        diag_mask = np.eye(N, dtype=bool)
-
-        # Offdiagonal terms
-        U[..., ~diag_mask] = -(
-            Gamma[..., ~diag_mask] + Gamma.swapaxes(-1, -2)[..., ~diag_mask]
-        )/2
-
-        # Diagonal terms U_ii given by sum over diagonal of Gamma excluding
-        # Gamma_ii. Since the Pauli basis is traceless, U_00 is zero, therefore
-        # start at U_11.
-        diag_items = deque((True, False, True, True))
-        for i in range(1, N):
-            U[..., i, i] = Gamma[..., diag_items, diag_items].sum(axis=-1)
-            # shift the item not summed over by one
-            diag_items.rotate()
-    else:
-        # Multi qubit case. Use general expression.
-        T = pulse.basis.four_element_traces
-        U = (oe.contract('...kl,klij->...ij', Gamma, T, backend='sparse')/2 +
-             oe.contract('...kl,klji->...ij', Gamma, T, backend='sparse')/2 -
-             oe.contract('...kl,kilj->...ij', Gamma, T, backend='sparse'))
-
+    U = sla.expm(K.sum(axis=list(range(K.ndim - 2))))
     return U
 
 
