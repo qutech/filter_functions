@@ -824,9 +824,12 @@ def infidelity(pulse: 'PulseSequence',
                which: str = 'total',
                return_smallness: bool = False,
                test_convergence: bool = False) -> Union[ndarray, Any]:
-    r"""
-    Calculate the ensemble average of the entanglement infidelity of the
-    ``PulseSequence`` *pulse*.
+    r"""Calculate the leading order entanglement infidelity.
+
+    This function calculates the infidelity approximately from the leading
+    peturbation (see :ref:`Notes <notes>`). To compute it exactly for Gaussian
+    noise and vanishing coherent errors (second order Magnus terms), use
+    :func:`error_transfer_matrix` to obtain it from the full process matrix.
 
     Parameters
     ----------
@@ -905,12 +908,12 @@ def infidelity(pulse: 'PulseSequence',
 
     .. math::
 
-        \big\langle\mathcal{I}_\mathrm{e}\big\rangle_{\alpha\beta} &=
-                \frac{1}{2\pi d}\int_{-\infty}^{\infty}\mathrm{d}\omega\,
+        \mathcal{I}_{\alpha\beta}
+            &= 1 - \frac{1}{d^2}\mathrm{tr}\:\tilde{\mathcal{U}} \\
+            &= \frac{1}{d}\int_{-\infty}^{\infty}\frac{\mathrm{d}\omega}{2\pi}
                 S_{\alpha\beta}(\omega)F_{\alpha\beta}(\omega)
                 +\mathcal{O}\big(\xi^4\big) \\
-            &= \sum_{g,g'=1}^G \big\langle
-                \mathcal{I}_\mathrm{e}\big\rangle_{\alpha\beta}^{(gg')}
+            &= \sum_{g,g'=1}^G \mathcal{I}_{\alpha\beta}^{(gg')}
 
     with :math:`S_{\alpha\beta}(\omega)` the two-sided noise spectral density
     and :math:`F_{\alpha\beta}(\omega)` the first-order filter function for
@@ -918,9 +921,8 @@ def infidelity(pulse: 'PulseSequence',
     correlated noise sources, that is, its entry at :math:`(\alpha,\beta)`
     corresponds to the correlations between sources :math:`\alpha` and
     :math:`\beta`.
-    :math:`\big\langle\mathcal{I}_\mathrm{e}\big\rangle_{\alpha\beta}^{(gg')}`
-    are the correlation infidelities that can be computed by setting
-    ``which='correlations'``.
+    :math:`\mathcal{I}_{\alpha\beta}^{(gg')}` are the correlation
+    infidelities that can be computed by setting ``which='correlations'``.
 
     To convert to the average gate infidelity, use the
     following relation given by Horodecki et al. [Hor99]_ and
@@ -928,8 +930,7 @@ def infidelity(pulse: 'PulseSequence',
 
     .. math::
 
-        \big\langle\mathcal{I}_\mathrm{avg}\big\rangle = \frac{d}{d+1}
-                \big\langle\mathcal{I}_\mathrm{e}\big\rangle.
+        \mathcal{I}_\mathrm{avg} = \frac{d}{d+1}\mathcal{I}.
 
     The smallness parameter is given by
 
@@ -1154,12 +1155,6 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
             R_left, R_right = [f(r) for f, r in zip(funs, R)]
         else:
             R_left, R_right = [f(r) for f, r in zip(funs, [R]*2)]
-
-        if which_pulse == 'correlations':
-            subs = ['g', '', 'h', 'gh']
-        elif which_pulse == 'total':
-            subs = ['', '', '', '']
-
     elif F is not None:
         if which_FF == 'generalized':
             # Everything simpler if noise operators always on 2nd-to-last axes
@@ -1189,8 +1184,11 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
                 # basis elements, frequencies)
                 integrand = np.moveaxis(integrand, source=-2, destination=-4)
         elif R is not None:
-            s = [''.join(z) for z in zip(subs, ['ako', 'ao', 'alo', 'aklo'])]
-            einsum_str = ','.join(s[:3]) + '->' + s[3]
+            if which_pulse == 'correlations':
+                einsum_str = 'gako,ao,halo->ghaklo'
+            elif which_pulse == 'total':
+                einsum_str = 'ako,ao,alo->aklo'
+
             integrand = np.einsum(einsum_str, R_left, S, R_right).real
     elif S.ndim == 3:
         # General case where S is a matrix with correlation spectra on off-diag
@@ -1204,10 +1202,13 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
                 integrand = np.moveaxis(integrand, source=[-3, -2],
                                         destination=[-5, -4])
         elif R is not None:
-            s = [''.join(z) for z in zip(subs, ['ako', 'abo', 'alo', 'abklo'])]
-            einsum_str = ','.join(s[:3]) + '->' + s[3]
+            if which_pulse == 'correlations':
+                einsum_str = 'gako,abo,hblo->ghabklo'
+            elif which_pulse == 'total':
+                einsum_str = 'ako,abo,blo->abklo'
+
             integrand = np.einsum(einsum_str, R_left, S, R_right)
-    elif S.ndim > 3:
+    else:
         raise ValueError('Expected S to be array_like with < 4 dimensions')
 
     return integrand
