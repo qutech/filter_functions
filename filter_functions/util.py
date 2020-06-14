@@ -983,19 +983,22 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
 
 
 def symmetrize_spectrum(S: ndarray, omega: ndarray) -> Tuple[ndarray, ndarray]:
-    r"""
-    Symmetrize a one-sided power spectrum around zero frequency.
+    r"""Symmetrize a one-sided power spectrum around zero frequency.
+
+    Cross-spectra will have their real parts symmetrized and imaginary parts
+    anti-symmetrized such that for the correlation functions in time space
+    :math:`C_{\alpha\beta}(t) = C_{\beta\alpha}(-t)` holds.
 
     Parameters
     ----------
-    S: ndarray, shape (..., n_omega)
+    S: ndarray, shape ([[n_nops,] n_nops,] n_omega)
         The one-sided power spectrum.
     omega: ndarray, shape (n_omega,)
         The positive and strictly increasing frequencies.
 
     Returns
     -------
-    S: ndarray, shape (..., 2*n_omega)
+    S: ndarray, shape ([[n_nops,] n_nops,], 2*n_omega)
         The two-sided power spectrum.
     omega: ndarray, shape (2*n_omega,)
         The frequencies mirrored about zero.

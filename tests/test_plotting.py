@@ -35,7 +35,7 @@ import pytest
 import qutip as qt
 
 import filter_functions as ff
-from filter_functions import plotting
+from filter_functions import numeric, plotting
 from tests import testutil
 
 simple_pulse = testutil.rand_pulse_sequence(2, 1, 1, 1, btype='Pauli')
@@ -261,15 +261,15 @@ class PlottingTest(testutil.TestCase):
                                                     grid=grid)
 
         # Test calling with precomputed transfer matrix
-        K = ff.calculate_cumulant_function(simple_pulse, S, omega)
+        K = numeric.calculate_cumulant_function(simple_pulse, S, omega)
         fig, grid = plotting.plot_cumulant_function(K=K)
 
         # Test calling with precomputed transfer matrix and pulse
-        K = ff.calculate_cumulant_function(simple_pulse, S, omega)
+        K = numeric.calculate_cumulant_function(simple_pulse, S, omega)
         fig, grid = plotting.plot_cumulant_function(simple_pulse, K=K)
 
         # Test calling with precomputed transfer matrix of ndim == 2
-        K = ff.calculate_cumulant_function(simple_pulse, S, omega)
+        K = numeric.calculate_cumulant_function(simple_pulse, S, omega)
         fig, grid = plotting.plot_cumulant_function(K=K[0])
 
         # Log colorscale
@@ -288,7 +288,7 @@ class PlottingTest(testutil.TestCase):
         omega = ff.util.get_sample_frequencies(complicated_pulse, n_samples=50,
                                                spacing='log')
         S = np.exp(-omega**2)
-        K = ff.calculate_cumulant_function(complicated_pulse, S, omega)
+        K = numeric.calculate_cumulant_function(complicated_pulse, S, omega)
         fig, grid = plotting.plot_cumulant_function(
             complicated_pulse, S=S, omega=omega,
             n_oper_identifiers=n_oper_identifiers, basis_labels=basis_labels,

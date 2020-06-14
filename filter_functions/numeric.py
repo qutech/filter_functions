@@ -335,11 +335,13 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
     return R_tot
 
 
+@util.parse_optional_parameter('which', ('total', 'correlations'))
 def calculate_cumulant_function(
         pulse: 'PulseSequence',
         S: ndarray,
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
+        which: Optional[str] = 'total',
         show_progressbar: Optional[bool] = False,
         memory_parsimonious: Optional[bool] = False) -> ndarray:
     r"""Calculate the cumulant function :math:`K(\tau)`.
@@ -352,7 +354,7 @@ def calculate_cumulant_function(
     pulse: PulseSequence
         The ``PulseSequence`` instance for which to compute the cumulant
         function.
-    S: array_like, shape (..., n_omega)
+    S: array_like, shape ([[n_nops,] n_nops,] n_omega)
         The two-sided noise power spectral density in units of inverse
         frequencies as an array of shape (n_omega,), (n_nops, n_omega), or
         (n_nops, n_nops, n_omega). In the first case, the same spectrum is
@@ -369,6 +371,10 @@ def calculate_cumulant_function(
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to evaluate the
         cumulant function. The default is all.
+    which: str, optional
+        Which decay amplitudes should be calculated, may be either 'total'
+        (default) or 'correlations'. See :func:`infidelity` and
+        :ref:`Notes <notes>`.
     show_progressbar: bool, optional
         Show a progress bar for the calculation of the control matrix.
     memory_parsimonious: bool, optional
@@ -377,10 +383,12 @@ def calculate_cumulant_function(
 
     Returns
     -------
-    K: ndarray, shape ([n_nops,] n_nops, d**2, d**2)
+    K: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
         The cumulant function. The individual noise operator contributions
-        chosen by ``n_oper_identifiers`` are on the first axis / axes,
-        depending on whether the noise is cross-correlated or not.
+        chosen by ``n_oper_identifiers`` are on the third to last axis / axes,
+        depending on whether the noise is cross-correlated or not. If
+        ``which == 'correlations'``, the first two axes correspond to the
+        contributions of the pulses in the sequence.
 
     Notes
     -----
@@ -388,7 +396,7 @@ def calculate_cumulant_function(
 
     .. math::
 
-        K_{ij}(\tau) = -\frac{1}{2}\sum_{\alpha\beta} & \sum_{kl}\biggl(
+        K_{\alpha\beta,ij}(\tau) = -\frac{1}{2} \sum_{kl}\biggl(
             \Delta_{\alpha\beta,kl}\left(
                 T_{klji} - T_{lkji} - T_{klij} + T_{lkij}
             \right) + \Gamma_{\alpha\beta,kl}\left(
@@ -408,23 +416,38 @@ def calculate_cumulant_function(
 
     .. math::
 
-        K_{ij}(\tau) = \begin{cases}
-            - \sum_{k\neq i}\Gamma_{kk}                     &\qif* i = j,   \\
-                - \Delta_{ij} + \Delta_{ji} + \Gamma_{ij}   &\qif* i\neq j,
+        K_{\alpha\beta,ij}(\tau) = \begin{cases}
+            - \sum_{k\neq i}\Gamma_{\alpha\beta,kk}
+                &\quad\mathrm{if}\: i = j,   \\
+            - \Delta_{\alpha\beta,ij} + \Delta_{\alpha\beta,ji}
+            + \Gamma_{\alpha\beta,ij}
+                &\quad\mathrm{if}\: i\neq j,
         \end{cases}
 
     for :math:`i\in\{1,2,3\}` and :math:`K_{0j} = K_{i0} = 0`.
+
+    Lastly, the pulse correlation cumulant function resolves correlations in
+    the cumulant function of a sequence of pulses :math:`g = 1,\dotsc,G` such
+    that the following holds:
+
+    .. math::
+
+        K_{\alpha\beta,ij}(\tau) = \sum_{g,g'=1}^G
+             K_{\alpha\beta,ij}^{(gg')}(\tau).
 
     See Also
     --------
     calculate_decay_amplitudes: Calculate the :math:`\Gamma_{\alpha\beta,kl}`
     error_transfer_matrix: Calculate the error transfer matrix :math:`\exp K`.
     infidelity: Calculate only infidelity of a pulse.
+    pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
+    calculate_pulse_correlation_filter_function
 
     """
     N, d = pulse.basis.shape[:2]
     Gamma = calculate_decay_amplitudes(pulse, S, omega, n_oper_identifiers,
-                                       show_progressbar, memory_parsimonious)
+                                       which, show_progressbar,
+                                       memory_parsimonious)
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
@@ -439,18 +462,18 @@ def calculate_cumulant_function(
         # start at K_11.
         diag_items = deque((True, False, True, True))
         for i in range(1, N):
-            K[..., i, i] = -Gamma[..., diag_items, diag_items].sum(axis=-1)
+            K[..., i, i] = - Gamma[..., diag_items, diag_items].sum(axis=-1)
             # shift the item not summed over by one
             diag_items.rotate()
     else:
         # Multi qubit case. Use general expression.
         T = pulse.basis.four_element_traces
-        K = (oe.contract('...kl,lkji->...ij', Gamma, T, backend='sparse') +
-             oe.contract('...kl,klij->...ij', Gamma, T, backend='sparse') -
-             oe.contract('...kl,klji->...ij', Gamma, T, backend='sparse') -
-             oe.contract('...kl,lkij->...ij', Gamma, T, backend='sparse'))/2
+        K = - (oe.contract('...kl,klji->...ij', Gamma, T, backend='sparse') -
+               oe.contract('...kl,kjli->...ij', Gamma, T, backend='sparse') -
+               oe.contract('...kl,kilj->...ij', Gamma, T, backend='sparse') +
+               oe.contract('...kl,kijl->...ij', Gamma, T, backend='sparse'))/2
 
-    return K
+    return K.real
 
 
 @util.parse_optional_parameter('which', ('total', 'correlations'))
@@ -471,7 +494,7 @@ def calculate_decay_amplitudes(
     pulse: PulseSequence
         The ``PulseSequence`` instance for which to compute the decay
         amplitudes.
-    S: array_like, shape ([n_nops, n_nops,] n_omega)
+    S: array_like, shape ([[n_nops,] n_nops,] n_omega)
         The two-sided noise power spectral density. If 1-d, the same spectrum
         is used for all noise operators. If 2-d, one (self-) spectrum for each
         noise operator is expected. If 3-d, should be a matrix of cross-spectra
@@ -508,7 +531,7 @@ def calculate_decay_amplitudes(
 
     Returns
     -------
-    Gamma: ndarray, shape ([n_pls, n_pls, n_nops, n_nops,] d**2, d**2)
+    Gamma: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
         The decay amplitudes.
 
     Notes
@@ -539,7 +562,7 @@ def calculate_decay_amplitudes(
     idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
     if which == 'total':
         R = pulse.get_control_matrix(omega, show_progressbar)[idx]
-    elif which =='correlations':
+    elif which == 'correlations':
         # Check if cached frequencies coincide with given
         if pulse.is_cached('omega'):
             if not np.array_equal(pulse.omega, omega):
@@ -552,11 +575,11 @@ def calculate_decay_amplitudes(
     if not memory_parsimonious:
         integrand = _get_integrand(S, omega, idx, which, 'generalized', R=R)
         Gamma = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
-        return Gamma
+        return Gamma.real
 
     # Conserve memory by looping. Let _get_integrand determine the shape
     integrand = _get_integrand(S, omega, idx, which, 'generalized',
-                               R=[R[..., 0:1], R])
+                               R=[R[..., 0:1, :], R])
 
     n_kl = R.shape[1]
     Gamma = np.zeros(integrand.shape[:-3] + (n_kl,)*2,
@@ -566,11 +589,11 @@ def calculate_decay_amplitudes(
     for k in util.progressbar_range(1, n_kl, show_progressbar=show_progressbar,
                                     desc='Integrating'):
         integrand = _get_integrand(S, omega, idx, which, 'generalized',
-                                   R=[R[..., k:k+1], R])
+                                   R=[R[..., k:k+1, :], R])
         Gamma[..., k:k+1, :] = integrate.trapz(integrand, omega,
                                                axis=-1)/(2*np.pi)
 
-    return Gamma
+    return Gamma.real
 
 
 @util.parse_which_FF_parameter
@@ -631,6 +654,9 @@ def calculate_pulse_correlation_filter_function(
     ----------
     R: array_like, shape (n_pulses, n_nops, d**2, n_omega)
         The control matrix.
+    which : str, optional
+        Which filter function to return. Either 'fidelity' (default) or
+        'generalized' (see :ref:`Notes <notes>`).
 
     Returns
     -------
@@ -638,9 +664,6 @@ def calculate_pulse_correlation_filter_function(
         The pulse correlation filter functions for each pulse and noise
         operator correlations. The first two axes hold the pulse correlations,
         the second two the noise correlations.
-    which : str, optional
-        Which filter function to return. Either 'fidelity' (default) or
-        'generalized' (see :ref:`Notes <notes>`).
 
     Notes
     -----
@@ -747,7 +770,7 @@ def error_transfer_matrix(
     pulse: PulseSequence
         The ``PulseSequence`` instance for which to compute the error transfer
         matrix.
-    S: array_like, shape (..., n_omega)
+    S: array_like, shape ([[n_nops,] n_nops,] n_omega)
         The two-sided noise power spectral density in units of inverse
         frequencies as an array of shape (n_omega,), (n_nops, n_omega), or
         (n_nops, n_nops, n_omega). In the first case, the same spectrum is
@@ -763,7 +786,10 @@ def error_transfer_matrix(
         about zero.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to evaluate the
-        error transfer matrix. The default is all.
+        error transfer matrix. The default is all. Note that, since in general
+        contributions from different noise operators won't commute, not
+        selecting all noise operators results in neglecting terms of order
+        :math:`\xi^4`.
     show_progressbar: bool, optional
         Show a progress bar for the calculation of the control matrix.
     memory_parsimonious: bool, optional
@@ -810,9 +836,10 @@ def error_transfer_matrix(
     infidelity: Calculate only infidelity of a pulse.
     """
     K = calculate_cumulant_function(pulse, S, omega, n_oper_identifiers,
-                                    show_progressbar, memory_parsimonious)
+                                    'total', show_progressbar,
+                                    memory_parsimonious)
 
-    U = sla.expm(K.sum(axis=list(range(K.ndim - 2))))
+    U = sla.expm(K.sum(axis=tuple(range(K.ndim - 2))))
     return U
 
 
@@ -836,7 +863,7 @@ def infidelity(pulse: 'PulseSequence',
     pulse: PulseSequence
         The ``PulseSequence`` instance for which to calculate the infidelity
         for.
-    S: array_like or callable
+    S: array_like, shape ([[n_nops,] n_nops,] omega) or callable
         The two-sided noise power spectral density in units of inverse
         frequencies as an array of shape (n_omega,), (n_nops, n_omega), or
         (n_nops, n_nops, n_omega). In the first case, the same spectrum is
@@ -883,7 +910,7 @@ def infidelity(pulse: 'PulseSequence',
 
     Returns
     -------
-    infid: ndarray
+    infid: ndarray, shape ([[n_pls, n_pls,], n_nops,] n_nops)
         Array with the infidelity contributions for each spectrum *S* on the
         last axis or axes, depending on the shape of *S* and *which*. If
         ``which`` is ``correlations``, the first two axes are the individual
@@ -1041,7 +1068,7 @@ def infidelity(pulse: 'PulseSequence',
         F = pulse.get_pulse_correlation_filter_function()
 
     integrand = _get_integrand(S, omega, idx, which, 'fidelity', F=F)
-    infid = integrate.trapz(integrand, omega)/(2*np.pi*pulse.d)
+    infid = integrate.trapz(integrand, omega).real/(2*np.pi*pulse.d)
 
     if return_smallness:
         if S.ndim > 2:
@@ -1115,7 +1142,7 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
 
     Parameters
     ----------
-    S: array_like, shape (..., n_omega)
+    S: array_like, shape ([[n_nops,] n_nops,] n_omega)
         The two-sided noise power spectral density.
     omega: array_like,
         The frequencies. Note that the frequencies are assumed to be symmetric
@@ -1197,7 +1224,7 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
             raise ValueError(S_err_str.format(shape, S.shape))
 
         if F is not None:
-            integrand = F*S
+            integrand = F[..., idx[:, None], idx, :]*S
             if which_FF == 'generalized':
                 integrand = np.moveaxis(integrand, source=[-3, -2],
                                         destination=[-5, -4])

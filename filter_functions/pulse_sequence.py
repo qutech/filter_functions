@@ -480,7 +480,7 @@ class PulseSequence:
         ----------
         omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R: array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
+        R: array_like, shape ([n_nops,] n_nops, d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed.
         show_progressbar: bool
@@ -600,14 +600,14 @@ class PulseSequence:
         ----------
         omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R: array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
+        R: array_like, shape ([n_nops,] n_nops, d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed and the filter function derived from it.
         F: array_like, shape (n_nops, n_nops, [d**2, d**2,] n_omega), optional
             The filter function for the frequencies *omega*. If ``None``, it is
             computed from R.
         which: str, optional
-            Which filter function to return. Either 'fidelity' (default) or
+            Which filter function to cache. Either 'fidelity' (default) or
             'generalized'.
         show_progressbar: bool
             Show a progress bar for the calculation of the control matrix.
@@ -667,7 +667,7 @@ class PulseSequence:
 
         Returns
         -------
-        F_pc: ndarray, shape (n_pulses, n_pulses, n_nops, n_nops, n_omega)
+        F_pc: ndarray, shape (n_pls, n_pls, n_nops, n_nops, n_omega)
             The pulse correlation filter function for each noise operator as a
             function of omega. The first two axes correspond to the pulses in
             the sequence, i.e. if the concatenated pulse sequence is

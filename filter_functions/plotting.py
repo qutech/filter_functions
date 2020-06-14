@@ -678,12 +678,11 @@ def plot_cumulant_function(
                                                         n_oper_identifiers,
                                                         'noise')
         n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
-        # Get the cumulant function
         K = numeric.calculate_cumulant_function(pulse, S, omega,
-                                                n_oper_identifiers)
+                                                n_oper_identifiers, 'total')
         if K.ndim == 4:
             # Only autocorrelated noise supported
-            K = K[range(len(n_oper_inds)), range(len(n_oper_inds))]
+            K = K[tuple(n_oper_inds), tuple(n_oper_inds)]
 
     # Only autocorrelated noise implemented for now, ie U is real
     K = K.real

@@ -23,6 +23,7 @@ This module tests if the package produces the correct results numerically.
 """
 
 import numpy as np
+from scipy import linalg as sla
 import qutip as qt
 
 import filter_functions as ff
@@ -259,9 +260,9 @@ class PrecisionTest(testutil.TestCase):
             infid, xi = ff.infidelity(cnot, S_t, omega_t, identifiers[:3],
                                       return_smallness=True)
 
-            U = ff.error_transfer_matrix(cnot_full, S_t, omega_t,
-                                         identifiers[:3])
-            infid_P = np.trace(U[:, :16, :16], axis1=1, axis2=2).real/4**2
+            K = numeric.calculate_cumulant_function(cnot_full, S_t, omega_t,
+                                                    identifiers[:3])
+            infid_P = - np.trace(K[:, :16, :16], axis1=1, axis2=2).real/4**2
 
             print(np.abs(1 - (infid.sum()/MC)))
             print(np.abs(1 - (infid_P.sum()/MC)))
@@ -274,15 +275,15 @@ class PrecisionTest(testutil.TestCase):
         testutil.rng.seed(123456789)
 
         spectra = [
-            lambda S0, omega: S0*omega**0,
-            lambda S0, omega: S0/omega**0.7,
-            lambda S0, omega: S0*np.exp(-omega),
+            lambda S0, omega: S0*abs(omega)**0,
+            lambda S0, omega: S0/abs(omega)**0.7,
+            lambda S0, omega: S0*np.exp(-abs(omega)),
             # different spectra for different n_opers
-            lambda S0, omega: np.array([S0*omega**0, S0/omega**0.7]),
+            lambda S0, omega: np.array([S0*abs(omega)**0, S0/abs(omega)**0.7]),
             # cross-correlated spectra
             lambda S0, omega: np.array(
-                [[S0/omega**0.7, (1 + 1j)*S0*np.exp(-omega)],
-                 [(1 - 1j)*S0*np.exp(-omega), S0/omega**0.7]]
+                [[S0/abs(omega)**0.7, S0/(1 + omega**2) + 1j*S0*omega],
+                 [S0/(1 + omega**2) - 1j*S0*omega, S0/abs(omega)**0.7]]
             )
         ]
 
@@ -291,20 +292,20 @@ class PrecisionTest(testutil.TestCase):
             [0.65826575772, 1.042914346335],
             [0.163303005479, 0.239032549377],
             [0.448468950307, 1.042914346335],
-            [[0.65826575772, 0.069510589685+0.069510589685j],
-             [0.069510589685-0.069510589685j, 1.042914346335]],
+            [[0.65826575772, 0.458623551679],
+             [0.458623551679, 1.042914346335]],
             [3.687399348243, 3.034914820757],
             [2.590545568435, 3.10093804628],
             [0.55880380219, 0.782544974968],
             [3.687399348243, 3.10093804628],
-            [[2.590545568435, -0.114514760108-0.114514760108j],
-             [-0.114514760108+0.114514760108j, 3.10093804628]],
+            [[2.590545568435, 0.577397865625],
+             [0.577397865625, 3.10093804628]],
             [2.864567451344, 1.270260393902],
             [1.847740998731, 1.559401345443],
             [0.362116177417, 0.388022992097],
             [2.864567451344, 1.559401345443],
-            [[1.847740998731, 0.088373663409+0.088373663409j],
-             [0.088373663409-0.088373663409j, 1.559401345443]]
+            [[1.847740998731, 0.741483515315],
+             [0.741483515315, 1.559401345443]]
         )
 
         count = 0
@@ -390,70 +391,71 @@ class PrecisionTest(testutil.TestCase):
 
             # Single spectrum
             # Assert fidelity is same as computed by infidelity()
-            S = 1e-2/omega**2
+            S = 1e-8/omega**2
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop
             Up = ff.error_transfer_matrix(pulse, S, omega,
                                           memory_parsimonious=True)
-            self.assertArrayAlmostEqual(Up, U)
-            I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', U)/d**2
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity)
-
-            # Check that _single_qubit_error_transfer_matrix and
-            # _multi_qubit_... # give the same
+            # Calculate on foot (multi-qubit way)
             Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega,
                                                        n_oper_identifiers)
-            U_multi = (np.einsum('...kl,klij->...ij', Gamma, traces)/2 +
-                       np.einsum('...kl,klji->...ij', Gamma, traces)/2 -
-                       np.einsum('...kl,kilj->...ij', Gamma, traces))
-            self.assertArrayAlmostEqual(U, U_multi, atol=1e-14)
+            K = -(np.einsum('...kl,klji->...ij', Gamma, traces) -
+                  np.einsum('...kl,kjli->...ij', Gamma, traces) -
+                  np.einsum('...kl,kilj->...ij', Gamma, traces) +
+                  np.einsum('...kl,kijl->...ij', Gamma, traces))/2
+            U_onfoot = sla.expm(K.sum(0))
+            I_fidelity = ff.infidelity(pulse, S, omega)
+            I_decayamps = -np.einsum('...ii', K)/d**2
+            I_transfer = 1 - np.einsum('...ii', U)/d**2
+            self.assertArrayAlmostEqual(Up, U)
+            self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
+                                        rtol=1e-4)
+            self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
 
             # Different spectra for each noise oper
-            S = np.outer(1e-2*np.arange(1, 3), 400/(omega**2 + 400))
+            S = np.outer(1e-6*np.arange(1, 3), 400/(omega**2 + 400))
             U = ff.error_transfer_matrix(pulse, S, omega)
-            # Calculate U in loop
             Up = ff.error_transfer_matrix(pulse, S, omega,
                                           memory_parsimonious=True)
-            self.assertArrayAlmostEqual(Up, U)
-            I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', U)/d**2
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity)
-
-            # Check that _single_qubit_error_transfer_matrix and
-            # _multi_qubit_... # give the same
             Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega,
                                                        n_oper_identifiers)
-            U_multi = (np.einsum('...kl,klij->...ij', Gamma, traces)/2 +
-                       np.einsum('...kl,klji->...ij', Gamma, traces)/2 -
-                       np.einsum('...kl,kilj->...ij', Gamma, traces))
-            self.assertArrayAlmostEqual(U, U_multi, atol=1e-14)
+            K = -(np.einsum('...kl,klji->...ij', Gamma, traces) -
+                  np.einsum('...kl,kjli->...ij', Gamma, traces) -
+                  np.einsum('...kl,kilj->...ij', Gamma, traces) +
+                  np.einsum('...kl,kijl->...ij', Gamma, traces))/2
+            U_onfoot = sla.expm(K.sum(0))
+            I_fidelity = ff.infidelity(pulse, S, omega)
+            I_decayamps = -np.einsum('...ii', K)/d**2
+            I_transfer = 1 - np.einsum('...ii', U)/d**2
+            self.assertArrayAlmostEqual(Up, U)
+            self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
+                                        rtol=1e-4)
+            self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
 
-            # Cross-correlated spectra
-            S = np.einsum('i,j,o->ijo',
-                          1e-2*np.arange(1, 3), 1e-2*np.arange(1, 3),
-                          400/(omega**2 + 400), dtype=complex)
-            # Cross spectra are complex
-            S[0, 1] *= 1 + 1j
-            S[1, 0] *= 1 - 1j
+            # Cross-correlated spectra are complex, real part symmetric and
+            # imaginary part antisymmetric
+            S = np.array([[1e-6/abs(omega), 1e-8/abs(omega) + 1j*1e-8/omega],
+                          [1e-8/abs(omega) - 1j*1e-8/omega, 2e-6/abs(omega)]])
             U = ff.error_transfer_matrix(pulse, S, omega)
-            # Calculate U in loop
             Up = ff.error_transfer_matrix(pulse, S, omega,
                                           memory_parsimonious=True)
-            self.assertArrayAlmostEqual(Up, U)
-            I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', U)/d**2
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity)
-
-            # Check that _single_qubit_error_transfer_matrix and
-            # _multi_qubit_... # give the same
             Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega,
                                                        n_oper_identifiers)
-            U_multi = np.zeros_like(U)
-            U_multi = (np.einsum('...kl,klij->...ij', Gamma, traces)/2 +
-                       np.einsum('...kl,klji->...ij', Gamma, traces)/2 -
-                       np.einsum('...kl,kilj->...ij', Gamma, traces))
-            self.assertArrayAlmostEqual(U, U_multi, atol=1e-16)
+            K = -(np.einsum('...kl,klji->...ij', Gamma, traces) -
+                  np.einsum('...kl,kjli->...ij', Gamma, traces) -
+                  np.einsum('...kl,kilj->...ij', Gamma, traces) +
+                  np.einsum('...kl,kijl->...ij', Gamma, traces))/2
+            U_onfoot = sla.expm(K.sum((0, 1)))
+            I_fidelity = ff.infidelity(pulse, S, omega)
+            I_decayamps = -np.einsum('...ii', K)/d**2
+            I_transfer = 1 - np.einsum('...ii', U)/d**2
+            self.assertArrayAlmostEqual(Up, U)
+            self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
+                                        rtol=1e-4)
+            self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
 
     def test_multi_qubit_error_transfer_matrix(self):
         """Test the calculation of the multi-qubit transfer matrix"""
@@ -468,36 +470,40 @@ class PrecisionTest(testutil.TestCase):
             omega = ff.util.get_sample_frequencies(pulse, n_samples=51)
 
             # Assert fidelity is same as computed by infidelity()
-            S = 1e-2/omega**2
+            S = 1e-8/omega**2
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop
             Up = ff.error_transfer_matrix(pulse, S, omega,
                                           memory_parsimonious=True)
-            self.assertArrayAlmostEqual(Up, U)
             I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', U)/d**2
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity)
+            I_transfer = 1 - np.einsum('...ii', U)/d**2
+            self.assertArrayAlmostEqual(Up, U)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
+                                        rtol=1e-4)
 
-            S = np.outer(1e-2*(np.arange(n_nops) + 1),
+            S = np.outer(1e-7*(np.arange(n_nops) + 1),
                          400/(omega**2 + 400))
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop
             Up = ff.error_transfer_matrix(pulse, S, omega,
                                           memory_parsimonious=True)
-            self.assertArrayAlmostEqual(Up, U)
             I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', U)/d**2
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity)
+            I_transfer = 1 - np.einsum('...ii', U)/d**2
+            self.assertArrayAlmostEqual(Up, U)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
+                                        rtol=1e-4)
 
-            S = np.einsum('i,j,o->ijo',
-                          1e-2*(np.arange(n_nops) + 1),
-                          1e-2*(np.arange(n_nops) + 1),
-                          400/(omega**2 + 400))
+            S = np.tile(1e-8/abs(omega)**2, (n_nops, n_nops, 1)).astype(
+                complex)
+            S[np.triu_indices(n_nops, 1)].imag = 1e-10*omega
+            S[np.tril_indices(n_nops, -1)].imag = \
+                - S[np.triu_indices(n_nops, 1)].imag
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop
             Up = ff.error_transfer_matrix(pulse, S, omega,
                                           memory_parsimonious=True)
-            self.assertArrayAlmostEqual(Up, U)
             I_fidelity = ff.infidelity(pulse, S, omega)
-            I_transfer = np.einsum('...ii', U)/d**2
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity)
+            I_transfer = 1 - np.einsum('...ii', U)/d**2
+            self.assertArrayAlmostEqual(Up, U)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
+                                        rtol=1e-4)
