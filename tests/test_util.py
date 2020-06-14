@@ -561,6 +561,31 @@ class UtilTest(testutil.TestCase):
         self.assertArrayEqual(S_sym, np.abs(np.arange(-9, 10)/2))
         self.assertArrayEqual(omega_sym, np.arange(-9, 10))
 
+        # Cross-correlated spectra
+        S = np.array([[np.ones_like(asym_omega),
+                       np.ones_like(asym_omega) + 1j*asym_omega],
+                      [np.ones_like(asym_omega) - 1j*asym_omega,
+                       np.ones_like(asym_omega)]])
+        S_symmetrized, omega_symmetrized = util.symmetrize_spectrum(S,
+                                                                    asym_omega)
+        self.assertArrayEqual(omega_symmetrized, sym_omega)
+        self.assertArrayEqual(S_symmetrized[..., 99::-1].real,
+                              S_symmetrized[..., 100:].real)
+        self.assertArrayEqual(S_symmetrized[..., 99::-1].imag,
+                              - S_symmetrized[..., 100:].imag)
+        self.assertArrayEqual(S_symmetrized[..., 100:]*2, S)
+        self.assertArrayEqual(S_symmetrized[..., 99::-1]*2, S.conj())
+
+        # zero frequency not doubled
+        omega = np.arange(10)
+        S_sym, omega_sym = util.symmetrize_spectrum(omega, omega)
+        self.assertArrayEqual(S_sym, np.abs(np.arange(-9, 10)/2))
+        self.assertArrayEqual(omega_sym, np.arange(-9, 10))
+
+        with self.assertRaises(ValueError):
+            util.symmetrize_spectrum(testutil.rng.randn(2, 2, 2, omega.size),
+                                     omega)
+
     def test_simple_progressbar(self):
         with self.assertRaises(TypeError):
             for i in util._simple_progressbar((i for i in range(10))):

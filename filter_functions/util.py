@@ -1015,8 +1015,25 @@ def symmetrize_spectrum(S: ndarray, omega: ndarray) -> Tuple[ndarray, ndarray]:
         ix = 0
 
     omega = np.concatenate((-omega[::-1], omega[ix:]))
-    S = np.concatenate((S[..., ::-1], S[ix:]), axis=-1)/2
-    return S, omega
+    S_one = np.asarray(S)
+    S_two_real = np.concatenate(
+        (S_one[..., ::-1].real, S_one[..., ix:].real), axis=-1
+    )/2
+    if S_one.ndim < 3:
+        S_two = S_two_real
+    elif S_one.ndim == 3:
+        # Cross-correlated noise
+        diag = np.eye(S_one.shape[0], dtype=bool)
+        S_two_imag = np.zeros_like(S_two_real)
+        S_two_imag[~diag] = np.concatenate(
+            (-S_one[~diag, ::-1].imag, S_one[~diag, ix:].imag), axis=-1
+        )/2
+
+        S_two = S_two_real + 1j*S_two_imag
+    else:
+        raise ValueError('Expected S.ndim <= 3 but found {}'.format(S.ndim))
+
+    return S_two, omega
 
 
 def hash_array_along_axis(arr: ndarray, axis: int = 0) -> List[int]:
