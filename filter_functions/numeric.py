@@ -347,7 +347,7 @@ def calculate_cumulant_function(
     r"""Calculate the cumulant function :math:`K(\tau)`.
 
     The error transfer matrix is obtained from the cumulant function by
-    exponentiation, :math:`\tilde{\mathcal{U}} = \exp K(\tau)`.
+    exponentiation, :math:`\langle\tilde{\mathcal{U}}\rangle = \exp K(\tau)`.
 
     Parameters
     ----------
@@ -390,6 +390,8 @@ def calculate_cumulant_function(
         ``which == 'correlations'``, the first two axes correspond to the
         contributions of the pulses in the sequence.
 
+    .. _notes:
+
     Notes
     -----
     The cumulant function is given by
@@ -397,9 +399,9 @@ def calculate_cumulant_function(
     .. math::
 
         K_{\alpha\beta,ij}(\tau) = -\frac{1}{2} \sum_{kl}\biggl(
-            \Delta_{\alpha\beta,kl}\left(
+            &\Delta_{\alpha\beta,kl}\left(
                 T_{klji} - T_{lkji} - T_{klij} + T_{lkij}
-            \right) + \Gamma_{\alpha\beta,kl}\left(
+            \right) \\ + &\Gamma_{\alpha\beta,kl}\left(
                 T_{klji} - T_{kjli} - T_{kilj} + T_{kijl}
             \right)
         \biggr)
@@ -534,6 +536,8 @@ def calculate_decay_amplitudes(
     Gamma: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
         The decay amplitudes.
 
+    .. _notes:
+
     Notes
     -----
     The total decay amplitudes are given by
@@ -614,6 +618,8 @@ def calculate_filter_function(R: ndarray, which: str = 'fidelity') -> ndarray:
         The filter functions for each noise operator correlation. The diagonal
         corresponds to the filter functions for uncorrelated noise sources.
 
+    .. _notes:
+
     Notes
     -----
     The generalized filter function is given by
@@ -664,6 +670,8 @@ def calculate_pulse_correlation_filter_function(
         The pulse correlation filter functions for each pulse and noise
         operator correlations. The first two axes hold the pulse correlations,
         the second two the noise correlations.
+
+    .. _notes:
 
     Notes
     -----
@@ -757,9 +765,10 @@ def diagonalize(H: ndarray, dt: Coefficients) -> Tuple[ndarray]:
 
 
 def error_transfer_matrix(
-        pulse: 'PulseSequence',
-        S: ndarray,
-        omega: Coefficients,
+        pulse: Optional['PulseSequence'] = None,
+        S: Optional[ndarray] = None,
+        omega: Optional[Coefficients] = None,
+        K: Optional[ndarray] = None,
         n_oper_identifiers: Optional[Sequence[str]] = None,
         show_progressbar: Optional[bool] = False,
         memory_parsimonious: Optional[bool] = False) -> ndarray:

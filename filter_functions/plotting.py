@@ -610,13 +610,13 @@ def plot_cumulant_function(
     ----------
     pulse: 'PulseSequence'
         The pulse sequence.
-    S: ndarray
+    S: array_like, shape ([[n_nops,] n_nops,] n_omega)
         The two-sided noise spectrum.
     omega: array_like
         The frequencies for which to evaluate the cumulant function. Note that
         they should be symmetric around zero, that is, include negative
         frequencies.
-    K: ndarray, shape
+    K: ndarray, shape (n_nops, d**2, d**2)
         A precomputed cumulant function. If given, *pulse*, *S*, *omega*
         are not required.
     n_oper_identifiers: array_like, optional
@@ -671,8 +671,8 @@ def plot_cumulant_function(
 
     else:
         if pulse is None or S is None or omega is None:
-            raise ValueError('Require either precomputed cumulant function ' +
-                             'or pulse, S, and omega as arguments.')
+            raise ValueError('Require either precomputed cumulant function K' +
+                             ' or pulse, S, and omega as arguments.')
 
         n_oper_inds = util.get_indices_from_identifiers(pulse,
                                                         n_oper_identifiers,
