@@ -793,6 +793,9 @@ def error_transfer_matrix(
     omega: array_like,
         The frequencies. Note that the frequencies are assumed to be symmetric
         about zero.
+    K: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
+        A precomputed cumulant function. If given, *pulse*, *S*, *omega*
+        are not required.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to evaluate the
         error transfer matrix. The default is all. Note that, since in general
@@ -844,11 +847,22 @@ def error_transfer_matrix(
     calculate_decay_amplitudes: Calculate the :math:`\Gamma_{\alpha\beta,kl}`
     infidelity: Calculate only infidelity of a pulse.
     """
-    K = calculate_cumulant_function(pulse, S, omega, n_oper_identifiers,
-                                    'total', show_progressbar,
-                                    memory_parsimonious)
+    if K is None:
+        if pulse is None or S is None or omega is None:
+            raise ValueError('Require either precomputed cumulant function K' +
+                             ' or pulse, S, and omega as arguments.')
 
-    U = sla.expm(K.sum(axis=tuple(range(K.ndim - 2))))
+        K = calculate_cumulant_function(pulse, S, omega, n_oper_identifiers,
+                                        'total', show_progressbar,
+                                        memory_parsimonious)
+
+    try:
+        U = sla.expm(K.sum(axis=tuple(range(K.ndim - 2))))
+    except AttributeError as aerr:
+        raise TypeError('K invalid type: {}'.format(type(K))) from aerr
+    except ValueError as verr:
+        raise ValueError('K invalid shape: {}'.format(K.shape)) from verr
+
     return U
 
 
