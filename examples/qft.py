@@ -34,6 +34,7 @@ import numpy as np
 import filter_functions as ff
 import qutip as qt
 from qutip import qip
+from qutip.qip.algorithms.qft import qft as qt_qft
 
 # %% Define some functions
 
@@ -147,7 +148,7 @@ swaps = [qip.operations.swap(N, [i, j]).full()
 prop = ff.util.mdot(swaps) @ QFT.total_Q
 qt.matrix_histogram_complex(prop)
 print('Correct action: ',
-      ff.util.oper_equiv(prop, qip.algorithms.qft.qft(N), eps=1e-14))
+      ff.util.oper_equiv(prop, qt_qft(N), eps=1e-14))
 
 fig, ax, _ = ff.plot_filter_function(QFT, omega)
 # Move the legend to the side because of many entries
