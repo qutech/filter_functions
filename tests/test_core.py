@@ -783,16 +783,28 @@ class CoreTest(testutil.TestCase):
         self.assertArrayAlmostEqual(infid_1, infid_2.sum(axis=(0, 1)))
 
     def test_calculate_decay_amplitudes(self):
-        """Test raises of numeric.error_transfer_matrix"""
+        """Test raises of numeric.calculate_decay_amplitudes"""
         pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
-
         omega = testutil.rng.randn(43)
-        # single spectrum
         S = testutil.rng.randn(78)
         for i in range(4):
             with self.assertRaises(ValueError):
                 numeric.calculate_decay_amplitudes(pulse, np.tile(S, [1]*i),
                                                    omega)
+
+    def test_error_transfer_matrix(self):
+        """Test raises of numeric.error_transfer_matrix."""
+        pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
+        omega = testutil.rng.randn(43)
+        S = np.ones_like(omega)
+        with self.assertRaises(ValueError):
+            ff.error_transfer_matrix(pulse, S)
+
+        with self.assertRaises(TypeError):
+            ff.error_transfer_matrix(K=[1, 2, 3])
+
+        with self.assertRaises(ValueError):
+            ff.error_transfer_matrix(K=testutil.rng.randn(2, 3, 4))
 
     def test_infidelity_convergence(self):
         import matplotlib
