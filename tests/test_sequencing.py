@@ -30,7 +30,7 @@ from random import sample
 import numpy as np
 
 import filter_functions as ff
-from filter_functions import pulse_sequence, util
+from filter_functions import numeric, pulse_sequence, util
 from tests import testutil
 
 
@@ -516,6 +516,61 @@ class ConcatenationTest(testutil.TestCase):
         self.assertArrayAlmostEqual(F_LAB, F_CC, atol=1e-13)
         self.assertArrayAlmostEqual(F_LAB, F_CC_PERIODIC, atol=1e-13)
 
+    def test_pulse_correlations(self):
+        """Test calculating pulse correlation quantities."""
+        for d, n_dt in zip(testutil.rng.randint(2, 9, 11),
+                           testutil.rng.randint(1, 11, 11)):
+            pulses = [testutil.rand_pulse_sequence(d, n_dt, 1, 2)
+                      for _ in range(testutil.rng.randint(2, 7))]
+            for pulse in pulses[1:]:
+                # Otherwise cannot concatenate
+                pulse.n_opers = pulses[0].n_opers
+                pulse.n_oper_identifiers = pulses[0].n_oper_identifiers
+
+            omega = util.get_sample_frequencies(pulse, n_samples=51)
+            pulse = ff.concatenate(pulses, calc_pulse_correlation_ff=True,
+                                   omega=omega)
+
+            spectra = [
+                1e-6/abs(omega),
+                1e-6/np.power.outer(abs(omega), np.arange(2)).T,
+                np.array([[1e-6/abs(omega)**0.7,
+                           1e-6/(1 + omega**2) + 1j*1e-6*omega],
+                          [1e-6/(1 + omega**2) - 1j*1e-6*omega,
+                           1e-6/abs(omega)**0.7]])
+            ]
+
+            idx = testutil.rng.choice(np.arange(2), testutil.rng.randint(1, 3),
+                                      replace=False)
+            identifiers = pulse.n_oper_identifiers[idx]
+
+            funcs = [numeric.infidelity,
+                     numeric.calculate_decay_amplitudes,
+                     numeric.calculate_cumulant_function]
+
+            for i, spectrum in enumerate(spectra):
+                if i == 0:
+                    S = spectrum
+                elif i == 1:
+                    S = spectrum[idx]
+                elif i == 3:
+                    S = spectrum[idx[None, :], idx]
+
+                for func in funcs:
+                    with self.assertRaises(util.CalculationError):
+                        func(ff.concatenate(pulses), S, omega,
+                             which='correlations')
+
+                    with self.assertRaises(ValueError):
+                        func(pulse, S, omega + 1, which='correlations')
+
+                    correl = func(pulse, S, omega, identifiers,
+                                  which='correlations')
+                    total = func(pulse, S, omega, identifiers,
+                                  which='total')
+
+                    self.assertArrayAlmostEqual(correl.sum((0, 1)), total,
+                                                atol=1e-14)
 
 class ExtensionTest(testutil.TestCase):
 

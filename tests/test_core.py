@@ -586,8 +586,7 @@ class CoreTest(testutil.TestCase):
                 basis=total_pulse.basis,
                 n_opers=n_opers,
                 n_coeffs=n_coeffs,
-                dt=total_pulse.dt,
-                t=total_pulse.t
+                dt=total_pulse.dt
             )
             self.assertArrayAlmostEqual(R, R_from_scratch)
             # first column (identity element) always zero but susceptible to
