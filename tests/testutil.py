@@ -146,10 +146,7 @@ def rand_herm_traceless(d: int, n: int = 1) -> np.ndarray:
 def rand_unit(d: int, n: int = 1) -> np.ndarray:
     """n random unitary matrices of dimension d"""
     H = rand_herm(d, n)
-    if n == 1:
-        return sla.expm(1j*H)
-    else:
-        return np.array([sla.expm(1j*h) for h in H])
+    return np.array([sla.expm(1j*h) for h in H])
 
 
 def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
