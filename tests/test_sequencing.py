@@ -529,7 +529,7 @@ class ConcatenationTest(testutil.TestCase):
 
             omega = util.get_sample_frequencies(pulse, n_samples=51)
             pulse = ff.concatenate(pulses, calc_pulse_correlation_ff=True,
-                                   omega=omega)
+                                   omega=omega, which='generalized')
 
             spectra = [
                 1e-6/abs(omega),

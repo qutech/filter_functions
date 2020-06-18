@@ -568,11 +568,9 @@ def calculate_decay_amplitudes(
         # Faster to use filter function instead of control matrix
         if pulse.is_cached('F_kl'):
             R = None
-            F = pulse.get_filter_function(
-                omega, which='generalized'
-            )[idx[None, :], idx]
+            F = pulse.get_filter_function(omega, which='generalized')
         else:
-            R = pulse.get_control_matrix(omega, show_progressbar)[idx]
+            R = pulse.get_control_matrix(omega, show_progressbar)
             F = None
     elif which == 'correlations':
         if pulse.is_cached('omega'):
@@ -584,10 +582,9 @@ def calculate_decay_amplitudes(
         if pulse.is_cached('F_pc_kl'):
             R = None
             F = pulse.get_pulse_correlation_filter_function(
-                omega, which='generalized'
-            )[:, :, idx[None, :], idx]
+                    which='generalized')
         else:
-            R = pulse.get_pulse_correlation_control_matrix()[:, idx]
+            R = pulse.get_pulse_correlation_control_matrix()
             F = None
 
     if not memory_parsimonious:
@@ -597,18 +594,28 @@ def calculate_decay_amplitudes(
         return Gamma.real
 
     # Conserve memory by looping. Let _get_integrand determine the shape
-    integrand = _get_integrand(S, omega, idx, which, 'generalized',
-                               R=[R[..., 0:1, :], R], F=F)
+    if R is not None:
+        integrand = _get_integrand(S, omega, idx, which, 'generalized',
+                                   R=[R[..., 0:1, :], R], F=F)
+        n_kl = R.shape[-2]
+    elif F is not None:
+        integrand = _get_integrand(S, omega, idx, which, 'generalized',
+                                   R=R, F=F[..., 0:1, :, :])
+        n_kl = F.shape[-2]
 
-    n_kl = R.shape[1]
     Gamma = np.zeros(integrand.shape[:-3] + (n_kl,)*2,
                      dtype=integrand.dtype)
     Gamma[..., 0:1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
 
     for k in util.progressbar_range(1, n_kl, show_progressbar=show_progressbar,
                                     desc='Integrating'):
-        integrand = _get_integrand(S, omega, idx, which, 'generalized',
-                                   R=[R[..., k:k+1, :], R], F=F)
+        if R is not None:
+            integrand = _get_integrand(S, omega, idx, which, 'generalized',
+                                       R=[R[..., k:k+1, :], R], F=F)
+        elif F is not None:
+            integrand = _get_integrand(S, omega, idx, which, 'generalized',
+                                       R=R, F=F[..., k:k+1, :, :])
+
         Gamma[..., k:k+1, :] = integrate.trapz(integrand, omega,
                                                axis=-1)/(2*np.pi)
 
@@ -1254,7 +1261,9 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
             elif which_pulse == 'total':
                 einsum_str = 'ako,ao,alo->aklo'
 
-            integrand = np.einsum(einsum_str, R_left, S, R_right).real
+            integrand = np.einsum(einsum_str,
+                                  R_left[..., idx, :, :], S,
+                                  R_right[..., idx, :, :]).real
     elif S.ndim == 3:
         # General case where S is a matrix with correlation spectra on off-diag
         shape = (len(idx), len(idx), len(omega))
@@ -1272,7 +1281,9 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
             elif which_pulse == 'total':
                 einsum_str = 'ako,abo,blo->abklo'
 
-            integrand = np.einsum(einsum_str, R_left, S, R_right)
+            integrand = np.einsum(einsum_str,
+                                  R_left[..., idx, :, :], S,
+                                  R_right[..., idx, :, :])
     else:
         raise ValueError('Expected S to be array_like with < 4 dimensions')
 
