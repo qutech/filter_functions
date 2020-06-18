@@ -574,7 +574,7 @@ def calculate_decay_amplitudes(
                                  'requested but omega not equal to ' +
                                  'cached frequencies.')
 
-        R = pulse.get_pulse_correlation_control_matrix()
+        R = pulse.get_pulse_correlation_control_matrix()[:, idx]
 
     if not memory_parsimonious:
         integrand = _get_integrand(S, omega, idx, which, 'generalized', R=R)
