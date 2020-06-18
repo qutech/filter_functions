@@ -404,6 +404,7 @@ class PrecisionTest(testutil.TestCase):
                   np.einsum('...kl,kilj->...ij', Gamma, traces) +
                   np.einsum('...kl,kijl->...ij', Gamma, traces))/2
             U_onfoot = sla.expm(K.sum(0))
+            U_from_K = ff.error_transfer_matrix(K=K)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_decayamps = -np.einsum('...ii', K)/d**2
             I_transfer = 1 - np.einsum('...ii', U)/d**2
@@ -412,6 +413,7 @@ class PrecisionTest(testutil.TestCase):
             self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
                                         rtol=1e-4)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
+            self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
             # Different spectra for each noise oper
             S = np.outer(1e-6*np.arange(1, 3), 400/(omega**2 + 400))
@@ -425,6 +427,7 @@ class PrecisionTest(testutil.TestCase):
                   np.einsum('...kl,kilj->...ij', Gamma, traces) +
                   np.einsum('...kl,kijl->...ij', Gamma, traces))/2
             U_onfoot = sla.expm(K.sum(0))
+            U_from_K = ff.error_transfer_matrix(K=K)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_decayamps = -np.einsum('...ii', K)/d**2
             I_transfer = 1 - np.einsum('...ii', U)/d**2
@@ -433,6 +436,7 @@ class PrecisionTest(testutil.TestCase):
             self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
                                         rtol=1e-4)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
+            self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
             # Cross-correlated spectra are complex, real part symmetric and
             # imaginary part antisymmetric
@@ -448,6 +452,7 @@ class PrecisionTest(testutil.TestCase):
                   np.einsum('...kl,kilj->...ij', Gamma, traces) +
                   np.einsum('...kl,kijl->...ij', Gamma, traces))/2
             U_onfoot = sla.expm(K.sum((0, 1)))
+            U_from_K = ff.error_transfer_matrix(K=K)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_decayamps = -np.einsum('...ii', K)/d**2
             I_transfer = 1 - np.einsum('...ii', U)/d**2
@@ -456,6 +461,7 @@ class PrecisionTest(testutil.TestCase):
             self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
                                         rtol=1e-4)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
+            self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
     def test_multi_qubit_error_transfer_matrix(self):
         """Test the calculation of the multi-qubit transfer matrix"""
