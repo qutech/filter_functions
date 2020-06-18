@@ -565,25 +565,40 @@ def calculate_decay_amplitudes(
     # Noise operator indices
     idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
     if which == 'total':
-        R = pulse.get_control_matrix(omega, show_progressbar)[idx]
+        # Faster to use filter function instead of control matrix
+        if pulse.is_cached('F_kl'):
+            R = None
+            F = pulse.get_filter_function(
+                omega, which='generalized'
+            )[idx[None, :], idx]
+        else:
+            R = pulse.get_control_matrix(omega, show_progressbar)[idx]
+            F = None
     elif which == 'correlations':
-        # Check if cached frequencies coincide with given
         if pulse.is_cached('omega'):
             if not np.array_equal(pulse.omega, omega):
                 raise ValueError('Pulse correlation decay amplitudes ' +
                                  'requested but omega not equal to ' +
                                  'cached frequencies.')
 
-        R = pulse.get_pulse_correlation_control_matrix()[:, idx]
+        if pulse.is_cached('F_pc_kl'):
+            R = None
+            F = pulse.get_pulse_correlation_filter_function(
+                omega, which='generalized'
+            )[:, :, idx[None, :], idx]
+        else:
+            R = pulse.get_pulse_correlation_control_matrix()[:, idx]
+            F = None
 
     if not memory_parsimonious:
-        integrand = _get_integrand(S, omega, idx, which, 'generalized', R=R)
+        integrand = _get_integrand(S, omega, idx, which, 'generalized', R=R,
+                                   F=F)
         Gamma = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
         return Gamma.real
 
     # Conserve memory by looping. Let _get_integrand determine the shape
     integrand = _get_integrand(S, omega, idx, which, 'generalized',
-                               R=[R[..., 0:1, :], R])
+                               R=[R[..., 0:1, :], R], F=F)
 
     n_kl = R.shape[1]
     Gamma = np.zeros(integrand.shape[:-3] + (n_kl,)*2,
@@ -593,7 +608,7 @@ def calculate_decay_amplitudes(
     for k in util.progressbar_range(1, n_kl, show_progressbar=show_progressbar,
                                     desc='Integrating'):
         integrand = _get_integrand(S, omega, idx, which, 'generalized',
-                                   R=[R[..., k:k+1, :], R])
+                                   R=[R[..., k:k+1, :], R], F=F)
         Gamma[..., k:k+1, :] = integrate.trapz(integrand, omega,
                                                axis=-1)/(2*np.pi)
 
