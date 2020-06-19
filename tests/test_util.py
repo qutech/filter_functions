@@ -609,9 +609,9 @@ class UtilTest(testutil.TestCase):
 
         self.assertEqual(ii, list(range(523, 123, -32)))
 
-    def test_parse_optional_parameter(self):
+    def test_parse_optional_parameters(self):
 
-        @util.parse_optional_parameter('foo', [1, 'bar', (2, 3)])
+        @util.parse_optional_parameters({'foo': [1, 'bar', (2, 3)]})
         def foobar(a, b, foo=None, x=2):
             pass
 

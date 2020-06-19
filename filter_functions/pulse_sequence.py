@@ -836,8 +836,8 @@ class PulseSequence:
 
         return sum(_nbytes)
 
-    @util.parse_optional_parameter(
-        'method', ('conservative', 'greedy', 'frequency dependent', 'all'))
+    @util.parse_optional_parameters(
+        {'method': ('conservative', 'greedy', 'frequency dependent', 'all')})
     def cleanup(self, method: str = 'conservative') -> None:
         """
         Delete cached byproducts of the calculation of the filter function that

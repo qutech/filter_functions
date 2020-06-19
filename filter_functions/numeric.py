@@ -335,7 +335,7 @@ def calculate_control_matrix_periodic(phases: ndarray, R: ndarray,
     return R_tot
 
 
-@util.parse_optional_parameter('which', ('total', 'correlations'))
+@util.parse_optional_parameters({'which': ('total', 'correlations')})
 def calculate_cumulant_function(
         pulse: 'PulseSequence',
         S: ndarray,
@@ -478,7 +478,7 @@ def calculate_cumulant_function(
     return K.real
 
 
-@util.parse_optional_parameter('which', ('total', 'correlations'))
+@util.parse_optional_parameters({'which': ('total', 'correlations')})
 def calculate_decay_amplitudes(
         pulse: 'PulseSequence',
         S: ndarray,
@@ -888,7 +888,7 @@ def error_transfer_matrix(
     return U
 
 
-@util.parse_optional_parameter('which', ('total', 'correlations'))
+@util.parse_optional_parameters({'which': ('total', 'correlations')})
 def infidelity(pulse: 'PulseSequence',
                S: Union[Coefficients, Callable],
                omega: Union[Coefficients, Dict[str, Union[int, str]]],
