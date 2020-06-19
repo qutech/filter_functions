@@ -577,7 +577,7 @@ class PrecisionTest(testutil.TestCase):
             omega = util.get_sample_frequencies(pulse, n_samples=51)
 
             # Assert fidelity is same as computed by infidelity()
-            S = 1e-8/omega**2
+            S = 1e-9/omega**2
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop
             Up = ff.error_transfer_matrix(pulse, S, omega,
@@ -586,9 +586,9 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
-                                        rtol=1e-4)
+                                        rtol=1e-3)
 
-            S = np.outer(1e-7*(np.arange(n_nops) + 1),
+            S = np.outer(1e-8*(np.arange(n_nops) + 1),
                          400/(omega**2 + 400))
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop
@@ -598,10 +598,10 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
-                                        rtol=1e-4)
+                                        rtol=1e-3)
 
-            S = np.tile(1e-8/abs(omega)**2, (n_nops, n_nops, 1)).astype(
-                complex)
+            S = np.tile(1e-9/abs(omega)**2, (n_nops, n_nops, 1)).astype(
+                    complex)
             S[np.triu_indices(n_nops, 1)].imag = 1e-10*omega
             S[np.tril_indices(n_nops, -1)].imag = \
                 - S[np.triu_indices(n_nops, 1)].imag
@@ -613,4 +613,4 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
-                                        rtol=1e-4)
+                                        rtol=1e-3)
