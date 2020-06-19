@@ -305,8 +305,8 @@ class PrecisionTest(testutil.TestCase):
                 S = spectrum
             elif i == 1:
                 S = spectrum[idx]
-            elif i == 3:
-                S = spectrum[idx[None, :], idx]
+            elif i == 2:
+                S = spectrum[idx[None, :], idx[:, None]]
 
             R_1 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='total',
