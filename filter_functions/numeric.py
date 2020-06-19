@@ -1257,9 +1257,15 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
                 integrand = np.moveaxis(integrand, source=-2, destination=-4)
         elif R is not None:
             if which_pulse == 'correlations':
-                einsum_str = 'gako,ao,halo->ghaklo'
+                if which_FF == 'fidelity':
+                    einsum_str = 'gako,ao,hako->ghao'
+                elif which_FF == 'generalized':
+                    einsum_str = 'gako,ao,halo->ghaklo'
             elif which_pulse == 'total':
-                einsum_str = 'ako,ao,alo->aklo'
+                if which_FF == 'fidelity':
+                    einsum_str = 'ako,ao,ako->ao'
+                elif which_FF == 'generalized':
+                    einsum_str = 'ako,ao,alo->aklo'
 
             integrand = np.einsum(einsum_str,
                                   R_left[..., idx, :, :], S,
@@ -1277,9 +1283,15 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
                                         destination=[-5, -4])
         elif R is not None:
             if which_pulse == 'correlations':
-                einsum_str = 'gako,abo,hblo->ghabklo'
+                if which_FF == 'fidelity':
+                    einsum_str = 'gako,abo,hbko->ghabo'
+                elif which_FF == 'generalized':
+                    einsum_str = 'gako,abo,hblo->ghabklo'
             elif which_pulse == 'total':
-                einsum_str = 'ako,abo,blo->abklo'
+                if which_FF == 'fidelity':
+                    einsum_str = 'ako,abo,bko->abo'
+                elif which_FF == 'generalized':
+                    einsum_str = 'ako,abo,blo->abklo'
 
             integrand = np.einsum(einsum_str,
                                   R_left[..., idx, :, :], S,

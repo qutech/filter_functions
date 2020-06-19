@@ -1533,12 +1533,12 @@ def concatenate(pulses: Iterable[PulseSequence],
         if not equal_omega:
             if calc_filter_function:
                 raise ValueError("Calculation of filter function forced " +
-                                "but not all pulses have the same " +
-                                "frequencies cached and none were supplied!")
+                                 "but not all pulses have the same " +
+                                 "frequencies cached and none were supplied!")
             if calc_pulse_correlation_ff:
                 raise ValueError("Cannot compute the pulse correlation " +
-                                "filter functions; do not have the " +
-                                "frequencies at which to evaluate.")
+                                 "filter functions; do not have the " +
+                                 "frequencies at which to evaluate.")
 
             return newpulse
 

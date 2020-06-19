@@ -27,7 +27,7 @@ from scipy import linalg as sla
 import qutip as qt
 
 import filter_functions as ff
-from filter_functions import analytic, numeric
+from filter_functions import analytic, numeric, util
 from tests import testutil
 
 
@@ -36,11 +36,11 @@ class PrecisionTest(testutil.TestCase):
     def test_FID(self):
         """FID"""
         tau = abs(testutil.rng.randn())
-        FID_pulse = ff.PulseSequence([[ff.util.P_np[1]/2, [0]]],
-                                     [[ff.util.P_np[3]/2, [1]]],
+        FID_pulse = ff.PulseSequence([[util.P_np[1]/2, [0]]],
+                                     [[util.P_np[3]/2, [1]]],
                                      [tau])
 
-        omega = ff.util.get_sample_frequencies(FID_pulse, 50, spacing='linear')
+        omega = util.get_sample_frequencies(FID_pulse, 50, spacing='linear')
         # Comparison to filter function defined with omega**2
         F = FID_pulse.get_filter_function(omega).squeeze()*omega**2
 
@@ -55,10 +55,10 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='cpmg')
 
-        H_n = [[ff.util.P_np[3]/2, np.ones_like(dt)]]
+        H_n = [[util.P_np[3]/2, np.ones_like(dt)]]
 
         SE_pulse = ff.PulseSequence(H_c, H_n, dt)
-        omega = ff.util.get_sample_frequencies(SE_pulse, 100, spacing='linear')
+        omega = util.get_sample_frequencies(SE_pulse, 100, spacing='linear')
         # Comparison to filter function defined with omega**2
         F = SE_pulse.get_filter_function(omega)[0, 0]*omega**2
 
@@ -67,7 +67,7 @@ class PrecisionTest(testutil.TestCase):
         # Test again with a factor of one between the noise operators and
         # coefficients
         r = testutil.rng.randn()
-        H_n = [[ff.util.P_np[3]/2*r, np.ones_like(dt)/r]]
+        H_n = [[util.P_np[3]/2*r, np.ones_like(dt)/r]]
 
         SE_pulse = ff.PulseSequence(H_c, H_n, dt)
         # Comparison to filter function defined with omega**2
@@ -84,10 +84,10 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='cpmg')
 
-        H_n = [[ff.util.P_np[3]/2, np.ones_like(dt)]]
+        H_n = [[util.P_np[3]/2, np.ones_like(dt)]]
 
         CPMG_pulse = ff.PulseSequence(H_c, H_n, dt)
-        omega = ff.util.get_sample_frequencies(CPMG_pulse, 100, spacing='log')
+        omega = util.get_sample_frequencies(CPMG_pulse, 100, spacing='log')
         # Comparison to filter function defined with omega**2
         F = CPMG_pulse.get_filter_function(omega)[0, 0]*omega**2
 
@@ -104,7 +104,7 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='udd')
 
-        H_n = [[ff.util.P_np[3]/2, np.ones_like(dt)]]
+        H_n = [[util.P_np[3]/2, np.ones_like(dt)]]
 
         UDD_pulse = ff.PulseSequence(H_c, H_n, dt)
         # Comparison to filter function defined with omega**2
@@ -123,7 +123,7 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='pdd')
 
-        H_n = [[ff.util.P_np[3]/2, np.ones_like(dt)]]
+        H_n = [[util.P_np[3]/2, np.ones_like(dt)]]
 
         PDD_pulse = ff.PulseSequence(H_c, H_n, dt)
         # Comparison to filter function defined with omega**2
@@ -142,7 +142,7 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='cdd')
 
-        H_n = [[ff.util.P_np[3]/2, np.ones_like(dt)]]
+        H_n = [[util.P_np[3]/2, np.ones_like(dt)]]
 
         CDD_pulse = ff.PulseSequence(H_c, H_n, dt)
         # Comparison to filter function defined with omega**2
@@ -179,8 +179,8 @@ class PrecisionTest(testutil.TestCase):
             )
 
             if d == 2:
-                U_liouville = numeric.liouville_representation(
-                    ff.util.P_np[1:], basis)
+                U_liouville = numeric.liouville_representation(util.P_np[1:],
+                                                               basis)
                 self.assertArrayAlmostEqual(U_liouville[0],
                                             np.diag([1, 1, -1, -1]),
                                             atol=np.finfo(float).eps)
@@ -212,13 +212,13 @@ class PrecisionTest(testutil.TestCase):
         cnot.diagonalize()
         cnot_subspace.diagonalize()
 
-        phase_eq = ff.util.oper_equiv(cnot_subspace.total_Q[1:5, 1:5],
-                                      qt.cnot(), eps=1e-9)
+        phase_eq = util.oper_equiv(cnot_subspace.total_Q[1:5, 1:5], qt.cnot(),
+                                   eps=1e-9)
 
         self.assertTrue(phase_eq[0])
 
-        phase_eq = ff.util.oper_equiv(
-            cnot.total_Q[np.ix_(*subspace)][1:5, 1:5], qt.cnot(), eps=1e-9)
+        phase_eq = util.oper_equiv(cnot.total_Q[np.ix_(*subspace)][1:5, 1:5],
+                                   qt.cnot(), eps=1e-9)
 
         self.assertTrue(phase_eq[0])
 
@@ -255,7 +255,7 @@ class PrecisionTest(testutil.TestCase):
                                              infid_MC, (0.04, 0.02)):
 
             omega = np.geomspace(f_min, 1e2, 250)*2*np.pi
-            S_t, omega_t = ff.util.symmetrize_spectrum(A/omega**alpha, omega)
+            S_t, omega_t = util.symmetrize_spectrum(A/omega**alpha, omega)
 
             infid, xi = ff.infidelity(cnot, S_t, omega_t, identifiers[:3],
                                       return_smallness=True)
@@ -269,6 +269,108 @@ class PrecisionTest(testutil.TestCase):
             self.assertLessEqual(np.abs(1 - (infid.sum()/MC)), rtol)
             self.assertLessEqual(np.abs(1 - (infid_P.sum()/MC)), rtol)
             self.assertLessEqual(infid.sum(), xi**2/4)
+
+    def test_integration(self):
+        """Test the private function used to set up the integrand."""
+        pulses = [testutil.rand_pulse_sequence(3, 1, 2, 3),
+                  testutil.rand_pulse_sequence(3, 1, 2, 3)]
+        pulses[1].n_opers = pulses[0].n_opers
+        pulses[1].n_oper_identifiers = pulses[0].n_oper_identifiers
+
+        omega = np.linspace(-1, 1, 50)
+        spectra = [
+            1e-6/abs(omega),
+            1e-6/np.power.outer(abs(omega), np.arange(2)).T,
+            np.array([[1e-6/abs(omega)**0.7,
+                       1e-6/(1 + omega**2) + 1j*1e-6*omega],
+                      [1e-6/(1 + omega**2) - 1j*1e-6*omega,
+                       1e-6/abs(omega)**0.7]])
+        ]
+
+        pulse = ff.concatenate(pulses, omega=omega,
+                               calc_pulse_correlation_ff=True)
+
+        idx = testutil.rng.choice(np.arange(2), testutil.rng.randint(1, 3),
+                                  replace=False)
+
+        R = pulse.get_control_matrix(omega)
+        R_pc = pulse.get_pulse_correlation_control_matrix()
+        F = pulse.get_filter_function(omega)
+        F_kl = pulse.get_filter_function(omega, 'generalized')
+        F_pc = pulse.get_pulse_correlation_filter_function()
+        F_pc_kl = pulse.get_pulse_correlation_filter_function('generalized')
+
+        for i, spectrum in enumerate(spectra):
+            if i == 0:
+                S = spectrum
+            elif i == 1:
+                S = spectrum[idx]
+            elif i == 3:
+                S = spectrum[idx[None, :], idx]
+
+            R_1 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='total',
+                                         which_FF='fidelity',
+                                         R=R, F=None)
+            R_2 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='total',
+                                         which_FF='fidelity',
+                                         R=[R, R], F=None)
+            F_1 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='total',
+                                         which_FF='fidelity',
+                                         R=None, F=F)
+
+            self.assertArrayAlmostEqual(R_1, R_2)
+            self.assertArrayAlmostEqual(R_1, F_1)
+
+            R_1 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='correlations',
+                                         which_FF='fidelity',
+                                         R=R_pc, F=None)
+            R_2 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='correlations',
+                                         which_FF='fidelity',
+                                         R=[R_pc, R_pc], F=None)
+            F_1 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='correlations',
+                                         which_FF='fidelity',
+                                         R=None, F=F_pc)
+
+            self.assertArrayAlmostEqual(R_1, R_2)
+            self.assertArrayAlmostEqual(R_1, F_1)
+
+            R_1 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='total',
+                                         which_FF='generalized',
+                                         R=R, F=None)
+            R_2 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='total',
+                                         which_FF='generalized',
+                                         R=[R, R], F=None)
+            F_1 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='total',
+                                         which_FF='generalized',
+                                         R=None, F=F_kl)
+
+            self.assertArrayAlmostEqual(R_1, R_2)
+            self.assertArrayAlmostEqual(R_1, F_1)
+
+            R_1 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='correlations',
+                                         which_FF='generalized',
+                                         R=R_pc, F=None)
+            R_2 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='correlations',
+                                         which_FF='generalized',
+                                         R=[R_pc, R_pc], F=None)
+            F_1 = numeric._get_integrand(S, omega, idx,
+                                         which_pulse='correlations',
+                                         which_FF='generalized',
+                                         R=None, F=F_pc_kl)
+
+            self.assertArrayAlmostEqual(R_1, R_2)
+            self.assertArrayAlmostEqual(R_1, F_1)
 
     def test_infidelity(self):
         """Benchmark infidelity results against previous version's results"""
@@ -316,8 +418,7 @@ class PrecisionTest(testutil.TestCase):
             omega = np.geomspace(0.1, 10, 51)
             S0 = np.abs(testutil.rng.randn())
             for spec in spectra:
-                S, omega_t = ff.util.symmetrize_spectrum(spec(S0, omega),
-                                                         omega)
+                S, omega_t = util.symmetrize_spectrum(spec(S0, omega), omega)
                 infids = ff.infidelity(pulse, S, omega_t,
                                        n_oper_identifiers=['B_0', 'B_2'])
                 self.assertArrayAlmostEqual(infids, ref_infids[count],
@@ -385,7 +486,7 @@ class PrecisionTest(testutil.TestCase):
         d = 2
         for n_dt in testutil.rng.randint(1, 11, 10):
             pulse = testutil.rand_pulse_sequence(d, n_dt, 3, 2, btype='Pauli')
-            omega = ff.util.get_sample_frequencies(pulse, n_samples=51)
+            omega = util.get_sample_frequencies(pulse, n_samples=51)
             n_oper_identifiers = pulse.n_oper_identifiers
             traces = pulse.basis.four_element_traces.todense()
 
@@ -473,7 +574,7 @@ class PrecisionTest(testutil.TestCase):
             btype = 'Pauli' if f == 0.0 else 'GGM'
             pulse = testutil.rand_pulse_sequence(d, n_dt, n_cops, n_nops,
                                                  btype)
-            omega = ff.util.get_sample_frequencies(pulse, n_samples=51)
+            omega = util.get_sample_frequencies(pulse, n_samples=51)
 
             # Assert fidelity is same as computed by infidelity()
             S = 1e-8/omega**2
