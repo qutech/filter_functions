@@ -572,7 +572,8 @@ def calculate_decay_amplitudes(
         else:
             R = pulse.get_control_matrix(omega, show_progressbar)
             F = None
-    elif which == 'correlations':
+    else:
+        # which == 'correlations'
         if pulse.is_cached('omega'):
             if not np.array_equal(pulse.omega, omega):
                 raise ValueError('Pulse correlation decay amplitudes ' +
@@ -598,7 +599,7 @@ def calculate_decay_amplitudes(
         integrand = _get_integrand(S, omega, idx, which, 'generalized',
                                    R=[R[..., 0:1, :], R], F=F)
         n_kl = R.shape[-2]
-    elif F is not None:
+    else:
         integrand = _get_integrand(S, omega, idx, which, 'generalized',
                                    R=R, F=F[..., 0:1, :, :])
         n_kl = F.shape[-2]
@@ -612,7 +613,7 @@ def calculate_decay_amplitudes(
         if R is not None:
             integrand = _get_integrand(S, omega, idx, which, 'generalized',
                                        R=[R[..., k:k+1, :], R], F=F)
-        elif F is not None:
+        else:
             integrand = _get_integrand(S, omega, idx, which, 'generalized',
                                        R=R, F=F[..., k:k+1, :, :])
 
@@ -669,7 +670,8 @@ def calculate_filter_function(R: ndarray, which: str = 'fidelity') -> ndarray:
     """
     if which == 'fidelity':
         return np.einsum('ako,bko->abo', R.conj(), R)
-    elif which == 'generalized':
+    else:
+        # which == 'generalized'
         return np.einsum('ako,blo->abklo', R.conj(), R)
 
 
@@ -727,7 +729,8 @@ def calculate_pulse_correlation_filter_function(
 
     if which == 'fidelity':
         return np.einsum('gako,hbko->ghabo', R.conj(), R)
-    elif which == 'generalized':
+    else:
+        # which == 'generalized'
         return np.einsum('gako,hblo->ghabklo', R.conj(), R)
 
 
@@ -1100,7 +1103,8 @@ def infidelity(pulse: 'PulseSequence',
             F = np.einsum('ako,blo,kl->abo', R.conj(), R, Tp)/pulse.d
         else:
             F = pulse.get_filter_function(omega)
-    elif which == 'correlations':
+    else:
+        # which == 'correlations'
         if not pulse.basis.istraceless:
             warn('Calculating pulse correlation fidelities with non-' +
                  'traceless basis. The results will be off.')
@@ -1227,7 +1231,8 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
             R_left, R_right = [f(r) for f, r in zip(funs, R)]
         else:
             R_left, R_right = [f(r) for f, r in zip(funs, [R]*2)]
-    elif F is not None:
+    else:
+        # F is not None
         if which_FF == 'generalized':
             # Everything simpler if noise operators always on 2nd-to-last axes
             F = np.moveaxis(F, source=[-5, -4], destination=[-3, -2])
@@ -1242,8 +1247,8 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
                 raise ValueError(S_err_str.format(shape, S.shape))
 
             S = np.expand_dims(S, 0)
-        elif S.ndim == 2:
-            # S is diagonal (no correlation between noise sources)
+        else:
+            # S.ndim == 2, S is diagonal (no correlation between noise sources)
             shape = (len(idx), len(omega))
             if S.shape != shape:
                 raise ValueError(S_err_str.format(shape, S.shape))
@@ -1255,16 +1260,20 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
                 # move axes back to expected position, ie (pulses, noise opers,
                 # basis elements, frequencies)
                 integrand = np.moveaxis(integrand, source=-2, destination=-4)
-        elif R is not None:
+        else:
+            # R is not None
             if which_pulse == 'correlations':
                 if which_FF == 'fidelity':
                     einsum_str = 'gako,ao,hako->ghao'
-                elif which_FF == 'generalized':
+                else:
+                    # which_FF == 'generalized'
                     einsum_str = 'gako,ao,halo->ghaklo'
-            elif which_pulse == 'total':
+            else:
+                # which_pulse == 'total'
                 if which_FF == 'fidelity':
                     einsum_str = 'ako,ao,ako->ao'
-                elif which_FF == 'generalized':
+                else:
+                    # which_FF == 'generalized'
                     einsum_str = 'ako,ao,alo->aklo'
 
             integrand = np.einsum(einsum_str,
@@ -1281,16 +1290,20 @@ def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,
             if which_FF == 'generalized':
                 integrand = np.moveaxis(integrand, source=[-3, -2],
                                         destination=[-5, -4])
-        elif R is not None:
+        else:
+            # R is not None
             if which_pulse == 'correlations':
                 if which_FF == 'fidelity':
                     einsum_str = 'gako,abo,hbko->ghabo'
-                elif which_FF == 'generalized':
+                else:
+                    # which_FF == 'generalized'
                     einsum_str = 'gako,abo,hblo->ghabklo'
-            elif which_pulse == 'total':
+            else:
+                # which_pulse == 'total'
                 if which_FF == 'fidelity':
                     einsum_str = 'ako,abo,bko->abo'
-                elif which_FF == 'generalized':
+                else:
+                    # which_FF == 'generalized'
                     einsum_str = 'ako,abo,blo->abklo'
 
             integrand = np.einsum(einsum_str,

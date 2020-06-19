@@ -1045,7 +1045,8 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
                 ('A_{}'.format(i) for i in range(len(opers))),
                 dtype='<U4'
             )
-        elif H_str == 'H_n':
+        else:
+            # H_str == 'H_n'
             identifiers = np.fromiter(
                 ('B_{}'.format(i) for i in range(len(opers))),
                 dtype='<U4'
@@ -1055,7 +1056,8 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
             if identifier is None:
                 if H_str == 'H_c':
                     identifiers[i] = 'A_{}'.format(i)
-                elif H_str == 'H_n':
+                else:
+                    # H_str == 'H_n'
                     identifiers[i] = 'B_{}'.format(i)
         if len(set(identifiers)) != len(identifiers):
             raise ValueError('{} identifiers should be unique'.format(H_str))
@@ -2208,7 +2210,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
             basis = Basis.ggm(d_per_qubit**N)
         elif btype == 'Pauli':
             basis = Basis.pauli(N)
-        elif btype == 'Custom':
+        else:
             warn('Original pulses had custom basis which I cannot extend.')
             basis = Basis.ggm(d_per_qubit**N)
 
