@@ -149,12 +149,16 @@ try:
             response = requests.get(urljoin(ss['url'], 'api/sessions'),
                                     params={'token': ss.get('token', '')})
             for nn in json.loads(response.text):
-                if nn['kernel']['id'] == kernel_id:
-                    try:
-                        relative_path = nn['notebook']['path']
-                        return os.path.join(ss['notebook_dir'], relative_path)
-                    except KeyError:
-                        return ''
+                try:
+                    if nn['kernel']['id'] == kernel_id:
+                        try:
+                            relative_path = nn['notebook']['path']
+                            return os.path.join(ss['notebook_dir'],
+                                                relative_path)
+                        except KeyError:
+                            return ''
+                except TypeError:
+                    return ''
 
         return ''
 
