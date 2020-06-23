@@ -103,9 +103,12 @@ try:
         directory, and yield dicts of their information, each one pertaining to
         a currently running notebook server instance.
 
-        Copied from notebook.notebookapp.list_running_servers() (version 5.7.8)
-        since the highest version compatible with Python 3.5 (version 5.6.0)
-        has a bug.
+        Copied from ``notebook.notebookapp.list_running_servers()``:
+
+        - Copyright (c) 2001-2015, IPython Development Team
+        - Copyright (c) 2015-, Jupyter Development Team
+
+        All rights reserved.
         """
         if runtime_dir is None:
             runtime_dir = jupyter_runtime_dir()
