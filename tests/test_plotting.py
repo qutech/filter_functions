@@ -331,3 +331,10 @@ class PlottingTest(testutil.TestCase):
                                                       **figure_kw)
 
         plt.close('all')
+
+    def test_plot_infidelity_convergence(self):
+        def S(omega):
+            return omega**0
+
+        n, infids = ff.infidelity(simple_pulse, S, {}, test_convergence=True)
+        fig, ax = plotting.plot_infidelity_convergence(n, infids)

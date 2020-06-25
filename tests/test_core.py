@@ -797,9 +797,6 @@ class CoreTest(testutil.TestCase):
                 )
 
     def test_infidelity_convergence(self):
-        import matplotlib
-        matplotlib.use('Agg')
-
         omega = {
             'omega_IR': 0,
             'omega_UV': 2,
@@ -816,27 +813,25 @@ class CoreTest(testutil.TestCase):
         complicated_pulse = testutil.rand_pulse_sequence(2, 100, 3, 3)
 
         with self.assertRaises(TypeError):
-            n, infids, (fig, ax) = ff.infidelity(simple_pulse, S, [],
-                                                 test_convergence=True)
+            n, infids = ff.infidelity(simple_pulse, S, [],
+                                      test_convergence=True)
 
         with self.assertRaises(TypeError):
-            n, infids, (fig, ax) = ff.infidelity(simple_pulse, [1, 2, 3],
-                                                 dict(spacing='foobar'),
-                                                 test_convergence=True)
+            n, infids = ff.infidelity(simple_pulse, [1, 2, 3],
+                                      dict(spacing='foobar'),
+                                      test_convergence=True)
 
         with self.assertRaises(ValueError):
-            n, infids, (fig, ax) = ff.infidelity(simple_pulse, S,
-                                                 dict(spacing='foobar'),
-                                                 test_convergence=True)
+            n, infids = ff.infidelity(simple_pulse, S, dict(spacing='foobar'),
+                                      test_convergence=True)
 
         # Test with default args
-        n, infids, (fig, ax) = ff.infidelity(simple_pulse, S, {},
-                                             test_convergence=True)
+        n, infids = ff.infidelity(simple_pulse, S, {}, test_convergence=True)
 
         # Test with non-default args
         identifiers = testutil.rng.choice(complicated_pulse.n_oper_identifiers,
                                           testutil.rng.randint(1, 4))
 
-        n, infids, (fig, ax) = ff.infidelity(complicated_pulse,
-                                             S, omega, test_convergence=True,
-                                             n_oper_identifiers=identifiers)
+        n, infids = ff.infidelity(complicated_pulse, S, omega,
+                                  test_convergence=True,
+                                  n_oper_identifiers=identifiers)

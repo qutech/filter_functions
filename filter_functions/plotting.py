@@ -571,8 +571,8 @@ def plot_infidelity_convergence(n_samples: Sequence[int],
     ax[1].grid()
 
     ax[0].plot(n_samples, infids, 'o-')
-    ax[1].semilogy(n_samples[1:],
-                   np.abs(np.diff(infids, axis=-1))/infids[1:]*100, 'o-')
+    ax[1].semilogy(n_samples, np.abs(np.gradient(infids, axis=0))/infids*100,
+                   'o-')
 
     return fig, ax
 
@@ -764,8 +764,8 @@ def plot_error_transfer_matrix(
     cbar = fig.colorbar(im, cax=grid.cbar_axes[0])
     cbar.set_label(cbar_label)
     if colorscale == 'log':
-        labels = cbar.ax.get_yticklabels()
+        labels = cbar.get_ticklabels()
         labels[len(labels) // 2] = ''
-        labels = cbar.ax.set_yticklabels(labels)
+        labels = cbar.set_ticklabels(labels)
 
     return fig, grid

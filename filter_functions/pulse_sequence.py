@@ -152,8 +152,8 @@ class PulseSequence:
     >>> omega = np.logspace(-1, 2, 500)
     >>> F = pulse.get_filter_function(omega)    # shape (1, 500)
     >>> # Plot the resulting filter function:
-    >>> from filter_functions import plot_filter_function
-    >>> fig, ax, leg = plot_filter_function(pulse)
+    >>> from filter_functions import plotting
+    >>> fig, ax, leg = plotting.plot_filter_function(pulse)
 
     Attributes
     ----------
