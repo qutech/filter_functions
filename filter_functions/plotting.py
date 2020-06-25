@@ -808,8 +808,8 @@ def plot_error_transfer_matrix(
     cbar = fig.colorbar(im, cax=grid.cbar_axes[0])
     cbar.set_label(cbar_label)
     if colorscale == 'log':
-        labels = cbar.get_ticklabels()
+        labels = cbar.ax.get_yticklabels()
         labels[len(labels) // 2] = ''
-        labels = cbar.set_ticklabels(labels)
+        labels = cbar.ax.set_yticklabels(labels)
 
     return fig, grid
