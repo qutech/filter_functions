@@ -25,6 +25,7 @@ from copy import copy
 from itertools import product
 
 import numpy as np
+import qutip as qt
 from sparse import COO
 
 import filter_functions as ff
@@ -40,9 +41,9 @@ class BasisTest(testutil.TestCase):
         with self.assertRaises(TypeError):
             _ = ff.Basis(1)
 
-        # All elements should be either COO, Qobj, or ndarray
-        elems = [ff.util.P_np[1], ff.util.P_qt[2],
-                 COO.from_numpy(ff.util.P_np[3]), ff.util.P_qt[0].data]
+        # All elements should be either sparse, Qobj, or ndarray
+        elems = [ff.util.paulis[1], qt.sigmay(), qt.qeye(2).data,
+                 COO.from_numpy(ff.util.paulis[3]), [[0, 1], [1, 0]]]
         with self.assertRaises(TypeError):
             _ = ff.Basis(elems)
 
@@ -54,7 +55,7 @@ class BasisTest(testutil.TestCase):
             _ = ff.Basis(testutil.rng.randn(5, 2, 2))
 
         # Properly normalized
-        self.assertEqual(ff.Basis.pauli(1), ff.Basis(ff.util.P_np))
+        self.assertEqual(ff.Basis.pauli(1), ff.Basis(ff.util.paulis))
 
         # Non traceless elems but traceless basis requested
         with self.assertRaises(ValueError):
@@ -123,7 +124,7 @@ class BasisTest(testutil.TestCase):
 
             base._print_checks()
 
-        basis = ff.util.P_np[1].view(ff.Basis)
+        basis = ff.util.paulis[1].view(ff.Basis)
         self.assertTrue(basis.isorthonorm)
         self.assertArrayEqual(basis.T, basis.view(np.ndarray).T)
 

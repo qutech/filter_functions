@@ -197,7 +197,7 @@ n_dt = len(dt)
 
 d = 16
 H = np.empty((6, d, d), dtype=float)
-Id, Px, Py, Pz = util.P_np
+Id, Px, Py, Pz = util.paulis
 # Exchange Hamiltonians
 H[0] = 1/4*sum(util.tensor(P, P, Id, Id) for P in (Px, Py, Pz)).real
 H[1] = 1/4*sum(util.tensor(Id, P, P, Id) for P in (Px, Py, Pz)).real

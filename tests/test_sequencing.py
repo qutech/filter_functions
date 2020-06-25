@@ -71,7 +71,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        n_oper = util.P_np[3]
+        n_oper = util.paulis[3]
         H_n_SE = [[n_oper, np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
@@ -135,7 +135,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.paulis[3], np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
 
@@ -143,7 +143,7 @@ class ConcatenationTest(testutil.TestCase):
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.paulis[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
         SE_1.cache_filter_function(omega)
@@ -177,7 +177,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.paulis[3], np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
 
@@ -185,7 +185,7 @@ class ConcatenationTest(testutil.TestCase):
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.paulis[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
         SE_2.cache_filter_function(omega)
@@ -217,7 +217,7 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.paulis[3], np.ones_like(dt_SE)]]
         SE_1 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
         SE_2 = ff.PulseSequence(H_c_SE, H_n_SE, dt_SE)
 
@@ -225,7 +225,7 @@ class ConcatenationTest(testutil.TestCase):
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.paulis[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
         SE_1.cache_filter_function(omega)
@@ -263,14 +263,14 @@ class ConcatenationTest(testutil.TestCase):
                                                          tau_pi=tau_pi,
                                                          dd_type='cpmg')
 
-        H_n_SE = [[util.P_np[3], np.ones_like(dt_SE)]]
+        H_n_SE = [[util.paulis[3], np.ones_like(dt_SE)]]
         SE = [ff.PulseSequence(H_c_SE, H_n_SE, dt_SE) for _ in range(4)]
 
         H_c_CPMG, dt_CPMG = testutil.generate_dd_hamiltonian(4*n, tau=4*tau,
                                                              tau_pi=tau_pi,
                                                              dd_type='cpmg')
 
-        H_n_CPMG = [[util.P_np[3], np.ones_like(dt_CPMG)]]
+        H_n_CPMG = [[util.paulis[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
         SE[testutil.rng.randint(0, len(SE)-1)].cache_filter_function(omega)
@@ -458,7 +458,7 @@ class ConcatenationTest(testutil.TestCase):
 
     def test_concatenation_periodic(self):
         """Test concatenation for periodic Hamiltonians"""
-        X, Y, Z = util.P_np[1:]
+        X, Y, Z = util.paulis[1:]
         A = 0.01
         omega_0 = 1
         omega_d = omega_0
@@ -521,7 +521,7 @@ class ExtensionTest(testutil.TestCase):
 
     def test_extend_with_identity(self):
         """Test extending a pulse to more qubits"""
-        ID, X, Y, Z = util.P_np
+        ID, X, Y, Z = util.paulis
         n_dt = 10
         coeffs = testutil.rng.randn(3, n_dt)
         ids = ['X', 'Y', 'Z']
@@ -718,7 +718,7 @@ class ExtensionTest(testutil.TestCase):
         self.assertIsNone(extended_pulse._F)
 
     def test_accuracy(self):
-        ID, X, Y, Z = util.P_np
+        ID, X, Y, Z = util.paulis
         XI = util.tensor(X, ID)
         IX = util.tensor(ID, X)
         XII = util.tensor(X, ID, ID)
@@ -934,7 +934,7 @@ class ExtensionTest(testutil.TestCase):
                                     atol=1e-8)
 
     def test_exceptions(self):
-        X = util.P_np[1]
+        X = util.paulis[1]
         n_dt = 10
         omega = np.linspace(0, 1, 50)
 
@@ -1052,7 +1052,7 @@ class RemappingTest(testutil.TestCase):
             self.assertFalse(remapped_ggm_pulse.is_cached(attr))
 
     def test_accuracy(self):
-        paulis = np.array(util.P_np)
+        paulis = np.array(util.paulis)
         I, X, Y, Z = paulis
         amps = testutil.rng.randn(testutil.rng.randint(1, 11))
         pulse = ff.PulseSequence(

@@ -42,52 +42,72 @@ Functions
 """
 from itertools import product
 from typing import Optional, Sequence, Union
+from unittest import mock
+from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import colors, lines
-from mpl_toolkits.axes_grid1 import ImageGrid
+from matplotlib import colors, lines  # , collections
+from mpl_toolkits import axes_grid1, mplot3d
 from numpy import ndarray
-from qutip import Bloch, Qobj, basis, expect
 
 from . import numeric, util
 from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes,
                     FigureAxesLegend, FigureGrid, Grid, Operator, State)
 
-__all__ = ['plot_bloch_vector_evolution', 'plot_error_transfer_matrix',
-           'plot_filter_function', 'plot_infidelity_convergence',
+__all__ = ['plot_error_transfer_matrix', 'plot_filter_function',
+           'plot_infidelity_convergence',
            'plot_pulse_correlation_filter_function', 'plot_pulse_train']
+
+try:
+    import qutip as qt
+    __all__.append('plot_bloch_vector_evolution')
+except ImportError:
+    warn('Qutip not installed. plot_bloch_vector_evolution() is not available')
+    qt = mock.Mock()
 
 
 def get_bloch_vector(states: Sequence[State]) -> ndarray:
     r"""
     Get the Bloch vector from quantum states.
     """
-    if isinstance(states[0], Qobj):
+    try:
+        import qutip as qt
+    except ImportError as err:
+        raise RuntimeError('Requirements not fulfilled. ' +
+                           'Please install Qutip') from err
+
+    if isinstance(states[0], qt.Qobj):
         a = np.empty((3, len(states)))
-        X, Y, Z = util.P_qt[1:]
+        X, Y, Z = qt.sigmax(), qt.sigmay(), qt.sigmaz()
         for i, state in enumerate(states):
-            a[:, i] = [expect(X, state),
-                       expect(Y, state),
-                       expect(Z, state)]
+            a[:, i] = [qt.expect(X, state),
+                       qt.expect(Y, state),
+                       qt.expect(Z, state)]
     else:
-        a = np.einsum('...ij,kil,...lm->k...', np.conj(states), util.P_np[1:],
-                      states)
-    return a
+        a = np.einsum('...ij,kil,...lm->k...',
+                      np.conj(states), util.paulis[1:], states)
+    return a.real
 
 
-def init_bloch_sphere(**bloch_kwargs) -> Bloch:
+def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
     """A helper function to create a Bloch instance with a default viewing
     angle and axis labels."""
+    try:
+        import qutip as qt
+    except ImportError as err:
+        raise RuntimeError('Requirements not fulfilled. ' +
+                           'Please install Qutip') from err
+
     bloch_kwargs.setdefault('view', [-150, 30])
-    b = Bloch(**bloch_kwargs)
+    b = qt.Bloch(**bloch_kwargs)
     b.xlabel = [r'$|+\rangle$', '']
     b.ylabel = [r'$|+_i\rangle$', '']
     return b
 
 
 def get_states_from_prop(U: Sequence[Operator],
-                         psi0: State = basis(2, 0),
+                         psi0: Optional[State] = None,
                          prop: str = 'total') -> ndarray:
     r"""
     Get the the quantum state at time t from the propagator and the inital
@@ -106,7 +126,10 @@ def get_states_from_prop(U: Sequence[Operator],
     with :math:`t_0\equiv 0` and :math:`t_n\equiv t`.
 
     """
-    psi0 = psi0.full() if isinstance(psi0, Qobj) else psi0
+    if psi0 is None:
+        psi0 = np.c_[1:-1:-1]  # |0>
+
+    psi0 = psi0.full() if hasattr(psi0, 'full') else psi0  # qutip.Qobj
     d = max(psi0.shape)
     states = np.empty((len(U), d, 1), dtype=complex)
     if prop == 'total':
@@ -122,11 +145,12 @@ def get_states_from_prop(U: Sequence[Operator],
 
 def plot_bloch_vector_evolution(pulse: 'PulseSequence',
                                 psi0: Optional[State] = None,
-                                b: Optional[Bloch] = None,
+                                b: Optional[qt.Bloch] = None,
                                 n_samples: Optional[int] = None,
+                                cmap: Optional[Colormap] = None,
                                 show: bool = True,
                                 return_Bloch: bool = False,
-                                **bloch_kwargs) -> Union[None, Bloch]:
+                                **bloch_kwargs) -> Union[None, qt.Bloch]:
     r"""
     Plot the evolution of the Bloch vector under the given pulse sequence.
 
@@ -138,22 +162,24 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     psi0: Qobj or array_like, optional
         The initial state before the pulse is applied. Defaults to
         :math:`|0\rangle`.
-    b: Bloch, optional
+    b: qutip.Bloch, optional
         If given, the QuTiP Bloch instance on which to plot the time evolution.
     n_samples: int, optional
         The number of time points to be sampled.
+    cmap: matplotlib colormap, optional
+        The colormap for the trajectory.
     show**: bool, optional
         Whether to show the sphere (by calling :code:`b.make_sphere()`).
     return_Bloch: bool, optional
         Whether to return the :class:`qutip.bloch.Bloch` instance
     bloch_kwargs: dict, optional
-        A dictionary with keyword arguments to be fed into the Bloch
+        A dictionary with keyword arguments to be fed into the qutip.Bloch
         constructor (if *b* not given).
 
     Returns
     -------
-    b: Bloch
-        The Bloch instance
+    b: qutip.Bloch
+        The qutip.Bloch instance
 
     Raises
     ------
@@ -164,6 +190,8 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     --------
     qutip.bloch.Bloch: Qutip's Bloch sphere implementation.
     """
+    from mpl_toolkits.mplot3d import Axes3D
+
     # Raise an exception if not a one-qubit pulse
     if not pulse.d == 2:
         raise ValueError('Plotting Bloch sphere evolution only implemented ' +
@@ -171,16 +199,17 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
 
     # Parse default arguments
     if b is None:
-        b = init_bloch_sphere(**bloch_kwargs)
+        figsize = bloch_kwargs.pop('figsize', [5, 5])
+        view = bloch_kwargs.pop('view', [-60, 30])
+        fig = plt.figure(figsize=figsize)
+        axes = mplot3d.Axes3D(fig, azim=view[0], elev=view[1])
+        b = init_bloch_sphere(fig=fig, axes=axes, **bloch_kwargs)
 
     if n_samples is None:
         # 5 time points during  the smallest time interval in pulse.t. Being
         # careful that doesn't blow up in our face for extremely narrow pulses,
         # max out at 5000.
         n_samples = min([5000, 5*int(pulse.t[-1]/np.diff(pulse.t).min())])
-
-    if psi0 is None:
-        psi0 = basis(2)
 
     times = np.linspace(pulse.t[0], pulse.t[-1], n_samples)
     n_cops = len(pulse.c_opers)
@@ -194,13 +223,28 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     propagators = pulse.propagator_at_arb_t(times)
     points = get_bloch_vector(get_states_from_prop(propagators, psi0))
     b.add_points(points, meth='l')
+
+    # The following enables a color gradient for the trajectory, but only works
+    # by patching matplotlib, see
+    # https://github.com/matplotlib/matplotlib/issues/17755
+    # points = get_bloch_vector(
+    #     get_states_from_prop(propagators, psi0)
+    # ).T.reshape(-1, 1, 3)
+    # points[:, :, 1] *= -1  # qutip convention
+    # segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+    # if cmap is None:
+    #     cmap = plt.get_cmap('winter')
+
+    # colors = cmap(np.linspace(0, 1, n_samples - 1))
+    # lc = collections.LineCollection(segments[:, :, :2], colors=colors)
+    # b.axes.add_collection3d(lc, zdir='z', zs=segments[:, :, 2])
+
     if show:
         b.make_sphere()
 
     if return_Bloch:
         return b
-
-    return
 
 
 def plot_pulse_train(pulse: 'PulseSequence',
@@ -715,7 +759,7 @@ def plot_error_transfer_matrix(
             figsize = figure_kw.pop('figsize', (8*n_cols, 6*n_rows))
             fig = plt.figure(figsize=figsize, **figure_kw)
 
-        grid = ImageGrid(fig, **grid_kw)
+        grid = axes_grid1.ImageGrid(fig, **grid_kw)
     else:
         if len(grid) != len(n_oper_inds):
             raise ValueError('Size of supplied ImageGrid instance does not ' +

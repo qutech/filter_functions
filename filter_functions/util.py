@@ -83,7 +83,6 @@ from typing import (Callable, Generator, Iterable, List, Optional, Sequence,
                     Tuple, Union)
 
 import numpy as np
-import qutip as qt
 from numpy import linalg as nla
 from numpy import ndarray
 
@@ -171,17 +170,22 @@ try:
 except ImportError:
     tqdm = None
 
-__all__ = ['P_np', 'P_qt', 'abs2', 'all_array_equal', 'dot_HS',
+__all__ = ['paulis', 'abs2', 'all_array_equal', 'dot_HS',
            'get_sample_frequencies', 'hash_array_along_axis', 'mdot',
            'oper_equiv', 'progressbar', 'remove_float_errors', 'tensor',
            'tensor_insert', 'tensor_merge', 'tensor_transpose']
 
 # Pauli matrices
-P_qt = [qt.qeye(2),
-        qt.sigmax(),
-        qt.sigmay(),
-        qt.sigmaz()]
-P_np = [P.full() for P in P_qt]
+paulis = np.array([
+    [[1, 0],
+     [0, 1]],
+    [[0, 1],
+     [1, 0]],
+    [[0, -1j],
+     [1j, 0]],
+    [[1, 0],
+     [0, -1]],
+])
 
 
 def abs2(x: ndarray) -> ndarray:
@@ -461,7 +465,7 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
 
     Examples
     --------
-    >>> I, X, Y, Z = P_np
+    >>> I, X, Y, Z = paulis
     >>> arr = tensor(X, I)
     >>> r = tensor_insert(arr, Y, Z, arr_dims=[[2, 2], [2, 2]], pos=0)
     >>> np.allclose(r, tensor(Y, Z, X, I))
@@ -634,7 +638,7 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
 
     Examples
     --------
-    >>> I, X, Y, Z = P_np
+    >>> I, X, Y, Z = paulis
     >>> arr = tensor(X, Y, Z)
     >>> ins = tensor(I, I)
     >>> r1 = tensor_merge(arr, ins, pos=[1, 2], arr_dims=[[2]*3, [2]*3],
@@ -758,7 +762,7 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
 
     Examples
     --------
-    >>> I, X, Y, Z = P_np
+    >>> I, X, Y, Z = paulis
     >>> arr = tensor(X, Y, Z)
     >>> transposed = tensor_transpose(arr, [1, 2, 0], arr_dims=[[2, 2, 2]]*2)
     >>> np.allclose(transposed, tensor(Y, Z, X))
@@ -847,7 +851,7 @@ def oper_equiv(psi: Union[Operator, State],
 
     Parameters
     ----------
-    psi, phi: Qobj or array_like
+    psi, phi: qutip.Qobj or array_like
         Vectors or operators to be compared
     eps: float
         The tolerance below which the two objects are treated as equal, i.e.,
@@ -858,12 +862,13 @@ def oper_equiv(psi: Union[Operator, State],
 
     Examples
     --------
-    >>> psi = qt.sigmax()
-    >>> phi = qt.sigmax()*np.exp(1j*1.2345)
+    >>> psi = paulis[1]
+    >>> phi = paulis[1]*np.exp(1j*1.2345)
     >>> oper_equiv(psi, phi)
     (True, 1.2345)
     """
-    psi, phi = [obj.full() if isinstance(obj, qt.Qobj) else obj
+    # Convert qutip.Qobj's to numpy arrays
+    psi, phi = [obj.full() if hasattr(obj, 'full') else obj
                 for obj in (psi, phi)]
 
     if eps is None:
@@ -895,7 +900,7 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
 
     Parameters
     ----------
-    U, V: Qobj or ndarray
+    U, V: qutip.Qobj or ndarray
         Objects to compute the inner product of.
 
     Returns
@@ -905,15 +910,16 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
 
     Examples
     --------
-    >>> U, V = qt.sigmax(), qt.sigmay()
+    >>> U, V = paulis[1:3]
     >>> dot_HS(U, V)
     0.0
     >>> dot_HS(U, U)
     2.0
     """
-    if isinstance(U, qt.Qobj):
+    # Convert qutip.Qobj's to numpy arrays
+    if hasattr(U, 'full'):
         U = U.full()
-    if isinstance(V, qt.Qobj):
+    if hasattr(V, 'full'):
         V = V.full()
 
     if eps is None:

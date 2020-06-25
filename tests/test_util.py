@@ -47,9 +47,9 @@ class UtilTest(testutil.TestCase):
 
     def test_get_indices_from_identifiers(self):
         pulse = PulseSequence(
-            [[util.P_np[3], [2], 'Z'],
-             [util.P_np[1], [1], 'X']],
-            [[util.P_np[2], [2]]],
+            [[util.paulis[3], [2], 'Z'],
+             [util.paulis[1], [1], 'X']],
+            [[util.paulis[2], [2]]],
             [1]
         )
         idx = util.get_indices_from_identifiers(pulse, ['X'], 'control')
@@ -101,7 +101,7 @@ class UtilTest(testutil.TestCase):
                 self.assertArrayEqual(util.tensor(A, B, rank=1), np.kron(A, B))
 
         i, j = testutil.rng.randint(0, 4, (2,))
-        A, B = util.P_np[i], util.P_np[j]
+        A, B = util.paulis[i], util.paulis[j]
         self.assertArrayEqual(util.tensor(A, B), np.kron(A, B))
 
         args = [testutil.rng.randn(4, 1, 2), testutil.rng.randn(3, 2),
@@ -119,7 +119,7 @@ class UtilTest(testutil.TestCase):
         self.assertEqual(msg, str(err.exception))
 
     def test_tensor_insert(self):
-        I, X, Y, Z = util.P_np
+        I, X, Y, Z = util.paulis
         arr = util.tensor(X, I)
 
         with self.assertRaises(ValueError):
@@ -258,7 +258,7 @@ class UtilTest(testutil.TestCase):
 
     def test_tensor_merge(self):
         # Test basic functionality
-        I, X, Y, Z = util.P_np
+        I, X, Y, Z = util.paulis
         arr = util.tensor(X, Y, Z)
         ins = util.tensor(I, I)
         r1 = util.tensor_merge(arr, ins, pos=[1, 2], arr_dims=[[2]*3, [2]*3],
@@ -366,7 +366,7 @@ class UtilTest(testutil.TestCase):
 
     def test_tensor_transpose(self):
         # Test basic functionality
-        paulis = np.array(util.P_np)
+        paulis = np.array(util.paulis)
         I, X, Y, Z = paulis
         arr = util.tensor(I, X, Y, Z)
         arr_dims = [[2]*4]*2
@@ -512,8 +512,8 @@ class UtilTest(testutil.TestCase):
 
     def test_get_sample_frequencies(self):
         pulse = PulseSequence(
-            [[util.P_np[1], [np.pi/2]]],
-            [[util.P_np[1], [1]]],
+            [[util.paulis[1], [np.pi/2]]],
+            [[util.paulis[1], [1]]],
             [abs(testutil.rng.randn())]
         )
         # Default args
@@ -539,8 +539,8 @@ class UtilTest(testutil.TestCase):
 
     def test_symmetrize_spectrum(self):
         pulse = PulseSequence(
-            [[util.P_np[1], [np.pi/2]]],
-            [[util.P_np[1], [1]]],
+            [[util.paulis[1], [np.pi/2]]],
+            [[util.paulis[1], [1]]],
             [abs(testutil.rng.randn())]
         )
 

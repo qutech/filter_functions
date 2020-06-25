@@ -229,10 +229,10 @@ class CoreTest(testutil.TestCase):
 
         # Fewer identifiers than opers
         pulse_2 = ff.PulseSequence(
-            [[util.P_np[1], [1], 'X'],
-             [util.P_np[2], [1]]],
-            [[util.P_np[1], [1]],
-             [util.P_np[2], [1], 'Y']],
+            [[util.paulis[1], [1], 'X'],
+             [util.paulis[2], [1]]],
+            [[util.paulis[1], [1]],
+             [util.paulis[2], [1], 'Y']],
             [1]
         )
         self.assertArrayEqual(pulse_2.c_oper_identifiers, ('A_1', 'X'))
@@ -240,7 +240,7 @@ class CoreTest(testutil.TestCase):
 
     def test_pulse_sequence_attributes(self):
         """Test attributes of single instance"""
-        X, Y, Z = util.P_np[1:]
+        X, Y, Z = util.paulis[1:]
         n_dt = testutil.rng.randint(1, 10)
 
         # trivial case
@@ -445,7 +445,7 @@ class CoreTest(testutil.TestCase):
 
     def test_pulse_sequence_attributes_concat(self):
         """Test attributes of concatenated sequence."""
-        X, Y, Z = util.P_np[1:]
+        X, Y, Z = util.paulis[1:]
         n_dt_1 = testutil.rng.randint(5, 11)
         x_coeff_1 = testutil.rng.randn(n_dt_1)
         z_coeff_1 = testutil.rng.randn(n_dt_1)
@@ -639,7 +639,7 @@ class CoreTest(testutil.TestCase):
         Test calculation of pulse correlation filter function and control
         matrix.
         """
-        X, Y, Z = util.P_np[1:]
+        X, Y, Z = util.paulis[1:]
         T = 1
         omega = np.linspace(-2e1, 2e1, 250)
         H_c, H_n, dt = dict(), dict(), dict()
