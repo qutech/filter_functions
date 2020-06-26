@@ -28,8 +28,8 @@ if sys.version_info < (3, 5):
 extras_require = {'plotting': ['matplotlib'],
                   'bloch_sphere_visualization': ['qutip', 'matplotlib'],
                   'fancy_progressbar': ['tqdm', 'requests'],
-                  'doc': ['ipython', 'ipykernel', 'nbsphinx', 'numpydoc', 'sphinx',
-                          'jupyter_client', 'pandoc', 'sphinx_rtd_theme'],
+                  'doc': ['jupyter', 'nbsphinx', 'numpydoc', 'sphinx',
+                          'pandoc', 'sphinx_rtd_theme'],
                   'tests': ['pytest', 'coverage', 'coveralls']}
 
 extras_require['all'] = [dep for deps in extras_require.values()
