@@ -29,7 +29,7 @@ extras_require = {'plotting': ['matplotlib'],
                   'bloch_sphere_visualization': ['qutip', 'matplotlib'],
                   'fancy_progressbar': ['tqdm', 'requests'],
                   'doc': ['jupyter', 'nbsphinx', 'numpydoc', 'sphinx',
-                          'pandoc', 'sphinx_rtd_theme'],
+                          'sphinx_rtd_theme'],
                   'tests': ['pytest', 'coverage', 'coveralls']}
 
 extras_require['all'] = [dep for deps in extras_require.values()
