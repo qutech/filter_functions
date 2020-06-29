@@ -94,16 +94,16 @@ try:
     import requests
     from jupyter_core.paths import jupyter_runtime_dir
     from notebook.utils import check_pid
+    from notebook.notebookapp import list_running_servers
     from requests.compat import urljoin
 
-    def _list_running_servers(runtime_dir: str = None) -> Generator:
-        """Iterate over the server info files of running notebook servers.
+    def _get_notebook_name() -> str:
+        """
+        Return the full path of the jupyter notebook.
 
-        Given a runtime directory, find nbserver-* files in the security
-        directory, and yield dicts of their information, each one pertaining to
-        a currently running notebook server instance.
+        See https://github.com/jupyter/notebook/issues/1000
 
-        Copied from ``notebook.notebookapp.list_running_servers()``:
+        Jupyter notebook is licensed as follows:
 
         This project is licensed under the terms of the Modified BSD License
         (also known as New or Revised or 3-Clause BSD), as follows:
@@ -140,44 +140,13 @@ try:
         (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
         OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         """
-        if runtime_dir is None:
-            runtime_dir = jupyter_runtime_dir()
-
-        # The runtime dir might not exist
-        if not os.path.isdir(runtime_dir):
-            return
-
-        for file_name in os.listdir(runtime_dir):
-            if re.match('nbserver-(.+).json', file_name):
-                with io.open(os.path.join(runtime_dir, file_name),
-                             encoding='utf-8') as f:
-                    info = json.load(f)
-
-                # Simple check whether that process is really still running
-                # Also remove leftover files from IPython 2.x without a pid
-                # field
-                if ('pid' in info) and check_pid(info['pid']):
-                    yield info
-                else:
-                    # If the process has died, try to delete its info file
-                    try:
-                        os.unlink(os.path.join(runtime_dir, file_name))
-                    except OSError:
-                        pass  # TODO: This should warn or log or something
-
-    def _get_notebook_name() -> str:
-        """
-        Return the full path of the jupyter notebook.
-
-        See https://github.com/jupyter/notebook/issues/1000
-        """
         try:
             connection_file = jupyter_client.find_connection_file()
         except OSError:
             return ''
 
         kernel_id = re.search('kernel-(.*).json', connection_file).group(1)
-        servers = _list_running_servers()
+        servers = list_running_servers()
         for ss in servers:
             response = requests.get(urljoin(ss['url'], 'api/sessions'),
                                     params={'token': ss.get('token', '')})
