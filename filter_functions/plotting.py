@@ -106,6 +106,7 @@ def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
     return b
 
 
+@util.parse_optional_parameter('prop', ['total', 'piecewise'])
 def get_states_from_prop(U: Sequence[Operator],
                          psi0: Optional[State] = None,
                          prop: str = 'total') -> ndarray:
@@ -135,7 +136,8 @@ def get_states_from_prop(U: Sequence[Operator],
     if prop == 'total':
         for j in range(len(U)):
             states[j] = U[j] @ psi0
-    elif prop == 'piecewise':
+    else:
+        # prop == 'piecewise'
         states[0] = U[0] @ psi0
         for j in range(1, len(U)):
             states[j] = U[j] @ states[j-1]
@@ -427,12 +429,12 @@ def plot_filter_function(pulse: 'PulseSequence',
     # Set the axis scales
     axes.set_xscale(xscale)
     axes.set_yscale(yscale)
-    if xscale == 'log':
+    if xscale != 'linear':
         z_min_idx = (z > 0).nonzero()[0][0]
     else:
         z_min_idx = (z >= 0).nonzero()[0][0]
 
-    if yscale != 'log':
+    if yscale == 'linear':
         axes.set_ylim(bottom=0)
 
     axes.set_xlim(z[z_min_idx], max(z))
@@ -621,6 +623,7 @@ def plot_infidelity_convergence(n_samples: Sequence[int],
     return fig, ax
 
 
+@util.parse_optional_parameter('colorscale', ['linear', 'log'])
 def plot_error_transfer_matrix(
         pulse: Optional['PulseSequence'] = None,
         S: Optional[ndarray] = None,
@@ -778,7 +781,8 @@ def plot_error_transfer_matrix(
     if colorscale == 'log':
         linthresh = np.abs(U).mean()/10 if linthresh is None else linthresh
         norm = colors.SymLogNorm(linthresh=linthresh, vmin=Umin, vmax=Umax)
-    elif colorscale == 'linear':
+    else:
+        # colorscale == 'linear'
         norm = colors.Normalize(vmin=Umin, vmax=Umax)
 
     imshow_kw = {} if imshow_kw is None else imshow_kw
