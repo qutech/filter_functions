@@ -1,3 +1,7 @@
+os: linux
+
+dist: xenial
+
 language: python
 
 python:
@@ -10,9 +14,6 @@ env:
   - INSTALL_EXTRAS=[bloch_sphere_visualization,fancy_progressbar,tests]
   - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,tests]
   - INSTALL_EXTRAS=[plotting,fancy_progressbar,tests]
-
-#use container based infrastructure
-sudo: false
 
 #these directories are persistent
 cache: pip
