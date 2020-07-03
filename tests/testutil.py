@@ -21,13 +21,11 @@
 """
 This module defines some testing utilities.
 """
-
 import string
 import unittest
 from pathlib import Path
 
 import numpy as np
-import qutip as qt
 from numpy.random import RandomState
 from numpy.testing import assert_allclose, assert_array_equal
 from scipy import io
@@ -126,7 +124,7 @@ def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg',
     t = np.append(t, tau)
     s = np.append(s, 0)
 
-    H = [[qt.sigmax()/2, s]]
+    H = [[util.paulis[1]/2, s]]
     return H, np.diff(t)
 
 
@@ -146,10 +144,7 @@ def rand_herm_traceless(d: int, n: int = 1) -> np.ndarray:
 def rand_unit(d: int, n: int = 1) -> np.ndarray:
     """n random unitary matrices of dimension d"""
     H = rand_herm(d, n)
-    if n == 1:
-        return sla.expm(1j*H)
-    else:
-        return np.array([sla.expm(1j*h) for h in H])
+    return np.array([sla.expm(1j*h) for h in H])
 
 
 def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,

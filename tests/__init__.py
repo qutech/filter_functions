@@ -18,3 +18,14 @@
 #
 #     Contact email: tobias.hangleiter@rwth-aachen.de
 # =============================================================================
+
+try:
+    import qutip
+except ImportError:
+    qutip = None
+
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+except ImportError:
+    matplotlib = None

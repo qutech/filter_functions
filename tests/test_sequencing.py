@@ -22,8 +22,8 @@
 This module tests the concatenation functionality for PulseSequence's.
 """
 
-from copy import copy
 import string
+from copy import copy
 from itertools import product
 from random import sample
 

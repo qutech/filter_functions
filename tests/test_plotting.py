@@ -21,22 +21,23 @@
 """
 This module tests the plotting functionality of the package.
 """
-import matplotlib
-
-# Needs to be executed before the pyplot import
-matplotlib.use('Agg')
-
 import string
 from random import sample
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-import qutip as qt
 
 import filter_functions as ff
-from filter_functions import plotting
 from tests import testutil
+
+from . import qutip
+
+plotting = pytest.importorskip(
+    'filter_functions.plotting',
+    reason='Skipping plotting tests for build without matplotlib',
+)
+if plotting is not None:
+    import matplotlib.pyplot as plt
 
 simple_pulse = testutil.rand_pulse_sequence(2, 1, 1, 1, btype='Pauli')
 complicated_pulse = testutil.rand_pulse_sequence(2, 100, 3, 3)
@@ -44,45 +45,6 @@ two_qubit_pulse = testutil.rand_pulse_sequence(4, 1, 1, 6, btype='Pauli')
 
 
 class PlottingTest(testutil.TestCase):
-
-    def test_get_bloch_vector(self):
-        states = [qt.rand_ket(2) for _ in range(10)]
-        bloch_vectors_qt = plotting.get_bloch_vector(states)
-        bloch_vectors_np = plotting.get_bloch_vector([state.full()
-                                                      for state in states])
-
-        for bv_qt, bv_np in zip(bloch_vectors_qt, bloch_vectors_np):
-            self.assertArrayAlmostEqual(bv_qt, bv_np)
-
-    def test_get_states_from_prop(self):
-        P = testutil.rand_unit(2, 10)
-        Q = np.empty((11, 2, 2), dtype=complex)
-        Q[0] = np.identity(2)
-        for i in range(10):
-            Q[i+1] = P[i] @ Q[i]
-
-        psi0 = qt.rand_ket(2)
-        states_piecewise = plotting.get_states_from_prop(P, psi0, 'piecewise')
-        states_total = plotting.get_states_from_prop(Q[1:], psi0, 'total')
-        self.assertArrayAlmostEqual(states_piecewise, states_total)
-
-    def test_plot_bloch_vector_evolution(self):
-        # Call with default args
-        b = plotting.plot_bloch_vector_evolution(simple_pulse)
-        # Call with custom args
-        b = plotting.init_bloch_sphere(background=True)
-        b = plotting.plot_bloch_vector_evolution(simple_pulse,
-                                                 psi0=qt.basis(2, 1), b=b,
-                                                 n_samples=50, show=False,
-                                                 return_Bloch=True)
-
-        b = plotting.plot_bloch_vector_evolution(complicated_pulse)
-
-        # Check exceptions being raised
-        with self.assertRaises(ValueError):
-            plotting.plot_bloch_vector_evolution(two_qubit_pulse)
-
-        plt.close('all')
 
     def test_plot_pulse_train(self):
         # Call with default args
@@ -292,12 +254,12 @@ class PlottingTest(testutil.TestCase):
         fig, grid = plotting.plot_error_transfer_matrix(
             complicated_pulse, S=S, omega=omega,
             n_oper_identifiers=n_oper_identifiers, basis_labels=basis_labels,
-            basis_labelsize=4, linthresh=1e-4, cmap=matplotlib.cm.jet
+            basis_labelsize=4, linthresh=1e-4, cmap=plt.cm.jet
         )
         fig, grid = plotting.plot_error_transfer_matrix(
             U=U[n_oper_inds], n_oper_identifiers=n_oper_identifiers,
             basis_labels=basis_labels, basis_labelsize=4, linthresh=1e-4,
-            cmap=matplotlib.cm.jet
+            cmap=plt.cm.jet
         )
 
         # neither U nor all of pulse, S, omega given
@@ -338,3 +300,48 @@ class PlottingTest(testutil.TestCase):
 
         n, infids = ff.infidelity(simple_pulse, S, {}, test_convergence=True)
         fig, ax = plotting.plot_infidelity_convergence(n, infids)
+
+
+@pytest.mark.skipif(
+    qutip is None,
+    reason='Skipping bloch sphere visualization tests for build without qutip')
+class BlochSphereVisualizationTest(testutil.TestCase):
+
+    def test_get_bloch_vector(self):
+        states = [qutip.rand_ket(2) for _ in range(10)]
+        bloch_vectors_qutip = plotting.get_bloch_vector(states)
+        bloch_vectors_np = plotting.get_bloch_vector([state.full()
+                                                      for state in states])
+
+        for bv_qutip, bv_np in zip(bloch_vectors_qutip, bloch_vectors_np):
+            self.assertArrayAlmostEqual(bv_qutip, bv_np)
+
+    def test_get_states_from_prop(self):
+        P = testutil.rand_unit(2, 10)
+        Q = np.empty((11, 2, 2), dtype=complex)
+        Q[0] = np.identity(2)
+        for i in range(10):
+            Q[i+1] = P[i] @ Q[i]
+
+        psi0 = qutip.rand_ket(2)
+        states_piecewise = plotting.get_states_from_prop(P, psi0, 'piecewise')
+        states_total = plotting.get_states_from_prop(Q[1:], psi0, 'total')
+        self.assertArrayAlmostEqual(states_piecewise, states_total)
+
+    def test_plot_bloch_vector_evolution(self):
+        # Call with default args
+        b = plotting.plot_bloch_vector_evolution(simple_pulse)
+        # Call with custom args
+        b = plotting.init_bloch_sphere(background=True)
+        b = plotting.plot_bloch_vector_evolution(simple_pulse,
+                                                 psi0=qutip.basis(2, 1), b=b,
+                                                 n_samples=50, show=False,
+                                                 return_Bloch=True)
+
+        b = plotting.plot_bloch_vector_evolution(complicated_pulse)
+
+        # Check exceptions being raised
+        with self.assertRaises(ValueError):
+            plotting.plot_bloch_vector_evolution(two_qubit_pulse)
+
+        plt.close('all')

@@ -23,10 +23,9 @@ This module tests if the package produces the correct results numerically.
 """
 
 import numpy as np
-import qutip as qt
 
 import filter_functions as ff
-from filter_functions import analytic, numeric
+from filter_functions import analytic, numeric, util
 from tests import testutil
 
 
@@ -192,6 +191,9 @@ class PrecisionTest(testutil.TestCase):
 
     def test_diagonalization_cnot(self):
         """CNOT"""
+        cnot_mat = np.block([[util.paulis[0], np.zeros((2, 2))],
+                             [np.zeros((2, 2)), util.paulis[1]]])
+
         subspace_c_opers = testutil.subspace_opers
         subspace_n_opers = subspace_c_opers
         c_opers = testutil.opers
@@ -212,12 +214,12 @@ class PrecisionTest(testutil.TestCase):
         cnot_subspace.diagonalize()
 
         phase_eq = ff.util.oper_equiv(cnot_subspace.total_Q[1:5, 1:5],
-                                      qt.cnot(), eps=1e-9)
+                                      cnot_mat, eps=1e-9)
 
         self.assertTrue(phase_eq[0])
 
         phase_eq = ff.util.oper_equiv(
-            cnot.total_Q[np.ix_(*subspace)][1:5, 1:5], qt.cnot(), eps=1e-9)
+            cnot.total_Q[np.ix_(*subspace)][1:5, 1:5], cnot_mat, eps=1e-9)
 
         self.assertTrue(phase_eq[0])
 

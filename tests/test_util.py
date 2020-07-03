@@ -22,10 +22,12 @@
 This module tests the utility functions in util.py
 """
 import numpy as np
-import qutip as qt
+import pytest
 
 from filter_functions import PulseSequence, util
 from tests import testutil
+
+from . import qutip
 
 
 class UtilTest(testutil.TestCase):
@@ -441,8 +443,8 @@ class UtilTest(testutil.TestCase):
             util.oper_equiv(*[np.ones((1, 2, 3))]*2)
 
         for d in testutil.rng.randint(2, 10, (5,)):
-            psi = qt.rand_ket(d)
-            U = qt.rand_dm(d)
+            psi = testutil.rng.randn(d, 1)*(1 + 1j)
+            U = testutil.rand_herm(d).squeeze()
             phase = testutil.rng.randn()
 
             result = util.oper_equiv(psi, psi*np.exp(1j*phase))
@@ -453,8 +455,7 @@ class UtilTest(testutil.TestCase):
             self.assertTrue(result[0])
             self.assertAlmostEqual(result[1], -phase, places=5)
 
-            psi = psi.full()
-            psi /= np.sqrt(np.linalg.norm(psi, ord=2))
+            psi /= np.linalg.norm(psi, ord=2)
 
             result = util.oper_equiv(psi, psi*np.exp(1j*phase),
                                      normalized=True, eps=1e-13)
@@ -472,7 +473,6 @@ class UtilTest(testutil.TestCase):
             self.assertTrue(result[0])
             self.assertAlmostEqual(result[1], -phase, places=5)
 
-            U = U.full()
             U /= np.sqrt(util.dot_HS(U, U))
             result = util.oper_equiv(U, U*np.exp(1j*phase), normalized=True,
                                      eps=1e-10)
@@ -489,13 +489,12 @@ class UtilTest(testutil.TestCase):
         self.assertArrayEqual(S, T)
 
         for d in testutil.rng.randint(2, 10, (5,)):
-            U = qt.rand_herm(d)
-            V = qt.rand_herm(d)
-            self.assertArrayAlmostEqual(util.dot_HS(U, V), (U.dag()*V).tr())
+            U, V = testutil.rand_herm(d, 2)
+            self.assertArrayAlmostEqual(util.dot_HS(U, V),
+                                        (U.conj().T @ V).trace())
 
-            U = qt.rand_unitary(d)
+            U = testutil.rand_unit(d).squeeze()
             self.assertEqual(util.dot_HS(U, U), d)
-
             self.assertEqual(util.dot_HS(U, U + 1e-14, eps=1e-10), d)
 
     def test_all_array_equal(self):
@@ -598,3 +597,51 @@ class UtilTest(testutil.TestCase):
             self.assertEqual(str(err.exception),
                              "Invalid value for foo: {}.".format([1, 2]) +
                              " Should be one of {}".format([1, 'bar', (2, 3)]))
+
+
+@pytest.mark.skipif(
+    qutip is None,
+    reason='Skipping qutip compatibility tests for build without qutip')
+class QutipCompatibilityTest(testutil.TestCase):
+
+    def test_dot_HS(self):
+        for d in testutil.rng.randint(2, 10, (5,)):
+            U = qutip.rand_herm(d)
+            V = qutip.rand_herm(d)
+            self.assertArrayAlmostEqual(util.dot_HS(U, V), (U.dag()*V).tr())
+
+            U = qutip.rand_unitary(d)
+            self.assertEqual(util.dot_HS(U, U), d)
+
+            self.assertEqual(util.dot_HS(U, U + 1e-14, eps=1e-10), d)
+            self.assertArrayAlmostEqual(util.dot_HS(U, V), (U.dag()*V).tr())
+
+            U = qutip.rand_unitary(d)
+            self.assertEqual(util.dot_HS(U, U), d)
+
+            self.assertEqual(util.dot_HS(U, U + 1e-14, eps=1e-10), d)
+
+    def test_oper_equiv(self):
+        self.assertFalse(
+            util.oper_equiv(qutip.rand_ket(2), qutip.rand_dm(2))[0])
+
+        for d in testutil.rng.randint(2, 10, (5,)):
+            psi = qutip.rand_ket(d)
+            U = qutip.rand_dm(d)
+            phase = testutil.rng.randn()
+
+            result = util.oper_equiv(psi, psi*np.exp(1j*phase))
+            self.assertTrue(result[0])
+            self.assertAlmostEqual(result[1], phase, places=5)
+
+            result = util.oper_equiv(psi*np.exp(1j*phase), psi)
+            self.assertTrue(result[0])
+            self.assertAlmostEqual(result[1], -phase, places=5)
+
+            result = util.oper_equiv(U, U*np.exp(1j*phase))
+            self.assertTrue(result[0])
+            self.assertAlmostEqual(result[1], phase, places=5)
+
+            result = util.oper_equiv(U*np.exp(1j*phase), U)
+            self.assertTrue(result[0])
+            self.assertAlmostEqual(result[1], -phase, places=5)

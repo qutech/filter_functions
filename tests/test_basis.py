@@ -25,11 +25,13 @@ from copy import copy
 from itertools import product
 
 import numpy as np
-import qutip as qt
+import pytest
 from sparse import COO
 
 import filter_functions as ff
 from tests import testutil
+
+from . import qutip
 
 
 class BasisTest(testutil.TestCase):
@@ -42,13 +44,10 @@ class BasisTest(testutil.TestCase):
             _ = ff.Basis(1)
 
         # All elements should be either sparse, Qobj, or ndarray
-        elems = [ff.util.paulis[1], qt.sigmay(), qt.qeye(2).data,
-                 COO.from_numpy(ff.util.paulis[3]), [[0, 1], [1, 0]]]
+        elems = [ff.util.paulis[1], COO.from_numpy(ff.util.paulis[3]),
+                 [[0, 1], [1, 0]]]
         with self.assertRaises(TypeError):
             _ = ff.Basis(elems)
-
-        # Excluding the fast_csr element should work
-        self.assertEqual(ff.Basis.pauli(1), ff.Basis(elems[:-1]))
 
         # Too many elements
         with self.assertRaises(ValueError):
@@ -328,3 +327,20 @@ class BasisTest(testutil.TestCase):
                 elif i == 1 and j == 1:
                     # base traceless, nopers traceless
                     self.assertTrue(np.allclose(R[:, 0], 0))
+
+
+@pytest.mark.skipif(
+    qutip is None,
+    reason='Skipping qutip compatibility test for build without qutip')
+class QutipCompatibilityTest(testutil.TestCase):
+
+    def test_constructor(self):
+        """Test if can create basis from qutip objects."""
+
+        elems_qutip = [qutip.sigmay(), qutip.qeye(2).data]
+        elems_np = [qutip.sigmay().full(), qutip.qeye(2).full()]
+
+        basis_qutip = ff.Basis(elems_qutip)
+        basis_np = ff.Basis(elems_np)
+
+        self.assertArrayEqual(basis_qutip, basis_np)
