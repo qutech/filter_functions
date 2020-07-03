@@ -65,7 +65,7 @@ class MissingExtrasTest(testutil.TestCase):
 
         with self.assertRaises(RuntimeError):
             plotting.plot_bloch_vector_evolution(
-                testutil.rand_pulse_sequence(2))
+                testutil.rand_pulse_sequence(2, 1))
 
         from filter_functions import types
         self.assertIs(types.State, ndarray)
