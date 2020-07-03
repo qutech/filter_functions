@@ -72,7 +72,7 @@ class TestCase(unittest.TestCase):
                             verbose)
         elif (actual is None and desired is not None or
               actual is not None and desired is None):
-            raise AssertionError('One of {} or {} '.format(actual, desired) +
+            raise AssertionError(f'One of {actual} or {desired} ' +
                                  'is None but the other not!')
         else:
             assert_array_equal(actual, desired, err_msg, verbose)

@@ -590,20 +590,20 @@ class UtilTest(testutil.TestCase):
         with self.assertRaises(ValueError) as err:
             foobar(1, 1, 2)
             self.assertEqual(str(err.exception),
-                             "Invalid value for foo: {}.".format(2) +
-                             " Should be one of {}".format([1, 'bar', (2, 3)]))
+                             f"Invalid value for foo: {2}." +
+                             f" Should be one of {[1, 'bar', (2, 3)]}")
 
         with self.assertRaises(ValueError):
             foobar(1, 1, 'x')
             self.assertEqual(str(err.exception),
-                             "Invalid value for foo: {}.".format('x') +
-                             " Should be one of {}".format([1, 'bar', (2, 3)]))
+                             f"Invalid value for foo: {'x'}." +
+                             f" Should be one of {[1, 'bar', (2, 3)]}")
 
         with self.assertRaises(ValueError):
             foobar(1, 1, [1, 2])
             self.assertEqual(str(err.exception),
-                             "Invalid value for foo: {}.".format([1, 2]) +
-                             " Should be one of {}".format([1, 'bar', (2, 3)]))
+                             f"Invalid value for foo: {[1, 2]}." +
+                             f" Should be one of {[1, 'bar', (2, 3)]}")
 
 
 @pytest.mark.skipif(
@@ -652,3 +652,4 @@ class QutipCompatibilityTest(testutil.TestCase):
             result = util.oper_equiv(U*np.exp(1j*phase), U)
             self.assertTrue(result[0])
             self.assertAlmostEqual(result[1], -phase, places=5)
+

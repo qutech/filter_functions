@@ -541,7 +541,7 @@ class ExtensionTest(testutil.TestCase):
 
                 # By default, extend should add the target qubit as suffix to
                 # identifiers
-                ext_ids = [i + '_{}'.format(target) for i in ids]
+                ext_ids = [i + f'_{target}' for i in ids]
                 ext_pulse = ff.PulseSequence(
                     list(zip(ext_opers, coeffs, ext_ids)),
                     list(zip(ext_opers, np.ones((3, n_dt)), ext_ids)),
