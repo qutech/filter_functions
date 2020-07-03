@@ -77,7 +77,6 @@ import operator
 import os
 import re
 import string
-import sys
 from itertools import zip_longest
 from typing import (Callable, Generator, Iterable, List, Optional, Sequence,
                     Tuple, Union)
@@ -161,14 +160,11 @@ try:
 except ImportError:
     _NOTEBOOK_NAME = ''
 
-try:
-    if _NOTEBOOK_NAME:
-        from tqdm.notebook import tqdm
-    else:
-        # Either not running notebook or not able to determine
-        from tqdm import tqdm
-except ImportError:
-    tqdm = None
+if _NOTEBOOK_NAME:
+    from tqdm.notebook import tqdm as _tqdm
+else:
+    # Either not running notebook or not able to determine
+    from tqdm import tqdm as _tqdm
 
 __all__ = ['paulis', 'abs2', 'all_array_equal', 'dot_HS',
            'get_sample_frequencies', 'hash_array_along_axis', 'mdot',
@@ -1035,50 +1031,16 @@ def all_array_equal(it: Iterable) -> bool:
     return len(set(hash(i.tobytes()) for i in it)) == 1
 
 
-def _simple_progressbar(iterable: Iterable, desc: str = "Computing",
-                        size: int = 25, count: int = None, file=None):
-    """https://stackoverflow.com/a/34482761"""
-    if count is None:
-        try:
-            count = len(iterable)
-        except TypeError:
-            raise TypeError("Require total number of iterations 'count'.")
-
-    file = sys.stdout if file is None else file
-
-    if desc:
-        # tqdm desc compatibility
-        desc = desc.strip(': ') + ': '
-
-    def show(j):
-        x = int(size*j/count)
-        file.write("\r{}[{}{}] {} %".format(desc, "#"*x, "."*(size - x),
-                                            int(100*j/count)))
-        file.flush()
-
-    show(0)
-    for i, item in enumerate(iterable):
-        yield item
-        show(i + 1)
-
-    file.write("\n")
-    file.flush()
-
-
 def progressbar(iterable: Iterable, *args, **kwargs):
     """
-    Progress bar for loops. Uses tqdm if available or a quick-and-dirty
-    implementation from stackoverflow.
+    Progress bar for loops. Uses tqdm.
 
     Usage::
 
         for i in progressbar(range(10)):
             do_something()
     """
-    if tqdm is not None:
-        return tqdm(iterable, *args, **kwargs)
-
-    return _simple_progressbar(iterable, *args, **kwargs)
+    return _tqdm(iterable, *args, **kwargs)
 
 
 def progressbar_range(*args, show_progressbar: Optional[bool] = True,

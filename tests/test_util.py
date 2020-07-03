@@ -561,15 +561,6 @@ class UtilTest(testutil.TestCase):
         self.assertArrayEqual(S_sym, np.abs(np.arange(-9, 10)/2))
         self.assertArrayEqual(omega_sym, np.arange(-9, 10))
 
-    def test_simple_progressbar(self):
-        with self.assertRaises(TypeError):
-            for i in util._simple_progressbar((i for i in range(10))):
-                pass
-
-        for i in util._simple_progressbar(range(10), desc="foo", size=10,
-                                          count=5):
-            pass
-
     def test_progressbar_range(self):
         ii = []
         for i in util.progressbar_range(2, 125, 32, desc=""):

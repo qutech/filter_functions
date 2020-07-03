@@ -27,7 +27,7 @@ if sys.version_info < (3, 5):
 
 extras_require = {'plotting': ['matplotlib'],
                   'bloch_sphere_visualization': ['qutip', 'matplotlib'],
-                  'fancy_progressbar': ['tqdm', 'requests'],
+                  'fancy_progressbar': ['requests'],
                   'doc': ['jupyter', 'nbsphinx', 'numpydoc', 'sphinx',
                           'sphinx_rtd_theme'],
                   'tests': ['pytest', 'coverage', 'coveralls']}
@@ -45,7 +45,7 @@ setup(name='filter_functions',
       author_email='tobias.hangleiter@rwth-aachen.de',
       packages=['filter_functions'],
       package_dir={'filter_functions': 'filter_functions'},
-      install_requires=['numpy', 'scipy', 'opt_einsum', 'sparse'],
+      install_requires=['numpy', 'scipy', 'opt_einsum', 'sparse', 'tqdm'],
       extras_require=extras_require,
       test_suite='tests',
       classifiers=[
