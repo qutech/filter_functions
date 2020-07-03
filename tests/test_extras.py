@@ -43,7 +43,8 @@ class MissingExtrasTest(testutil.TestCase):
         self.assertIs(tqdm, util._tqdm)
 
     @pytest.mark.skipif(
-        'plotting' in os.environ.get('INSTALL_EXTRAS', all_extras),
+        any(extra in os.environ.get('INSTALL_EXTRAS', all_extras)
+            for extra in ['plotting', 'bloch_sphere_visualization']),
         reason='Skipping tests for missing plotting extra in build with matplotlib')  # noqa
     def test_plotting_not_available(self):
         with self.assertRaises(ModuleNotFoundError):
