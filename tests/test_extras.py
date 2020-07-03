@@ -55,7 +55,7 @@ class MissingExtrasTest(testutil.TestCase):
 
     @pytest.mark.skipif(
         ('bloch_sphere_visualization' in os.environ.get('INSTALL_EXTRAS', all_extras)  # noqa
-         and matplotlib is not None),
+         and matplotlib is None),
         reason='Skipping tests for missing bloch sphere visualization tests in build with qutip')  # noqa
     def test_bloch_sphere_visualization_not_available(self):
 
