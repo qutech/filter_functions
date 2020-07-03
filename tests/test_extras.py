@@ -55,7 +55,10 @@ class MissingExtrasTest(testutil.TestCase):
         reason='Skipping tests for missing bloch sphere visualization tests in build with qutip')  # noqa
     def test_bloch_sphere_visualization_not_available(self):
 
-        from filter_functions import plotting
+        try:
+            from filter_functions import plotting
+        except ModuleNotFoundError:
+            plotting = None
 
         with self.assertRaises(RuntimeError):
             plotting.get_bloch_vector(testutil.rng.standard_normal((10, 2)))
