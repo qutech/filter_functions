@@ -378,8 +378,8 @@ class ConcatenationTest(testutil.TestCase):
             n_opers = opers[n_idx]
             c_opers = opers[c_idx]
             n_coeffs = np.ones((n_opers.shape[0], n_dt))
-            n_coeffs *= np.abs(rng.standard_normal(n_opers.shape[0] + (1,)))
-            c_coeffs = rng.standard_normal(c_opers.shape[0] + (n_dt,))
+            n_coeffs *= np.abs(rng.standard_normal((n_opers.shape[0], 1)))
+            c_coeffs = rng.standard_normal((c_opers.shape[0], n_dt))
             dt = np.abs(rng.standard_normal(n_dt))
             n_ids = np.array([''.join(l) for l in letters[n_idx]])
             c_ids = np.array([''.join(l) for l in letters[c_idx]])
@@ -397,7 +397,7 @@ class ConcatenationTest(testutil.TestCase):
             more_n_opers = opers[more_n_idx]
             more_n_coeffs = np.ones((more_n_opers.shape[0], n_dt))
             more_n_coeffs *= np.abs(rng.standard_normal(
-                more_n_opers.shape[0] + (1,)))
+                (more_n_opers.shape[0], 1)))
             more_n_ids = np.array([''.join(l) for l in letters[more_n_idx]])
             pulse_3 = ff.PulseSequence(list(zip(c_opers, c_coeffs, c_ids)),
                                        list(zip(more_n_opers, more_n_coeffs,
@@ -405,7 +405,7 @@ class ConcatenationTest(testutil.TestCase):
                                        dt)
 
             nontrivial_n_coeffs = np.abs(rng.standard_normal(
-                n_opers.shape[0] + (n_dt,)))
+                (n_opers.shape[0], n_dt)))
             pulse_4 = ff.PulseSequence(list(zip(c_opers, c_coeffs, c_ids)),
                                        list(zip(more_n_opers,
                                                 nontrivial_n_coeffs,
