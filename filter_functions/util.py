@@ -237,9 +237,8 @@ def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int],
             # Both arguments have same dimension on axis.
             broadcast_shape = dims[:1] + broadcast_shape
         else:
-            raise ValueError('Incompatible shapes ' +
-                             '{} and {} '.format(shape_A, shape_B) +
-                             'for tensor product of rank {}.'.format(rank))
+            raise ValueError(f'Incompatible shapes {shape_A} and {shape_B} ' +
+                             f'for tensor product of rank {rank}.')
 
     # Shape of the actual tensor product is product of each dimension,
     # again broadcasting if need be
@@ -256,12 +255,12 @@ def _parse_dims_arg(name: str, dims: Sequence[Sequence[int]],
                     rank: int) -> None:
     """Check if dimension arg for a tensor_* function is correct format"""
     if not len(dims) == rank:
-        raise ValueError('{}_dims should be of length '.format(name) +
-                         'rank = {}, not {}'.format(rank, len(dims)))
+        raise ValueError(f'{name}_dims should be of length ' +
+                         f'rank = {rank}, not {len(dims)}')
 
     if not len(set(len(dim) for dim in dims)) == 1:
         # Not all nested lists the same length as required
-        raise ValueError('Require all lists in {}_dims '.format(name) +
+        raise ValueError(f'Require all lists in {name}_dims ' +
                          'to be of same length!')
 
 
@@ -295,7 +294,7 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
                              for identifier in identifiers])
         except KeyError:
             raise ValueError('Invalid identifiers given. All available ones ' +
-                             'are: {}'.format(pulse_identifiers))
+                             f'are: {pulse_identifiers}')
 
     return inds
 
@@ -517,7 +516,7 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
         if not len(pos) == len(args):
             raise ValueError('Expected pos to be either an int or a ' +
                              'sequence of the same length as the number of ' +
-                             'args, not length {}'.format(len(pos)))
+                             f'args, not length {len(pos)}')
 
     _parse_dims_arg('arr', arr_dims, rank)
 
@@ -561,9 +560,8 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
             key=operator.itemgetter(0))):
 
         if div not in (-1, 0):
-            raise IndexError('Invalid position {} '.format(cpos[i]) +
-                             'specified. Must be between ' +
-                             '-{0} and {0}.'.format(ndim))
+            raise IndexError(f'Invalid position {cpos[i]} specified. Must ' +
+                             f'be between -{ndim} and {ndim}.')
 
         # Insert argument arg at position p+i (since every iteration the index
         # shifts by 1)
@@ -571,9 +569,9 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
             result = single_tensor_insert(result, arg, carr_dims, p+i)
         except ValueError as err:
             raise ValueError(
-                'Could not insert arg {} with shape '.format(arg_counter) +
-                '{} into the array with shape '.format(result.shape) +
-                '{} at position {}.'.format(arg.shape, p)
+                f'Could not insert arg {arg_counter} with shape ' +
+                f'{result.shape} into the array with shape {arg.shape} ' +
+                f'at position {p}.'
             ) from err
 
         # Update arr_dims
@@ -689,16 +687,14 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
             if p != arr_ndim:
                 div, p = divmod(p, arr_ndim)
                 if div not in (-1, 0):
-                    raise IndexError('Invalid position {} '.format(pos[i]) +
+                    raise IndexError(f'Invalid position {pos[i]} ' +
                                      'specified. Must be between ' +
-                                     '-{0} and {0}.'.format(arr_ndim))
+                                     f'-{arr_ndim} and {arr_ndim}.')
             arr_part = arr_part[:p+i] + ins_p + arr_part[p+i:]
 
         out_chars += arr_part
 
-    subscripts = '...{},...{}->...{}'.format(
-        ins_chars, arr_chars, out_chars
-    )
+    subscripts = f'...{ins_chars},...{arr_chars}->...{out_chars}'
 
     outshape = _tensor_product_shape(ins.shape, arr.shape, rank)
     # Need to reshape arr to the rank*ndim-dimensional shape that's the
@@ -711,12 +707,12 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
         ins_reshaped = ins.reshape(*ins.shape[:-rank], *flat_ins_dims)
     except ValueError as err:
         raise ValueError('ins_dims not compatible with ins.shape[-rank:] = ' +
-                         '{}'.format(ins.shape[-rank:])) from err
+                         f'{ins.shape[-rank:]}') from err
     try:
         arr_reshaped = arr.reshape(*arr.shape[:-rank], *flat_arr_dims)
     except ValueError as err:
         raise ValueError('arr_dims not compatible with arr.shape[-rank:] = ' +
-                         '{}'.format(arr.shape[-rank:])) from err
+                         f'{arr.shape[-rank:]}') from err
 
     result = np.einsum(subscripts, ins_reshaped, arr_reshaped,
                        optimize=optimize).reshape(outshape)
@@ -789,7 +785,7 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
         arr_reshaped = arr.reshape(*arr.shape[:-rank], *flat_arr_dims)
     except ValueError as err:
         raise ValueError('arr_dims not compatible with arr.shape[-rank:] = ' +
-                         '{}'.format(arr.shape[-rank:])) from err
+                         f'{arr.shape[-rank:]}') from err
 
     try:
         result = arr_reshaped.transpose(*transpose_axes).reshape(arr.shape)
@@ -1116,10 +1112,8 @@ def parse_optional_parameter(name: str, allowed: Sequence) -> Callable:
                 value = kwargs.get(name, parameters[name].default)
 
             if value not in allowed:
-                raise ValueError(
-                    "Invalid value for {}: {}. ".format(name, value) +
-                    "Should be one of {}.".format(allowed)
-                )
+                raise ValueError(f"Invalid value for {name}: {value}. " +
+                                 f"Should be one of {allowed}.")
             return func(*args, **kwargs)
         return wrapper
     return decorator
