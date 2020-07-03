@@ -20,6 +20,7 @@ cache: pip
 
 #manually install these dependencies so that qutip can be installed via pip
 before_install:
+  - pip install --upgrade pip
   - pip install numpy scipy cython
 
 install:
