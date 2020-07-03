@@ -966,7 +966,7 @@ def infidelity(pulse: 'PulseSequence',
 
         F = pulse.get_pulse_correlation_filter_function()
     else:
-        raise ValueError("Unrecognized option for 'which': {}.".format(which))
+        raise ValueError(f"Unrecognized option for 'which': {which}.")
 
     S = np.asarray(S)
     slices = [slice(None)]*F.ndim

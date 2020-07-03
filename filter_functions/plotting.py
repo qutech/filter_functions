@@ -513,7 +513,7 @@ def plot_pulse_correlation_filter_function(
 
             # Set the axis scales
             axes[i, j].set_yscale(yscale)
-            axes[i, j].set_title(r'$F^{{({}{})}}(\omega)$'.format(i, j))
+            axes[i, j].set_title(rf'$F^{{({i}{j})}}(\omega)$')
             if i != n-1:
                 # Hide the ticklabels on all but the lowest row
                 axes[i, j].axes.xaxis.set_ticklabels([])
@@ -663,7 +663,7 @@ def plot_error_transfer_matrix(
             if pulse is not None and len(pulse.n_oper_identifiers) == len(U):
                 n_oper_identifiers = pulse.n_oper_identifiers
             else:
-                n_oper_identifiers = ['$B_{}$'.format(i)
+                n_oper_identifiers = [f'$B_{{{i}}}$'
                                       for i in range(len(n_oper_inds))]
 
     else:
@@ -691,8 +691,7 @@ def plot_error_transfer_matrix(
             basis_labels = [''.join(tup) for tup in
                             product(['I', 'X', 'Y', 'Z'], repeat=n_qubits)]
         else:
-            basis_labels = ['$C_{{{}}}$'.format(i)
-                            for i in range(U.shape[-1])]
+            basis_labels = [f'$C_{{{i}}}$' for i in range(U.shape[-1])]
     else:
         if len(basis_labels) != U.shape[-1]:
             raise ValueError('Invalid number of basis_labels given')

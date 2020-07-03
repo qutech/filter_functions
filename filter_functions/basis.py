@@ -578,8 +578,7 @@ def normalize(b: Sequence) -> Basis:
         return np.einsum('ijk,i->ijk',
                          b, 1/nla.norm(b, axis=(1, 2))).view(Basis)
 
-    raise ValueError('Expected b.ndim to be either 2 or 3, not ' +
-                     '{}.'.format(b.ndim))
+    raise ValueError(f'Expected b.ndim to be either 2 or 3, not {b.ndim}.')
 
 
 def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
