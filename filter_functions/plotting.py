@@ -192,8 +192,6 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     --------
     qutip.bloch.Bloch: Qutip's Bloch sphere implementation.
     """
-    from mpl_toolkits.mplot3d import Axes3D
-
     # Raise an exception if not a one-qubit pulse
     if not pulse.d == 2:
         raise ValueError('Plotting Bloch sphere evolution only implemented ' +

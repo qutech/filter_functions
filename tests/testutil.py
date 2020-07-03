@@ -26,14 +26,14 @@ import unittest
 from pathlib import Path
 
 import numpy as np
-from numpy.random import RandomState
+from numpy import random
 from numpy.testing import assert_allclose, assert_array_equal
 from scipy import io
 from scipy import linalg as sla
 
 from filter_functions import Basis, PulseSequence, util
 
-rng = RandomState()
+rng = random.RandomState()
 
 
 class TestCase(unittest.TestCase):
