@@ -58,7 +58,7 @@ class MissingExtrasTest(testutil.TestCase):
             from filter_functions import plotting
 
         with self.assertRaises(RuntimeError):
-            plotting.get_bloch_vector(testutil.rng.randn(10, 2))
+            plotting.get_bloch_vector(testutil.rng.standard_normal((10, 2)))
 
         with self.assertRaises(RuntimeError):
             plotting.init_bloch_sphere()

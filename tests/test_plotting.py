@@ -29,6 +29,7 @@ import pytest
 
 import filter_functions as ff
 from tests import testutil
+from tests.testutil import rng
 
 from . import qutip
 
@@ -59,8 +60,7 @@ class PlottingTest(testutil.TestCase):
 
         # Call with custom args
         c_oper_identifiers = sample(
-            complicated_pulse.c_oper_identifiers.tolist(),
-            testutil.rng.randint(2, 4)
+            complicated_pulse.c_oper_identifiers.tolist(), rng.randint(2, 4)
         )
 
         fig, ax = plt.subplots()
@@ -102,8 +102,7 @@ class PlottingTest(testutil.TestCase):
 
         # Non-default args
         n_oper_identifiers = sample(
-            complicated_pulse.n_oper_identifiers.tolist(),
-            testutil.rng.randint(2, 4)
+            complicated_pulse.n_oper_identifiers.tolist(), rng.randint(2, 4)
         )
 
         fig, ax = plt.subplots()
@@ -168,8 +167,7 @@ class PlottingTest(testutil.TestCase):
 
         # Non-default args
         n_oper_identifiers = sample(
-            complicated_pulse.n_oper_identifiers.tolist(),
-            testutil.rng.randint(2, 4)
+            complicated_pulse.n_oper_identifiers.tolist(), rng.randint(2, 4)
         )
 
         fig, ax = plt.subplots()
@@ -239,13 +237,12 @@ class PlottingTest(testutil.TestCase):
 
         # Non-default args
         n_oper_inds = sample(range(len(complicated_pulse.n_opers)),
-                             testutil.rng.randint(2, 4))
+                             rng.randint(2, 4))
         n_oper_identifiers = complicated_pulse.n_oper_identifiers[n_oper_inds]
 
         basis_labels = []
         for i in range(4):
-            basis_labels.append(
-                string.ascii_uppercase[testutil.rng.randint(0, 26)])
+            basis_labels.append(string.ascii_uppercase[rng.randint(0, 26)])
 
         omega = ff.util.get_sample_frequencies(complicated_pulse, n_samples=50,
                                                spacing='log')
