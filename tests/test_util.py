@@ -652,4 +652,3 @@ class QutipCompatibilityTest(testutil.TestCase):
             result = util.oper_equiv(U*np.exp(1j*phase), U)
             self.assertTrue(result[0])
             self.assertAlmostEqual(result[1], -phase, places=5)
-

@@ -22,11 +22,14 @@
 This module tests if optional extras are handled correctly.
 """
 import os
+from unittest import mock
 
 import pytest
 from numpy import ndarray
 
 from tests import testutil
+
+from . import matplotlib
 
 all_extras = ['fancy_progressbar', 'plotting', 'bloch_sphere_visualization']
 
@@ -51,14 +54,15 @@ class MissingExtrasTest(testutil.TestCase):
             from filter_functions import plotting
 
     @pytest.mark.skipif(
-        'bloch_sphere_visualization' in os.environ.get('INSTALL_EXTRAS', all_extras),  # noqa
+        ('bloch_sphere_visualization' in os.environ.get('INSTALL_EXTRAS', all_extras)  # noqa
+         and matplotlib is not None),
         reason='Skipping tests for missing bloch sphere visualization tests in build with qutip')  # noqa
     def test_bloch_sphere_visualization_not_available(self):
 
-        try:
+        if matplotlib is not None:
             from filter_functions import plotting
-        except ModuleNotFoundError:
-            plotting = None
+        else:
+            plotting = mock.Mock()
 
         with self.assertRaises(RuntimeError):
             plotting.get_bloch_vector(testutil.rng.standard_normal((10, 2)))
