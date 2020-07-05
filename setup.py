@@ -20,8 +20,8 @@ def extract_version(version_file):
     raise RuntimeError("Unable to find version string.")
 
 
-if sys.version_info < (3, 5):
-    sys.stderr.write('ERROR: You need Python 3.5 or later '
+if sys.version_info < (3, 6):
+    sys.stderr.write('ERROR: You need Python 3.6 or later '
                      'to install this package.\n')
     exit(1)
 
