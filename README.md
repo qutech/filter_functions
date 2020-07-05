@@ -1,5 +1,5 @@
 # `filter_functions`: A package for efficient numerical calculation of generalized filter functions
-[![Coverage Status](https://coveralls.io/repos/github/qutech/filter_functions/badge.svg?branch=master)](https://coveralls.io/github/qutech/filter_functions?branch=master)
+[![codecov](https://codecov.io/gh/qutech/filter_functions/branch/master/graph/badge.svg)](https://codecov.io/gh/qutech/filter_functions)
 [![Build Status](https://travis-ci.org/qutech/filter_functions.svg?branch=master)](https://travis-ci.org/qutech/filter_functions)
 [![Documentation Status](https://readthedocs.org/projects/filter-functions/badge/?version=latest)](https://filter-functions.readthedocs.io/en/latest/?badge=latest)
 [![PyPI version](https://badge.fury.io/py/filter-functions.svg)](https://badge.fury.io/py/filter-functions)
