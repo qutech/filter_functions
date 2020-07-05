@@ -30,7 +30,7 @@ extras_require = {'plotting': ['matplotlib'],
                   'fancy_progressbar': ['requests'],
                   'doc': ['jupyter', 'nbsphinx', 'numpydoc', 'sphinx',
                           'sphinx_rtd_theme'],
-                  'tests': ['pytest', 'coverage', 'coveralls']}
+                  'tests': ['pytest', 'pytest-cov']}
 
 extras_require['all'] = [dep for deps in extras_require.values()
                          for dep in deps]

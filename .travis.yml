@@ -22,13 +22,14 @@ before_install:
   - pip install numpy scipy cython
 
 install:
+  - pip install --user codecov
   - pip install .$INSTALL_EXTRAS
 
 script:
-  - coverage run --rcfile=coverage.ini -m pytest
+  - pytest tests
 
 after_success:
-  - coveralls
+  - codecov
 
 notifications:
   email: false
