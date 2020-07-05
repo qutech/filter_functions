@@ -9,12 +9,9 @@ python:
   - 3.7
   - 3.8
 env:
-  global:
-    - COVERALLS_PARALLEL=true
-  jobs:
-    - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,fancy_progressbar,tests]
-    - INSTALL_EXTRAS=[plotting,fancy_progressbar,tests]
-    - INSTALL_EXTRAS=[tests]
+  - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,fancy_progressbar,tests]
+  - INSTALL_EXTRAS=[plotting,fancy_progressbar,tests]
+  - INSTALL_EXTRAS=[tests]
 
 #these directories are persistent
 cache: pip
