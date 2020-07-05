@@ -19,10 +19,9 @@ cache: pip
 #manually install these dependencies so that qutip can be installed via pip
 before_install:
   - pip install --upgrade pip
-  - pip install numpy scipy cython
+  - pip install numpy scipy cython codecov
 
 install:
-  - pip install --user codecov
   - pip install .$INSTALL_EXTRAS
 
 script:
