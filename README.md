@@ -1,5 +1,5 @@
 # `filter_functions`: A package for efficient numerical calculation of generalized filter functions
-[![Coverage Status](https://coveralls.io/repos/github/qutech/filter_functions/badge.svg?branch=master)](https://coveralls.io/github/qutech/filter_functions?branch=master)
+[![codecov](https://codecov.io/gh/qutech/filter_functions/branch/master/graph/badge.svg)](https://codecov.io/gh/qutech/filter_functions)
 [![Build Status](https://travis-ci.org/qutech/filter_functions.svg?branch=master)](https://travis-ci.org/qutech/filter_functions)
 [![Documentation Status](https://readthedocs.org/projects/filter-functions/badge/?version=latest)](https://filter-functions.readthedocs.io/en/latest/?badge=latest)
 [![PyPI version](https://badge.fury.io/py/filter-functions.svg)](https://badge.fury.io/py/filter-functions)
@@ -27,7 +27,8 @@ hadamard = ff.PulseSequence(H_c, H_n, dt)   # Central object representing a cont
 omega = ff.util.get_sample_frequencies(hadamard)
 F = hadamard.get_filter_function(omega)
 
-ff.plot_filter_function(hadamard)           # Filter function cached from before
+from filter_functions import plotting
+plotting.plot_filter_function(hadamard)     # Filter function cached from before
 ```
 
 ![Hadamard dephasing filter function](./doc/source/_static/hadamard.png)
@@ -59,16 +60,16 @@ infidelity = ff.infidelity(hadamard, spectrum, omega)
 ```
 
 ## Installation
-To install the package from PyPI, run `pip install filter_functions`. It is recommended to install QuTiP before by following the [instructions on their website](http://qutip.org/docs/latest/installation.html) rather than installing it through `pip`. To install the package from source run `python setup.py develop` to install using symlinks or `python setup.py install` without.
+To install the package from PyPI, run `pip install filter_functions`. If you require the optional features provided by QuTiP (visualizing Bloch sphere trajectories), it is recommended to install QuTiP before by following the [instructions on their website](http://qutip.org/docs/latest/installation.html) rather than installing it through `pip`. To install the package from source run `python setup.py develop` to install using symlinks or `python setup.py install` without.
 
-To install the optional dependencies (`tqdm` and `requests` for a fancy progress bar), run `pip install -e .[fancy_progressbar]` from the root directory.
+To install dependencies of optional extras (`requests` for a fancy progress bar in Jupyter notebooks, `matplotlib` for plotting, `QuTiP` for Bloch sphere visualization), run `pip install -e .[extra]` where `extra` is one or more of `fancy_progressbar`, `plotting`, `bloch_sphere_visualization` from the root directory. To install all dependencies, including those needed to build the documentation and run the tests, use the extra `all`.
 
 ## Documentation
 You can find the documentation on [Readthedocs](https://filter-functions.readthedocs.io/en/latest/). It is built from Jupyter notebooks that can also be run interactively and are located [here](doc/source/examples). The notebooks explain how to use the package and thus make sense to follow chronologically as a first step. Furthermore, there are also a few example scripts in the [examples](examples) folder.
 
 The documentation including the example notebooks and an automatically generated API documentation can be built by running `make <format>` inside the *doc* directory where `<format>` is for example `html`.
 
-Building the documentation requires the following additional dependencies: `nbsphinx`, `numpydoc`, `sphinx_rtd_theme`, `jupyter_client`, `ipython`, `ipykernel`, as well as `pandoc`. The last can be installed via conda (`conda install pandoc`) or downloaded from [Github](https://github.com/jgm/pandoc/releases/) and the rest automatically by running `pip install -e .[doc]`.
+Interactively using the documentation requires `jupyter`, and building a static version additionally requires `nbsphinx`, `numpydoc`, `sphinx_rtd_theme`, as well as `pandoc`. The last can be installed via conda (`conda install pandoc`) or downloaded from [Github](https://github.com/jgm/pandoc/releases/) and the rest automatically by running `pip install -e .[doc]`.
 
 ## References
 [1]: Cywinski, L., Lutchyn, R. M., Nave, C. P., & Das Sarma, S. (2008). How to enhance dephasing time in superconducting qubits. Physical Review B - Condensed Matter and Materials Physics, 77(17), 1–11. [https://doi.org/10.1103/PhysRevB.77.174509](https://doi.org/10.1103/PhysRevB.77.174509)

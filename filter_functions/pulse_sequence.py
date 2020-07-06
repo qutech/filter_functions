@@ -49,7 +49,6 @@ from warnings import warn
 import numpy as np
 from numpy import linalg as nla
 from numpy import ndarray
-from qutip import Qobj
 
 from . import numeric, util
 from .basis import (Basis, equivalent_pauli_basis_elements,
@@ -152,8 +151,8 @@ class PulseSequence:
     >>> omega = np.logspace(-1, 2, 500)
     >>> F = pulse.get_filter_function(omega)    # shape (1, 500)
     >>> # Plot the resulting filter function:
-    >>> from filter_functions import plot_filter_function
-    >>> fig, ax, leg = plot_filter_function(pulse)
+    >>> from filter_functions import plotting
+    >>> fig, ax, leg = plotting.plot_filter_function(pulse)
 
     Attributes
     ----------
@@ -1010,20 +1009,21 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
         coeffs = args[0]
         identifiers = list(args[1])
 
-    if not all(isinstance(oper, (ndarray, Qobj)) for oper in opers):
+    if not all(isinstance(oper, ndarray) or hasattr(oper, 'full')
+               for oper in opers):
         raise TypeError(f'Expected operators in {H_str}' +
                         'to be NumPy arrays or QuTiP Qobjs!')
 
     if not all(hasattr(coeff, '__len__') for coeff in coeffs):
         raise TypeError(f'Expected coefficients in {H_str} to be a sequence')
 
-    # Convert qt.Qobjs to full arrays
+    # Convert qutip.Qobjs to full arrays
     try:
-        opers = np.array([oper.full() if isinstance(oper, Qobj) else oper
+        opers = np.array([oper.full() if hasattr(oper, 'full') else oper
                           for oper in opers])
     except ValueError:
         raise TypeError(f"Couldn't parse operators in {H_str}. " +
-                        "Are you sure they are all 2d arrays or Qobjs?")
+                        "Are you sure they are all 2d arrays or qutip.Qobjs?")
 
     # Check correct dimensions for the operators
     if set(oper.ndim for oper in opers) != {2}:
@@ -1740,7 +1740,7 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
 
     Examples
     --------
-    >>> X, Y = util.P_np[1:3]
+    >>> X, Y = util.paulis[1:3]
     >>> XY, YX = util.tensor(X, Y), util.tensor(Y, X)
     >>> pulse = PulseSequence([[XY, [np.pi/2], 'XY']], [[YX, [1], 'YX']], [1],
     ...                       Basis.pauli(2))
@@ -1905,7 +1905,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
     Examples
     --------
     >>> import filter_functions as ff
-    >>> I, X, Y, Z = ff.util.P_np
+    >>> I, X, Y, Z = ff.util.paulis
     >>> X_pulse = ff.PulseSequence([[X, [np.pi/2], 'X']],
     ...                            [[X, [1], 'X'], [Z, [1], 'Z']],
     ...                            [1], basis=ff.Basis.pauli(1))

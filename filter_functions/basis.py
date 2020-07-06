@@ -47,7 +47,6 @@ import numpy as np
 import opt_einsum as oe
 from numpy import linalg as nla
 from numpy.core import ndarray
-from qutip import Qobj
 from scipy import linalg as sla
 from sparse import COO
 
@@ -172,11 +171,11 @@ class Basis(ndarray):
                 basis = np.empty((len(basis_array), *basis_array[0].shape),
                                  dtype=complex)
                 for i, elem in enumerate(basis_array):
-                    if isinstance(elem, ndarray):
+                    if isinstance(elem, ndarray):   # numpy array
                         basis[i] = elem
-                    elif isinstance(elem, Qobj):
+                    elif hasattr(elem, 'full'):     # qutip.Qobj
                         basis[i] = elem.full()
-                    elif isinstance(elem, COO):
+                    elif hasattr(elem, 'todense'):  # sparse array
                         basis[i] = elem.todense()
                     else:
                         raise TypeError('At least one element invalid type!')
@@ -424,7 +423,7 @@ class Basis(ndarray):
         """
         normalization = np.sqrt(2**n)
         combinations = np.indices((4,)*n).reshape(n, 4**n)
-        sigma = util.tensor(*np.array(util.P_np)[combinations], rank=2)
+        sigma = util.tensor(*util.paulis[combinations], rank=2)
         sigma /= normalization
         return cls(sigma, btype='Pauli', skip_check=True)
 
