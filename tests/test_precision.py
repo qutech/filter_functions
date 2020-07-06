@@ -24,20 +24,20 @@ This module tests if the package produces the correct results numerically.
 
 import numpy as np
 from scipy import linalg as sla
-import qutip as qt
 
 import filter_functions as ff
 from filter_functions import analytic, numeric, util
 from tests import testutil
+from tests.testutil import rng
 
 
 class PrecisionTest(testutil.TestCase):
 
     def test_FID(self):
         """FID"""
-        tau = abs(testutil.rng.randn())
-        FID_pulse = ff.PulseSequence([[util.P_np[1]/2, [0]]],
-                                     [[util.P_np[3]/2, [1]]],
+        tau = abs(rng.standard_normal())
+        FID_pulse = ff.PulseSequence([[util.paulis[1]/2, [0]]],
+                                     [[util.paulis[3]/2, [1]]],
                                      [tau])
 
         omega = util.get_sample_frequencies(FID_pulse, 50, spacing='linear')
@@ -55,7 +55,7 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='cpmg')
 
-        H_n = [[util.P_np[3]/2, np.ones_like(dt)]]
+        H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         SE_pulse = ff.PulseSequence(H_c, H_n, dt)
         omega = util.get_sample_frequencies(SE_pulse, 100, spacing='linear')
@@ -66,8 +66,8 @@ class PrecisionTest(testutil.TestCase):
 
         # Test again with a factor of one between the noise operators and
         # coefficients
-        r = testutil.rng.randn()
-        H_n = [[util.P_np[3]/2*r, np.ones_like(dt)/r]]
+        r = rng.standard_normal()
+        H_n = [[util.paulis[3]/2*r, np.ones_like(dt)/r]]
 
         SE_pulse = ff.PulseSequence(H_c, H_n, dt)
         # Comparison to filter function defined with omega**2
@@ -84,7 +84,7 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='cpmg')
 
-        H_n = [[util.P_np[3]/2, np.ones_like(dt)]]
+        H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         CPMG_pulse = ff.PulseSequence(H_c, H_n, dt)
         omega = util.get_sample_frequencies(CPMG_pulse, 100, spacing='log')
@@ -104,7 +104,7 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='udd')
 
-        H_n = [[util.P_np[3]/2, np.ones_like(dt)]]
+        H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         UDD_pulse = ff.PulseSequence(H_c, H_n, dt)
         # Comparison to filter function defined with omega**2
@@ -123,7 +123,7 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='pdd')
 
-        H_n = [[util.P_np[3]/2, np.ones_like(dt)]]
+        H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         PDD_pulse = ff.PulseSequence(H_c, H_n, dt)
         # Comparison to filter function defined with omega**2
@@ -142,7 +142,7 @@ class PrecisionTest(testutil.TestCase):
         H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
                                                    dd_type='cdd')
 
-        H_n = [[util.P_np[3]/2, np.ones_like(dt)]]
+        H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         CDD_pulse = ff.PulseSequence(H_c, H_n, dt)
         # Comparison to filter function defined with omega**2
@@ -179,8 +179,8 @@ class PrecisionTest(testutil.TestCase):
             )
 
             if d == 2:
-                U_liouville = numeric.liouville_representation(util.P_np[1:],
-                                                               basis)
+                U_liouville = numeric.liouville_representation(
+                    util.paulis[1:], basis)
                 self.assertArrayAlmostEqual(U_liouville[0],
                                             np.diag([1, 1, -1, -1]),
                                             atol=np.finfo(float).eps)
@@ -193,6 +193,9 @@ class PrecisionTest(testutil.TestCase):
 
     def test_diagonalization_cnot(self):
         """CNOT"""
+        cnot_mat = np.block([[util.paulis[0], np.zeros((2, 2))],
+                             [np.zeros((2, 2)), util.paulis[1]]])
+
         subspace_c_opers = testutil.subspace_opers
         subspace_n_opers = subspace_c_opers
         c_opers = testutil.opers
@@ -212,13 +215,13 @@ class PrecisionTest(testutil.TestCase):
         cnot.diagonalize()
         cnot_subspace.diagonalize()
 
-        phase_eq = util.oper_equiv(cnot_subspace.total_Q[1:5, 1:5], qt.cnot(),
+        phase_eq = util.oper_equiv(cnot_subspace.total_Q[1:5, 1:5], cnot_mat, 
                                    eps=1e-9)
 
         self.assertTrue(phase_eq[0])
 
         phase_eq = util.oper_equiv(cnot.total_Q[np.ix_(*subspace)][1:5, 1:5],
-                                   qt.cnot(), eps=1e-9)
+                                   cnot_mat, eps=1e-9)
 
         self.assertTrue(phase_eq[0])
 
@@ -374,7 +377,7 @@ class PrecisionTest(testutil.TestCase):
 
     def test_infidelity(self):
         """Benchmark infidelity results against previous version's results"""
-        testutil.rng.seed(123456789)
+        rng.seed(123456789)
 
         spectra = [
             lambda S0, omega: S0*abs(omega)**0,
@@ -416,7 +419,7 @@ class PrecisionTest(testutil.TestCase):
             pulse.n_oper_identifiers = np.array(['B_0', 'B_2'])
 
             omega = np.geomspace(0.1, 10, 51)
-            S0 = np.abs(testutil.rng.randn())
+            S0 = np.abs(rng.standard_normal())
             for spec in spectra:
                 S, omega_t = util.symmetrize_spectrum(spec(S0, omega), omega)
                 infids = ff.infidelity(pulse, S, omega_t,
@@ -472,7 +475,7 @@ class PrecisionTest(testutil.TestCase):
 
         with self.assertRaises(ValueError):
             # S wrong dimensions
-            ff.infidelity(pulse, testutil.rng.randn(2, 3, 4, len(omega)),
+            ff.infidelity(pulse, rng.standard_normal((2, 3, 4, len(omega))),
                           omega)
 
         with self.assertRaises(NotImplementedError):
@@ -484,7 +487,7 @@ class PrecisionTest(testutil.TestCase):
     def test_single_qubit_error_transfer_matrix(self):
         """Test the calculation of the single-qubit transfer matrix"""
         d = 2
-        for n_dt in testutil.rng.randint(1, 11, 10):
+        for n_dt in rng.randint(1, 11, 10):
             pulse = testutil.rand_pulse_sequence(d, n_dt, 3, 2, btype='Pauli')
             omega = util.get_sample_frequencies(pulse, n_samples=51)
             n_oper_identifiers = pulse.n_oper_identifiers
@@ -568,8 +571,7 @@ class PrecisionTest(testutil.TestCase):
         """Test the calculation of the multi-qubit transfer matrix"""
         n_cops = 4
         n_nops = 2
-        for d, n_dt in zip(testutil.rng.randint(3, 9, 10),
-                           testutil.rng.randint(1, 11, 10)):
+        for d, n_dt in zip(rng.randint(3, 9, 10), rng.randint(1, 11, 10)):
             f, n = np.modf(np.log2(d))
             btype = 'Pauli' if f == 0.0 else 'GGM'
             pulse = testutil.rand_pulse_sequence(d, n_dt, n_cops, n_nops,

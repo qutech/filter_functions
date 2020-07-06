@@ -49,7 +49,6 @@ from warnings import warn
 import numpy as np
 from numpy import linalg as nla
 from numpy import ndarray
-from qutip import Qobj
 
 from . import numeric, util
 from .basis import (Basis, equivalent_pauli_basis_elements,
@@ -152,8 +151,8 @@ class PulseSequence:
     >>> omega = np.logspace(-1, 2, 500)
     >>> F = pulse.get_filter_function(omega)    # shape (1, 500)
     >>> # Plot the resulting filter function:
-    >>> from filter_functions import plot_filter_function
-    >>> fig, ax, leg = plot_filter_function(pulse)
+    >>> from filter_functions import plotting
+    >>> fig, ax, leg = plotting.plot_filter_function(pulse)
 
     Attributes
     ----------
@@ -253,9 +252,9 @@ class PulseSequence:
                 kwargs['basis'] = args[-1]
             elif len(args) < 3:
                 posargs = ['H_c', 'H_n', 'dt']
-                raise TypeError('Missing {} required '.format(3 - len(args)) +
+                raise TypeError(f'Missing {3 - len(args)} required ' +
                                 'positional argument(s): ' +
-                                '{}'.format(posargs[len(args):]))
+                                f'{posargs[len(args):]}')
 
             values = _parse_args(*args[:3], **kwargs)
 
@@ -281,7 +280,7 @@ class PulseSequence:
         """String method."""
         s = 'PulseSequence object with the following attributes:\n'
         for attr in ('c_opers', 'c_coeffs', 'n_opers', 'n_coeffs', 'dt'):
-            s += '{}:\n'.format(attr)
+            s += f'{attr}:\n'
             s += str(getattr(self, attr)) + '\n'
 
         return s
@@ -377,7 +376,7 @@ class PulseSequence:
         # Make sure other is a PulseSequence instance (awkward check for type)
         if not hasattr(other, 'c_opers'):
             raise TypeError('Incompatible type for concatenation: ' +
-                            '{}'.format(type(other)))
+                            f'{type(other)}')
 
         return concatenate((self, other))
 
@@ -944,8 +943,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
     """
 
     if not hasattr(dt, '__len__'):
-        raise TypeError('Expected a sequence of time steps, not {}'.format(
-            type(dt)))
+        raise TypeError(f'Expected a sequence of time steps, not {type(dt)}')
 
     dt = np.asarray(dt)
     # Check the time argument for data type and monotonicity (should be
@@ -975,12 +973,12 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
         if not hasattr(basis, 'btype'):
             raise ValueError("Expected basis to be an instance of the " +
                              "'filter_functions.basis.Basis' class, not " +
-                             "{}!".format(type(basis)))
+                             f"{type(basis)}!")
         if basis.shape[1:] != (d, d):
             # Make sure the basis has the correct dimension (we allow an
             # incomplete set)
             raise ValueError("Expected basis elements to be of shape " +
-                             "({0}, {0}), not {1}!".format(d, basis.shape[1:]))
+                             f"({d}, {d}), not {basis.shape[1:]}!")
 
     return (*control_args, *noise_args, dt, t, d, basis)
 
@@ -992,11 +990,11 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
     """Helper function to parse the Hamiltonian in QuTiP format."""
     # Check correct types of the various levels of nestedness
     if not isinstance(H, (list, tuple)):
-        raise TypeError('Expected {} to be a list of '.format(H_str) +
-                        'lists, not of type {}!'.format(type(H)))
+        raise TypeError(f'Expected {H_str} to be a list of ' +
+                        f'lists, not of type {type(H)}!')
 
     if not all(isinstance(item, (list, tuple)) for item in H):
-        raise TypeError('Expected {} to be a list of '.format(H_str) +
+        raise TypeError(f'Expected {H_str} to be a list of ' +
                         'lists but found at least one item of H not of ' +
                         'type list or tuple!')
 
@@ -1013,61 +1011,58 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
         coeffs = args[0]
         identifiers = list(args[1])
 
-    if not all(isinstance(oper, (ndarray, Qobj)) for oper in opers):
-        raise TypeError('Expected operators in '.format(H_str) +
+    if not all(isinstance(oper, ndarray) or hasattr(oper, 'full')
+               for oper in opers):
+        raise TypeError(f'Expected operators in {H_str}' +
                         'to be NumPy arrays or QuTiP Qobjs!')
 
     if not all(hasattr(coeff, '__len__') for coeff in coeffs):
-        raise TypeError('Expected coefficients in '.format(H_str) +
-                        'to be a sequence')
+        raise TypeError(f'Expected coefficients in {H_str} to be a sequence')
 
-    # Convert qt.Qobjs to full arrays
+    # Convert qutip.Qobjs to full arrays
     try:
-        opers = np.array([oper.full() if isinstance(oper, Qobj) else oper
+        opers = np.array([oper.full() if hasattr(oper, 'full') else oper
                           for oper in opers])
     except ValueError:
-        raise TypeError("Couldn't parse operators in {}. ".format(H_str) +
-                        "Are you sure they are all 2d arrays or Qobjs?")
+        raise TypeError(f"Couldn't parse operators in {H_str}. " +
+                        "Are you sure they are all 2d arrays or qutip.Qobjs?")
 
     # Check correct dimensions for the operators
     if set(oper.ndim for oper in opers) != {2}:
-        raise ValueError('Expected all operators in {} '.format(H_str) +
+        raise ValueError(f'Expected all operators in {H_str} ' +
                          'to be two-dimensional!')
 
     if len(set(opers[0].shape)) != 1:
-        raise ValueError('Expected operators in {} '.format(H_str) +
-                         'to be square!')
+        raise ValueError(f'Expected operators in {H_str} to be square!')
 
     # parse the identifiers
     if identifiers is None:
         if H_str == 'H_c':
             identifiers = np.fromiter(
-                ('A_{}'.format(i) for i in range(len(opers))),
-                dtype='<U4'
+                (f'A_{i}' for i in range(len(opers))), dtype='<U4'
             )
         else:
             # H_str == 'H_n'
             identifiers = np.fromiter(
-                ('B_{}'.format(i) for i in range(len(opers))),
-                dtype='<U4'
+                (f'B_{i}' for i in range(len(opers))), dtype='<U4'
             )
     else:
         for i, identifier in enumerate(identifiers):
             if identifier is None:
                 if H_str == 'H_c':
-                    identifiers[i] = 'A_{}'.format(i)
+                    identifiers[i] = f'A_{i}'
                 else:
                     # H_str == 'H_n'
-                    identifiers[i] = 'B_{}'.format(i)
+                    identifiers[i] = f'B_{i}'
         if len(set(identifiers)) != len(identifiers):
-            raise ValueError('{} identifiers should be unique'.format(H_str))
+            raise ValueError(f'{H_str} identifiers should be unique')
 
         identifiers = np.asarray(identifiers)
 
     # Check coeffs are all the same length as dt
     if not all(len(coeff) == n_dt for coeff in coeffs):
-        raise ValueError('Expected all coefficients in {} '.format(H_str) +
-                         'to be of len(dt) = {}!'.format(n_dt))
+        raise ValueError(f'Expected all coefficients in {H_str} '+
+                         f'to be of len(dt) = {n_dt}!')
 
     coeffs = np.asarray(coeffs)
     idx = np.argsort(identifiers)
@@ -1179,7 +1174,7 @@ def _concatenate_Hamiltonian(
                          for op in oper]
             identifier_pos = [concat_hashed_opers.index(op) for op in oper]
             for i, p in zip(identifier_pos, pulse_pos):
-                concat_identifiers[i] = concat_identifiers[i] + '_{}'.format(p)
+                concat_identifiers[i] = concat_identifiers[i] + f'_{p}'
                 pulse_identifier_mapping[p].update(
                     {identifier_str: concat_identifiers[i]}
                 )
@@ -1382,8 +1377,7 @@ def concatenate_without_filter_function(
         if not all(hasattr(pls, 'c_opers') for pls in pulses):
             raise TypeError('Can only concatenate PulseSequences!')
     except TypeError:
-        raise TypeError('Expected pulses to be iterable, not ' +
-                        '{}'.format(type(pulses)))
+        raise TypeError(f'Expected pulses to be iterable, not {type(pulses)}')
 
     # Check if the Hamiltonians' shapes are compatible, ie the set of all
     # shapes has length 1
@@ -1672,8 +1666,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
         if not hasattr(pulse, 'c_opers'):
             raise TypeError('Can only concatenate PulseSequences!')
     except TypeError:
-        raise TypeError('Expected pulses to be iterable, not ' +
-                        '{}'.format(type(pulse)))
+        raise TypeError(f'Expected pulses to be iterable, not {type(pulse)}')
 
     cached_ctrl_mat = pulse.is_cached('R')
 
@@ -1751,7 +1744,7 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
 
     Examples
     --------
-    >>> X, Y = util.P_np[1:3]
+    >>> X, Y = util.paulis[1:3]
     >>> XY, YX = util.tensor(X, Y), util.tensor(Y, X)
     >>> pulse = PulseSequence([[XY, [np.pi/2], 'XY']], [[YX, [1], 'YX']], [1],
     ...                       Basis.pauli(2))
@@ -1916,7 +1909,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
     Examples
     --------
     >>> import filter_functions as ff
-    >>> I, X, Y, Z = ff.util.P_np
+    >>> I, X, Y, Z = ff.util.paulis
     >>> X_pulse = ff.PulseSequence([[X, [np.pi/2], 'X']],
     ...                            [[X, [1], 'X'], [Z, [1], 'Z']],
     ...                            [1], basis=ff.Basis.pauli(1))
@@ -2027,9 +2020,8 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
                         sorted_pulse = remap(pulse, order, d_per_qubit)
                     except ValueError as err:
                         raise ValueError(
-                            'Could not remap {} mapped '.format(repr(pulse)) +
-                            'to qubits {}. Do the dimensions '.format(qubit) +
-                            'match?'
+                            f'Could not remap {repr(pulse)} mapped ' +
+                            f'to qubits {qubit}. Do the dimensions match?'
                         ) from err
 
                 multi_qubit_idx.append(list(sorted_qubit))
@@ -2044,7 +2036,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
 
     if not all(pulse.d == d_per_qubit for pulse in single_qubit_pulses):
         raise ValueError('Not all single-qubit pulses have dimension ' +
-                         'd_per_qubit = {}.'.format(d_per_qubit))
+                         f'd_per_qubit = {d_per_qubit}.')
 
     if not all(pulse.d == d_per_qubit**len(qubits)
                for pulse, qubits in zip(multi_qubit_pulses, multi_qubit_idx)):
@@ -2067,7 +2059,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
     else:
         if last_qubit + 1 > N:
             raise ValueError('Number of qubits N smaller than highest qubit ' +
-                             'index + 1 = {}'.format(last_qubit + 1))
+                             f'index + 1 = {last_qubit + 1}')
 
     if len(pulse_to_qubit_mapping) == 1:
         # return input pulse if not mapped to another qubit
@@ -2188,8 +2180,8 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
 
         if add_n_opers.shape[1:] != (d, d):
             raise ValueError('Expected additional noise operators to have ' +
-                             'dimensions {}, '.format((d, d)) +
-                             'not {}.'.format(add_n_opers.shape[1:]))
+                             f'dimensions {(d, d)}, ' +
+                             f'not {add_n_opers.shape[1:]}.')
         if len(set(add_n_oper_id)) != len(add_n_oper_id):
             raise ValueError('Found duplicate noise operator identifiers')
 

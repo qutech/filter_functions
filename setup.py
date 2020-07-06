@@ -20,10 +20,20 @@ def extract_version(version_file):
     raise RuntimeError("Unable to find version string.")
 
 
-if sys.version_info < (3, 5):
-    sys.stderr.write('ERROR: You need Python 3.5 or later '
+if sys.version_info < (3, 6):
+    sys.stderr.write('ERROR: You need Python 3.6 or later '
                      'to install this package.\n')
     exit(1)
+
+extras_require = {'plotting': ['matplotlib'],
+                  'bloch_sphere_visualization': ['qutip', 'matplotlib'],
+                  'fancy_progressbar': ['requests'],
+                  'doc': ['jupyter', 'nbsphinx', 'numpydoc', 'sphinx',
+                          'sphinx_rtd_theme'],
+                  'tests': ['pytest>=4.6', 'pytest-cov', 'codecov']}
+
+extras_require['all'] = [dep for deps in extras_require.values()
+                         for dep in deps]
 
 setup(name='filter_functions',
       version=extract_version(read('filter_functions', '__init__.py')),
@@ -35,14 +45,8 @@ setup(name='filter_functions',
       author_email='tobias.hangleiter@rwth-aachen.de',
       packages=['filter_functions'],
       package_dir={'filter_functions': 'filter_functions'},
-      install_requires=['numpy', 'scipy', 'matplotlib', 'qutip', 'opt_einsum',
-                        'sparse'],
-      extras_require={
-          'fancy_progressbar': ['tqdm', 'requests'],
-          'doc': ['ipython', 'ipykernel', 'nbsphinx', 'numpydoc', 'sphinx',
-                  'jupyter_client', 'sphinx_rtd_theme'],
-          'tests': ['pytest', 'coverage', 'coveralls'],
-      },
+      install_requires=['numpy', 'scipy', 'opt_einsum', 'sparse', 'tqdm'],
+      extras_require=extras_require,
       test_suite='tests',
       classifiers=[
           'Programming Language :: Python :: 3',

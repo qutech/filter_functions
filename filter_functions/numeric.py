@@ -65,7 +65,6 @@ from scipy import integrate
 
 from . import util
 from .basis import Basis, ggm_expand
-from .plotting import plot_infidelity_convergence
 from .types import Coefficients, Operator
 
 __all__ = ['calculate_control_matrix_from_atomic',
@@ -953,8 +952,8 @@ def infidelity(pulse: 'PulseSequence',
         Return the smallness parameter :math:`\xi` for the given spectrum.
     test_convergence: bool, optional
         Test the convergence of the integral with respect to the number of
-        frequency samples. Plots the infidelities against the number of
-        frequency samples. See *S* and *omega* for more information.
+        frequency samples. Returns the number of frequency samples and the
+        corresponding fidelities. See *S* and *omega* for more information.
 
     Returns
     -------
@@ -970,9 +969,6 @@ def infidelity(pulse: 'PulseSequence',
         Only if *test_convergence* is ``True``.
     convergence_infids: array_like
         Array with infidelities calculated in convergence test.
-        Only if *test_convergence* is ``True``.
-    (fig, ax): tuple
-        The matplotlib figure and axis instances used for plotting.
         Only if *test_convergence* is ``True``.
 
     .. _notes:
@@ -1042,6 +1038,10 @@ def infidelity(pulse: 'PulseSequence',
         Section A: General, Atomic and Solid State Physics, 303(4), 249–252.
         https://doi.org/10.1016/S0375-9601(02)01272-0
 
+    See Also
+    --------
+    error_transfer_matrix: Calculate the full process matrix.
+    plotting.plot_infidelity_convergence: Convenience function to plot results.
     """
     # Noise operator indices
     idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
@@ -1085,10 +1085,7 @@ def infidelity(pulse: 'PulseSequence',
                 test_convergence=False
             )
 
-        fig, ax = plot_infidelity_convergence(n_samples,
-                                              convergence_infids.sum(axis=1))
-
-        return n_samples, convergence_infids, (fig, ax)
+        return n_samples, convergence_infids
 
     if which == 'total':
         if not pulse.basis.istraceless:

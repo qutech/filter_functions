@@ -32,6 +32,7 @@ References
 import numpy as np
 
 import filter_functions as ff
+from filter_functions import plotting
 import qutip as qt
 from qutip import qip
 from qutip.qip.algorithms.qft import qft as qt_qft
@@ -150,6 +151,6 @@ qt.matrix_histogram_complex(prop)
 print('Correct action: ',
       ff.util.oper_equiv(prop, qt_qft(N), eps=1e-14))
 
-fig, ax, _ = ff.plot_filter_function(QFT, omega)
+fig, ax, _ = plotting.plot_filter_function(QFT, omega)
 # Move the legend to the side because of many entries
 ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
