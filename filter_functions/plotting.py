@@ -713,6 +713,11 @@ def plot_cumulant_function(
             else:
                 n_oper_identifiers = [f'$B_{{{i}}}$'
                                       for i in range(len(n_oper_inds))]
+        else:
+            if len(n_oper_identifiers) != len(K):
+                raise ValueError('Both precomputed cumulant function K and ' +
+                                 'n_oper_identifiers given but not same len:' +
+                                 f' {len(K)} != {len(n_oper_identifiers)}')
 
     else:
         if pulse is None or S is None or omega is None:

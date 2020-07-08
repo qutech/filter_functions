@@ -269,6 +269,11 @@ class PlottingTest(testutil.TestCase):
             plotting.plot_cumulant_function(complicated_pulse, S, omega,
                                             n_oper_identifiers=['foo'])
 
+        # K and identifiers given but unequal length
+        with self.assertRaises(ValueError):
+            plotting.plot_cumulant_function(
+                K=K, n_oper_identifiers=n_oper_identifiers[0])
+
         # number of basis_labels not correct
         with self.assertRaises(ValueError):
             plotting.plot_cumulant_function(complicated_pulse, S, omega,
