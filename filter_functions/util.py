@@ -568,11 +568,9 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
         try:
             result = single_tensor_insert(result, arg, carr_dims, p+i)
         except ValueError as err:
-            raise ValueError(
-                f'Could not insert arg {arg_counter} with shape ' +
-                f'{result.shape} into the array with shape {arg.shape} ' +
-                f'at position {p}.'
-            ) from err
+            raise ValueError(f'Could not insert arg {arg_counter} with ' +
+                             f'shape {result.shape} into the array with ' +
+                             f'shape {arg.shape} at position {p}.') from err
 
         # Update arr_dims
         for axis, d in zip(carr_dims, arg.shape[-rank:]):
@@ -863,6 +861,8 @@ def oper_equiv(psi: Union[Operator, State],
     psi, phi = [obj.full() if hasattr(obj, 'full') else obj
                 for obj in (psi, phi)]
 
+    psi, phi = np.atleast_2d(psi, phi)
+
     if eps is None:
         # Tolerance the floating point eps times the # of flops for the matrix
         # multiplication, i.e. for psi and phi n x m matrices 2*n**2*m
@@ -870,13 +870,17 @@ def oper_equiv(psi: Union[Operator, State],
             np.prod(psi.shape)*phi.shape[-1]*2
         if not normalized:
             # normalization introduces more floating point error
-            eps *= (np.prod(psi.shape)*phi.shape[-1]*2)**2
+            eps *= (np.prod(psi.shape[-2:])*phi.shape[-1]*2)**2
 
-    inner_product = (psi.T.conj() @ phi).trace()
+    try:
+        inner_product = (psi.swapaxes(-1, -2).conj() @ phi).trace(0, -1, -2)
+    except ValueError as err:
+        raise ValueError('psi and phi have incompatible dimensions!') from err
+
     if normalized:
         norm = 1
     else:
-        norm = nla.norm(psi)*nla.norm(phi)
+        norm = nla.norm(psi, axis=(-1, -2))*nla.norm(phi, axis=(-1, -2))
 
     phase = np.angle(inner_product)
     modulus = abs(inner_product)
