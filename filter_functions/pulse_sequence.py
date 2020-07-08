@@ -173,6 +173,8 @@ class PulseSequence:
         Time steps
     t: ndarray, shape (n_dt + 1,)
         Absolute times taken to start at :math:`t_0\equiv 0`
+    tau: float
+        Total duration. Equal to t[-1].
     d: int
         Dimension of the Hamiltonian
     basis: Basis, shape (d**2, d, d)
@@ -237,12 +239,13 @@ class PulseSequence:
         self.n_coeffs = None
         self.dt = None
         self.t = None
+        self.tau = None
         self.d = None
         self.basis = None
 
         # Parse the input arguments and set attributes
         attributes = ('c_opers', 'c_oper_identifiers', 'c_coeffs', 'n_opers',
-                      'n_oper_identifiers', 'n_coeffs', 'dt', 't', 'd',
+                      'n_oper_identifiers', 'n_coeffs', 'dt', 't', 'tau', 'd',
                       'basis')
         if not args:
             # Bypass args parsing and directly set necessary attributes
@@ -739,7 +742,7 @@ class PulseSequence:
             they are computed.
         """
         if total_phases is None:
-            total_phases = util.cexp(np.asarray(omega)*self.t[-1])
+            total_phases = util.cexp(np.asarray(omega)*self.tau)
 
         self.omega = omega
         self._total_phases = total_phases
@@ -961,6 +964,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
         raise ValueError('Control and noise Hamiltonian not same dimension!')
 
     t = np.concatenate(([0], dt.cumsum()))
+    tau = t[-1]
     # Dimension of the system
     d = control_args[0].shape[-1]
 
@@ -980,7 +984,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
             raise ValueError("Expected basis elements to be of shape " +
                              f"({d}, {d}), not {basis.shape[1:]}!")
 
-    return (*control_args, *noise_args, dt, t, d, basis)
+    return (*control_args, *noise_args, dt, t, tau, d, basis)
 
 
 def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
@@ -1409,8 +1413,10 @@ def concatenate_without_filter_function(
 
     dt = np.concatenate(tuple(pulse.dt for pulse in pulses))
     t = np.concatenate(([0], dt.cumsum()))
+    tau = t[-1]
 
-    attributes = {'dt': dt, 't': t, 'd': pulses[0].d, 'basis': basis}
+    attributes = {'dt': dt, 't': t, 'tau': tau, 'd': pulses[0].d,
+                  'basis': basis}
     attributes.update(**{key: value for key, value
                          in zip(control_keys, control_values)})
     attributes.update(**{key: value for key, value
@@ -1673,6 +1679,8 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
     dt = np.tile(pulse.dt, repeats)
+    t = np.concatenate(([0], dt.cumsum()))
+    tau = t[-1]
     newpulse = PulseSequence(
         c_opers=pulse.c_opers,
         n_opers=pulse.n_opers,
@@ -1681,7 +1689,8 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
         c_coeffs=np.tile(pulse.c_coeffs, (1, repeats)),
         n_coeffs=np.tile(pulse.n_coeffs, (1, repeats)),
         dt=dt,
-        t=np.concatenate(([0], dt.cumsum())),
+        t=t,
+        tau=tau,
         d=pulse.d,
         basis=pulse.basis
     )
@@ -1790,6 +1799,7 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
         n_coeffs=pulse.n_coeffs[n_sort_idx],
         dt=pulse.dt,
         t=pulse.t,
+        tau=pulse.tau,
         d=pulse.d,
         basis=pulse.basis
     )
@@ -2219,6 +2229,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
         n_coeffs=np.asarray(n_coeffs)[n_sort_idx],
         dt=pulses[0].dt,
         t=pulses[0].t,
+        tau=pulses[0].tau,
         d=d,
         basis=basis
     )

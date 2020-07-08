@@ -530,8 +530,8 @@ class UtilTest(testutil.TestCase):
         )
         # Default args
         omega = util.get_sample_frequencies(pulse)
-        self.assertAlmostEqual(omega[0], -2e2*np.pi/pulse.t[-1])
-        self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.t[-1])
+        self.assertAlmostEqual(omega[0], -2e2*np.pi/pulse.tau)
+        self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.tau)
         self.assertEqual(len(omega), 300)
         self.assertTrue((omega[:150] <= 0).all())
         self.assertLessEqual(np.var(np.diff(np.log(omega[150:]))), 1e-16)
@@ -540,7 +540,7 @@ class UtilTest(testutil.TestCase):
         omega = util.get_sample_frequencies(pulse, spacing='linear',
                                             n_samples=50, symmetric=False)
         self.assertAlmostEqual(omega[0], 0)
-        self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.t[-1])
+        self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.tau)
         self.assertEqual(len(omega), 50)
         self.assertTrue((omega >= 0).all())
         self.assertLessEqual(np.var(np.diff(omega)), 1e-16)

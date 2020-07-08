@@ -1051,12 +1051,12 @@ def infidelity(pulse: 'PulseSequence',
 
         # Parse argument dict
         try:
-            omega_IR = omega.get('omega_IR', 2*np.pi/pulse.t[-1]*1e-2)
+            omega_IR = omega.get('omega_IR', 2*np.pi/pulse.tau*1e-2)
         except AttributeError:
             raise TypeError('omega should be dictionary with parameters ' +
                             'when test_convergence == True.')
 
-        omega_UV = omega.get('omega_UV', 2*np.pi/pulse.t[-1]*1e+2)
+        omega_UV = omega.get('omega_UV', 2*np.pi/pulse.tau*1e+2)
         spacing = omega.get('spacing', 'linear')
         n_min = omega.get('n_min', 100)
         n_max = omega.get('n_max', 500)

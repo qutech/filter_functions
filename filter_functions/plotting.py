@@ -56,7 +56,7 @@ from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes,
                     FigureAxesLegend, FigureGrid, Grid, Operator, State)
 
 __all__ = ['plot_cumulant_function', 'plot_infidelity_convergence',
-           'plot_filter_function', 'plot_pulse_correlation_filter_function', 
+           'plot_filter_function', 'plot_pulse_correlation_filter_function',
            'plot_pulse_train']
 
 try:
@@ -209,9 +209,9 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
         # 5 time points during  the smallest time interval in pulse.t. Being
         # careful that doesn't blow up in our face for extremely narrow pulses,
         # max out at 5000.
-        n_samples = min([5000, 5*int(pulse.t[-1]/np.diff(pulse.t).min())])
+        n_samples = min([5000, 5*int(pulse.tau/np.diff(pulse.t).min())])
 
-    times = np.linspace(pulse.t[0], pulse.t[-1], n_samples)
+    times = np.linspace(pulse.t[0], pulse.tau, n_samples)
     n_cops = len(pulse.c_opers)
     coeffs = np.zeros((n_cops, len(times)))
     for i in range(n_cops):
@@ -315,7 +315,7 @@ def plot_pulse_train(pulse: 'PulseSequence',
         handles += axes.step(pulse.t, coeffs, label=c_oper_identifiers[i],
                              **plot_kw)
 
-    axes.set_xlim(pulse.t[0], pulse.t[-1])
+    axes.set_xlim(pulse.t[0], pulse.tau)
     axes.set_xlabel(r'$t$ / a.u.')
     axes.set_ylabel(r'Control parameter / a.u.')
     axes.grid(True)
