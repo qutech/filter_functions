@@ -482,7 +482,11 @@ class UtilTest(testutil.TestCase):
             self.assertTrue(np.all(result[0]))
             self.assertArrayAlmostEqual(result[1], -phase, atol=1e-5)
 
-            U /= np.expand_dims(np.sqrt(util.dot_HS(U, U)), axis=(-1, -2))
+            norm = np.sqrt(util.dot_HS(U, U))
+            norm = norm[:, None, None] if U.ndim == 3 else norm
+            U /= norm
+            # TIP: In numpy 1.18 we could just do:
+            # U /= np.expand_dims(np.sqrt(util.dot_HS(U, U)), axis=(-1, -2))
             result = util.oper_equiv(U, U*np.exp(1j*phase), normalized=True,
                                      eps=1e-10)
             self.assertTrue(np.all(result[0]))
