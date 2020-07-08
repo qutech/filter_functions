@@ -282,12 +282,7 @@ class PulseSequence:
 
     def __str__(self):
         """String method."""
-        s = 'PulseSequence object with the following attributes:\n'
-        for attr in ('c_opers', 'c_coeffs', 'n_opers', 'n_coeffs', 'dt'):
-            s += f'{attr}:\n'
-            s += str(getattr(self, attr)) + '\n'
-
-        return s
+        return f'{repr(self)} with total duration {self.tau}'
 
     def __eq__(self, other: object) -> bool:
         """
