@@ -37,12 +37,9 @@ Functions
 :func:`ggm_expand`
     Fast function to expand an array of operators in a Generalized Gell-Mann
     basis
-:func:`liouville_to_choi`
-    Convert from Liouville to Choi matrix representation.
-
 """
 
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence, Tuple, Union
 from warnings import warn
 
 import numpy as np
@@ -54,7 +51,9 @@ from sparse import COO
 
 from . import util
 
-__all__ = ['Basis', 'expand', 'ggm_expand', 'normalize', 'liouville_to_choi']
+__all__ = ['Basis', 'expand', 'ggm_expand', 'normalize',
+           'liouville_representation', 'liouville_to_choi', 'liouville_is_CP',
+           'liouville_is_cCP']
 
 
 class Basis(ndarray):
@@ -727,35 +726,3 @@ def remap_pauli_basis_elements(order: Sequence[int], N: int) -> ndarray:
                   for idx_tup in pauli_idx]
 
     return np.array(linear_idx)
-
-
-def liouville_to_choi(U: ndarray, basis: Basis) -> ndarray:
-    """Convert from Liouville to Choi matrix representation.
-
-    Parameters
-    ----------
-    U: ndarray, shape (..., d**2, d**2)
-        The Liouville representation.
-    basis: Basis, shape (d**2, d, d)
-        The operator basis defining the Liouville representation.
-
-    Returns
-    -------
-    choi: ndarray, shape (..., d**2, d**2)
-        The Choi matrix of the channel U.
-    """
-    d2 = U.shape[0]
-    d = int(np.sqrt(d2))
-    ij = np.eye(d2).reshape(d2, d, d, order='F')
-
-    basis = basis.view(Basis) if not hasattr(basis, 'btype') else basis
-    if basis.btype == 'GGM':
-        ij_ket = ggm_expand(ij).T
-    else:
-        ij_ket = expand(ij, basis).T
-
-    path = ['einsum_path', (0, 2), (0, 1), (0, 1)]
-    choi = np.einsum('iab,jk,ki,jcd->acbd', ij, U, ij_ket, basis,
-                     optimize=path).reshape(d2, d2) / d
-
-    return choi

@@ -572,8 +572,8 @@ class CoreTest(testutil.TestCase):
             R_l = np.empty((n_dt, 6, d**2, len(omega)), dtype=complex)
             for l, pulse in enumerate(pulses):
                 phases[l] = np.exp(1j*total_pulse.t[l]*omega)
-                L[l] = numeric.liouville_representation(total_pulse.Q[l],
-                                                        total_pulse.basis)
+                L[l] = ff.superoperator.liouville_representation(
+                    total_pulse.Q[l], total_pulse.basis)
                 R_l[l] = pulse.get_control_matrix(omega)
 
             # Check that both methods of calculating the control are the same

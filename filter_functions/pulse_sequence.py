@@ -53,6 +53,7 @@ from numpy import ndarray
 from . import numeric, util
 from .basis import (Basis, equivalent_pauli_basis_elements,
                     remap_pauli_basis_elements)
+from .superoperator import liouville_representation
 from .types import Coefficients, Hamiltonian, Operator, PulseMapping
 
 __all__ = ['PulseSequence', 'concatenate', 'concatenate_periodic', 'extend',
@@ -498,9 +499,8 @@ class PulseSequence:
         # Cache total phase and total transfer matrices as well
         self.cache_total_phases(omega)
         if not self.is_cached('total_Q_liouville'):
-            self.total_Q_liouville = numeric.liouville_representation(
-                self.total_Q, self.basis
-            )
+            self.total_Q_liouville = liouville_representation(self.total_Q,
+                                                              self.basis)
 
     def get_pulse_correlation_control_matrix(self) -> ndarray:
         """Get the pulse correlation control matrix if it was cached."""
@@ -800,8 +800,8 @@ class PulseSequence:
     def total_Q_liouville(self) -> ndarray:
         """Get the transfer matrix for the total propagator of the pulse."""
         if not self.is_cached('total_Q_liouville'):
-            self._total_Q_liouville = numeric.liouville_representation(
-                self.total_Q, self.basis)
+            self._total_Q_liouville = liouville_representation(self.total_Q,
+                                                               self.basis)
 
         return self._total_Q_liouville
 
@@ -1061,7 +1061,7 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
 
     # Check coeffs are all the same length as dt
     if not all(len(coeff) == n_dt for coeff in coeffs):
-        raise ValueError(f'Expected all coefficients in {H_str} '+
+        raise ValueError(f'Expected all coefficients in {H_str} ' +
                          f'to be of len(dt) = {n_dt}!')
 
     coeffs = np.asarray(coeffs)
@@ -1598,8 +1598,8 @@ def concatenate(pulses: Iterable[PulseSequence],
         newpulse.total_Q = util.mdot([pls.total_Q for pls in pulses][::-1])
 
     newpulse.cache_total_phases(omega)
-    newpulse.total_Q_liouville = numeric.liouville_representation(
-        newpulse.total_Q, newpulse.basis)
+    newpulse.total_Q_liouville = liouville_representation(newpulse.total_Q,
+                                                          newpulse.basis)
 
     if calc_pulse_correlation_ff:
         path = ['einsum_path', (1, 2), (0, 1)]
@@ -2342,8 +2342,8 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
                 numeric.calculate_filter_function(R[n_ops_counter:])
 
         newpulse.cache_total_phases(omega)
-        newpulse.total_Q_liouville = numeric.liouville_representation(
-            newpulse.total_Q, newpulse.basis)
+        newpulse.total_Q_liouville = liouville_representation(newpulse.total_Q,
+                                                              newpulse.basis)
         newpulse.cache_control_matrix(omega, R=R[n_sort_idx])
         newpulse.cache_filter_function(omega, F=F[n_sort_idx[:, None],
                                                   n_sort_idx[None, :]])

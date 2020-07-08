@@ -47,8 +47,6 @@ Functions
     Function to compute the infidelity of a pulse defined by a
     ``PulseSequence`` instance for a given noise spectral density and
     frequencies
-:func:`liouville_representation`
-    Calculate the Liouville representation of a unitary with respect to a basis
 """
 from collections import deque
 from itertools import accumulate, repeat
@@ -60,11 +58,11 @@ import opt_einsum as oe
 import sparse
 from numpy import linalg as nla
 from numpy import ndarray
-from scipy import linalg as sla
 from scipy import integrate
+from scipy import linalg as sla
 
 from . import util
-from .basis import Basis, ggm_expand
+from .basis import Basis
 from .types import Coefficients, Operator
 
 __all__ = ['calculate_control_matrix_from_atomic',
@@ -73,7 +71,7 @@ __all__ = ['calculate_control_matrix_from_atomic',
            'calculate_decay_amplitudes',
            'calculate_filter_function',
            'calculate_pulse_correlation_filter_function', 'diagonalize',
-           'error_transfer_matrix', 'infidelity', 'liouville_representation']
+           'error_transfer_matrix', 'infidelity']
 
 
 def calculate_control_matrix_from_atomic(
@@ -1129,53 +1127,6 @@ def infidelity(pulse: 'PulseSequence',
         return infid, xi
 
     return infid
-
-
-def liouville_representation(U: ndarray, basis: Basis) -> ndarray:
-    r"""
-    Get the Liouville representaion of the unitary U with respect to the basis
-    basis.
-
-    Parameters
-    ----------
-    U: ndarray, shape (..., d, d)
-        The unitary.
-    basis: Basis, shape (d**2, d, d)
-        The basis used for the representation, e.g. a Pauli basis.
-
-    Returns
-    -------
-    R: ndarray, shape (..., d**2, d**2)
-        The Liouville representation of U.
-
-    Notes
-    -----
-    The Liouville representation of a unitary quantum operation
-    :math:`\mathcal{U}:\rho\rightarrow U\rho U^\dagger` is given by
-
-    .. math::
-
-        \mathcal{U}_{ij} = \mathrm{tr}(C_i U C_j U^\dagger)
-
-    with :math:`C_i` elements of the basis spanning
-    :math:`\mathbb{C}^{d\times d}` with :math:`d` the dimension of the Hilbert
-    space.
-    """
-    U = np.asanyarray(U)
-    if basis.btype == 'GGM' and basis.d > 12:
-        # Can do closed form expansion and overhead compensated
-        path = ['einsum_path', (0, 1), (0, 1)]
-        conjugated_basis = np.einsum('...ba,ibc,...cd->...iad', U.conj(),
-                                     basis, U, optimize=path)
-        # If the basis is hermitian, the result will be strictly real so we can
-        # drop the imaginary part
-        R = ggm_expand(conjugated_basis).real
-    else:
-        path = ['einsum_path', (0, 1), (0, 1), (0, 1)]
-        R = np.einsum('...ba,ibc,...cd,jda', U.conj(), basis, U, basis,
-                      optimize=path).real
-
-    return R
 
 
 def _get_integrand(S: ndarray, omega: ndarray, idx: ndarray, which_pulse: str,

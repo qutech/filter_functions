@@ -150,47 +150,6 @@ class PrecisionTest(testutil.TestCase):
 
         self.assertArrayAlmostEqual(F, analytic.CDD(omega*tau, n), atol=1e-10)
 
-    def test_liouville_representation(self):
-        """Test the calculation of the transfer matrix"""
-        dd = np.arange(2, 18, 4)
-
-        for d in dd:
-            # Works with different bases
-            if d == 4:
-                basis = ff.Basis.pauli(2)
-            else:
-                basis = ff.Basis.ggm(d)
-
-            U = testutil.rand_unit(d, 2)
-
-            # Works on matrices and arrays of matrices
-            U_liouville = numeric.liouville_representation(U[0], basis)
-            U_liouville = numeric.liouville_representation(U, basis)
-
-            # should have dimension d^2 x d^2
-            self.assertEqual(U_liouville.shape, (U.shape[0], d**2, d**2))
-            # Real
-            self.assertTrue(np.isreal(U_liouville).all())
-            # Hermitian for unitary input
-            self.assertArrayAlmostEqual(
-                U_liouville.swapaxes(-1, -2) @ U_liouville,
-                np.tile(np.eye(d**2), (U.shape[0], 1, 1)),
-                atol=np.finfo(float).eps*d**2
-            )
-
-            if d == 2:
-                U_liouville = numeric.liouville_representation(
-                    util.paulis[1:], basis)
-                self.assertArrayAlmostEqual(U_liouville[0],
-                                            np.diag([1, 1, -1, -1]),
-                                            atol=np.finfo(float).eps)
-                self.assertArrayAlmostEqual(U_liouville[1],
-                                            np.diag([1, -1, 1, -1]),
-                                            atol=np.finfo(float).eps)
-                self.assertArrayAlmostEqual(U_liouville[2],
-                                            np.diag([1, -1, -1, 1]),
-                                            atol=np.finfo(float).eps)
-
     def test_diagonalization_cnot(self):
         """CNOT"""
         cnot_mat = np.block([[util.paulis[0], np.zeros((2, 2))],
@@ -215,7 +174,7 @@ class PrecisionTest(testutil.TestCase):
         cnot.diagonalize()
         cnot_subspace.diagonalize()
 
-        phase_eq = util.oper_equiv(cnot_subspace.total_Q[1:5, 1:5], cnot_mat, 
+        phase_eq = util.oper_equiv(cnot_subspace.total_Q[1:5, 1:5], cnot_mat,
                                    eps=1e-9)
 
         self.assertTrue(phase_eq[0])
