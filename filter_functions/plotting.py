@@ -683,7 +683,7 @@ def plot_error_transfer_matrix(
         An ImageGrid instance to use for plotting.
     cmap: matplotlib colormap, optional
         The colormap for the matrix plot.
-    subplot_kw: dict, optional
+    grid_kw: dict, optional
         Dictionary with keyword arguments passed to the ImageGrid constructor.
     imshow_kw: dict, optional
         Dictionary with keyword arguments passed to imshow.
