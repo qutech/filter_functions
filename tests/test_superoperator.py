@@ -88,7 +88,7 @@ class SuperoperatorTest(testutil.TestCase):
             choi = superoperator.liouville_to_choi(U_sup, basis).view(ff.Basis)
 
             self.assertTrue(choi.isherm)
-            self.assertArrayAlmostEqual(np.einsum('...ii', choi), 1)
+            self.assertArrayAlmostEqual(np.einsum('...ii', choi), d)
 
             pulse = testutil.rand_pulse_sequence(d, 1)
             omega = ff.util.get_sample_frequencies(pulse)
@@ -98,7 +98,7 @@ class SuperoperatorTest(testutil.TestCase):
             choi = superoperator.liouville_to_choi(U_sup, basis).view(ff.Basis)
 
             self.assertTrue(choi.isherm)
-            self.assertAlmostEqual(np.einsum('ii', choi), 1)
+            self.assertAlmostEqual(np.einsum('ii', choi), d)
 
     def test_liouville_is_CP(self):
         def partial_transpose(A):

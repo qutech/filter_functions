@@ -106,7 +106,7 @@ def liouville_to_choi(superoperator: ndarray, basis: _b.Basis) -> ndarray:
     .. math::
 
         \mathrm{choi}(\mathcal{S})
-            &= (\mathcal{S}\otimes\mathbb{I}) (|\Omega\rangle\langle\Omega|) \\
+            &= (\mathbb{I}\otimes\mathcal{S}) (|\Omega\rangle\langle\Omega|) \\
             &= \sum_{ij} E_{ij}\otimes\mathcal{S}(E_{ij})
 
     where :math:`|\Omega\rangle` is a maximally entangled state and
@@ -136,7 +136,7 @@ def liouville_to_choi(superoperator: ndarray, basis: _b.Basis) -> ndarray:
     path = ['einsum_path', (0, 2), (0, 1), (0, 1)]
     choi = np.einsum('iab,...jk,ki,jcd->...acbd',
                      ij, superoperator, ij_ket, basis,
-                     optimize=path).reshape(superoperator.shape) / d
+                     optimize=path).reshape(superoperator.shape)
 
     return choi
 
