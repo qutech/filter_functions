@@ -1056,7 +1056,7 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
 
     # Check coeffs are all the same length as dt
     if not all(len(coeff) == n_dt for coeff in coeffs):
-        raise ValueError(f'Expected all coefficients in {H_str} '+
+        raise ValueError(f'Expected all coefficients in {H_str} ' +
                          f'to be of len(dt) = {n_dt}!')
 
     coeffs = np.asarray(coeffs)
@@ -1526,12 +1526,12 @@ def concatenate(pulses: Iterable[PulseSequence],
         if not equal_omega:
             if calc_filter_function:
                 raise ValueError("Calculation of filter function forced " +
-                                "but not all pulses have the same " +
-                                "frequencies cached and none were supplied!")
-            if calc_pulse_correlation_ff:
+                                 "but not all pulses have the same " +
+                                 "frequencies cached and none were supplied!")
+            if calc_pulse_correlation_FF:
                 raise ValueError("Cannot compute the pulse correlation " +
-                                "filter functions; do not have the " +
-                                "frequencies at which to evaluate.")
+                                 "filter functions; do not have the " +
+                                 "frequencies at which to evaluate.")
 
             return newpulse
 
