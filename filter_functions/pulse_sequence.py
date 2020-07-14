@@ -508,7 +508,7 @@ class PulseSequence:
         raise util.CalculationError(
             "Could not get the pulse correlation control matrix since it " +
             "was not computed during concatenation. Please run the " +
-            "concatenation again with 'calc_pulse_correlation_ff' set to " +
+            "concatenation again with 'calc_pulse_correlation_FF' set to " +
             "True."
         )
 
@@ -704,7 +704,7 @@ class PulseSequence:
         raise util.CalculationError(
             "Could not get the pulse correlation filter function since it " +
             "was not computed during concatenation. Please run the " +
-            "concatenation again with 'calc_pulse_correlation_ff' set to True."
+            "concatenation again with 'calc_pulse_correlation_FF' set to True."
         )
 
     def get_total_phases(self, omega: Coefficients) -> ndarray:
@@ -1422,7 +1422,7 @@ def concatenate_without_filter_function(
 
 @util.parse_which_FF_parameter
 def concatenate(pulses: Iterable[PulseSequence],
-                calc_pulse_correlation_ff: bool = False,
+                calc_pulse_correlation_FF: bool = False,
                 calc_filter_function: Optional[bool] = None,
                 which: str = 'fidelity',
                 omega: Optional[Coefficients] = None,
@@ -1446,7 +1446,7 @@ def concatenate(pulses: Iterable[PulseSequence],
         pulse will also be calculated in order to make use of the speedup
         gained from concatenating the filter functions. If *omega* is given,
         calculation of the composite filter function is forced.
-    calc_pulse_correlation_ff: bool, optional
+    calc_pulse_correlation_FF: bool, optional
         Switch to control whether the pulse correlation filter function (see
         :meth:`PulseSequence.get_pulse_correlation_filter_function`) is
         calculated. If *omega* is not given, the cached frequencies of all
@@ -1484,7 +1484,7 @@ def concatenate(pulses: Iterable[PulseSequence],
     if all(pls.is_cached('total_Q') for pls in pulses):
         newpulse.total_Q = util.mdot([pls.total_Q for pls in pulses][::-1])
 
-    if calc_filter_function is False and not calc_pulse_correlation_ff:
+    if calc_filter_function is False and not calc_pulse_correlation_FF:
         return newpulse
 
     # If the pulses have different noise operators, we cannot reuse cached
@@ -1600,7 +1600,7 @@ def concatenate(pulses: Iterable[PulseSequence],
 
     R = numeric.calculate_control_matrix_from_atomic(
         phases, R_g, L, show_progressbar,
-        'correlations' if calc_pulse_correlation_ff else 'total'
+        'correlations' if calc_pulse_correlation_FF else 'total'
     )
 
     # Set the attribute and calculate filter function (if the pulse correlation
