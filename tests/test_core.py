@@ -396,7 +396,7 @@ class CoreTest(testutil.TestCase):
         A.cleanup('all')
 
         # Test cleanup
-        C = ff.concatenate((A, A), calc_pulse_correlation_ff=True,
+        C = ff.concatenate((A, A), calc_pulse_correlation_FF=True,
                            which='generalized',
                            omega=util.get_sample_frequencies(A))
         C.diagonalize()
@@ -422,7 +422,7 @@ class CoreTest(testutil.TestCase):
         for attr in attrs + ['omega', '_F_kl', '_F_pc_kl']:
             self.assertIsNotNone(getattr(C, attr))
 
-        C = ff.concatenate((A, A), calc_pulse_correlation_ff=True,
+        C = ff.concatenate((A, A), calc_pulse_correlation_FF=True,
                            which='fidelity', omega=A.omega)
         C.diagonalize()
         C.cache_filter_function(A.omega, which='fidelity')
@@ -665,17 +665,17 @@ class CoreTest(testutil.TestCase):
                 pulses[key].cache_filter_function(omega + i)
 
             ff.concatenate([pulses['X'], pulses['Y']],
-                           calc_pulse_correlation_ff=True)
+                           calc_pulse_correlation_FF=True)
 
         # Get filter functions at same frequencies
         [pulse.cache_filter_function(omega) for pulse in pulses.values()]
 
         pulse_1 = pulses['X'] @ pulses['Y']
         pulse_2 = ff.concatenate([pulses['X'], pulses['Y']],
-                                 calc_pulse_correlation_ff=True,
+                                 calc_pulse_correlation_FF=True,
                                  which='fidelity')
         pulse_3 = ff.concatenate([pulses['X'], pulses['Y']],
-                                 calc_pulse_correlation_ff=True,
+                                 calc_pulse_correlation_FF=True,
                                  which='generalized')
 
         self.assertTrue(pulse_2.is_cached('R_pc'))

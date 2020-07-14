@@ -147,12 +147,12 @@ class PlottingTest(testutil.TestCase):
         omega = np.linspace(-1, 1, 50)
         concatenated_simple_pulse = ff.concatenate(
             (simple_pulse, simple_pulse),
-            calc_pulse_correlation_ff=True,
+            calc_pulse_correlation_FF=True,
             omega=omega
         )
         concatenated_complicated_pulse = ff.concatenate(
             (complicated_pulse, complicated_pulse),
-            calc_pulse_correlation_ff=True,
+            calc_pulse_correlation_FF=True,
             omega=omega
         )
 
