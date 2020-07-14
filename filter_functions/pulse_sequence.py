@@ -1602,12 +1602,10 @@ def concatenate(pulses: Iterable[PulseSequence],
     newpulse.total_Q_liouville = liouville_representation(newpulse.total_Q,
                                                           newpulse.basis)
 
-    if calc_pulse_correlation_ff:
-        path = ['einsum_path', (1, 2), (0, 1)]
-        R = np.einsum('go,galo,glk->gako', phases, R_g, L, optimize=path)
-    else:
-        R = numeric.calculate_control_matrix_from_atomic(phases, R_g, L,
-                                                         show_progressbar)
+    R = numeric.calculate_control_matrix_from_atomic(
+        phases, R_g, L, show_progressbar,
+        'correlations' if calc_pulse_correlation_ff else 'total'
+    )
 
     # Set the attribute and calculate filter function (if the pulse correlation
     # FF has been calculated, this is a little overhead but negligible)

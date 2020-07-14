@@ -74,9 +74,11 @@ __all__ = ['calculate_control_matrix_from_atomic',
            'error_transfer_matrix', 'infidelity']
 
 
+@util.parse_optional_parameters({'which': ('total', 'correlations')})
 def calculate_control_matrix_from_atomic(
         phases: ndarray, R_g: ndarray, Q_liouville: ndarray,
-        show_progressbar: Optional[bool] = None) -> ndarray:
+        show_progressbar: Optional[bool] = None,
+        which: str = 'total') -> ndarray:
     r"""
     Calculate the control matrix from the control matrices of atomic segments.
 
@@ -91,10 +93,13 @@ def calculate_control_matrix_from_atomic(
         :math:`l\in\{0, 1, \dots, n-1\}`.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
+    which: str, ('total', 'correlations')
+        Compute the total control matrix (the sum of all time steps) or the
+        correlation control matrix (first axis holds each pulses' contribution)
 
     Returns
     -------
-    R: ndarray, shape (n_nops, d**2, n_omega)
+    R: ndarray, shape ([n_pls,] n_nops, d**2, n_omega)
         The control matrix :math:`\mathcal{R}(\omega)`.
 
     Notes
@@ -112,18 +117,24 @@ def calculate_control_matrix_from_atomic(
     liouville_representation: Liouville representation for a given basis.
     """
     n = len(R_g)
-    # Allocate memory
-    R = np.zeros(R_g.shape[1:], dtype=complex)
-
     # Set up a reusable contraction expression. In some cases it is faster to
     # also contract the time dimension in the same expression instead of
     # looping over it, but we don't distinguish here for readability.
     R_expr = oe.contract_expression('ijo,jk->iko',
                                     R_g.shape[1:], Q_liouville.shape[1:])
 
-    for g in util.progressbar_range(n, show_progressbar=show_progressbar,
-                                    desc='Calculating control matrix'):
-        R += R_expr(phases[g]*R_g[g], Q_liouville[g])
+    # Allocate memory
+    if which == 'total':
+        R = np.zeros(R_g.shape[1:], dtype=complex)
+        for g in util.progressbar_range(n, show_progressbar=show_progressbar,
+                                        desc='Calculating control matrix'):
+            R += R_expr(phases[g]*R_g[g], Q_liouville[g])
+    else:
+        # which == 'correlations'
+        R = np.zeros_like(R_g)
+        for g in util.progressbar_range(n, show_progressbar=show_progressbar,
+                                        desc='Calculating control matrix'):
+            R[g] = R_expr(phases[g]*R_g[g], Q_liouville[g])
 
     return R
 
