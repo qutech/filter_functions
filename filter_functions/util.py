@@ -293,7 +293,7 @@ def _parse_dims_arg(name: str, dims: Sequence[Sequence[int]],
 
 
 def get_indices_from_identifiers(pulse: 'PulseSequence',
-                                 identifiers: Union[None, Sequence[str]],
+                                 identifiers: Union[None, str, Sequence[str]],
                                  kind: str) -> Tuple[Sequence[int],
                                                      Sequence[str]]:
     """Get the indices of operators for given identifiers.
@@ -302,7 +302,7 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
     ----------
     pulse: PulseSequence
         The PulseSequence instance for which to get the indices.
-    identifiers: sequence of str
+    identifiers: str or sequence of str
         The identifiers whose indices to get.
     kind: str
         Whether to get 'control' or 'noise' operator indices.
@@ -318,8 +318,11 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
         inds = np.arange(len(pulse_identifiers))
     else:
         try:
-            inds = np.array([identifier_to_index_table[identifier]
-                             for identifier in identifiers])
+            if isinstance(identifiers, str):
+                inds = np.array([identifier_to_index_table[identifiers]])
+            else:
+                inds = np.array([identifier_to_index_table[identifier]
+                                 for identifier in identifiers])
         except KeyError:
             raise ValueError('Invalid identifiers given. All available ones ' +
                              f'are: {pulse_identifiers}')

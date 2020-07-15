@@ -58,6 +58,9 @@ class UtilTest(testutil.TestCase):
         idx = util.get_indices_from_identifiers(pulse, ['X'], 'control')
         self.assertArrayEqual(idx, [0])
 
+        idx = util.get_indices_from_identifiers(pulse, 'X', 'control')
+        self.assertArrayEqual(idx, [0])
+
         idx = util.get_indices_from_identifiers(pulse, ['Z', 'X'], 'control')
         self.assertArrayEqual(idx, [1, 0])
 
@@ -65,6 +68,9 @@ class UtilTest(testutil.TestCase):
         self.assertArrayEqual(idx, [0, 1])
 
         idx = util.get_indices_from_identifiers(pulse, ['B_0'], 'noise')
+        self.assertArrayEqual(idx, [0])
+
+        idx = util.get_indices_from_identifiers(pulse, 'B_0', 'noise')
         self.assertArrayEqual(idx, [0])
 
         with self.assertRaises(ValueError):
