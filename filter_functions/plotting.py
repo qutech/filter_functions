@@ -262,7 +262,7 @@ def plot_pulse_train(pulse: 'PulseSequence',
     ----------
     pulse: PulseSequence
         The pulse sequence whose pulse train to plot.
-    n_oper_identifiers: array_like, optional
+    c_oper_identifiers: array_like, optional
         The identifiers of the control operators for which the pulse train
         should be plotted. All identifiers can be accessed via
         ``pulse.c_oper_identifiers``. Defaults to all.
