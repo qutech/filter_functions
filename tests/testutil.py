@@ -21,21 +21,19 @@
 """
 This module defines some testing utilities.
 """
-
 import string
 import unittest
 from pathlib import Path
 
 import numpy as np
-import qutip as qt
-from numpy.random import RandomState
+from numpy import random
 from numpy.testing import assert_allclose, assert_array_equal
-from scipy.io import loadmat
-from scipy.linalg import expm
+from scipy import io
+from scipy import linalg as sla
 
 from filter_functions import Basis, PulseSequence, util
 
-rng = RandomState()
+rng = random.RandomState()
 
 
 class TestCase(unittest.TestCase):
@@ -74,7 +72,7 @@ class TestCase(unittest.TestCase):
                             verbose)
         elif (actual is None and desired is not None or
               actual is not None and desired is None):
-            raise AssertionError('One of {} or {} '.format(actual, desired) +
+            raise AssertionError(f'One of {actual} or {desired} ' +
                                  'is None but the other not!')
         else:
             assert_array_equal(actual, desired, err_msg, verbose)
@@ -126,13 +124,13 @@ def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg',
     t = np.append(t, tau)
     s = np.append(s, 0)
 
-    H = [[qt.sigmax()/2, s]]
+    H = [[util.paulis[1]/2, s]]
     return H, np.diff(t)
 
 
 def rand_herm(d: int, n: int = 1) -> np.ndarray:
     """n random Hermitian matrices of dimension d"""
-    A = rng.randn(n, d, d) + 1j*rng.randn(n, d, d)
+    A = rng.standard_normal((n, d, d)) + 1j*rng.standard_normal((n, d, d))
     return (A + A.conj().transpose([0, 2, 1]))/2
 
 
@@ -146,10 +144,7 @@ def rand_herm_traceless(d: int, n: int = 1) -> np.ndarray:
 def rand_unit(d: int, n: int = 1) -> np.ndarray:
     """n random unitary matrices of dimension d"""
     H = rand_herm(d, n)
-    if n == 1:
-        return expm(1j*H)
-    else:
-        return np.array([expm(1j*h) for h in H])
+    return np.array([sla.expm(1j*h) for h in H])
 
 
 def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
@@ -161,14 +156,14 @@ def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
     c_opers = rand_herm_traceless(d, n_cops)
     n_opers = rand_herm_traceless(d, n_nops)
 
-    c_coeffs = rng.randn(n_cops, n_dt)
-    n_coeffs = rng.rand(n_nops, n_dt)
+    c_coeffs = rng.standard_normal((n_cops, n_dt))
+    n_coeffs = rng.random_sample((n_nops, n_dt))
 
     letters = np.array(list(string.ascii_letters))
     c_identifiers = rng.choice(letters, n_cops, replace=False)
     n_identifiers = rng.choice(letters, n_nops, replace=False)
 
-    dt = 1 - rng.rand(n_dt)  # (0, 1] instead of [0, 1)
+    dt = 1 - rng.random_sample(n_dt)  # (0, 1] instead of [0, 1)
     if btype == 'GGM':
         basis = Basis.ggm(d)
     else:
@@ -185,7 +180,7 @@ def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
 
 # Set up Hamiltonian for CNOT gate
 data_path = Path(__file__).parent.parent / 'examples/data'
-struct = loadmat(str(data_path / 'CNOT.mat'))
+struct = io.loadmat(str(data_path / 'CNOT.mat'))
 eps = np.asarray(struct['eps'], order='C')
 dt = np.asarray(struct['t'].ravel(), order='C')
 B = np.asarray(struct['B'].ravel(), order='C')
@@ -197,7 +192,7 @@ n_dt = len(dt)
 
 d = 16
 H = np.empty((6, d, d), dtype=float)
-Id, Px, Py, Pz = util.P_np
+Id, Px, Py, Pz = util.paulis
 # Exchange Hamiltonians
 H[0] = 1/4*sum(util.tensor(P, P, Id, Id) for P in (Px, Py, Pz)).real
 H[1] = 1/4*sum(util.tensor(Id, P, P, Id) for P in (Px, Py, Pz)).real
