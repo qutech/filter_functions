@@ -106,7 +106,7 @@ def _second_order_integral(E, dE, dt, int_buf, frc_bufs, exp_bufs, msk_bufs):
     ...          np.expand_dims(np.multiply.outer(E, t1), (1, 2)))
     >>> integrand = (np.expand_dims(np.exp(ex), (3, 4)) *
     ...              np.expand_dims(I1, (1, 2)))
-    >>> I2 = integrate.trapz(integr, t1)
+    >>> I2 = integrate.trapz(integrand, t1)
     >>> exp_bufs = (np.empty((d, d, d, d), dtype=complex),
     ...             np.empty((len(E), d, d), dtype=complex))
     >>> frc_bufs = (np.empty((d, d, d, d), dtype=complex),
@@ -121,36 +121,54 @@ def _second_order_integral(E, dE, dt, int_buf, frc_bufs, exp_bufs, msk_bufs):
 
     """
 
+    dEdE = np.add.outer(dE, dE)
+    EdE = np.add.outer(E, dE)
+    dEE = np.subtract.outer(dE, E).transpose(2, 0, 1)
+    mask_dEdE = np.not_equal(dEdE, 0)
+    mask_EdE = np.not_equal(EdE, 0)
+    mask_dEE = np.not_equal(dEE, 0)
+    mask_nEdE_dEE = np.logical_and(~mask_EdE[:, None, None],
+                                   mask_dEE[..., None, None])
+    mask_nEdE_ndEE = np.logical_and(~mask_EdE[:, None, None],
+                                    ~mask_dEE[..., None, None])
+    mask_EdE_dEE = np.broadcast_to(mask_EdE[:, None, None], int_buf.shape)
+
     # *_buf1 has shape dE.shape*2, *_buf2 has shape (len(E), *dE.shape), and
     # int_buf, *_buf3 have shape (len(E), *dE.shape*2)
     frc_buf1, frc_buf2 = frc_bufs
     exp_buf1, exp_buf2 = exp_bufs
     msk_buf1, msk_buf2, msk_buf3 = msk_bufs
 
-    # First term in the brackets
-    frc_buf1.real = 0
-    frc_buf1.imag = np.add.outer(dE, dE, out=frc_buf1.imag)
-    exp_buf1 = np.expm1(frc_buf1*dt, out=exp_buf1)
-    msk_buf1 = np.not_equal(frc_buf1, 0, out=msk_buf1)
-    frc_buf1 = np.divide(exp_buf1, frc_buf1, out=frc_buf1, where=msk_buf1)
-    frc_buf1[~msk_buf1] = dt
-
     # Second term in the brackets
-    frc_buf2.real = 0
-    frc_buf2.imag = np.subtract.outer(E, dE, out=frc_buf2.imag)
-    exp_buf2 = np.expm1(-frc_buf2*dt, out=exp_buf2)
-    msk_buf2 = np.not_equal(frc_buf2, 0, out=msk_buf2)
-    frc_buf2 = np.divide(exp_buf2, frc_buf2, out=frc_buf2, where=msk_buf2)
-    frc_buf2[~msk_buf2] = -dt
-    int_buf = np.add(np.expand_dims(frc_buf1, axis=0),
-                     np.expand_dims(frc_buf2, axis=(3, 4)), out=int_buf)
+    exp_buf1 = np.expm1(1j*dEdE*dt, out=exp_buf1, where=mask_dEdE)
+    frc_buf1 = np.divide(exp_buf1, dEdE, out=frc_buf1, where=mask_dEdE)
+    frc_buf1[~mask_dEdE] = 1j*dt
+
+    # Frist term in the brackets
+    exp_buf2 = np.expm1(1j*dEE*dt, out=exp_buf2, where=mask_dEE)
+    frc_buf2 = np.divide(exp_buf2, dEE, out=frc_buf2, where=mask_dEE)
+    frc_buf2[~mask_dEE] = 1j*dt
+
+    int_buf = np.subtract(frc_buf2[..., None, None], frc_buf1[None, ...],
+                          out=int_buf, where=mask_EdE_dEE)
 
     # Prefactor
-    frc_buf2.real = np.add.outer(E, dE, out=frc_buf2.real)
-    msk_buf3 = np.not_equal(int_buf, 0, out=msk_buf3)
-    int_buf = np.divide(-1j*int_buf, np.expand_dims(frc_buf2.real, (1, 2)),
-                        out=int_buf, where=msk_buf3)
-    int_buf[~msk_buf3] = dt**2 / 2
+    int_buf = np.divide(int_buf, EdE[:, None, None],
+                        out=int_buf, where=mask_EdE_dEE)
+
+    int_buf = np.subtract(
+        np.broadcast_to(frc_buf2[..., None, None], int_buf.shape),
+        np.multiply(1j*dt, np.add(
+            np.broadcast_to(exp_buf2[..., None, None], int_buf.shape),
+            1, where=mask_nEdE_dEE
+        ), where=mask_nEdE_dEE),
+        out=int_buf, where=mask_nEdE_dEE
+    )
+    int_buf = np.divide(int_buf,
+                        np.broadcast_to(dEE[..., None, None], int_buf.shape),
+                        out=int_buf, where=mask_nEdE_dEE)
+
+    int_buf[mask_nEdE_ndEE] = dt**2 / 2
 
     return int_buf
 
