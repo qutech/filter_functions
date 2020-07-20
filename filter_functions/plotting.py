@@ -42,52 +42,73 @@ Functions
 """
 from itertools import product
 from typing import Optional, Sequence, Union
+from unittest import mock
+from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import colors, lines
-from mpl_toolkits.axes_grid1 import ImageGrid
+from matplotlib import colors, lines  # , collections
+from mpl_toolkits import axes_grid1, mplot3d
 from numpy import ndarray
-from qutip import Bloch, Qobj, basis, expect
 
 from . import numeric, util
 from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes,
                     FigureAxesLegend, FigureGrid, Grid, Operator, State)
 
-__all__ = ['plot_bloch_vector_evolution', 'plot_error_transfer_matrix',
-           'plot_filter_function', 'plot_infidelity_convergence',
+__all__ = ['plot_error_transfer_matrix', 'plot_filter_function',
+           'plot_infidelity_convergence',
            'plot_pulse_correlation_filter_function', 'plot_pulse_train']
+
+try:
+    import qutip as qt
+    __all__.append('plot_bloch_vector_evolution')
+except ImportError:
+    warn('Qutip not installed. plot_bloch_vector_evolution() is not available')
+    qt = mock.Mock()
 
 
 def get_bloch_vector(states: Sequence[State]) -> ndarray:
     r"""
     Get the Bloch vector from quantum states.
     """
-    if isinstance(states[0], Qobj):
+    try:
+        import qutip as qt
+    except ImportError as err:
+        raise RuntimeError('Requirements not fulfilled. ' +
+                           'Please install Qutip') from err
+
+    if isinstance(states[0], qt.Qobj):
         a = np.empty((3, len(states)))
-        X, Y, Z = util.P_qt[1:]
+        X, Y, Z = qt.sigmax(), qt.sigmay(), qt.sigmaz()
         for i, state in enumerate(states):
-            a[:, i] = [expect(X, state),
-                       expect(Y, state),
-                       expect(Z, state)]
+            a[:, i] = [qt.expect(X, state),
+                       qt.expect(Y, state),
+                       qt.expect(Z, state)]
     else:
-        a = np.einsum('...ij,kil,...lm->k...', np.conj(states), util.P_np[1:],
-                      states)
-    return a
+        a = np.einsum('...ij,kil,...lm->k...',
+                      np.conj(states), util.paulis[1:], states)
+    return a.real
 
 
-def init_bloch_sphere(**bloch_kwargs) -> Bloch:
+def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
     """A helper function to create a Bloch instance with a default viewing
     angle and axis labels."""
+    try:
+        import qutip as qt
+    except ImportError as err:
+        raise RuntimeError('Requirements not fulfilled. ' +
+                           'Please install Qutip') from err
+
     bloch_kwargs.setdefault('view', [-150, 30])
-    b = Bloch(**bloch_kwargs)
+    b = qt.Bloch(**bloch_kwargs)
     b.xlabel = [r'$|+\rangle$', '']
     b.ylabel = [r'$|+_i\rangle$', '']
     return b
 
 
+@util.parse_optional_parameter('prop', ['total', 'piecewise'])
 def get_states_from_prop(U: Sequence[Operator],
-                         psi0: State = basis(2, 0),
+                         psi0: Optional[State] = None,
                          prop: str = 'total') -> ndarray:
     r"""
     Get the the quantum state at time t from the propagator and the inital
@@ -106,13 +127,17 @@ def get_states_from_prop(U: Sequence[Operator],
     with :math:`t_0\equiv 0` and :math:`t_n\equiv t`.
 
     """
-    psi0 = psi0.full() if isinstance(psi0, Qobj) else psi0
+    if psi0 is None:
+        psi0 = np.c_[1:-1:-1]  # |0>
+
+    psi0 = psi0.full() if hasattr(psi0, 'full') else psi0  # qutip.Qobj
     d = max(psi0.shape)
     states = np.empty((len(U), d, 1), dtype=complex)
     if prop == 'total':
         for j in range(len(U)):
             states[j] = U[j] @ psi0
-    elif prop == 'piecewise':
+    else:
+        # prop == 'piecewise'
         states[0] = U[0] @ psi0
         for j in range(1, len(U)):
             states[j] = U[j] @ states[j-1]
@@ -122,38 +147,41 @@ def get_states_from_prop(U: Sequence[Operator],
 
 def plot_bloch_vector_evolution(pulse: 'PulseSequence',
                                 psi0: Optional[State] = None,
-                                b: Optional[Bloch] = None,
+                                b: Optional[qt.Bloch] = None,
                                 n_samples: Optional[int] = None,
+                                cmap: Optional[Colormap] = None,
                                 show: bool = True,
                                 return_Bloch: bool = False,
-                                **bloch_kwargs) -> Union[None, Bloch]:
+                                **bloch_kwargs) -> Union[None, qt.Bloch]:
     r"""
     Plot the evolution of the Bloch vector under the given pulse sequence.
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The PulseSequence instance whose control Hamiltonian determines the
         time evolution of the Bloch vector.
-    psi0 : Qobj or array_like, optional
+    psi0: Qobj or array_like, optional
         The initial state before the pulse is applied. Defaults to
         :math:`|0\rangle`.
-    b : Bloch, optional
+    b: qutip.Bloch, optional
         If given, the QuTiP Bloch instance on which to plot the time evolution.
-    n_samples : int, optional
+    n_samples: int, optional
         The number of time points to be sampled.
-    show** : bool, optional
+    cmap: matplotlib colormap, optional
+        The colormap for the trajectory.
+    show**: bool, optional
         Whether to show the sphere (by calling :code:`b.make_sphere()`).
-    return_Bloch : bool, optional
-        Whether to return the ``qutip.Bloch`` instance
-    bloch_kwargs : dict, optional
-        A dictionary with keyword arguments to be fed into the Bloch
+    return_Bloch: bool, optional
+        Whether to return the :class:`qutip.bloch.Bloch` instance
+    bloch_kwargs: dict, optional
+        A dictionary with keyword arguments to be fed into the qutip.Bloch
         constructor (if *b* not given).
 
     Returns
     -------
-    b : Bloch
-        The Bloch instance
+    b: qutip.Bloch
+        The qutip.Bloch instance
 
     Raises
     ------
@@ -162,7 +190,7 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
 
     See Also
     --------
-    qutip.bloch.Bloch : Qutip's Bloch sphere implementation.
+    qutip.bloch.Bloch: Qutip's Bloch sphere implementation.
     """
     # Raise an exception if not a one-qubit pulse
     if not pulse.d == 2:
@@ -171,16 +199,17 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
 
     # Parse default arguments
     if b is None:
-        b = init_bloch_sphere(**bloch_kwargs)
+        figsize = bloch_kwargs.pop('figsize', [5, 5])
+        view = bloch_kwargs.pop('view', [-60, 30])
+        fig = plt.figure(figsize=figsize)
+        axes = mplot3d.Axes3D(fig, azim=view[0], elev=view[1])
+        b = init_bloch_sphere(fig=fig, axes=axes, **bloch_kwargs)
 
     if n_samples is None:
         # 5 time points during  the smallest time interval in pulse.t. Being
         # careful that doesn't blow up in our face for extremely narrow pulses,
         # max out at 5000.
         n_samples = min([5000, 5*int(pulse.t[-1]/np.diff(pulse.t).min())])
-
-    if psi0 is None:
-        psi0 = basis(2)
 
     times = np.linspace(pulse.t[0], pulse.t[-1], n_samples)
     n_cops = len(pulse.c_opers)
@@ -194,13 +223,28 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     propagators = pulse.propagator_at_arb_t(times)
     points = get_bloch_vector(get_states_from_prop(propagators, psi0))
     b.add_points(points, meth='l')
+
+    # The following enables a color gradient for the trajectory, but only works
+    # by patching matplotlib, see
+    # https://github.com/matplotlib/matplotlib/issues/17755
+    # points = get_bloch_vector(
+    #     get_states_from_prop(propagators, psi0)
+    # ).T.reshape(-1, 1, 3)
+    # points[:, :, 1] *= -1  # qutip convention
+    # segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+    # if cmap is None:
+    #     cmap = plt.get_cmap('winter')
+
+    # colors = cmap(np.linspace(0, 1, n_samples - 1))
+    # lc = collections.LineCollection(segments[:, :, :2], colors=colors)
+    # b.axes.add_collection3d(lc, zdir='z', zs=segments[:, :, 2])
+
     if show:
         b.make_sphere()
 
     if return_Bloch:
         return b
-
-    return
 
 
 def plot_pulse_train(pulse: 'PulseSequence',
@@ -216,34 +260,34 @@ def plot_pulse_train(pulse: 'PulseSequence',
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The pulse sequence whose pulse train to plot.
-    n_oper_identifiers : array_like, optional
+    n_oper_identifiers: array_like, optional
         The identifiers of the control operators for which the pulse train
         should be plotted. All identifiers can be accessed via
         ``pulse.c_oper_identifiers``. Defaults to all.
-    fig : matplotlib figure, optional
+    fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
-    axes : matplotlib axes, optional
+    axes: matplotlib axes, optional
         A matplotlib axes instance to use for plotting.
-    plot_kw : dict, optional
+    plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
-    subplot_kw : dict, optional
+    subplot_kw: dict, optional
         Dictionary with keyword arguments passed to the subplots constructor
-    gridspec_kw : dict, optional
+    gridspec_kw: dict, optional
         Dictionary with keyword arguments passed to the gridspec constructor
-    figure_kw : optional
+    figure_kw: optional
         Keyword argument dictionaries that are fed into the
         :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
         specified.
 
     Returns
     -------
-    fig : matplotlib figure
+    fig: matplotlib figure
         The matplotlib figure instance used for plotting.
-    axes : matplotlib axes
+    axes: matplotlib axes
         The matplotlib axes instance used for plotting.
-    legend : matplotlib legend
+    legend: matplotlib legend
         The matplotlib legend instance in the plot.
 
     Raises
@@ -293,51 +337,51 @@ def plot_filter_function(pulse: 'PulseSequence',
                          gridspec_kw: Optional[dict] = None,
                          **figure_kw) -> FigureAxesLegend:
     r"""
-    Plot the filter function(s) of the given PulseSequence for positive
-    frequencies. As of now only the diagonal elements of
+    Plot the fidelity filter function(s) of the given PulseSequence for
+    positive frequencies. As of now only the diagonal elements of
     :math:`F_{\alpha\beta}` are implemented, i.e. the filter functions
     corresponding to uncorrelated noise sources.
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The pulse sequence whose filter function to plot.
-    omega : array_like, optional
+    omega: array_like, optional
         The frequencies at which to evaluate the filter function. If not given,
         the pulse sequence's omega attribute is used (if set) or sensible
         values are chosen automatically (if ``None``)
-    n_oper_identifiers : array_like, optional
+    n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which the filter function
         should be plotted. All identifiers can be accessed via
         ``pulse.n_oper_identifiers``. Defaults to all.
-    fig : matplotlib figure, optional
+    fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
-    axes : matplotlib axes, optional
+    axes: matplotlib axes, optional
         A matplotlib axes instance to use for plotting.
-    xscale : str, optional
+    xscale: str, optional
         x-axis scaling. One of ('linear', 'log').
-    yscale : str, optional
+    yscale: str, optional
         y-axis scaling. One of ('linear', 'log').
-    omega_in_units_of_tau : bool, optional
+    omega_in_units_of_tau: bool, optional
         Plot :math:`\omega\tau` or just :math:`\omega` on x-axis.
-    plot_kw : dict, optional
+    plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
-    subplot_kw : dict, optional
+    subplot_kw: dict, optional
         Dictionary with keyword arguments passed to the subplots constructor
-    gridspec_kw : dict, optional
+    gridspec_kw: dict, optional
         Dictionary with keyword arguments passed to the gridspec constructor
-    figure_kw : optional
+    figure_kw: optional
         Keyword argument dictionaries that are fed into the
         :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
         specified.
 
     Returns
     -------
-    fig : matplotlib figure
+    fig: matplotlib figure
         The matplotlib figure instance used for plotting.
-    axes : matplotlib axes
+    axes: matplotlib axes
         The matplotlib axes instance used for plotting.
-    legend : matplotlib legend
+    legend: matplotlib legend
         The matplotlib legend instance in the plot.
 
     Raises
@@ -383,12 +427,12 @@ def plot_filter_function(pulse: 'PulseSequence',
     # Set the axis scales
     axes.set_xscale(xscale)
     axes.set_yscale(yscale)
-    if xscale == 'log':
+    if xscale != 'linear':
         z_min_idx = (z > 0).nonzero()[0][0]
     else:
         z_min_idx = (z >= 0).nonzero()[0][0]
 
-    if yscale != 'log':
+    if yscale == 'linear':
         axes.set_ylim(bottom=0)
 
     axes.set_xlim(z[z_min_idx], max(z))
@@ -412,8 +456,9 @@ def plot_pulse_correlation_filter_function(
         gridspec_kw: Optional[dict] = None,
         **figure_kw) -> FigureAxesLegend:
     r"""
-    Plot the pulse correlation filter functions of the given PulseSequence if
-    they were computed during concatenation for positive frequencies.
+    Plot the fidelity pulse correlation filter functions of the given
+    PulseSequence if they were computed during concatenation for positive
+    frequencies.
 
     Returns a figure with *n* by *n* subplots where *n* is the number of pulses
     that were concatenated. As of now only the diagonal elements of
@@ -422,38 +467,38 @@ def plot_pulse_correlation_filter_function(
 
     Parameters
     ----------
-    pulse : PulseSequence
+    pulse: PulseSequence
         The pulse sequence whose filter function to plot.
-    n_oper_identifiers : array_like, optional
+    n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which the filter function
         should be plotted. All identifiers can be accessed via
         ``pulse.n_oper_identifiers``. Defaults to all.
-    fig : matplotlib figure, optional
+    fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
-    xscale : str, optional
+    xscale: str, optional
         x-axis scaling. One of ('linear', 'log').
-    yscale : str, optional
+    yscale: str, optional
         y-axis scaling. One of ('linear', 'log').
-    omega_in_units_of_tau : bool, optional
+    omega_in_units_of_tau: bool, optional
         Plot :math:`\omega\tau` or just :math:`\omega` on x-axis.
-    plot_kw : dict, optional
+    plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
-    subplot_kw : dict, optional
+    subplot_kw: dict, optional
         Dictionary with keyword arguments passed to the subplots constructor
-    gridspec_kw : dict, optional
+    gridspec_kw: dict, optional
         Dictionary with keyword arguments passed to the gridspec constructor
-    figure_kw : optional
+    figure_kw: optional
         Keyword argument dictionaries that are fed into the
         :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
         specified.
 
     Returns
     -------
-    fig : matplotlib figure
+    fig: matplotlib figure
         The matplotlib figure instance used for plotting.
-    axes : matplotlib axes
+    axes: matplotlib axes
         The matplotlib axes instances used for plotting.
-    legend : matplotlib legend
+    legend: matplotlib legend
         The matplotlib legend instance in the plot.
 
     Raises
@@ -512,7 +557,7 @@ def plot_pulse_correlation_filter_function(
 
             # Set the axis scales
             axes[i, j].set_yscale(yscale)
-            axes[i, j].set_title(r'$F^{{({}{})}}(\omega)$'.format(i, j))
+            axes[i, j].set_title(rf'$F^{{({i}{j})}}(\omega)$')
             if i != n-1:
                 # Hide the ticklabels on all but the lowest row
                 axes[i, j].axes.xaxis.set_ticklabels([])
@@ -547,17 +592,17 @@ def plot_infidelity_convergence(n_samples: Sequence[int],
 
     Parameters
     ----------
-    n_samples : array_like
+    n_samples: array_like
         Array with the number of samples at which the integral was evaluated
-    infids : array_like, shape (n_samples, [n_oper_inds, optional])
+    infids: array_like, shape (n_samples, [n_oper_inds, optional])
         Array with the calculated infidelities for each noise operator on the
         second axis or the second axis already traced out.
 
     Returns
     -------
-    fig : matplotlib figure
+    fig: matplotlib figure
         The matplotlib figure instance used for plotting.
-    axes : matplotlib axes
+    axes: matplotlib axes
         The matplotlib axes instances used for plotting.
 
     """
@@ -570,12 +615,13 @@ def plot_infidelity_convergence(n_samples: Sequence[int],
     ax[1].grid()
 
     ax[0].plot(n_samples, infids, 'o-')
-    ax[1].semilogy(n_samples[1:],
-                   np.abs(np.diff(infids, axis=-1))/infids[1:]*100, 'o-')
+    ax[1].semilogy(n_samples, np.abs(np.gradient(infids, axis=0))/infids*100,
+                   'o-')
 
     return fig, ax
 
 
+@util.parse_optional_parameter('colorscale', ['linear', 'log'])
 def plot_error_transfer_matrix(
         pulse: Optional['PulseSequence'] = None,
         S: Optional[ndarray] = None,
@@ -604,53 +650,53 @@ def plot_error_transfer_matrix(
 
     Parameters
     ----------
-    pulse : 'PulseSequence'
+    pulse: 'PulseSequence'
         The pulse sequence.
-    S : ndarray
+    S: ndarray
         The two-sided noise spectrum.
-    omega : array_like
+    omega: array_like
         The frequencies for which to evaluate the error transfer matrix. Note
         that they should be symmetric around zero, that is, include negative
         frequencies.
-    U : ndarray, shape
+    U: ndarray, shape
         A precomputed error transfer matrix. If given, *pulse*, *S*, *omega*
         are not required.
-    n_oper_identifiers : array_like, optional
+    n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which the error transfer
         matrix should be plotted. All identifiers can be accessed via
         ``pulse.n_oper_identifiers``. Defaults to all.
-    basis_labels : array_like (str), optional
+    basis_labels: array_like (str), optional
         Labels for the elements of the error transfer matrix (the basis
         elements).
-    colorscale : str, optional
+    colorscale: str, optional
         The scale of the color code ('linear' or 'log' (default))
     linthresh: float, optional
         The threshold below which the colorscale will be linear (only for
         'log') colorscale
-    cbar_label : str, optional
+    cbar_label: str, optional
         The label for the colorbar. Default: 'Error transfer matrix'.
-    basis_labelsize : int, optional
+    basis_labelsize: int, optional
         The size in points for the basis labels.
-    fig : matplotlib figure, optional
+    fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
-    grid : matplotlib ImageGrid, optional
+    grid: matplotlib ImageGrid, optional
         An ImageGrid instance to use for plotting.
-    cmap : matplotlib colormap, optional
+    cmap: matplotlib colormap, optional
         The colormap for the matrix plot.
-    subplot_kw : dict, optional
+    subplot_kw: dict, optional
         Dictionary with keyword arguments passed to the ImageGrid constructor.
-    imshow_kw : dict, optional
+    imshow_kw: dict, optional
         Dictionary with keyword arguments passed to imshow.
-    figure_kw : optional
+    figure_kw: optional
         Keyword argument dictionaries that are fed into the
         :func:`matplotlib.pyplot.figure` function if no *fig* instance is
         specified.
 
     Returns
     -------
-    fig : matplotlib figure
+    fig: matplotlib figure
         The matplotlib figure instance used for plotting.
-    grid : matplotlib ImageGrid
+    grid: matplotlib ImageGrid
         The ImageGrid instance used for plotting.
     """
     if U is not None:
@@ -662,7 +708,7 @@ def plot_error_transfer_matrix(
             if pulse is not None and len(pulse.n_oper_identifiers) == len(U):
                 n_oper_identifiers = pulse.n_oper_identifiers
             else:
-                n_oper_identifiers = ['$B_{}$'.format(i)
+                n_oper_identifiers = [f'$B_{{{i}}}$'
                                       for i in range(len(n_oper_inds))]
 
     else:
@@ -690,8 +736,7 @@ def plot_error_transfer_matrix(
             basis_labels = [''.join(tup) for tup in
                             product(['I', 'X', 'Y', 'Z'], repeat=n_qubits)]
         else:
-            basis_labels = ['$C_{{{}}}$'.format(i)
-                            for i in range(U.shape[-1])]
+            basis_labels = [f'$C_{{{i}}}$' for i in range(U.shape[-1])]
     else:
         if len(basis_labels) != U.shape[-1]:
             raise ValueError('Invalid number of basis_labels given')
@@ -714,7 +759,7 @@ def plot_error_transfer_matrix(
             figsize = figure_kw.pop('figsize', (8*n_cols, 6*n_rows))
             fig = plt.figure(figsize=figsize, **figure_kw)
 
-        grid = ImageGrid(fig, **grid_kw)
+        grid = axes_grid1.ImageGrid(fig, **grid_kw)
     else:
         if len(grid) != len(n_oper_inds):
             raise ValueError('Size of supplied ImageGrid instance does not ' +
@@ -733,7 +778,8 @@ def plot_error_transfer_matrix(
     if colorscale == 'log':
         linthresh = np.abs(U).mean()/10 if linthresh is None else linthresh
         norm = colors.SymLogNorm(linthresh=linthresh, vmin=Umin, vmax=Umax)
-    elif colorscale == 'linear':
+    else:
+        # colorscale == 'linear'
         norm = colors.Normalize(vmin=Umin, vmax=Umax)
 
     imshow_kw = {} if imshow_kw is None else imshow_kw

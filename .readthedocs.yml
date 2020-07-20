@@ -13,4 +13,6 @@ python:
       path: .
       extra_requirements:
          - doc
+         - plotting
+         - bloch_sphere_visualization
          - fancy_progressbar
