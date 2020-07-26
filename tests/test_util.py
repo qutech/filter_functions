@@ -442,7 +442,7 @@ class UtilTest(testutil.TestCase):
 
     def test_remove_float_errors(self):
         for eps_scale in (None, 2):
-            scale = 1 if eps_scale is None else eps_scale
+            scale = eps_scale or 1
             for dtype in (float, complex):
                 arr = np.zeros((10, 10), dtype=dtype)
                 arr += scale*np.finfo(arr.dtype).eps *\

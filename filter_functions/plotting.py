@@ -304,7 +304,7 @@ def plot_pulse_train(pulse: 'PulseSequence',
                                  gridspec_kw=gridspec_kw,
                                  **figure_kw)
     elif axes is None and fig is not None:
-        subplot_kw = {} if subplot_kw is None else subplot_kw
+        subplot_kw = subplot_kw or {}
         axes = fig.add_subplot(111, **subplot_kw)
     elif fig is None and axes is not None:
         fig = axes.figure
@@ -404,7 +404,7 @@ def plot_filter_function(pulse: 'PulseSequence',
                                  gridspec_kw=gridspec_kw,
                                  **figure_kw)
     elif axes is None and fig is not None:
-        subplot_kw = {} if subplot_kw is None else subplot_kw
+        subplot_kw = subplot_kw or {}
         axes = fig.add_subplot(111, **subplot_kw)
     elif fig is None and axes is not None:
         fig = axes.figure
@@ -521,7 +521,7 @@ def plot_pulse_correlation_filter_function(
                                  **figure_kw)
 
     else:
-        subplot_kw = {} if subplot_kw is None else subplot_kw
+        subplot_kw = subplot_kw or {}
         axes = np.empty((n, n), dtype='O')
         axes[0, 0] = fig.add_subplot(n, n, 1, **subplot_kw)
         for row in range(n):
@@ -748,7 +748,7 @@ def plot_error_transfer_matrix(
         aspect_ratio = 2/3
         n_rows = int(np.round(np.sqrt(aspect_ratio*len(n_oper_inds))))
         n_cols = int(np.ceil(len(n_oper_inds)/n_rows))
-        grid_kw = {} if grid_kw is None else grid_kw
+        grid_kw = grid_kw or {}
         grid_kw.setdefault('rect', 111)
         grid_kw.setdefault('nrows_ncols', (n_rows, n_cols))
         grid_kw.setdefault('axes_pad', 0.3)
@@ -779,19 +779,19 @@ def plot_error_transfer_matrix(
     Umax = U.max()
     Umin = -Umax
     if colorscale == 'log':
-        linthresh = np.abs(U).mean()/10 if linthresh is None else linthresh
+        linthresh = linthresh or np.abs(U).mean()/10
         norm = colors.SymLogNorm(linthresh=linthresh, vmin=Umin, vmax=Umax)
     else:
         # colorscale == 'linear'
         norm = colors.Normalize(vmin=Umin, vmax=Umax)
 
-    imshow_kw = {} if imshow_kw is None else imshow_kw
+    imshow_kw = imshow_kw or {}
     imshow_kw.setdefault('origin', 'upper')
     imshow_kw.setdefault('interpolation', 'nearest')
     imshow_kw.setdefault('cmap', cmap)
     imshow_kw.setdefault('norm', norm)
 
-    basis_labelsize = 8 if basis_labelsize is None else basis_labelsize
+    basis_labelsize = basis_labelsize or 8
 
     # Draw the images
     for i, n_oper_identifier in enumerate(n_oper_identifiers):
@@ -809,7 +809,7 @@ def plot_error_transfer_matrix(
         ax.spines['bottom'].set_visible(False)
 
     # Set up the colorbar
-    cbar_kw = {} or cbar_kw
+    cbar_kw = cbar_kw or {}
     cbar_kw.setdefault('orientation', 'vertical')
     cbar = fig.colorbar(im, cax=grid.cbar_axes[0], **cbar_kw)
     cbar.set_label(cbar_label)
