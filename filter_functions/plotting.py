@@ -637,6 +637,7 @@ def plot_error_transfer_matrix(
         grid: Optional[Grid] = None,
         cmap: Optional[Colormap] = None,
         grid_kw: Optional[dict] = None,
+        cbar_kw: Optional[dict] = None,
         imshow_kw: Optional[dict] = None,
         **figure_kw) -> FigureGrid:
     """
@@ -685,6 +686,8 @@ def plot_error_transfer_matrix(
         The colormap for the matrix plot.
     grid_kw: dict, optional
         Dictionary with keyword arguments passed to the ImageGrid constructor.
+    cbar_kw: dict, optional
+        Dictionary with keyword arguments passed to the colorbar constructor.
     imshow_kw: dict, optional
         Dictionary with keyword arguments passed to imshow.
     figure_kw: optional
@@ -806,11 +809,9 @@ def plot_error_transfer_matrix(
         ax.spines['bottom'].set_visible(False)
 
     # Set up the colorbar
-    cbar = fig.colorbar(im, cax=grid.cbar_axes[0])
+    cbar_kw = {} or cbar_kw
+    cbar_kw.setdefault('orientation', 'vertical')
+    cbar = fig.colorbar(im, cax=grid.cbar_axes[0], **cbar_kw)
     cbar.set_label(cbar_label)
-    if colorscale == 'log':
-        labels = cbar.ax.get_yticklabels()
-        labels[len(labels) // 2] = ''
-        labels = cbar.ax.set_yticklabels(labels)
 
     return fig, grid

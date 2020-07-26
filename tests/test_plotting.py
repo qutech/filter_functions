@@ -281,12 +281,14 @@ class PlottingTest(testutil.TestCase):
         # Test various keyword args for matplotlib for the two-qubit pulse
         S = np.tile(S, (6, 6, 1))
         grid_kw = {'axes_pad': 0.1}
+        cbar_kw = {'orientation': 'horizontal'}
         imshow_kw = {'interpolation': 'bilinear'}
         figure_kw = {'num': 1}
         fig, ax = plotting.plot_error_transfer_matrix(two_qubit_pulse, S,
                                                       omega,
                                                       imshow_kw=imshow_kw,
                                                       grid_kw=grid_kw,
+                                                      cbar_kw=cbar_kw,
                                                       **figure_kw)
 
         plt.close('all')
