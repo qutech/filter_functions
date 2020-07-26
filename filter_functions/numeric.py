@@ -78,13 +78,23 @@ def _second_order_integral(E, dE, dt, int_buf, frc_bufs, exp_bufs, msk_bufs):
     The integral is evaluated as
 
     .. math::
-        I_{\mu\nu m n}^{(g)}(\omega) =
-        \frac{1}{\omega + \Omega_{mn}^{(g)}}\left[
-            \frac{e^{i(\Omega_{\mu\nu}^{(g)} - \omega)\Delta t_g}
-                  - 1}{\Omega_{\mu\nu}^{(g)} - \omega} -
-            \frac{e^{i(\Omega_{\mu\nu}^{(g)} + \Omega_{mn}^{(g)})\Delta t_g}
-                  - 1}{\Omega_{\mu\nu}^{(g)} + \Omega_{mn}^{(g)}}
-        \right]
+        I_{ijmn}^{(g)}(\omega) = \begin{cases}
+            \frac{1}{\omega + \Omega_{mn}^{(g)}}\left(
+                \frac{e^{i(\Omega_{ij}^{(g)} - \omega)\Delta t_g} - 1}
+                     {\Omega_{ij}^{(g)} - \omega} -
+                \frac{e^{i(\Omega_{ij}^{(g)} + \Omega_{mn}^{(g)})\Delta t_g}
+                      - 1}{\Omega_{ij}^{(g)} + \Omega_{mn}^{(g)}}
+            \right) &\quad\mathrm{if}\quad \omega + \Omega_{mn}^{(g)}\neq 0, \\
+            \frac{1}{\Omega_{ij}^{(g)} - \omega}\left(
+                \frac{e^{i(\Omega_{ij}^{(g)} - \omega)\Delta t_g} - 1}
+                     {\Omega_{ij}^{(g)} - \omega} -
+                i\Delta t_ge^{i(\Omega_{ij}^{(g)} - \omega)\Delta t_g}
+            \right) &\quad\mathrm{if}\quad\omega + \Omega_{mn}^{(g)} = 0 \wedge
+                                      \Omega_{ij}^{(g)} - \omega\neq 0, \\
+            \Delta t_g^2/2 &\quad\mathrm{if}\quad
+                \omega + \Omega_{mn}^{(g)} = 0 \wedge
+                \Omega_{ij}^{(g)} - \omega = 0.
+        \end{cases}
 
     with :math:`\Omega_{mn}^{(g)} = \omega_m^{(g)} - \omega_n^{(g)}`.
 
@@ -101,7 +111,7 @@ def _second_order_integral(E, dE, dt, int_buf, frc_bufs, exp_bufs, msk_bufs):
     >>> E = np.linspace(-1, 1, 101)
     >>> ex = 1j*(np.multiply.outer(dE, t2 - t0) +
     ...          np.expand_dims(np.multiply.outer(E, t2), (1, 2)))
-    >>> I1 = integrate.cumtrapz(np.exp(ex), t2, initial=0)  # correct up to here
+    >>> I1 = integrate.cumtrapz(np.exp(ex), t2, initial=0)
     >>> ex = 1j*(np.multiply.outer(dE, t1 - t0) -
     ...          np.expand_dims(np.multiply.outer(E, t1), (1, 2)))
     >>> integrand = (np.expand_dims(np.exp(ex), (3, 4)) *
@@ -156,17 +166,16 @@ def _second_order_integral(E, dE, dt, int_buf, frc_bufs, exp_bufs, msk_bufs):
     int_buf = np.divide(int_buf, EdE[:, None, None],
                         out=int_buf, where=mask_EdE_dEE)
 
-    int_buf = np.subtract(
-        np.broadcast_to(frc_buf2[..., None, None], int_buf.shape),
-        np.multiply(1j*dt, np.add(
-            np.broadcast_to(exp_buf2[..., None, None], int_buf.shape),
-            1, where=mask_nEdE_dEE
-        ), where=mask_nEdE_dEE),
-        out=int_buf, where=mask_nEdE_dEE
-    )
-    int_buf = np.divide(int_buf,
-                        np.broadcast_to(dEE[..., None, None], int_buf.shape),
-                        out=int_buf, where=mask_nEdE_dEE)
+    exp_buf2 = np.add(exp_buf2, 1, out=exp_buf2, where=mask_dEE)
+    exp_buf2 = np.multiply(exp_buf2, dt, out=exp_buf2, where=mask_dEE)
+    frc_buf2.real = np.add(frc_buf2.real, exp_buf2.imag,
+                           out=frc_buf2.real, where=mask_dEE)
+    frc_buf2.imag = np.subtract(frc_buf2.imag, exp_buf2.real,
+                                out=frc_buf2.imag, where=mask_dEE)
+    frc_buf2 = np.divide(frc_buf2, dEE, out=frc_buf2, where=mask_dEE)
+
+    int_buf[mask_nEdE_dEE] = np.broadcast_to(frc_buf2[..., None, None],
+                                             int_buf.shape)[mask_nEdE_dEE]
 
     int_buf[mask_nEdE_ndEE] = dt**2 / 2
 
