@@ -416,16 +416,10 @@ def calculate_control_matrix_from_scratch(
 
     # Precompute noise opers transformed to eigenbasis of each pulse
     # segment and Q^\dagger @ HV
-    if d < 4:
-        # Einsum contraction faster
-        QdagV = np.einsum('lba,lbc->lac', Q[:-1].conj(), HV)
-        B = np.einsum('lba,jbc,lcd->jlad', HV.conj(), n_opers, HV,
-                      optimize=['einsum_path', (0, 1), (0, 1)])
-    else:
-        QdagV = Q[:-1].transpose(0, 2, 1).conj() @ HV
-        B = np.empty((len(n_opers), len(dt), d, d), dtype=complex)
-        for j, n_oper in enumerate(n_opers):
-            B[j] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
+    QdagV = Q[:-1].transpose(0, 2, 1).conj() @ HV
+    B = np.empty((len(n_opers), len(dt), d, d), dtype=complex)
+    for j, n_oper in enumerate(n_opers):
+        B[j] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
 
     # Allocate result and buffers for intermediate arrays
     if out is None:
