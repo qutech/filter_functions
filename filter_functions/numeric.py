@@ -72,6 +72,23 @@ __all__ = ['calculate_control_matrix_from_atomic',
            'error_transfer_matrix', 'infidelity', 'liouville_representation']
 
 
+def _first_order_integral(E, HD, dt, int_buf, exp_buf):
+
+    dE = np.subtract.outer(HD, HD)
+    # iEdE_nm = 1j*(omega + omega_n - omega_m)
+    int_buf.real = 0
+    int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
+
+    # Use expm1 for better convergence with small arguments
+    exp_buf = np.expm1(int_buf*dt, out=exp_buf)
+    # Catch zero-division warnings
+    mask = (int_buf.imag != 0)
+    int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=mask)
+    int_buf[~mask] = dt
+
+    return int_buf
+
+
 def _second_order_integral(E, dE, dt, int_buf, frc_bufs, exp_buf, msk_bufs):
     r"""Calculate the nested integral of second order Magnus expansion.
 
@@ -421,18 +438,7 @@ def calculate_control_matrix_from_scratch(
     for l in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
 
-        dE = np.subtract.outer(HD[l], HD[l])
-        # iEdE_nm = 1j*(omega + omega_n - omega_m)
-        int_buf.real = 0
-        int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
-
-        # Use expm1 for better convergence with small arguments
-        exp_buf = np.expm1(int_buf*dt[l], out=exp_buf)
-        # Catch zero-division warnings
-        mask = (int_buf != 0)
-        int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=mask)
-        int_buf[~mask] = dt[l]
-
+        int_buf = _first_order_integral(E, HD[l], dt[l], int_buf, exp_buf)
         # Faster for d = 2 to also contract over the time dimension instead of
         # loop, but for readability we don't distinguish.
         out += np.einsum('o,j,jmn,omn,knm->jko',
