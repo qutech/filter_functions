@@ -73,7 +73,16 @@ __all__ = ['calculate_control_matrix_from_atomic',
 
 
 def _first_order_integral(E, HD, dt, int_buf, exp_buf):
+    r"""Calculate the integral appearing in first order Magnus expansion.
 
+    The integral is evaluated as
+
+    .. math::
+        I_{mn}^{(g)}(\omega) = \frac
+            {e^{i(\omega + \Omega_{mn}^{(g)})\Delta t_g} - 1}
+            {i(\omega + \Omega_{mn}^{(g)})}
+
+    """
     dE = np.subtract.outer(HD, HD)
     # iEdE_nm = 1j*(omega + omega_n - omega_m)
     int_buf.real = 0
@@ -89,7 +98,7 @@ def _first_order_integral(E, HD, dt, int_buf, exp_buf):
     return int_buf
 
 
-def _second_order_integral(E, dE, dt, int_buf, frc_bufs, exp_buf, msk_bufs):
+def _second_order_integral(E, HD, dt, int_buf, frc_bufs, exp_buf, msk_bufs):
     r"""Calculate the nested integral of second order Magnus expansion.
 
     The integral is evaluated as
@@ -149,6 +158,7 @@ def _second_order_integral(E, dE, dt, int_buf, frc_bufs, exp_buf, msk_bufs):
     frc_buf1, frc_buf2 = frc_bufs
     mask_nEdE_dEE, mask_nEdE_ndEE = msk_bufs
 
+    dE = np.subtract.outer(HD, HD)
     dEdE = np.add.outer(dE, dE)
     EdE = np.add.outer(E, dE)
     dEE = np.subtract.outer(dE, E).transpose(2, 0, 1)
@@ -239,8 +249,7 @@ def calculate_second_order_magnus(
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating second order Magnus'):
 
-        dE = np.subtract.outer(HD[g], HD[g])  # shared
-        int_buf = _second_order_integral(E, dE, dt[g], int_buf, frc_bufs,
+        int_buf = _second_order_integral(E, HD[g], dt[g], int_buf, frc_bufs,
                                          exp_buf, msk_bufs)
 
         C = QdagV[g].conj().T @ basis @ QdagV[g]  # shared
