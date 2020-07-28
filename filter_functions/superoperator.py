@@ -142,7 +142,8 @@ def liouville_to_choi(superoperator: ndarray, basis: _b.Basis) -> ndarray:
 
 
 def liouville_is_CP(superoperator: ndarray, basis: _b.Basis,
-                    return_eig: Optional[bool] = False
+                    return_eig: Optional[bool] = False,
+                    atol: Optional[float] = None
                     ) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
     r"""Test if a Liouville superoperator is completely positive (CP).
 
@@ -155,6 +156,8 @@ def liouville_is_CP(superoperator: ndarray, basis: _b.Basis,
     return_eig: bool, optional
         Return the tuple of eigenvalues and eigenvectors of the Choi matrix.
         The default is False.
+    atol: float, optional
+        Absolute tolerance for the complete positivity.
 
     Returns
     -------
@@ -184,7 +187,7 @@ def liouville_is_CP(superoperator: ndarray, basis: _b.Basis,
     choi = liouville_to_choi(superoperator, basis)
     D, V = nla.eigh(choi)
 
-    CP = (D >= -basis._atol).all(axis=-1)
+    CP = (D >= -(atol or basis._atol)).all(axis=-1)
 
     if return_eig:
         return CP, (D, V)
@@ -193,7 +196,8 @@ def liouville_is_CP(superoperator: ndarray, basis: _b.Basis,
 
 
 def liouville_is_cCP(superoperator: ndarray, basis: _b.Basis,
-                     return_eig: Optional[bool] = False
+                     return_eig: Optional[bool] = False,
+                     atol: Optional[float] = None
                      ) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
     r"""Test if a Liouville superoperator is conditional completely positive.
 
@@ -207,6 +211,8 @@ def liouville_is_cCP(superoperator: ndarray, basis: _b.Basis,
         Return the tuple of eigenvalues and eigenvectors of the Choi matrix
         projected on the complement of the maximally entangled state. The
         default is False.
+    atol: float, optional
+        Absolute tolerance for the complete positivity.
 
     Returns
     -------
@@ -250,7 +256,7 @@ def liouville_is_cCP(superoperator: ndarray, basis: _b.Basis,
     choi = liouville_to_choi(superoperator, basis)
     D, V = nla.eigh(Q @ choi @ Q)
 
-    cCP = (D >= -basis._atol).all(axis=-1)
+    cCP = (D >= -(atol or basis._atol)).all(axis=-1)
 
     if return_eig:
         return cCP, (D, V)

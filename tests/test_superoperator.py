@@ -65,13 +65,13 @@ class SuperoperatorTest(testutil.TestCase):
                     ff.util.paulis[1:], basis)
                 self.assertArrayAlmostEqual(U_liouville[0],
                                             np.diag([1, 1, -1, -1]),
-                                            atol=np.finfo(float).eps)
+                                            atol=basis._atol)
                 self.assertArrayAlmostEqual(U_liouville[1],
                                             np.diag([1, -1, 1, -1]),
-                                            atol=np.finfo(float).eps)
+                                            atol=basis._atol)
                 self.assertArrayAlmostEqual(U_liouville[2],
                                             np.diag([1, -1, -1, 1]),
-                                            atol=np.finfo(float).eps)
+                                            atol=basis._atol)
 
     def test_liouville_to_choi(self):
         """Test converting Liouville superops to choi matrices."""
@@ -177,7 +177,8 @@ class SuperoperatorTest(testutil.TestCase):
             S = 1/abs(omega)**2
 
             K_sup = ff.numeric.calculate_cumulant_function(pulse, S, omega)
-            cCP = superoperator.liouville_is_cCP(K_sup, pulse.basis, False)
+            cCP = superoperator.liouville_is_cCP(K_sup, pulse.basis, False,
+                                                 atol=1e-13)
 
             self.assertTrue(np.all(cCP))
             if K_sup.ndim == 2:
