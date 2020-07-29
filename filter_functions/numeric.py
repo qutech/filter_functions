@@ -72,7 +72,8 @@ __all__ = ['calculate_control_matrix_from_atomic',
            'error_transfer_matrix', 'infidelity', 'liouville_representation']
 
 
-def _first_order_integral(E, HD, dt, int_buf, exp_buf):
+def _first_order_integral(E: ndarray, HD: ndarray, dt: float,
+                          int_buf: ndarray, exp_buf: ndarray) -> ndarray:
     r"""Calculate the integral appearing in first order Magnus expansion.
 
     The integral is evaluated as
@@ -98,7 +99,11 @@ def _first_order_integral(E, HD, dt, int_buf, exp_buf):
     return int_buf
 
 
-def _second_order_integral(E, HD, dt, int_buf, frc_bufs, exp_buf, msk_bufs):
+def _second_order_integral(E: ndarray, HD: ndarray, dt: float,
+                           int_buf: ndarray, frc_bufs: Tuple[ndarray, ndarray],
+                           dE_bufs: Tuple[ndarray, ndarray, ndarray],
+                           exp_buf: ndarray,
+                           msk_bufs: Tuple[ndarray, ndarray]) -> ndarray:
     r"""Calculate the nested integral of second order Magnus expansion.
 
     The integral is evaluated as
@@ -132,7 +137,7 @@ def _second_order_integral(E, HD, dt, int_buf, frc_bufs, exp_buf, msk_bufs):
     >>> from tests import testutil
     >>> d, t0 = 2, 1/np.sqrt(2)
     >>> (t1, t2), dt = np.tile(np.linspace(0, 1, 1001), (2, 1)) + t0, 1
-    >>> HD, _ = np.linalg.eigh(testutil.rand_herm_traceless(d).squeeze())
+    >>> HD = np.random.randn()*np.array([-1, 1])
     >>> dE = np.subtract.outer(HD, HD)
     >>> E = np.linspace(-1, 1, 101)
     >>> ex = 1j*(np.multiply.outer(dE, t2 - t0) +
@@ -143,25 +148,28 @@ def _second_order_integral(E, HD, dt, int_buf, frc_bufs, exp_buf, msk_bufs):
     >>> integrand = (np.expand_dims(np.exp(ex), (3, 4)) *
     ...              np.expand_dims(I1, (1, 2)))
     >>> I2 = integrate.trapz(integrand, t1)
+    >>> dE_bufs = (np.empty((d, d, d, d), dtype=float),
+    ...            np.empty((len(E), d, d), dtype=float),
+    ...            np.empty((len(E), d, d), dtype=float))
     >>> exp_buf = np.empty((len(E), d, d), dtype=complex)
     >>> frc_bufs = (np.empty((len(E), d, d), dtype=complex),
     ...             np.empty((d, d, d, d), dtype=complex))
     >>> int_buf = np.empty((len(E), d, d, d, d), dtype=complex)
     >>> msk_bufs = np.empty((2, len(E), d, d, d, d), dtype=bool)
-    >>> I3 = _second_order_integral(E, dE, dt, int_buf, frc_bufs, exp_buf,
-    ...                             msk_bufs)
+    >>> I3 = _second_order_integral(E, HD, dt, int_buf, frc_bufs, dE_bufs,
+    ...                             exp_buf, msk_bufs)
     >>> np.allclose(I2, I3)
 
     """
-    # frc_buf1 has shape (len(E), *dE.shape), frc_buf2 has shape dE.shape*2,
-    # int_buf has shape (len(E), *dE.shape*2)
+    # frc_buf1 has shape (len(E), *dE.shape), frc_buf2 has shape dE.shape*2
     frc_buf1, frc_buf2 = frc_bufs
+    dEdE, EdE, dEE = dE_bufs
     mask_nEdE_dEE, mask_nEdE_ndEE = msk_bufs
 
     dE = np.subtract.outer(HD, HD)
-    dEdE = np.add.outer(dE, dE)
-    EdE = np.add.outer(E, dE)
-    dEE = np.subtract.outer(dE, E).transpose(2, 0, 1)
+    dEdE = np.add.outer(dE, dE, out=dEdE)
+    EdE = np.add.outer(E, dE, out=EdE)
+    dEE = np.subtract.outer(-E, -dE, out=dEE)
     mask_dEdE = np.not_equal(dEdE, 0)
     mask_EdE = np.not_equal(EdE, 0)
     mask_dEE = np.not_equal(dEE, 0)
@@ -207,72 +215,6 @@ def _second_order_integral(E, HD, dt, int_buf, frc_bufs, exp_buf, msk_bufs):
     int_buf[mask_nEdE_ndEE] = dt**2 / 2
 
     return int_buf
-
-
-def calculate_second_order_magnus(
-        HD: ndarray,
-        HV: ndarray,
-        Q: ndarray,
-        omega: Coefficients,
-        basis: Basis,
-        n_opers: Sequence[Operator],
-        n_coeffs: Sequence[Coefficients],
-        dt: Coefficients,
-        memory_parsimonious: Optional[bool] = False,
-        show_progressbar: Optional[bool] = False) -> ndarray:
-
-    d = HV.shape[-1]
-    # We're lazy
-    E = omega
-    n_coeffs = np.asarray(n_coeffs)
-
-    # Precompute noise opers transformed to eigenbasis of each pulse
-    # segment and Q^\dagger @ HV
-    QdagV = Q[:-1].transpose(0, 2, 1).conj() @ HV
-    B = np.empty((len(n_opers), len(dt), d, d), dtype=complex)
-    for j, n_oper in enumerate(n_opers):
-        B[j] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
-
-    # Allocate result and buffers for intermediate arrays
-    exp_buf = np.empty((len(E), d, d), dtype=complex)
-    frc_bufs = (np.empty((len(E), d, d), dtype=complex),
-                np.empty((d, d, d, d), dtype=complex))
-    int_buf = np.empty((len(E), d, d, d, d), dtype=complex)
-    msk_bufs = np.empty((2, len(E), d, d, d, d), dtype=bool)
-    G = np.zeros((len(n_coeffs), d**2, len(E)), dtype=complex)
-    G_cumulative = np.zeros((len(n_coeffs), d**2, len(E)), dtype=complex)
-    GG = np.empty((len(n_coeffs), len(n_coeffs), d**2, d**2, len(E)),
-                  dtype=complex)
-    result = np.zeros((len(n_coeffs), len(n_coeffs), d**2, d**2, len(E)),
-                      dtype=complex)
-
-    for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
-                                    desc='Calculating second order Magnus'):
-
-        int_buf = _second_order_integral(E, HD[g], dt[g], int_buf, frc_bufs,
-                                         exp_buf, msk_bufs)
-
-        C = QdagV[g].conj().T @ basis @ QdagV[g]  # shared
-        BC = np.einsum('akl,ilk->aikl', B[:, g], C)
-        GG = np.einsum('oijmn,akij,blmn->abklo', int_buf, BC, BC,
-                       optimize=['einsum_path', (0, 1), (0, 1)], out=GG)
-
-        result += GG  # last interval
-        if g > 0:
-            # Add G^(g-1) to cumulative sum
-            G_cumulative += G
-
-            # Compute G^(g)
-            G = calculate_control_matrix_from_scratch(
-                HD[g:g+1], HV[g:g+1], Q[g:g+2], omega, basis, n_opers,
-                n_coeffs[:, g:g+1], dt[g:g+1], t=None, show_progressbar=False,
-                out=G
-            )  # shared
-
-            GG = np.einsum('ako,blo->abklo', G.conj(), G_cumulative, out=GG)
-            result += GG  # all intervals up to last
-
-    return result
 
 
 def calculate_control_matrix_from_atomic(
@@ -657,6 +599,75 @@ def calculate_filter_function(R: ndarray, which: str = 'fidelity') -> ndarray:
         return np.einsum('ako,bko->abo', R.conj(), R)
     elif which == 'generalized':
         return np.einsum('ako,blo->abklo', R.conj(), R)
+
+
+def calculate_filter_function_second_order(
+        HD: ndarray,
+        HV: ndarray,
+        Q: ndarray,
+        omega: Coefficients,
+        basis: Basis,
+        n_opers: Sequence[Operator],
+        n_coeffs: Sequence[Coefficients],
+        dt: Coefficients,
+        memory_parsimonious: Optional[bool] = False,
+        show_progressbar: Optional[bool] = False) -> ndarray:
+
+    d = HV.shape[-1]
+    # We're lazy
+    E = omega
+    n_coeffs = np.asarray(n_coeffs)
+
+    # Precompute noise opers transformed to eigenbasis of each pulse
+    # segment and Q^\dagger @ HV
+    QdagV = Q[:-1].transpose(0, 2, 1).conj() @ HV
+    B = np.empty((len(n_opers), len(dt), d, d), dtype=complex)
+    for j, n_oper in enumerate(n_opers):
+        B[j] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
+
+    # Allocate result and buffers for intermediate arrays
+    dE_bufs = (np.empty((d, d, d, d), dtype=float),
+               np.empty((len(E), d, d), dtype=float),
+               np.empty((len(E), d, d), dtype=float))
+    exp_buf = np.empty((len(E), d, d), dtype=complex)
+    frc_bufs = (np.empty((len(E), d, d), dtype=complex),
+                np.empty((d, d, d, d), dtype=complex))
+    int_buf = np.empty((len(E), d, d, d, d), dtype=complex)
+    msk_bufs = np.empty((2, len(E), d, d, d, d), dtype=bool)
+    G = np.zeros((len(n_coeffs), d**2, len(E)), dtype=complex)
+    G_cumulative = np.zeros((len(n_coeffs), d**2, len(E)), dtype=complex)
+    GG = np.empty((len(n_coeffs), len(n_coeffs), d**2, d**2, len(E)),
+                  dtype=complex)
+    result = np.zeros((len(n_coeffs), len(n_coeffs), d**2, d**2, len(E)),
+                      dtype=complex)
+
+    for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
+                                    desc='Calculating second order Magnus'):
+
+        int_buf = _second_order_integral(E, HD[g], dt[g], int_buf, frc_bufs,
+                                         dE_bufs, exp_buf, msk_bufs)
+
+        C = QdagV[g].conj().T @ basis @ QdagV[g]  # shared
+        BC = np.einsum('akl,ilk->aikl', B[:, g], C)
+        GG = np.einsum('oijmn,akij,blmn->abklo', int_buf, BC, BC,
+                       optimize=['einsum_path', (0, 1), (0, 1)], out=GG)
+
+        result += GG  # last interval
+        if g > 0:
+            # Add G^(g-1) to cumulative sum
+            G_cumulative += G
+
+            # Compute G^(g)
+            G = calculate_control_matrix_from_scratch(
+                HD[g:g+1], HV[g:g+1], Q[g:g+2], omega, basis, n_opers,
+                n_coeffs[:, g:g+1], dt[g:g+1], t=None, show_progressbar=False,
+                out=G
+            )  # shared
+
+            GG = np.einsum('ako,blo->abklo', G.conj(), G_cumulative, out=GG)
+            result += GG  # all intervals up to last
+
+    return result
 
 
 @util.parse_which_FF_parameter
