@@ -745,6 +745,7 @@ def calculate_decay_amplitudes(
     --------
     infidelity: Compute the infidelity directly.
     pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
+    calculate_frequency_shifts: Second order (unitary) terms.
     calculate_pulse_correlation_filter_function
     """
     # TODO: Replace infidelity() by this?
@@ -807,6 +808,108 @@ def calculate_decay_amplitudes(
                                                axis=-1)/(2*np.pi)
 
     return Gamma.real
+
+
+def calculate_frequency_shifts(
+        pulse: 'PulseSequence',
+        S: ndarray,
+        omega: Coefficients,
+        n_oper_identifiers: Optional[Sequence[str]] = None,
+        return_filter_function: bool = False,
+        show_progressbar: bool = False,
+        memory_parsimonious: bool = False) -> ndarray:
+    r"""
+    Get the frequency shifts :math:`\Delta_{\alpha\beta, kl}` for noise sources
+    :math:`\alpha,\beta` and basis elements :math:`k,l`.
+
+    Parameters
+    ----------
+    pulse: PulseSequence
+        The ``PulseSequence`` instance for which to compute the frequency
+        shifts.
+    S: array_like, shape ([[n_nops,] n_nops,] n_omega)
+        The two-sided noise power spectral density. If 1-d, the same spectrum
+        is used for all noise operators. If 2-d, one (self-) spectrum for each
+        noise operator is expected. If 3-d, should be a matrix of cross-spectra
+        such that ``S[i, j] == S[j, i].conj()``.
+    omega: array_like,
+        The frequencies. Note that the frequencies are assumed to be symmetric
+        about zero.
+    n_oper_identifiers: array_like, optional
+        The identifiers of the noise operators for which to calculate the
+        frequency shifts. The default is all.
+    show_progressbar: bool, optional
+        Show a progress bar for the calculation.
+    memory_parsimonious: bool, optional
+        For large dimensions, the integrand
+
+        .. math::
+
+            F_{\alpha\beta, kl}^{(2)}(\omega)S_{\alpha\beta}(\omega)
+
+        can consume quite a large amount of memory if set up for all
+        :math:`\alpha,\beta,k,l` at once. If ``True``, it is only set up and
+        integrated for a single :math:`k` at a time and looped over. This is
+        slower but requires much less memory. The default is ``False``.
+
+    Raises
+    ------
+    ValueError
+        If S has incompatible shape.
+
+    Returns
+    -------
+    Delta: ndarray, shape ([n_nops,] n_nops, d**2, d**2)
+        The frequency shifts.
+
+    .. _notes:
+
+    Notes
+    -----
+    The total frequency shifts are given by
+
+    .. math::
+
+        \Delta_{\alpha\beta, kl} = \int_{-\infty}^\infty
+            \frac{\mathrm{d}{\omega}}{2\pi} S_{\alpha\beta}(\omega)\sum_{g=1}^G
+            \left[\mathcal{G}_{\alpha k}^{(g)\ast}(\omega)\sum_{g'=1}^{g-1}
+                  \mathcal{G}_{\beta l}^{(g')}(\omega) +
+                  \bar{B}_{\alpha,ij}^{(g)}\bar{C}_{k,ji}^{(g)}
+                  I_{ijmn}^{(g)}(\omega)\bar{C}_{l,nm}^{(g)}
+                  \bar{B}_{\beta,mn}^{(g)}
+            \right]
+
+    with
+
+    .. math::
+
+        \mathcal{G}^{(g)}(\omega) &=
+            e^{i\omega t_{g-1}}\mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}, \\
+        I_{ijmn}^{(g)}(\omega) &=
+            \int_{t_{g-1}}^{t_g}\mathrm{d}{t}
+            e^{i\Omega_{ij}^{(g)}(t - t_{g-1}) - i\omega t}
+            \int_{t_{g-1}}^{t}\mathrm{d}{t'}
+            e^{i\Omega_{mn}^{(g)}(t' - t_{g-1}) + i\omega t'}.
+
+    See Also
+    --------
+    infidelity: Compute the infidelity directly.
+    pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
+    calculate_decay_amplitudes: First order (dissipative) terms.
+    calculate_pulse_correlation_filter_function
+    """
+    # Noise operator indices
+    idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+
+    if not memory_parsimonious:
+        F_2 = pulse.get_filter_function(omega, order=2,
+                                        show_progressbar=show_progressbar)
+        integrand = _get_integrand(S, omega, idx, which_pulse='total',
+                                   which_FF='generalized', F=F_2)
+        Delta = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
+        return Delta
+
+    raise NotImplementedError
 
 
 @util.parse_which_FF_parameter
