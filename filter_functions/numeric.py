@@ -91,10 +91,10 @@ def _first_order_integral(E: ndarray, HD: ndarray, dt: float,
     int_buf.real = 0
     int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
 
-    # Use expm1 for better convergence with small arguments
-    exp_buf = np.expm1(int_buf*dt, out=exp_buf)
-    # Catch zero-division warnings
+    # Catch zero-division
     mask = (int_buf.imag != 0)
+    # Use expm1 for better convergence with small arguments
+    exp_buf = np.expm1(int_buf*dt, out=exp_buf, where=mask)
     int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=mask)
     int_buf[~mask] = dt
 
