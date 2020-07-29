@@ -37,10 +37,9 @@ Functions
 :func:`ggm_expand`
     Fast function to expand an array of operators in a Generalized Gell-Mann
     basis
-
 """
 
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence, Tuple, Union
 from warnings import warn
 
 import numpy as np
@@ -52,7 +51,9 @@ from sparse import COO
 
 from . import util
 
-__all__ = ['Basis', 'expand', 'ggm_expand', 'normalize']
+__all__ = ['Basis', 'expand', 'ggm_expand', 'normalize',
+           'liouville_representation', 'liouville_to_choi', 'liouville_is_CP',
+           'liouville_is_cCP']
 
 
 class Basis(ndarray):
@@ -617,7 +618,7 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
                     {\mathrm{tr}\big(C_j^\dagger C_j\big)}.
 
     """
-    coefficients = np.einsum('...ij,bji->...b', np.asarray(M), basis)
+    coefficients = np.tensordot(M, basis, axes=[(-2, -1), (-1, -2)])
 
     if not normalized:
         coefficients /= np.einsum('bij,bji->b', basis, basis).real

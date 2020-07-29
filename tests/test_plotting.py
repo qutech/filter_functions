@@ -28,6 +28,7 @@ import numpy as np
 import pytest
 
 import filter_functions as ff
+from filter_functions import numeric
 from tests import testutil
 from tests.testutil import rng
 
@@ -208,32 +209,32 @@ class PlottingTest(testutil.TestCase):
 
     # Ignore deprecation warning caused by qutip
     @pytest.mark.filterwarnings('ignore::PendingDeprecationWarning')
-    def test_plot_error_transfer_matrix(self):
+    def test_plot_cumulant_function(self):
         omega = ff.util.get_sample_frequencies(simple_pulse)
         S = 1e-4*np.sin(omega)/omega
 
         # Test calling with pulse, spectrum, omega
-        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, S, omega,
-                                                        colorscale='linear')
-        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, S, omega,
-                                                        fig=fig)
-        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, S, omega,
-                                                        grid=grid)
+        fig, grid = plotting.plot_cumulant_function(simple_pulse, S, omega,
+                                                    colorscale='linear')
+        fig, grid = plotting.plot_cumulant_function(simple_pulse, S, omega,
+                                                    fig=fig)
+        fig, grid = plotting.plot_cumulant_function(simple_pulse, S, omega,
+                                                    grid=grid)
 
         # Test calling with precomputed transfer matrix
-        U = ff.error_transfer_matrix(simple_pulse, S, omega)
-        fig, grid = plotting.plot_error_transfer_matrix(U=U)
+        K = numeric.calculate_cumulant_function(simple_pulse, S, omega)
+        fig, grid = plotting.plot_cumulant_function(K=K)
 
         # Test calling with precomputed transfer matrix and pulse
-        U = ff.error_transfer_matrix(simple_pulse, S, omega)
-        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, U=U)
+        K = numeric.calculate_cumulant_function(simple_pulse, S, omega)
+        fig, grid = plotting.plot_cumulant_function(simple_pulse, K=K)
 
         # Test calling with precomputed transfer matrix of ndim == 2
-        U = ff.error_transfer_matrix(simple_pulse, S, omega)
-        fig, grid = plotting.plot_error_transfer_matrix(U=U[0])
+        K = numeric.calculate_cumulant_function(simple_pulse, S, omega)
+        fig, grid = plotting.plot_cumulant_function(K=K[0])
 
         # Log colorscale
-        fig, grid = plotting.plot_error_transfer_matrix(U=U, colorscale='log')
+        fig, grid = plotting.plot_cumulant_function(K=K, colorscale='log')
 
         # Non-default args
         n_oper_inds = sample(range(len(complicated_pulse.n_opers)),
@@ -247,47 +248,50 @@ class PlottingTest(testutil.TestCase):
         omega = ff.util.get_sample_frequencies(complicated_pulse, n_samples=50,
                                                spacing='log')
         S = np.exp(-omega**2)
-        U = ff.error_transfer_matrix(complicated_pulse, S, omega)
-        fig, grid = plotting.plot_error_transfer_matrix(
+        K = numeric.calculate_cumulant_function(complicated_pulse, S, omega)
+        fig, grid = plotting.plot_cumulant_function(
             complicated_pulse, S=S, omega=omega,
             n_oper_identifiers=n_oper_identifiers, basis_labels=basis_labels,
             basis_labelsize=4, linthresh=1e-4, cmap=plt.cm.jet
         )
-        fig, grid = plotting.plot_error_transfer_matrix(
-            U=U[n_oper_inds], n_oper_identifiers=n_oper_identifiers,
+        fig, grid = plotting.plot_cumulant_function(
+            K=K[n_oper_inds], n_oper_identifiers=n_oper_identifiers,
             basis_labels=basis_labels, basis_labelsize=4, linthresh=1e-4,
             cmap=plt.cm.jet
         )
 
-        # neither U nor all of pulse, S, omega given
+        # neither K nor all of pulse, S, omega given
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, S)
+            plotting.plot_cumulant_function(complicated_pulse, S)
 
         # invalid identifiers
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, S, omega,
-                                                n_oper_identifiers=['foo'])
+            plotting.plot_cumulant_function(complicated_pulse, S, omega,
+                                            n_oper_identifiers=['foo'])
+
+        # K and identifiers given but unequal length
+        with self.assertRaises(ValueError):
+            plotting.plot_cumulant_function(
+                K=K, n_oper_identifiers=n_oper_identifiers[0])
 
         # number of basis_labels not correct
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, S, omega,
-                                                basis_labels=basis_labels[:2])
+            plotting.plot_cumulant_function(complicated_pulse, S, omega,
+                                            basis_labels=basis_labels[:2])
 
         # grid too small
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, S, omega,
-                                                grid=grid[:1])
+            plotting.plot_cumulant_function(complicated_pulse, S, omega,
+                                            grid=grid[:1])
 
         # Test various keyword args for matplotlib for the two-qubit pulse
         S = np.tile(S, (6, 6, 1))
         grid_kw = {'axes_pad': 0.1}
         imshow_kw = {'interpolation': 'bilinear'}
         figure_kw = {'num': 1}
-        fig, ax = plotting.plot_error_transfer_matrix(two_qubit_pulse, S,
-                                                      omega,
-                                                      imshow_kw=imshow_kw,
-                                                      grid_kw=grid_kw,
-                                                      **figure_kw)
+        fig, ax = plotting.plot_cumulant_function(two_qubit_pulse, S, omega,
+                                                  imshow_kw=imshow_kw,
+                                                  grid_kw=grid_kw, **figure_kw)
 
         plt.close('all')
 

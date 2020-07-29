@@ -572,8 +572,8 @@ class CoreTest(testutil.TestCase):
             R_l = np.empty((n_dt, 6, d**2, len(omega)), dtype=complex)
             for l, pulse in enumerate(pulses):
                 phases[l] = np.exp(1j*total_pulse.t[l]*omega)
-                L[l] = numeric.liouville_representation(total_pulse.Q[l],
-                                                        total_pulse.basis)
+                L[l] = ff.superoperator.liouville_representation(
+                    total_pulse.Q[l], total_pulse.basis)
                 R_l[l] = pulse.get_control_matrix(omega)
 
             # Check that both methods of calculating the control are the same
@@ -587,8 +587,7 @@ class CoreTest(testutil.TestCase):
                 basis=total_pulse.basis,
                 n_opers=n_opers,
                 n_coeffs=n_coeffs,
-                dt=total_pulse.dt,
-                t=total_pulse.t
+                dt=total_pulse.dt
             )
             self.assertArrayAlmostEqual(R, R_from_scratch)
             # first column (identity element) always zero but susceptible to
@@ -784,8 +783,8 @@ class CoreTest(testutil.TestCase):
         self.assertAlmostEqual(infid_1.sum(), infid_2.sum())
         self.assertArrayAlmostEqual(infid_1, infid_2.sum(axis=(0, 1)))
 
-    def test_calculate_error_vector_correlation_functions(self):
-        """Test raises of numeric.error_transfer_matrix"""
+    def test_calculate_decay_amplitudes(self):
+        """Test raises of numeric.calculate_decay_amplitudes"""
         pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
 
         omega = rng.standard_normal(43)
@@ -793,9 +792,22 @@ class CoreTest(testutil.TestCase):
         S = rng.standard_normal(78)
         for i in range(4):
             with self.assertRaises(ValueError):
-                numeric.calculate_error_vector_correlation_functions(
-                    pulse, np.tile(S, [1]*i), omega
-                )
+                numeric.calculate_decay_amplitudes(pulse, np.tile(S, [1]*i),
+                                                   omega)
+
+    def test_error_transfer_matrix(self):
+        """Test raises of numeric.error_transfer_matrix."""
+        pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
+        omega = testutil.rng.randn(43)
+        S = np.ones_like(omega)
+        with self.assertRaises(ValueError):
+            ff.error_transfer_matrix(pulse, S)
+
+        with self.assertRaises(TypeError):
+            ff.error_transfer_matrix(K=[1, 2, 3])
+
+        with self.assertRaises(ValueError):
+            ff.error_transfer_matrix(K=testutil.rng.randn(2, 3, 4))
 
     def test_infidelity_convergence(self):
         omega = {

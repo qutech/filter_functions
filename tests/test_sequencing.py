@@ -30,7 +30,7 @@ from random import sample
 import numpy as np
 
 import filter_functions as ff
-from filter_functions import pulse_sequence, util
+from filter_functions import numeric, pulse_sequence, util
 from tests import testutil
 from tests.testutil import rng
 
@@ -516,6 +516,123 @@ class ConcatenationTest(testutil.TestCase):
 
         self.assertArrayAlmostEqual(F_LAB, F_CC, atol=1e-13)
         self.assertArrayAlmostEqual(F_LAB, F_CC_PERIODIC, atol=1e-13)
+
+    def test_pulse_correlations(self):
+        """Test calculating pulse correlation quantities."""
+        for d, n_dt in zip(testutil.rng.randint(2, 7, 11),
+                           testutil.rng.randint(1, 5, 11)):
+            pulses = [testutil.rand_pulse_sequence(d, n_dt, 1, 2)
+                      for _ in range(testutil.rng.randint(2, 7))]
+            for pulse in pulses[1:]:
+                # Otherwise cannot concatenate
+                pulse.n_opers = pulses[0].n_opers
+                pulse.n_oper_identifiers = pulses[0].n_oper_identifiers
+
+            omega = util.get_sample_frequencies(pulse, n_samples=51)
+            pulse = ff.concatenate(pulses, calc_pulse_correlation_ff=True,
+                                   omega=omega, which='generalized')
+
+            spectra = [
+                1e-6/abs(omega),
+                1e-6/np.power.outer(abs(omega), np.arange(2)).T,
+                np.array([[1e-6/abs(omega)**0.7,
+                           1e-6/(1 + omega**2) + 1j*1e-6*omega],
+                          [1e-6/(1 + omega**2) - 1j*1e-6*omega,
+                           1e-6/abs(omega)**0.7]])
+            ]
+
+            idx = testutil.rng.choice(np.arange(2), testutil.rng.randint(1, 3),
+                                      replace=False)
+            identifiers = pulse.n_oper_identifiers[idx]
+
+            funcs = [numeric.infidelity,
+                     numeric.calculate_decay_amplitudes,
+                     numeric.calculate_cumulant_function]
+
+            R = pulse.get_control_matrix(omega)
+            R_pc = pulse.get_pulse_correlation_control_matrix()
+            F = pulse.get_filter_function(omega)
+            F_kl = pulse.get_filter_function(omega, 'generalized')
+            F_pc = pulse.get_pulse_correlation_filter_function()
+            F_pc_kl = pulse.get_pulse_correlation_filter_function(
+                'generalized')
+
+            for i, spectrum in enumerate(spectra):
+                if i == 0:
+                    S = spectrum
+                elif i == 1:
+                    S = spectrum[idx]
+                elif i == 2:
+                    S = spectrum[idx[None, :], idx[:, None]]
+
+                for func in funcs:
+                    with self.assertRaises(util.CalculationError):
+                        func(ff.concatenate(pulses), S, omega,
+                             which='correlations')
+
+                    with self.assertRaises(ValueError):
+                        func(pulse, S, omega + 1, which='correlations')
+
+                    pulse._R = R
+                    pulse._R_pc = R_pc
+                    correl = func(pulse, S, omega, identifiers,
+                                  which='correlations')
+                    total = func(pulse, S, omega, identifiers,
+                                 which='total')
+                    pulse._R = None
+                    pulse._R_pc = None
+
+                    self.assertArrayAlmostEqual(correl.sum((0, 1)), total,
+                                                atol=1e-14)
+
+                    pulse._F = F
+                    pulse._F_kl = F_kl
+                    pulse._F_pc = F_pc
+                    pulse._F_pc_kl = F_pc_kl
+                    correl = func(pulse, S, omega, identifiers,
+                                  which='correlations')
+                    total = func(pulse, S, omega, identifiers,
+                                 which='total')
+                    pulse._F = None
+                    pulse._F_kl = None
+                    pulse._F_pc = None
+                    pulse._F_pc_kl = None
+
+                    self.assertArrayAlmostEqual(correl.sum((0, 1)), total,
+                                                atol=1e-14)
+
+                    if func != numeric.infidelity:
+                        pulse._R = R
+                        pulse._R_pc = R_pc
+                        correl = func(pulse, S, omega, identifiers,
+                                      which='correlations',
+                                      memory_parsimonious=True)
+                        total = func(pulse, S, omega, identifiers,
+                                     which='total',
+                                     memory_parsimonious=True)
+                        pulse._R = None
+                        pulse._R_pc = None
+
+                        self.assertArrayAlmostEqual(correl.sum((0, 1)), total,
+                                                    atol=1e-14)
+
+                        pulse._F = F
+                        pulse._F_kl = F_kl
+                        pulse._F_pc = F_pc
+                        pulse._F_pc_kl = F_pc_kl
+                        correl = func(pulse, S, omega, identifiers,
+                                      which='correlations',
+                                      memory_parsimonious=True)
+                        total = func(pulse, S, omega, identifiers,
+                                     which='total',
+                                     memory_parsimonious=True)
+                        pulse._F = None
+                        pulse._F_kl = None
+                        pulse._F_pc = None
+                        pulse._F_pc_kl = None
+
+                        self.assertArrayAlmostEqual(correl.sum((0, 1)), total,
+                                                    atol=1e-14)
 
 
 class ExtensionTest(testutil.TestCase):

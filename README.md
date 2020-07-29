@@ -47,7 +47,7 @@ Y2.cache_filter_function(omega)
 X.cache_filter_function(omega)
 
 hadamard = Y2 @ X           # equivalent: ff.concatenate((Y2, X))
-hadamard.is_cached('F')
+hadamard.is_cached('filter function')
 # True  (filter function cached during concatenation)
 ```
 

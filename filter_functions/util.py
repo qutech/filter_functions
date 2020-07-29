@@ -78,8 +78,8 @@ import os
 import re
 import string
 from itertools import zip_longest
-from typing import (Callable, Generator, Iterable, List, Optional, Sequence,
-                    Tuple, Union)
+from typing import (Callable, Dict, Generator, Iterable, List, Optional,
+                    Sequence, Tuple, Union)
 
 import numpy as np
 from numpy import linalg as nla
@@ -220,6 +220,38 @@ def cexp(x: ndarray) -> ndarray:
     df_exp.real = np.cos(x, out=df_exp.real)
     df_exp.imag = np.sin(x, out=df_exp.imag)
     return df_exp
+
+
+def parse_optional_parameters(params_dict: Dict[str, Sequence]) -> Callable:
+    """Decorator factory to parse optional parameter with certain legal values.
+
+    For ``params_dict = {name: allowed, ...}``: If the parameter value
+    corresponding to ``name`` (either in args or kwargs of the decorated
+    function) is not contained in ``allowed`` a ``ValueError`` is raised.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            parameters = inspect.signature(func).parameters
+            for name, allowed in params_dict.items():
+                idx = tuple(parameters).index(name)
+                try:
+                    value = args[idx]
+                except IndexError:
+                    value = kwargs.get(name, parameters[name].default)
+
+                if value not in allowed:
+                    raise ValueError(
+                        f"Invalid value for {name}: {value}. " +
+                        f"Should be one of {allowed}."
+                    )
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+parse_which_FF_parameter = parse_optional_parameters(
+    {'which': ('fidelity', 'generalized')})
 
 
 def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int],
@@ -568,11 +600,9 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
         try:
             result = single_tensor_insert(result, arg, carr_dims, p+i)
         except ValueError as err:
-            raise ValueError(
-                f'Could not insert arg {arg_counter} with shape ' +
-                f'{result.shape} into the array with shape {arg.shape} ' +
-                f'at position {p}.'
-            ) from err
+            raise ValueError(f'Could not insert arg {arg_counter} with ' +
+                             f'shape {result.shape} into the array with ' +
+                             f'shape {arg.shape} at position {p}.') from err
 
         # Update arr_dims
         for axis, d in zip(carr_dims, arg.shape[-rank:]):
@@ -863,6 +893,8 @@ def oper_equiv(psi: Union[Operator, State],
     psi, phi = [obj.full() if hasattr(obj, 'full') else obj
                 for obj in (psi, phi)]
 
+    psi, phi = np.atleast_2d(psi, phi)
+
     if eps is None:
         # Tolerance the floating point eps times the # of flops for the matrix
         # multiplication, i.e. for psi and phi n x m matrices 2*n**2*m
@@ -870,13 +902,17 @@ def oper_equiv(psi: Union[Operator, State],
             np.prod(psi.shape)*phi.shape[-1]*2
         if not normalized:
             # normalization introduces more floating point error
-            eps *= (np.prod(psi.shape)*phi.shape[-1]*2)**2
+            eps *= (np.prod(psi.shape[-2:])*phi.shape[-1]*2)**2
 
-    inner_product = (psi.T.conj() @ phi).trace()
+    try:
+        inner_product = (psi.swapaxes(-1, -2).conj() @ phi).trace(0, -1, -2)
+    except ValueError as err:
+        raise ValueError('psi and phi have incompatible dimensions!') from err
+
     if normalized:
         norm = 1
     else:
-        norm = nla.norm(psi)*nla.norm(phi)
+        norm = nla.norm(psi, axis=(-1, -2))*nla.norm(phi, axis=(-1, -2))
 
     phase = np.angle(inner_product)
     modulus = abs(inner_product)
@@ -932,6 +968,7 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
     return res if res.imag.any() else res.real
 
 
+@parse_optional_parameters({'spacing': ('log', 'linear')})
 def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
                            spacing: str = 'log',
                            symmetric: bool = True) -> ndarray:
@@ -962,38 +999,40 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
     omega: ndarray
         The frequencies.
     """
-    tau = pulse.t[-1]
+    tau = pulse.tau
     if spacing == 'linear':
         if symmetric:
             freqs = np.linspace(-1e2/tau, 1e2/tau, n_samples)*2*np.pi
         else:
             freqs = np.linspace(0, 1e2/tau, n_samples)*2*np.pi
-    elif spacing == 'log':
+    else:
+        # spacing == 'log'
         if symmetric:
             freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples//2)*2*np.pi
             freqs = np.concatenate([-freqs[::-1], freqs])
         else:
             freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples)*2*np.pi
-    else:
-        raise ValueError("spacing should be either 'linear' or 'log'.")
 
     return freqs
 
 
 def symmetrize_spectrum(S: ndarray, omega: ndarray) -> Tuple[ndarray, ndarray]:
-    r"""
-    Symmetrize a one-sided power spectrum around zero frequency.
+    r"""Symmetrize a one-sided power spectrum around zero frequency.
+
+    Cross-spectra will have their real parts symmetrized and imaginary parts
+    anti-symmetrized such that for the correlation functions in time space
+    :math:`C_{\alpha\beta}(t) = C_{\beta\alpha}(-t)` holds.
 
     Parameters
     ----------
-    S: ndarray, shape (..., n_omega)
+    S: ndarray, shape ([[n_nops,] n_nops,] n_omega)
         The one-sided power spectrum.
     omega: ndarray, shape (n_omega,)
         The positive and strictly increasing frequencies.
 
     Returns
     -------
-    S: ndarray, shape (..., 2*n_omega)
+    S: ndarray, shape ([[n_nops,] n_nops,], 2*n_omega)
         The two-sided power spectrum.
     omega: ndarray, shape (2*n_omega,)
         The frequencies mirrored about zero.
@@ -1010,8 +1049,25 @@ def symmetrize_spectrum(S: ndarray, omega: ndarray) -> Tuple[ndarray, ndarray]:
         ix = 0
 
     omega = np.concatenate((-omega[::-1], omega[ix:]))
-    S = np.concatenate((S[..., ::-1], S[ix:]), axis=-1)/2
-    return S, omega
+    S_one = np.asarray(S)
+    S_two_real = np.concatenate(
+        (S_one[..., ::-1].real, S_one[..., ix:].real), axis=-1
+    )/2
+    if S_one.ndim < 3:
+        S_two = S_two_real
+    elif S_one.ndim == 3:
+        # Cross-correlated noise
+        diag = np.eye(S_one.shape[0], dtype=bool)
+        S_two_imag = np.zeros_like(S_two_real)
+        S_two_imag[~diag] = np.concatenate(
+            (-S_one[~diag, ::-1].imag, S_one[~diag, ix:].imag), axis=-1
+        )/2
+
+        S_two = S_two_real + 1j*S_two_imag
+    else:
+        raise ValueError('Expected S.ndim <= 3 but found {}'.format(S.ndim))
+
+    return S_two, omega
 
 
 def hash_array_along_axis(arr: ndarray, axis: int = 0) -> List[int]:
@@ -1061,34 +1117,6 @@ def progressbar_range(*args, show_progressbar: Optional[bool] = True,
         return progressbar(range(*args), **kwargs)
 
     return range(*args)
-
-
-def parse_optional_parameter(name: str, allowed: Sequence) -> Callable:
-    """Decorator factory to parse optional parameter with certain legal values.
-
-    If the parameter value corresponding to ``name`` (either in args or kwargs)
-    is not contained in ``allowed`` a ``ValueError`` is raised.
-    """
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            parameters = inspect.signature(func).parameters
-            idx = tuple(parameters).index(name)
-            try:
-                value = args[idx]
-            except IndexError:
-                value = kwargs.get(name, parameters[name].default)
-
-            if value not in allowed:
-                raise ValueError(f"Invalid value for {name}: {value}. " +
-                                 f"Should be one of {allowed}.")
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
-
-
-parse_which_FF_parameter = parse_optional_parameter(
-    'which', ('fidelity', 'generalized'))
 
 
 class CalculationError(Exception):

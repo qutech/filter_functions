@@ -23,6 +23,7 @@ different types of noise - white and correlated - to highlight correlations
 between gates captured in the filter functions.
 """
 import time
+from typing import Dict, Sequence
 
 import numpy as np
 import qutip as qt
@@ -37,15 +38,15 @@ from numpy.random import permutation
 # %%
 
 
-def fitfun(m, A, B):
-    return A*m + B
+def fitfun(m, A):
+    return 1 - A*m
 
 
 def state_infidelity(pulse: PulseSequence, S: ndarray, omega: ndarray,
-                     ind: int = 2) -> float:
+                     ind: int = 3) -> float:
     """Compute state infidelity for input state eigenstate of pauli *ind*"""
     R = pulse.get_control_matrix(omega)
-    F = np.einsum('jko->jo', util.abs2(R[:, np.delete([0, 1, 2], ind)]))
+    F = np.einsum('jko->jo', util.abs2(R[:, np.delete([0, 1, 2, 3], ind)]))
     return np.trapz(F*S, omega)/(2*np.pi*pulse.d)
 
 
@@ -68,8 +69,10 @@ def find_inverse(U: ndarray) -> ndarray:
 
 
 def run_randomized_benchmarking(N_G: int, N_l: int, min_l: int, max_l: int,
-                                omega):
-    infidelities = np.empty((N_l, N_G), dtype=float)
+                                alpha: Sequence[float],
+                                spectra: Dict[float, Sequence[float]],
+                                omega: Sequence[float]):
+    infidelities = {a: np.empty((N_l, N_G), dtype=float) for a in alpha}
     lengths = np.round(np.linspace(min_l, max_l, N_l)).astype(int)
     delta_t = []
     t_now = [time.perf_counter()]
@@ -85,9 +88,10 @@ def run_randomized_benchmarking(N_G: int, N_l: int, min_l: int, max_l: int,
             U = ff.concatenate(cliffords[randints])
             U_inv = find_inverse(U.total_Q)
             pulse_sequence = U @ U_inv
-            infidelities[l, j] = state_infidelity(
-                pulse_sequence, S, omega
-            ).sum()
+            for k, a in enumerate(alpha):
+                infidelities[a][l, j] = state_infidelity(
+                    pulse_sequence, spectra[a], omega
+                ).sum()
 
     return infidelities, delta_t
 
@@ -97,17 +101,17 @@ T = 20
 H_n = {}
 H_c = {}
 dt = {}
-H_c['Id'] = [[qt.sigmax().full(), [0], 'X']]
-H_n['Id'] = [[qt.sigmax().full(), [1], 'X'],
-             [qt.sigmay().full(), [1], 'Y']]
+H_c['Id'] = [[qt.sigmax().full()/2, [0], 'X']]
+H_n['Id'] = [[qt.sigmax().full()/2, [1], 'X'],
+             [qt.sigmay().full()/2, [1], 'Y']]
 dt['Id'] = [T]
-H_c['X2'] = [[qt.sigmax().full(), [np.pi/4/T], 'X']]
-H_n['X2'] = [[qt.sigmax().full(), [1], 'X'],
-             [qt.sigmay().full(), [1], 'Y']]
+H_c['X2'] = [[qt.sigmax().full()/2, [np.pi/2/T], 'X']]
+H_n['X2'] = [[qt.sigmax().full()/2, [1], 'X'],
+             [qt.sigmay().full()/2, [1], 'Y']]
 dt['X2'] = [T]
-H_c['Y2'] = [[qt.sigmay().full(), [np.pi/4/T], 'Y']]
-H_n['Y2'] = [[qt.sigmax().full(), [1], 'X'],
-             [qt.sigmay().full(), [1], 'Y']]
+H_c['Y2'] = [[qt.sigmay().full()/2, [np.pi/2/T], 'Y']]
+H_n['Y2'] = [[qt.sigmax().full()/2, [1], 'X'],
+             [qt.sigmay().full()/2, [1], 'Y']]
 dt['Y2'] = [T]
 
 # %% Set up PulseSequences
@@ -134,7 +138,7 @@ Y2.cache_control_matrix(omega)
 # %% Construct Clifford group
 tic = time.perf_counter()
 cliffords = np.array([
-    Id,                                 # Id
+    Y2 @ Y2 @ Y2 @ Y2,                  # Id
     X2 @ X2,                            # X
     Y2 @ Y2,                            # Y
     Y2 @ Y2 @ X2 @ X2,                  # Z
@@ -166,8 +170,10 @@ print()
 # %% Run simulation
 
 eps0 = 2.7241e-4
-# Scaling factor for the noise so that alpha = 0 and alpha = 0.7 have the same
-# power
+
+alpha = (0.0, 0.7)
+# Scaling factor for the noise so that alpha = 0 and alpha = 0.7 give the same
+# average clifford fidelity
 noise_scaling_factor = {
     0.0: 0.4415924985735799,
     0.7: 1
@@ -176,37 +182,36 @@ noise_scaling_factor = {
 state_infidelities = {}
 clifford_infidelities = {}
 
-for i, alpha in enumerate((0.0, 0.7)):
-    S0 = 1e-13*(2*np.pi*1e-3)**alpha/eps0**2*noise_scaling_factor[alpha]
-    S = S0/omega**alpha
+spectra = {}
+for i, a in enumerate(alpha):
+    S0 = 4e-11*(2*np.pi*1e-3)**a/eps0**2*noise_scaling_factor[a]
+    S = S0/omega**a
+    spectra[a], omega_twosided = util.symmetrize_spectrum(S, omega)
 
     # Need to calculate with two-sided spectra
-    clifford_infidelities[alpha] = [
-        ff.infidelity(C, *util.symmetrize_spectrum(S, omega)).sum()
+    clifford_infidelities[a] = [
+        ff.infidelity(C, spectra[a], omega_twosided).sum()
         for C in cliffords
     ]
 
-    print('=============================================')
-    print(f'\t\talpha = {alpha}')
-    print('=============================================')
-    state_infidelities[alpha], exec_times = run_randomized_benchmarking(
-        N_G, N_l, m_min, m_max, omega
-    )
+state_infidelities, exec_times = run_randomized_benchmarking(
+    N_G, N_l, m_min, m_max, alpha, spectra, omega_twosided
+)
 
 # %% Plot results
 fig, ax = plt.subplots(1, 2, sharex=True, sharey=True, figsize=(8, 3))
 
-fidelities = {alpha: 1 - infid for alpha, infid in state_infidelities.items()}
-for i, alpha in enumerate((0.0, 0.7)):
+fidelities = {a: 1 - infid for a, infid in state_infidelities.items()}
+for i, a in enumerate(alpha):
 
-    means = np.mean(fidelities[alpha], axis=1)
-    stds = np.std(fidelities[alpha], axis=1)
+    means = np.mean(fidelities[a], axis=1)
+    stds = np.std(fidelities[a], axis=1)
 
-    popt, pcov = optimize.curve_fit(fitfun, lengths, means, [0, 1], stds,
+    popt, pcov = optimize.curve_fit(fitfun, lengths, means, [0], stds,
                                     absolute_sigma=True)
 
     for j in range(N_G):
-        fid = ax[i].plot(lengths, fidelities[alpha][:, j], 'k.', alpha=0.1,
+        fid = ax[i].plot(lengths, fidelities[a][:, j], 'k.', alpha=0.1,
                          zorder=2)
 
     mean = ax[i].errorbar(lengths, means, stds, fmt='.', zorder=3,
@@ -217,7 +222,7 @@ for i, alpha in enumerate((0.0, 0.7)):
     # sequence length and r = 1 - F_avg = d/(d + 1)*(1 - F_ent) the average
     # error per gate
     exp = ax[i].plot(lengths,
-                     1 - np.mean(clifford_infidelities[alpha])*lengths*2/3,
+                     1 - np.mean(clifford_infidelities[a])*lengths*2/3,
                      '--', zorder=4, color='tab:blue')
     ax[i].set_title(rf'$\alpha = {alpha}$')
     ax[i].set_xlabel(r'Sequence length $m$')
@@ -226,7 +231,7 @@ handles = [fid[0], mean[0], fit[0], exp[0]]
 labels = ['State Fidelity', 'Fidelity mean', 'Fit',
           'RB theory w/o pulse correlations']
 ax[0].set_xlim(0, max(lengths))
-ax[0].set_ylim(.993, 1)
+# ax[0].set_ylim(.9, 1)
 ax[0].set_ylabel(r'Surival Probability')
 ax[0].legend(frameon=False, handles=handles, labels=labels)
 

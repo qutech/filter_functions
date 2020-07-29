@@ -8,7 +8,7 @@ This directory contains static examples that can also be run interactively from 
    getting_started
    periodic_driving
    advanced_concatenation
-   calculating_error_transfer_matrices
+   calculating_quantum_processes
    extending_pulses
    qutip_integration
    quantum_fourier_transform

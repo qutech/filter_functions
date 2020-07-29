@@ -53,6 +53,7 @@ from numpy import ndarray
 from . import numeric, util
 from .basis import (Basis, equivalent_pauli_basis_elements,
                     remap_pauli_basis_elements)
+from .superoperator import liouville_representation
 from .types import Coefficients, Hamiltonian, Operator, PulseMapping
 
 __all__ = ['PulseSequence', 'concatenate', 'concatenate_periodic', 'extend',
@@ -172,6 +173,8 @@ class PulseSequence:
         Time steps
     t: ndarray, shape (n_dt + 1,)
         Absolute times taken to start at :math:`t_0\equiv 0`
+    tau: float
+        Total duration. Equal to t[-1].
     d: int
         Dimension of the Hamiltonian
     basis: Basis, shape (d**2, d, d)
@@ -236,12 +239,13 @@ class PulseSequence:
         self.n_coeffs = None
         self.dt = None
         self.t = None
+        self.tau = None
         self.d = None
         self.basis = None
 
         # Parse the input arguments and set attributes
         attributes = ('c_opers', 'c_oper_identifiers', 'c_coeffs', 'n_opers',
-                      'n_oper_identifiers', 'n_coeffs', 'dt', 't', 'd',
+                      'n_oper_identifiers', 'n_coeffs', 'dt', 't', 'tau', 'd',
                       'basis')
         if not args:
             # Bypass args parsing and directly set necessary attributes
@@ -278,12 +282,7 @@ class PulseSequence:
 
     def __str__(self):
         """String method."""
-        s = 'PulseSequence object with the following attributes:\n'
-        for attr in ('c_opers', 'c_coeffs', 'n_opers', 'n_coeffs', 'dt'):
-            s += f'{attr}:\n'
-            s += str(getattr(self, attr)) + '\n'
-
-        return s
+        return f'{repr(self)} with total duration {self.tau}'
 
     def __eq__(self, other: object) -> bool:
         """
@@ -479,7 +478,7 @@ class PulseSequence:
         ----------
         omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R: array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
+        R: array_like, shape ([n_nops,] n_nops, d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed.
         show_progressbar: bool
@@ -498,9 +497,8 @@ class PulseSequence:
         # Cache total phase and total transfer matrices as well
         self.cache_total_phases(omega)
         if not self.is_cached('total_Q_liouville'):
-            self.total_Q_liouville = numeric.liouville_representation(
-                self.total_Q, self.basis
-            )
+            self.total_Q_liouville = liouville_representation(self.total_Q,
+                                                              self.basis)
 
     def get_pulse_correlation_control_matrix(self) -> ndarray:
         """Get the pulse correlation control matrix if it was cached."""
@@ -537,6 +535,8 @@ class PulseSequence:
         F: ndarray, shape (n_nops, n_nops, [d**2, d**2,] n_omega)
             The filter function for each combination of noise operators as a
             function of omega.
+
+        .. _notes
 
         Notes
         -----
@@ -599,14 +599,14 @@ class PulseSequence:
         ----------
         omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R: array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
+        R: array_like, shape ([n_nops,] n_nops, d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed and the filter function derived from it.
         F: array_like, shape (n_nops, n_nops, [d**2, d**2,] n_omega), optional
             The filter function for the frequencies *omega*. If ``None``, it is
             computed from R.
         which: str, optional
-            Which filter function to return. Either 'fidelity' (default) or
+            Which filter function to cache. Either 'fidelity' (default) or
             'generalized'.
         show_progressbar: bool
             Show a progress bar for the calculation of the control matrix.
@@ -666,7 +666,7 @@ class PulseSequence:
 
         Returns
         -------
-        F_pc: ndarray, shape (n_pulses, n_pulses, n_nops, n_nops, n_omega)
+        F_pc: ndarray, shape (n_pls, n_pls, n_nops, n_nops, n_omega)
             The pulse correlation filter function for each noise operator as a
             function of omega. The first two axes correspond to the pulses in
             the sequence, i.e. if the concatenated pulse sequence is
@@ -737,7 +737,7 @@ class PulseSequence:
             they are computed.
         """
         if total_phases is None:
-            total_phases = util.cexp(np.asarray(omega)*self.t[-1])
+            total_phases = util.cexp(np.asarray(omega)*self.tau)
 
         self.omega = omega
         self._total_phases = total_phases
@@ -798,8 +798,8 @@ class PulseSequence:
     def total_Q_liouville(self) -> ndarray:
         """Get the transfer matrix for the total propagator of the pulse."""
         if not self.is_cached('total_Q_liouville'):
-            self._total_Q_liouville = numeric.liouville_representation(
-                self.total_Q, self.basis)
+            self._total_Q_liouville = liouville_representation(self.total_Q,
+                                                               self.basis)
 
         return self._total_Q_liouville
 
@@ -833,8 +833,8 @@ class PulseSequence:
 
         return sum(_nbytes)
 
-    @util.parse_optional_parameter(
-        'method', ('conservative', 'greedy', 'frequency dependent', 'all'))
+    @util.parse_optional_parameters(
+        {'method': ('conservative', 'greedy', 'frequency dependent', 'all')})
     def cleanup(self, method: str = 'conservative') -> None:
         """
         Delete cached byproducts of the calculation of the filter function that
@@ -959,6 +959,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
         raise ValueError('Control and noise Hamiltonian not same dimension!')
 
     t = np.concatenate(([0], dt.cumsum()))
+    tau = t[-1]
     # Dimension of the system
     d = control_args[0].shape[-1]
 
@@ -978,7 +979,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
             raise ValueError("Expected basis elements to be of shape " +
                              f"({d}, {d}), not {basis.shape[1:]}!")
 
-    return (*control_args, *noise_args, dt, t, d, basis)
+    return (*control_args, *noise_args, dt, t, tau, d, basis)
 
 
 def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
@@ -1039,7 +1040,8 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
             identifiers = np.fromiter(
                 (f'A_{i}' for i in range(len(opers))), dtype='<U4'
             )
-        elif H_str == 'H_n':
+        else:
+            # H_str == 'H_n'
             identifiers = np.fromiter(
                 (f'B_{i}' for i in range(len(opers))), dtype='<U4'
             )
@@ -1048,7 +1050,8 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
             if identifier is None:
                 if H_str == 'H_c':
                     identifiers[i] = f'A_{i}'
-                elif H_str == 'H_n':
+                else:
+                    # H_str == 'H_n'
                     identifiers[i] = f'B_{i}'
         if len(set(identifiers)) != len(identifiers):
             raise ValueError(f'{H_str} identifiers should be unique')
@@ -1057,7 +1060,7 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
 
     # Check coeffs are all the same length as dt
     if not all(len(coeff) == n_dt for coeff in coeffs):
-        raise ValueError(f'Expected all coefficients in {H_str} '+
+        raise ValueError(f'Expected all coefficients in {H_str} ' +
                          f'to be of len(dt) = {n_dt}!')
 
     coeffs = np.asarray(coeffs)
@@ -1405,8 +1408,10 @@ def concatenate_without_filter_function(
 
     dt = np.concatenate(tuple(pulse.dt for pulse in pulses))
     t = np.concatenate(([0], dt.cumsum()))
+    tau = t[-1]
 
-    attributes = {'dt': dt, 't': t, 'd': pulses[0].d, 'basis': basis}
+    attributes = {'dt': dt, 't': t, 'tau': tau, 'd': pulses[0].d,
+                  'basis': basis}
     attributes.update(**{key: value for key, value
                          in zip(control_keys, control_values)})
     attributes.update(**{key: value for key, value
@@ -1525,12 +1530,12 @@ def concatenate(pulses: Iterable[PulseSequence],
         if not equal_omega:
             if calc_filter_function:
                 raise ValueError("Calculation of filter function forced " +
-                                "but not all pulses have the same " +
-                                "frequencies cached and none were supplied!")
+                                 "but not all pulses have the same " +
+                                 "frequencies cached and none were supplied!")
             if calc_pulse_correlation_ff:
                 raise ValueError("Cannot compute the pulse correlation " +
-                                "filter functions; do not have the " +
-                                "frequencies at which to evaluate.")
+                                 "filter functions; do not have the " +
+                                 "frequencies at which to evaluate.")
 
             return newpulse
 
@@ -1594,15 +1599,13 @@ def concatenate(pulses: Iterable[PulseSequence],
         newpulse.total_Q = util.mdot([pls.total_Q for pls in pulses][::-1])
 
     newpulse.cache_total_phases(omega)
-    newpulse.total_Q_liouville = numeric.liouville_representation(
-        newpulse.total_Q, newpulse.basis)
+    newpulse.total_Q_liouville = liouville_representation(newpulse.total_Q,
+                                                          newpulse.basis)
 
-    if calc_pulse_correlation_ff:
-        path = ['einsum_path', (1, 2), (0, 1)]
-        R = np.einsum('go,galo,glk->gako', phases, R_g, L, optimize=path)
-    else:
-        R = numeric.calculate_control_matrix_from_atomic(phases, R_g, L,
-                                                         show_progressbar)
+    R = numeric.calculate_control_matrix_from_atomic(
+        phases, R_g, L, show_progressbar,
+        'correlations' if calc_pulse_correlation_ff else 'total'
+    )
 
     # Set the attribute and calculate filter function (if the pulse correlation
     # FF has been calculated, this is a little overhead but negligible)
@@ -1669,6 +1672,8 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
     dt = np.tile(pulse.dt, repeats)
+    t = np.concatenate(([0], dt.cumsum()))
+    tau = t[-1]
     newpulse = PulseSequence(
         c_opers=pulse.c_opers,
         n_opers=pulse.n_opers,
@@ -1677,7 +1682,8 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
         c_coeffs=np.tile(pulse.c_coeffs, (1, repeats)),
         n_coeffs=np.tile(pulse.n_coeffs, (1, repeats)),
         dt=dt,
-        t=np.concatenate(([0], dt.cumsum())),
+        t=t,
+        tau=tau,
         d=pulse.d,
         basis=pulse.basis
     )
@@ -1786,6 +1792,7 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
         n_coeffs=pulse.n_coeffs[n_sort_idx],
         dt=pulse.dt,
         t=pulse.t,
+        tau=pulse.tau,
         d=pulse.d,
         basis=pulse.basis
     )
@@ -2198,7 +2205,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
             basis = Basis.ggm(d_per_qubit**N)
         elif btype == 'Pauli':
             basis = Basis.pauli(N)
-        elif btype == 'Custom':
+        else:
             warn('Original pulses had custom basis which I cannot extend.')
             basis = Basis.ggm(d_per_qubit**N)
 
@@ -2215,6 +2222,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
         n_coeffs=np.asarray(n_coeffs)[n_sort_idx],
         dt=pulses[0].dt,
         t=pulses[0].t,
+        tau=pulses[0].tau,
         d=d,
         basis=basis
     )
@@ -2338,8 +2346,8 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
                 numeric.calculate_filter_function(R[n_ops_counter:])
 
         newpulse.cache_total_phases(omega)
-        newpulse.total_Q_liouville = numeric.liouville_representation(
-            newpulse.total_Q, newpulse.basis)
+        newpulse.total_Q_liouville = liouville_representation(newpulse.total_Q,
+                                                              newpulse.basis)
         newpulse.cache_control_matrix(omega, R=R[n_sort_idx])
         newpulse.cache_filter_function(omega, F=F[n_sort_idx[:, None],
                                                   n_sort_idx[None, :]])
