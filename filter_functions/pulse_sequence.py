@@ -279,6 +279,8 @@ class PulseSequence:
         self._F_kl = None
         self._F_pc = None
         self._F_pc_kl = None
+        self._F_2 = None
+        self._intermediates = None
 
     def __str__(self):
         """String method."""
@@ -398,6 +400,7 @@ class PulseSequence:
                    'pulse correlation filter function': '_F_pc',
                    'fidelity pulse correlation filter function': '_F_pc',
                    'generalized pulse correlation filter function': '_F_pc_kl',
+                   'second order filter function': '_F_2',
                    'control matrix': '_R',
                    'pulse correlation control matrix': '_R_pc'}
 
@@ -424,7 +427,8 @@ class PulseSequence:
         self.total_Q = self.Q[-1]
 
     def get_control_matrix(self, omega: Coefficients,
-                           show_progressbar: bool = False) -> ndarray:
+                           show_progressbar: bool = False,
+                           cache_intermediates: bool = False) -> ndarray:
         r"""
         Get the control matrix for the frequencies *omega*. If it has been
         cached for the same frequencies, the cached version is returned,
@@ -436,6 +440,9 @@ class PulseSequence:
             The frequencies at which to evaluate the control matrix.
         show_progressbar: bool
             Show a progress bar for the calculation of the control matrix.
+        cache_intermediates: bool, optional
+            Keep intermediate terms of the calculation that are also required
+            by other computations.
 
         Returns
         -------
@@ -460,17 +467,20 @@ class PulseSequence:
 
         R = numeric.calculate_control_matrix_from_scratch(
             self.HD, self.HV, self.Q, omega, self.basis, self.n_opers,
-            self.n_coeffs, self.dt, self.t, show_progressbar=show_progressbar
+            self.n_coeffs, self.dt, self.t, show_progressbar=show_progressbar,
+            cache_intermediates=cache_intermediates
         )
 
         # Cache the result
-        self.cache_control_matrix(omega, R)
+        self.cache_control_matrix(omega, R,
+                                  cache_intermediates=cache_intermediates)
 
         return self._R
 
     def cache_control_matrix(self, omega: Coefficients,
                              R: Optional[ndarray] = None,
-                             show_progressbar: bool = False) -> None:
+                             show_progressbar: bool = False,
+                             cache_intermediates: bool = False) -> None:
         r"""
         Cache the control matrix and the frequencies it was calculated for.
 
@@ -483,9 +493,17 @@ class PulseSequence:
             computed.
         show_progressbar: bool
             Show a progress bar for the calculation of the control matrix.
+        cache_intermediates: bool, optional
+            Keep intermediate terms of the calculation that are also required
+            by other computations.
         """
         if R is None:
-            R = self.get_control_matrix(omega, show_progressbar)
+            R = self.get_control_matrix(omega, show_progressbar,
+                                        cache_intermediates)
+
+        if cache_intermediates:
+            R, intermediates = R
+            self._intermediates = intermediates
 
         self.omega = omega
         if R.ndim == 4:
@@ -514,6 +532,7 @@ class PulseSequence:
 
     @util.parse_which_FF_parameter
     def get_filter_function(self, omega: Coefficients, which: str = 'fidelity',
+                            order: int = 1,
                             show_progressbar: bool = False) -> ndarray:
         r"""Get the first-order filter function.
 
@@ -526,7 +545,9 @@ class PulseSequence:
             The frequencies at which to evaluate the filter function.
         which: str, optional
             Which filter function to return. Either 'fidelity' (default) or
-            'generalized' (see :ref:`Notes <notes>`).
+            'generalized' (see :ref:`Notes <notes>`). Only if ``order == 1``.
+        order: int, optional
+            First or second order filter function.
         show_progressbar: bool, optional
             Show a progress bar for the calculation of the control matrix.
 
@@ -540,7 +561,7 @@ class PulseSequence:
 
         Notes
         -----
-        The generalized filter function is given by
+        The first-order generalized filter function is given by
 
         .. math::
 
@@ -561,32 +582,44 @@ class PulseSequence:
         """
         # Only calculate if not calculated before for the same frequencies
         if np.array_equal(self.omega, omega):
-            if which == 'fidelity':
-                if self.is_cached('F'):
-                    return self._F
-            elif which == 'generalized':
-                if self.is_cached('F_kl'):
-                    return self._F_kl
+            if order == 1:
+                if which == 'fidelity':
+                    if self.is_cached('F'):
+                        return self._F
+                elif which == 'generalized':
+                    if self.is_cached('F_kl'):
+                        return self._F_kl
+            else:
+                # order == 2
+                if self.is_cached('F_2'):
+                    return self._F_2
         else:
             # Getting with different frequencies. Remove all cached attributes
             # that are frequency-dependent
             self.cleanup('frequency dependent')
 
-        self.cache_filter_function(
-            omega, R=self.get_control_matrix(omega, show_progressbar),
-            which=which
-        )
+        if order == 1:
+            R = self.get_control_matrix(omega, show_progressbar)
+        else:
+            R = None
 
-        if which == 'fidelity':
-            return self._F
-        elif which == 'generalized':
-            return self._F_kl
+        self.cache_filter_function(omega, R=R, which=which, order=order,
+                                   show_progressbar=show_progressbar)
+
+        if order == 1:
+            if which == 'fidelity':
+                return self._F
+            elif which == 'generalized':
+                return self._F_kl
+        else:
+            return self._F_2
 
     @util.parse_which_FF_parameter
     def cache_filter_function(self, omega: Coefficients,
                               R: Optional[ndarray] = None,
                               F: Optional[ndarray] = None,
                               which: str = 'fidelity',
+                              order: int = 1,
                               show_progressbar: bool = False) -> None:
         r"""
         Cache the filter function. If R.ndim == 4, it is taken to be the 'pulse
@@ -604,10 +637,12 @@ class PulseSequence:
             computed and the filter function derived from it.
         F: array_like, shape (n_nops, n_nops, [d**2, d**2,] n_omega), optional
             The filter function for the frequencies *omega*. If ``None``, it is
-            computed from R.
+            computed from R in the case ``order == 1`` and from scratch else.
         which: str, optional
             Which filter function to cache. Either 'fidelity' (default) or
             'generalized'.
+        order: int, optional
+            First or second order filter function.
         show_progressbar: bool
             Show a progress bar for the calculation of the control matrix.
 
@@ -616,31 +651,43 @@ class PulseSequence:
         PulseSequence.get_filter_function : Getter method
         """
         if F is None:
-            if R is None:
-                R = self.get_control_matrix(omega, show_progressbar)
+            if order == 1:
+                if R is None:
+                    R = self.get_control_matrix(omega, show_progressbar)
 
-            self.cache_control_matrix(omega, R)
-            if R.ndim == 4:
-                # Calculate pulse correlation FF and derive canonical FF from
-                # it
-                F_pc = numeric.calculate_pulse_correlation_filter_function(
-                    R, which)
+                self.cache_control_matrix(omega, R)
+                if R.ndim == 4:
+                    # Calculate pulse correlation FF and derive canonical FF
+                    # from it
+                    F_pc = numeric.calculate_pulse_correlation_filter_function(
+                        R, which)
 
-                if which == 'fidelity':
-                    self._F_pc = F_pc
-                elif which == 'generalized':
-                    self._F_pc_kl = F_pc
+                    if which == 'fidelity':
+                        self._F_pc = F_pc
+                    elif which == 'generalized':
+                        self._F_pc_kl = F_pc
 
-                F = F_pc.sum(axis=(0, 1))
+                    F = F_pc.sum(axis=(0, 1))
+                else:
+                    # Regular case
+                    F = numeric.calculate_filter_function(R, which=which)
             else:
-                # Regular case
-                F = numeric.calculate_filter_function(R, which=which)
+                # order == 2
+                F = numeric.calculate_second_order_filter_function(
+                    self.HD, self.HV, self.Q, omega, self.basis, self.n_opers,
+                    self.n_coeffs, self.dt, memory_parsimonious=False,
+                    show_progressbar=show_progressbar,
+                    intermediates=self._intermediates
+                )
 
         self.omega = omega
-        if which == 'fidelity':
-            self._F = F
-        elif which == 'generalized':
-            self._F_kl = F
+        if order == 1:
+            if which == 'fidelity':
+                self._F = F
+            elif which == 'generalized':
+                self._F_kl = F
+        else:
+            self._F_2 = F
 
     @util.parse_which_FF_parameter
     def get_pulse_correlation_filter_function(
@@ -858,6 +905,7 @@ class PulseSequence:
                 - _total_phases
                 - _R
                 - _R_pc
+                - _intermediates
 
             If set to 'all', all of the above as well as the following
             attributes are deleted:
@@ -867,6 +915,7 @@ class PulseSequence:
                 - _F_kl
                 - _F_pc
                 - _F_pc_kl
+                - _F_2
 
             If set to 'frequency dependent' only attributes that are functions
             of frequency are initalized to ``None``.
@@ -877,8 +926,9 @@ class PulseSequence:
         """
         default_attrs = {'_HD', '_HV', '_Q'}
         concatenation_attrs = {'_total_Q', '_total_Q_liouville', '_R', '_R_pc',
-                               '_total_phases'}
-        filter_function_attrs = {'omega', '_F', '_F_kl', '_F_pc', '_F_pc_kl'}
+                               '_total_phases', '_intermediates'}
+        filter_function_attrs = {'omega', '_F', '_F_kl', '_F_pc', '_F_pc_kl',
+                                 '_F_2'}
 
         if method == 'conservative':
             attrs = default_attrs

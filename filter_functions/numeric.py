@@ -74,8 +74,29 @@ __all__ = ['calculate_control_matrix_from_atomic',
            'error_transfer_matrix', 'infidelity']
 
 
+def _transform_noise_operators(n_opers, HV):
+    """Transform noise operators into the eigenspaces spanned by HV."""
+    B = np.empty((len(n_opers), *HV.shape), dtype=complex)
+    for j, n_oper in enumerate(n_opers):
+        B[j] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
+
+    return B
+
+
+def _propagate_eigenvectors(Q, HV):
+    """Propagate the eigenvectors HV with the unitary Q"""
+    return Q.transpose(0, 2, 1).conj() @ HV
+
+
+def _transform_basis(basis, QdagV, out):
+    """Transform the basis into the eigenspace spanned by V propagated by Q."""
+    out = np.matmul(basis, QdagV, out=out)
+    out = np.matmul(QdagV.conj().T, out, out=out)
+    return out
+
+
 def _first_order_integral(E: ndarray, HD: ndarray, dt: float,
-                          int_buf: ndarray, exp_buf: ndarray) -> ndarray:
+                          exp_buf: ndarray, int_buf: ndarray) -> ndarray:
     r"""Calculate the integral appearing in first order Magnus expansion.
 
     The integral is evaluated as
@@ -104,8 +125,8 @@ def _first_order_integral(E: ndarray, HD: ndarray, dt: float,
 def _second_order_integral(E: ndarray, HD: ndarray, dt: float,
                            int_buf: ndarray, frc_bufs: Tuple[ndarray, ndarray],
                            dE_bufs: Tuple[ndarray, ndarray, ndarray],
-                           exp_buf: ndarray,
-                           msk_bufs: Tuple[ndarray, ndarray]) -> ndarray:
+                           exp_buf: ndarray, msk_bufs: Tuple[ndarray, ndarray]
+                           ) -> ndarray:
     r"""Calculate the nested integral of second order Magnus expansion.
 
     The integral is evaluated as
@@ -294,8 +315,9 @@ def calculate_control_matrix_from_scratch(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         t: Optional[Coefficients] = None,
-        show_progressbar: Optional[bool] = False,
-        out: Optional = None) -> ndarray:
+        show_progressbar: bool = False,
+        cache_intermediates: bool = False,
+        out: Optional = None) -> Union[ndarray, Tuple[ndarray, ndarray]]:
     r"""
     Calculate the control matrix from scratch, i.e. without knowledge of the
     control matrices of more atomic pulse sequences.
@@ -330,6 +352,11 @@ def calculate_control_matrix_from_scratch(
         *dt*.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
+    cache_intermediates: bool, optional
+        Keep and return intermediate terms :math:`\mathcal{G}^{(g)}(\omega)` of
+        the sum so that
+        :math:`\mathcal{R}(\omega)=\sum_g\mathcal{G}^{(g)}(\omega)`. Otherwise
+        the sum is performed in-place.
     out: ndarray, optional
         A location into which the result is stored. See :func:`numpy.ufunc`.
 
@@ -337,6 +364,11 @@ def calculate_control_matrix_from_scratch(
     -------
     R: ndarray, shape (n_nops, d**2, n_omega)
         The control matrix :math:`\mathcal{R}(\omega)`
+    intermediates: tuple of ndarray
+        Intermediate results of the calculation, (B, C, G). B are the noise
+        operators transformed to eigenspace of the Hamiltonian, C the basis
+        elements transformed to the propagated eigenspace, and G the individual
+        terms of the main sum. Only if ``cache_intermediates`` is True.
 
     Notes
     -----
@@ -380,29 +412,42 @@ def calculate_control_matrix_from_scratch(
 
     # Precompute noise opers transformed to eigenbasis of each pulse
     # segment and Q^\dagger @ HV
-    QdagV = Q[:-1].transpose(0, 2, 1).conj() @ HV
-    B = np.empty((len(n_opers), len(dt), d, d), dtype=complex)
-    for j, n_oper in enumerate(n_opers):
-        B[j] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
+    QdagV = _propagate_eigenvectors(Q[:-1], HV)
+    B_out = _transform_noise_operators(n_opers, HV)
 
     # Allocate result and buffers for intermediate arrays
+    exp_buf, int_buf = np.empty((2, len(E), d, d), dtype=complex)
     if out is None:
         out = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
 
-    exp_buf = np.empty((len(E), d, d), dtype=complex)
-    int_buf = np.empty((len(E), d, d), dtype=complex)
-    R_path = ['einsum_path', (0, 3), (0, 1), (0, 2), (0, 1)]
+    if cache_intermediates:
+        C_out = np.empty((len(dt), *basis.shape), dtype=complex)
+        G_out = np.empty((len(dt), len(n_opers), len(basis), len(E)),
+                         dtype=complex)
+    else:
+        C = np.empty_like(basis)
+        G = np.empty((len(n_opers), len(basis), len(E)), dtype=complex)
 
+    R_path = ['einsum_path', (0, 3), (0, 1), (0, 2), (0, 1)]
     for l in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
 
-        int_buf = _first_order_integral(E, HD[l], dt[l], int_buf, exp_buf)
-        # Faster for d = 2 to also contract over the time dimension instead of
-        # loop, but for readability we don't distinguish.
-        out += np.einsum('o,j,jmn,omn,knm->jko',
-                         util.cexp(E*t[l]), n_coeffs[:, l], B[:, l], int_buf,
-                         QdagV[l].conj().T @ basis @ QdagV[l],
-                         optimize=R_path)
+        if cache_intermediates:
+            C = C_out[l]
+            G = G_out[l]
+
+        C = _transform_basis(basis, QdagV[l], out=C)
+        int_buf = _first_order_integral(E, HD[l], dt[l], exp_buf, int_buf)
+        G = np.einsum('o,j,jmn,omn,knm->jko',
+                      util.cexp(E*t[l]), n_coeffs[:, l], B_out[:, l], int_buf,
+                      C, optimize=R_path, out=G)
+
+        out += G
+
+    if cache_intermediates:
+        # intermediates are: noise operators in eigenspace, transformed basis,
+        # individual terms of the sum
+        return out, (B_out, C_out, G_out)
 
     return out
 
@@ -816,7 +861,7 @@ def calculate_filter_function(R: ndarray, which: str = 'fidelity') -> ndarray:
         return np.einsum('ako,blo->abklo', R.conj(), R)
 
 
-def calculate_filter_function_second_order(
+def calculate_second_order_filter_function(
         HD: ndarray,
         HV: ndarray,
         Q: ndarray,
@@ -825,6 +870,7 @@ def calculate_filter_function_second_order(
         n_opers: Sequence[Operator],
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
+        intermediates: Optional[Sequence[ndarray]] = None,
         memory_parsimonious: Optional[bool] = False,
         show_progressbar: Optional[bool] = False) -> ndarray:
 
@@ -832,13 +878,6 @@ def calculate_filter_function_second_order(
     # We're lazy
     E = omega
     n_coeffs = np.asarray(n_coeffs)
-
-    # Precompute noise opers transformed to eigenbasis of each pulse
-    # segment and Q^\dagger @ HV
-    QdagV = Q[:-1].transpose(0, 2, 1).conj() @ HV
-    B = np.empty((len(n_opers), len(dt), d, d), dtype=complex)
-    for j, n_oper in enumerate(n_opers):
-        B[j] = HV.conj().transpose(0, 2, 1) @ n_oper @ HV
 
     # Allocate result and buffers for intermediate arrays
     dE_bufs = (np.empty((d, d, d, d), dtype=float),
@@ -849,35 +888,51 @@ def calculate_filter_function_second_order(
                 np.empty((d, d, d, d), dtype=complex))
     int_buf = np.empty((len(E), d, d, d, d), dtype=complex)
     msk_bufs = np.empty((2, len(E), d, d, d, d), dtype=bool)
-    G = np.zeros((len(n_coeffs), d**2, len(E)), dtype=complex)
-    G_cumulative = np.zeros((len(n_coeffs), d**2, len(E)), dtype=complex)
-    GG = np.empty((len(n_coeffs), len(n_coeffs), d**2, d**2, len(E)),
-                  dtype=complex)
-    result = np.zeros((len(n_coeffs), len(n_coeffs), d**2, d**2, len(E)),
-                      dtype=complex)
+    G_cumulative = np.zeros((len(n_coeffs), len(basis), len(E)), dtype=complex)
+
+    shape = (len(n_coeffs), len(n_coeffs), len(basis), len(basis), len(E))
+    GG = np.empty(shape, dtype=complex)
+    result = np.zeros(shape, dtype=complex)
+
+    # intermediate results from calculation of control matrix
+    if intermediates is None:
+        # Easy to precompute
+        QdagV = _propagate_eigenvectors(Q[:-1], HV)
+        B = _transform_noise_operators(n_opers, HV)
+        # These are populated anew during every iteration
+        C = np.empty_like(basis)
+        G = np.zeros((len(n_coeffs), len(basis), len(E)), dtype=complex)
+    else:
+        B, C_cache, G_cache = intermediates
 
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
-                                    desc='Calculating second order Magnus'):
+                                    desc='Calculating second order FF'):
+
+        if intermediates is None:
+            C = _transform_basis(basis, QdagV[g], C)
+        else:
+            C = C_cache[g]
+            G = G_cache[g]
 
         int_buf = _second_order_integral(E, HD[g], dt[g], int_buf, frc_bufs,
                                          dE_bufs, exp_buf, msk_bufs)
-
-        C = QdagV[g].conj().T @ basis @ QdagV[g]  # shared
         BC = np.einsum('akl,ilk->aikl', B[:, g], C)
         GG = np.einsum('oijmn,akij,blmn->abklo', int_buf, BC, BC,
                        optimize=['einsum_path', (0, 1), (0, 1)], out=GG)
 
         result += GG  # last interval
         if g > 0:
-            # Add G^(g-1) to cumulative sum
-            G_cumulative += G
+            if g > 1:
+                # Add G^(g-1) to cumulative sum for g > 1, for g=0 it's zero.
+                G_cumulative += G
 
-            # Compute G^(g)
-            G = calculate_control_matrix_from_scratch(
-                HD[g:g+1], HV[g:g+1], Q[g:g+2], omega, basis, n_opers,
-                n_coeffs[:, g:g+1], dt[g:g+1], t=None, show_progressbar=False,
-                out=G
-            )  # shared
+            if intermediates is None:
+                # Need to compute G^(g) since no cache given
+                G = calculate_control_matrix_from_scratch(
+                    HD[g:g+1], HV[g:g+1], Q[g:g+2], omega, basis, n_opers,
+                    n_coeffs[:, g:g+1], dt[g:g+1], t=None,
+                    show_progressbar=False, cache_intermediates=False, out=G
+                )
 
             GG = np.einsum('ako,blo->abklo', G.conj(), G_cumulative, out=GG)
             result += GG  # all intervals up to last
