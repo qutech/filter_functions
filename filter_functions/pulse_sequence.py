@@ -185,18 +185,18 @@ class PulseSequence:
     If the Hamiltonian was diagonalized, the eigenvalues and -vectors as well
     as the cumulative propagators are cached:
 
-    HD: ndarray, shape (n_dt, d)
-        Eigenvalues
-    HV: ndarray, shape (n_dt, d, d)
-        Eigenvectors
-    Q: ndarray, shape (n_dt+1, d, d)
-        Cumulative propagators
-    total_Q: ndarray, shape (d, d)
+    eigvals: ndarray, shape (n_dt, d)
+        Eigenvalues :math:`D^{(g)}`
+    eigvecs: ndarray, shape (n_dt, d, d)
+        Eigenvectors :math:`V^{(g)}`
+    propagators: ndarray, shape (n_dt+1, d, d)
+        Cumulative propagators :math:`Q_g`
+    total_propagator: ndarray, shape (d, d)
         The total propagator :math:`Q` of the pulse alone. That is,
-        :math:`|\psi(\tau)\rangle = Q|\psi(0)\rangle`.
-    total_Q_liouville: array_like, shape (d**2, d**2)
+        :math:`|\psi(\tau)\rangle = propagators|\psi(0)\rangle`.
+    total_propagator_liouville: array_like, shape (d**2, d**2)
         The transfer matrix for the total propagator of the pulse. Given by
-        ``liouville_representation(pulse.total_Q, pulse.basis)``.
+        ``liouville_representation(pulse.total_propagator, pulse.basis)``.
 
     Furthermore, when the filter function is calculated, the frequencies are
     cached as well as other relevant quantities.
@@ -266,18 +266,18 @@ class PulseSequence:
 
         # Initialize attributes that can be set by bound methods to None
         self._omega = None
-        self._HD = None
-        self._HV = None
-        self._Q = None
+        self._eigvals = None
+        self._eigvecs = None
+        self._propagators = None
         self._total_phases = None
-        self._total_Q = None
-        self._total_Q_liouville = None
-        self._R = None
-        self._R_pc = None
-        self._F = None
-        self._F_kl = None
-        self._F_pc = None
-        self._F_pc_kl = None
+        self._total_propagator = None
+        self._total_propagator_liouville = None
+        self._control_matrix = None
+        self._control_matrix_pc = None
+        self._filter_function = None
+        self._filter_function_gen = None
+        self._filter_function_pc = None
+        self._filter_function_pc_gen = None
 
     def __str__(self):
         """String method."""
@@ -384,21 +384,20 @@ class PulseSequence:
     def is_cached(self, attr: str) -> bool:
         """Returns True if the attribute is cached"""
         # Define some aliases so that this method can be used by humans
-        aliases = {'eigenvalues': '_HD',
-                   'eigenvectors': '_HV',
-                   'propagators': '_Q',
-                   'total propagator': '_total_Q',
-                   'total propagator liouville': '_total_Q_liouville',
+        aliases = {'eigenvalues': '_eigvals',
+                   'eigenvectors': '_eigvecs',
+                   'total propagator': '_total_propagator',
+                   'total propagator liouville': '_total_propagator_liouville',
                    'frequencies': '_omega',
                    'total phases': '_total_phases',
-                   'filter function': '_F',
-                   'fidelity filter function': '_F',
-                   'generalized filter function': '_F_kl',
-                   'pulse correlation filter function': '_F_pc',
-                   'fidelity pulse correlation filter function': '_F_pc',
-                   'generalized pulse correlation filter function': '_F_pc_kl',
-                   'control matrix': '_R',
-                   'pulse correlation control matrix': '_R_pc'}
+                   'filter function': '_filter_function',
+                   'fidelity filter function': '_filter_function',
+                   'generalized filter function': '_filter_function_gen',
+                   'pulse correlation filter function': '_filter_function_pc',
+                   'fidelity pulse correlation filter function': '_filter_function_pc',  # noqa
+                   'generalized pulse correlation filter function': '_filter_function_pc_gen',  # noqa
+                   'control matrix': '_control_matrix',
+                   'pulse correlation control matrix': '_control_matrix_pc'}
 
         alias = attr.lower().replace('_', ' ')
         if alias in aliases:
@@ -414,13 +413,15 @@ class PulseSequence:
         Diagonalize the Hamiltonian defining the pulse sequence.
         """
         # Only calculate if not done so before
-        if not all(self.is_cached(attr) for attr in ('HD', 'HV', 'Q')):
+        if not all(self.is_cached(attr) for attr in
+                   ('eigvals', 'eigvecs', 'propagators')):
             # Control Hamiltonian as a (n_dt, d, d) array
             H = np.einsum('ijk,il->ljk', self.c_opers, self.c_coeffs)
-            self.HD, self.HV, self.Q = numeric.diagonalize(H, self.dt)
+            self.eigvals, self.eigvecs, self.propagators = \
+                numeric.diagonalize(H, self.dt)
 
         # Set the total propagator
-        self.total_Q = self.Q[-1]
+        self.total_propagator = self.propagators[-1]
 
     def get_control_matrix(self, omega: Coefficients,
                            show_progressbar: bool = False) -> ndarray:
@@ -438,17 +439,17 @@ class PulseSequence:
 
         Returns
         -------
-        R: ndarray, shape (n_nops, d**2, n_omega)
+        control_matrix: ndarray, shape (n_nops, d**2, n_omega)
             The control matrix for the noise operators.
         """
         # Only calculate if not calculated before for the same frequencies
         if np.array_equal(self.omega, omega):
-            if self.is_cached('R'):
-                return self._R
+            if self.is_cached('control_matrix'):
+                return self._control_matrix
             else:
-                if self.is_cached('R_pc'):
-                    self._R = self._R_pc.sum(axis=0)
-                    return self._R
+                if self.is_cached('control_matrix_pc'):
+                    self._control_matrix = self._control_matrix_pc.sum(axis=0)
+                    return self._control_matrix
         else:
             # Getting with different frequencies. Remove all cached attributes
             # that are frequency-dependent
@@ -457,18 +458,19 @@ class PulseSequence:
         # Make sure the Hamiltonian has been diagonalized
         self.diagonalize()
 
-        R = numeric.calculate_control_matrix_from_scratch(
-            self.HD, self.HV, self.Q, omega, self.basis, self.n_opers,
-            self.n_coeffs, self.dt, self.t, show_progressbar=show_progressbar
+        control_matrix = numeric.calculate_control_matrix_from_scratch(
+            self.eigvals, self.eigvecs, self.propagators, omega, self.basis,
+            self.n_opers, self.n_coeffs, self.dt, self.t,
+            show_progressbar=show_progressbar
         )
 
         # Cache the result
-        self.cache_control_matrix(omega, R)
+        self.cache_control_matrix(omega, control_matrix)
 
-        return self._R
+        return self._control_matrix
 
     def cache_control_matrix(self, omega: Coefficients,
-                             R: Optional[ndarray] = None,
+                             control_matrix: Optional[ndarray] = None,
                              show_progressbar: bool = False) -> None:
         r"""
         Cache the control matrix and the frequencies it was calculated for.
@@ -477,33 +479,33 @@ class PulseSequence:
         ----------
         omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R: array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
+        control_matrix: array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional  # noqa
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed.
         show_progressbar: bool
             Show a progress bar for the calculation of the control matrix.
         """
-        if R is None:
-            R = self.get_control_matrix(omega, show_progressbar)
+        if control_matrix is None:
+            control_matrix = self.get_control_matrix(omega, show_progressbar)
 
         self.omega = omega
-        if R.ndim == 4:
+        if control_matrix.ndim == 4:
             # Pulse correlation control matrix
-            self._R_pc = R
+            self._control_matrix_pc = control_matrix
         else:
-            self._R = R
+            self._control_matrix = control_matrix
 
         # Cache total phase and total transfer matrices as well
         self.cache_total_phases(omega)
-        if not self.is_cached('total_Q_liouville'):
-            self.total_Q_liouville = numeric.liouville_representation(
-                self.total_Q, self.basis
+        if not self.is_cached('total_propagator_liouville'):
+            self.total_propagator_liouville = numeric.liouville_representation(
+                self.total_propagator, self.basis
             )
 
     def get_pulse_correlation_control_matrix(self) -> ndarray:
         """Get the pulse correlation control matrix if it was cached."""
-        if self.is_cached('R_pc'):
-            return self._R_pc
+        if self.is_cached('control_matrix_pc'):
+            return self._control_matrix_pc
 
         raise util.CalculationError(
             "Could not get the pulse correlation control matrix since it " +
@@ -532,7 +534,7 @@ class PulseSequence:
 
         Returns
         -------
-        F: ndarray, shape (n_nops, n_nops, [d**2, d**2,] n_omega)
+        filter_function: ndarray, shape (n_nops, n_nops, [d**2, d**2,] n_omega)
             The filter function for each combination of noise operators as a
             function of omega.
 
@@ -560,49 +562,51 @@ class PulseSequence:
         # Only calculate if not calculated before for the same frequencies
         if np.array_equal(self.omega, omega):
             if which == 'fidelity':
-                if self.is_cached('F'):
-                    return self._F
+                if self.is_cached('filter_function'):
+                    return self._filter_function
             elif which == 'generalized':
-                if self.is_cached('F_kl'):
-                    return self._F_kl
+                if self.is_cached('filter_function_gen'):
+                    return self._filter_function_gen
         else:
             # Getting with different frequencies. Remove all cached attributes
             # that are frequency-dependent
             self.cleanup('frequency dependent')
 
         self.cache_filter_function(
-            omega, R=self.get_control_matrix(omega, show_progressbar),
+            omega,
+            control_matrix=self.get_control_matrix(omega, show_progressbar),
             which=which
         )
 
         if which == 'fidelity':
-            return self._F
+            return self._filter_function
         elif which == 'generalized':
-            return self._F_kl
+            return self._filter_function_gen
 
     @util.parse_which_FF_parameter
     def cache_filter_function(self, omega: Coefficients,
-                              R: Optional[ndarray] = None,
-                              F: Optional[ndarray] = None,
+                              control_matrix: Optional[ndarray] = None,
+                              filter_function: Optional[ndarray] = None,
                               which: str = 'fidelity',
                               show_progressbar: bool = False) -> None:
         r"""
-        Cache the filter function. If R.ndim == 4, it is taken to be the 'pulse
-        correlation control matrix' and summed along the first axis. In that
-        case, also the pulse correlation filter function is calculated and
-        cached. Total phase factors and transfer matrices of the the cumulative
-        propagator are also cached so they can be reused during concatenation.
+        Cache the filter function. If control_matrix.ndim == 4, it is taken to
+        be the 'pulse correlation control matrix' and summed along the first
+        axis. In that case, also the pulse correlation filter function is
+        calculated and cached. Total phase factors and transfer matrices of the
+        the cumulative propagator are also cached so they can be reused during
+        concatenation.
 
         Parameters
         ----------
         omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        R: array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional
+        control_matrix: array_like, shape (n_nops, [n_nops,] d**2, n_omega), optional  # noqa
             The control matrix for the frequencies *omega*. If ``None``, it is
             computed and the filter function derived from it.
-        F: array_like, shape (n_nops, n_nops, [d**2, d**2,] n_omega), optional
+        filter_function: array_like, shape (n_nops, n_nops, [d**2, d**2,] n_omega), optional
             The filter function for the frequencies *omega*. If ``None``, it is
-            computed from R.
+            computed from control_matrix.
         which: str, optional
             Which filter function to return. Either 'fidelity' (default) or
             'generalized'.
@@ -613,32 +617,34 @@ class PulseSequence:
         --------
         PulseSequence.get_filter_function : Getter method
         """
-        if F is None:
-            if R is None:
-                R = self.get_control_matrix(omega, show_progressbar)
+        if filter_function is None:
+            if control_matrix is None:
+                control_matrix = self.get_control_matrix(omega,
+                                                         show_progressbar)
 
-            self.cache_control_matrix(omega, R)
-            if R.ndim == 4:
+            self.cache_control_matrix(omega, control_matrix)
+            if control_matrix.ndim == 4:
                 # Calculate pulse correlation FF and derive canonical FF from
                 # it
                 F_pc = numeric.calculate_pulse_correlation_filter_function(
-                    R, which)
+                    control_matrix, which)
 
                 if which == 'fidelity':
-                    self._F_pc = F_pc
+                    self._filter_function_pc = F_pc
                 elif which == 'generalized':
-                    self._F_pc_kl = F_pc
+                    self._filter_function_pc_gen = F_pc
 
-                F = F_pc.sum(axis=(0, 1))
+                filter_function = F_pc.sum(axis=(0, 1))
             else:
                 # Regular case
-                F = numeric.calculate_filter_function(R, which=which)
+                filter_function = \
+                    numeric.calculate_filter_function(control_matrix, which)
 
         self.omega = omega
         if which == 'fidelity':
-            self._F = F
+            self._filter_function = filter_function
         elif which == 'generalized':
-            self._F_kl = F
+            self._filter_function_gen = filter_function
 
     @util.parse_which_FF_parameter
     def get_pulse_correlation_filter_function(
@@ -664,7 +670,7 @@ class PulseSequence:
 
         Returns
         -------
-        F_pc: ndarray, shape (n_pulses, n_pulses, n_nops, n_nops, n_omega)
+        filter_function_pc: ndarray, shape (n_pulses, n_pulses, n_nops, n_nops, n_omega)  # noqa
             The pulse correlation filter function for each noise operator as a
             function of omega. The first two axes correspond to the pulses in
             the sequence, i.e. if the concatenated pulse sequence is
@@ -684,20 +690,20 @@ class PulseSequence:
             for :math:`g,g'\in\{A, B, C\}`.
         """
         if which == 'fidelity':
-            if self.is_cached('F_pc'):
-                return self._F_pc
+            if self.is_cached('filter_function_pc'):
+                return self._filter_function_pc
         elif which == 'generalized':
-            if self.is_cached('F_pc_kl'):
-                return self._F_pc_kl
+            if self.is_cached('filter_function_pc_gen'):
+                return self._filter_function_pc_gen
 
-        if self.is_cached('R_pc'):
+        if self.is_cached('control_matrix_pc'):
             F_pc = numeric.calculate_pulse_correlation_filter_function(
-                self._R_pc, which)
+                self._control_matrix_pc, which)
 
             if which == 'fidelity':
-                self._F_pc = F_pc
+                self._filter_function_pc = F_pc
             elif which == 'generalized':
-                self._F_pc_kl = F_pc
+                self._filter_function_pc_gen = F_pc
 
             return F_pc
 
@@ -741,70 +747,71 @@ class PulseSequence:
         self._total_phases = total_phases
 
     @property
-    def HD(self) -> ndarray:
+    def eigvals(self) -> ndarray:
         """Get the eigenvalues of the pulse's Hamiltonian."""
-        if not self.is_cached('HD'):
+        if not self.is_cached('eigvals'):
             self.diagonalize()
 
-        return self._HD
+        return self._eigvals
 
-    @HD.setter
-    def HD(self, value) -> None:
+    @eigvals.setter
+    def eigvals(self, value) -> None:
         """Set the eigenvalues of the pulse's Hamiltonian."""
-        self._HD = value
+        self._eigvals = value
 
     @property
-    def HV(self) -> ndarray:
+    def eigvecs(self) -> ndarray:
         """Get the eigenvectors of the pulse's Hamiltonian."""
-        if not self.is_cached('HV'):
+        if not self.is_cached('eigvecs'):
             self.diagonalize()
 
-        return self._HV
+        return self._eigvecs
 
-    @HV.setter
-    def HV(self, value) -> None:
+    @eigvecs.setter
+    def eigvecs(self, value) -> None:
         """Set the eigenvalues of the pulse's Hamiltonian."""
-        self._HV = value
+        self._eigvecs = value
 
     @property
-    def Q(self) -> ndarray:
+    def propagators(self) -> ndarray:
         """Get the eigenvectors of the pulse's Hamiltonian."""
-        if not self.is_cached('Q'):
+        if not self.is_cached('propagators'):
             self.diagonalize()
 
-        return self._Q
+        return self._propagators
 
-    @Q.setter
-    def Q(self, value) -> None:
+    @propagators.setter
+    def propagators(self, value) -> None:
         """Set the eigenvalues of the pulse's Hamiltonian."""
-        self._Q = value
+        self._propagators = value
 
     @property
-    def total_Q(self) -> ndarray:
+    def total_propagator(self) -> ndarray:
         """Get total propagator of the pulse."""
-        if not self.is_cached('total_Q'):
+        if not self.is_cached('total_propagator'):
             self.diagonalize()
 
-        return self._total_Q
+        return self._total_propagator
 
-    @total_Q.setter
-    def total_Q(self, value: ndarray) -> None:
+    @total_propagator.setter
+    def total_propagator(self, value: ndarray) -> None:
         """Set total propagator of the pulse."""
-        self._total_Q = value
+        self._total_propagator = value
 
     @property
-    def total_Q_liouville(self) -> ndarray:
+    def total_propagator_liouville(self) -> ndarray:
         """Get the transfer matrix for the total propagator of the pulse."""
-        if not self.is_cached('total_Q_liouville'):
-            self._total_Q_liouville = numeric.liouville_representation(
-                self.total_Q, self.basis)
+        if not self.is_cached('total_propagator_liouville'):
+            self._total_propagator_liouville = \
+                numeric.liouville_representation(self.total_propagator,
+                                                 self.basis)
 
-        return self._total_Q_liouville
+        return self._total_propagator_liouville
 
-    @total_Q_liouville.setter
-    def total_Q_liouville(self, value: ndarray) -> None:
+    @total_propagator_liouville.setter
+    def total_propagator_liouville(self, value: ndarray) -> None:
         """Set the transfer matrix of the total cumulative propagator."""
-        self._total_Q_liouville = value
+        self._total_propagator_liouville = value
 
     @property
     def omega(self) -> ndarray:
@@ -844,27 +851,27 @@ class PulseSequence:
             If set to 'conservative' (the default), only the following
             attributes are deleted:
 
-                - _HD
-                - _HV
-                - _Q
+                - _eigvals
+                - _eigvecs
+                - _propagators
 
             If set to 'greedy', all of the above as well as the following
             attributes are deleted:
 
-                - _total_Q
-                - _total_Q_liouville
+                - _total_propagator
+                - _total_propagator_liouville
                 - _total_phases
-                - _R
-                - _R_pc
+                - _control_matrix
+                - _control_matrix_pc
 
             If set to 'all', all of the above as well as the following
             attributes are deleted:
 
                 - omega
-                - _F
-                - _F_kl
-                - _F_pc
-                - _F_pc_kl
+                - _filter_function
+                - _filter_function_gen
+                - _filter_function_pc
+                - _filter_function_pc_gen
 
             If set to 'frequency dependent' only attributes that are functions
             of frequency are initalized to ``None``.
@@ -873,17 +880,21 @@ class PulseSequence:
             one, some of the attributes might need to be calculated again,
             resulting in slower execution of the concatenation.
         """
-        default_attrs = {'_HD', '_HV', '_Q'}
-        concatenation_attrs = {'_total_Q', '_total_Q_liouville', '_R', '_R_pc',
-                               '_total_phases'}
-        filter_function_attrs = {'omega', '_F', '_F_kl', '_F_pc', '_F_pc_kl'}
+        default_attrs = {'_eigvals', '_eigvecs', '_propagators'}
+        concatenation_attrs = {'_total_propagator', '_total_phases',
+                               '_total_propagator_liouville',
+                               '_control_matrix', '_control_matrix_pc'}
+        filter_function_attrs = {'omega', '_filter_function',
+                                 '_filter_function_gen', '_filter_function_pc',
+                                 '_filter_function_pc_gen'}
 
         if method == 'conservative':
             attrs = default_attrs
         elif method == 'greedy':
             attrs = default_attrs.union(concatenation_attrs)
         elif method == 'frequency dependent':
-            attrs = filter_function_attrs.union({'_R', '_R_pc',
+            attrs = filter_function_attrs.union({'_control_matrix',
+                                                 '_control_matrix_pc',
                                                  '_total_phases'})
         else:
             attrs = filter_function_attrs.union(default_attrs,
@@ -894,10 +905,10 @@ class PulseSequence:
 
     def propagator_at_arb_t(self, t: Coefficients) -> ndarray:
         """
-        Calculate the cumulative propagator Q(t) at times *t* by making use of
-        the fact that we assume piecewise-constant control.
+        Calculate the cumulative propagator Q(t) at times *t* by
+        making use of the fact that we assume piecewise-constant control.
         """
-        # Index of the the propagator Q(t_{l-1}) that evolves the state up to
+        # Index of the popagator Q(t_{l-1}) that evolves the state up to
         # the l-1-st step. Since control is piecewise constant, all we have to
         # do to get the state at an arbitrary time t_{l-1} <= t < t_l is
         # propagate with a time-delta t - t_{l-1} and H_{l}
@@ -905,10 +916,10 @@ class PulseSequence:
         idx = np.searchsorted(self.t, t) - 1
         # Manually set possible negative idx's to zero (happens for t = 0)
         idx[idx < 0] = 0
-        Q_prev = self.Q[idx]
-        U_curr = np.einsum('lij,jl,lkj->lik', self.HV[idx],
-                           util.cexp((self.t[idx] - t)*self.HD[idx].T),
-                           self.HV[idx].conj())
+        Q_prev = self.propagators[idx]
+        U_curr = np.einsum('lij,jl,lkj->lik', self.eigvecs[idx],
+                           util.cexp((self.t[idx] - t)*self.eigvals[idx].T),
+                           self.eigvecs[idx].conj())
 
         return U_curr @ Q_prev
 
@@ -1481,8 +1492,9 @@ def concatenate(pulses: Iterable[PulseSequence],
         pulses, return_identifier_mappings=True
     )
 
-    if all(pls.is_cached('total_Q') for pls in pulses):
-        newpulse.total_Q = util.mdot([pls.total_Q for pls in pulses][::-1])
+    if all(pls.is_cached('total_propagator') for pls in pulses):
+        newpulse.total_propagator = util.mdot([pls.total_propagator
+                                               for pls in pulses][::-1])
 
     if calc_filter_function is False and not calc_pulse_correlation_FF:
         return newpulse
@@ -1512,7 +1524,7 @@ def concatenate(pulses: Iterable[PulseSequence],
     # from scratch at a later point
     equal_n_opers = (n_opers_present.sum(axis=0) > 1).any()
     if omega is None:
-        cached_ctrl_mat = [pls.is_cached('R') for pls in pulses]
+        cached_ctrl_mat = [pls.is_cached('control_matrix') for pls in pulses]
         if any(cached_ctrl_mat):
             equal_omega = util.all_array_equal(
                 (pls.omega for pls in compress(pulses, cached_ctrl_mat))
@@ -1568,44 +1580,47 @@ def concatenate(pulses: Iterable[PulseSequence],
     L = np.empty((len(pulses), N, N))
     L[0] = np.identity(N)
     for i in range(1, len(pulses)):
-        L[i] = pulses[i-1].total_Q_liouville @ L[i-1]
+        L[i] = pulses[i-1].total_propagator_liouville @ L[i-1]
 
     # Get the control matrices for each pulse (agnostic of if it was cached or
     # not). Those are the 'new' pulse control matrices. Sort them along the
     # axis belonging to the noise operators
-    R_g = np.empty((len(pulses), len(newpulse.n_opers), N, len(omega)),
-                   dtype=complex)
+    control_matrix_atomic = np.empty(
+        (len(pulses), len(newpulse.n_opers), N, len(omega)), dtype=complex)
     n_dt_segs = [len(pulse.dt) for pulse in pulses]
     seg_idx = [0] + list(accumulate(n_dt_segs))
     for i, (pulse, idx) in enumerate(zip(pulses, n_opers_present)):
-        R_g[i, idx] = pulse.get_control_matrix(omega, show_progressbar)
+        control_matrix_atomic[i, idx] = pulse.get_control_matrix(
+            omega, show_progressbar)
         if not idx.all():
             # calculate the control matrix for the noise operators that are
             # not present in pulse
-            R_g[i, ~idx] = numeric.calculate_control_matrix_from_scratch(
-                pulse.HD, pulse.HV, pulse.Q, omega, pulse.basis,
-                newpulse.n_opers[~idx],
-                newpulse.n_coeffs[~idx, seg_idx[i]:seg_idx[i+1]],
-                pulse.dt, pulse.t, show_progressbar
+            control_matrix_atomic[i, ~idx] = \
+                numeric.calculate_control_matrix_from_scratch(
+                    pulse.eigvals, pulse.eigvecs, pulse.propagators, omega,
+                    pulse.basis, newpulse.n_opers[~idx],
+                    newpulse.n_coeffs[~idx, seg_idx[i]:seg_idx[i+1]],
+                    pulse.dt, pulse.t, show_progressbar
             )
 
     # Set the total propagator for possible future concatenations (if not done
     # so above)
-    if not newpulse.is_cached('total_Q'):
-        newpulse.total_Q = util.mdot([pls.total_Q for pls in pulses][::-1])
+    if not newpulse.is_cached('total_propagator'):
+        newpulse.total_propagator = util.mdot([pls.total_propagator
+                                               for pls in pulses][::-1])
 
     newpulse.cache_total_phases(omega)
-    newpulse.total_Q_liouville = numeric.liouville_representation(
-        newpulse.total_Q, newpulse.basis)
+    newpulse.total_propagator_liouville = numeric.liouville_representation(
+        newpulse.total_propagator, newpulse.basis)
 
-    R = numeric.calculate_control_matrix_from_atomic(
-        phases, R_g, L, show_progressbar,
+    control_matrix = numeric.calculate_control_matrix_from_atomic(
+        phases, control_matrix_atomic, L, show_progressbar,
         'correlations' if calc_pulse_correlation_FF else 'total'
     )
 
     # Set the attribute and calculate filter function (if the pulse correlation
     # FF has been calculated, this is a little overhead but negligible)
-    newpulse.cache_filter_function(omega, R, which=which)
+    newpulse.cache_filter_function(omega, control_matrix, which=which)
 
     return newpulse
 
@@ -1663,7 +1678,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     except TypeError:
         raise TypeError(f'Expected pulses to be iterable, not {type(pulse)}')
 
-    cached_ctrl_mat = pulse.is_cached('R')
+    cached_ctrl_mat = pulse.is_cached('control_matrix')
 
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
@@ -1691,19 +1706,20 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
         return newpulse
 
     phases_at = pulse.get_total_phases(pulse.omega)
-    R_at = pulse.get_control_matrix(pulse.omega)
-    L_at = pulse.total_Q_liouville
+    control_matrix_at = pulse.get_control_matrix(pulse.omega)
+    L_at = pulse.total_propagator_liouville
 
-    newpulse.total_Q = nla.matrix_power(pulse.total_Q, repeats)
+    newpulse.total_propagator = nla.matrix_power(pulse.total_propagator,
+                                                 repeats)
     newpulse.cache_total_phases(pulse.omega)
     # Might be cheaper for small repeats to use matrix_power, but this function
     # is aimed at a large number so we calculate it explicitly
-    newpulse.total_Q_liouville = newpulse.total_Q_liouville
+    newpulse.total_propagator_liouville = newpulse.total_propagator_liouville
 
-    R_tot = numeric.calculate_control_matrix_periodic(phases_at, R_at, L_at,
-                                                      repeats)
+    control_matrix_tot = numeric.calculate_control_matrix_periodic(
+        phases_at, control_matrix_at, L_at, repeats)
 
-    newpulse.cache_filter_function(pulse.omega, R_tot)
+    newpulse.cache_filter_function(pulse.omega, control_matrix_tot)
 
     return newpulse
 
@@ -1754,11 +1770,11 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
     True
 
     Caching of attributes is automatically handled
-    >>> remapped_pulse.is_cached('F')
+    >>> remapped_pulse.is_cached('filter_function')
     False
     >>> pulse.cache_filter_function(util.get_sample_frequencies(pulse))
     >>> remapped_pulse = remap(pulse, (1, 0))
-    >>> remapped_pulse.is_cached('F')
+    >>> remapped_pulse.is_cached('filter_function')
     True
 
     See Also
@@ -1793,11 +1809,12 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
         basis=pulse.basis
     )
 
-    if pulse.is_cached('HD'):
-        remapped_pulse.HD = util.tensor_transpose(pulse.HD, order,
-                                                  [[d_per_qubit]*N], rank=1)
+    if pulse.is_cached('eigvals'):
+        remapped_pulse.eigvals = util.tensor_transpose(pulse.eigvals, order,
+                                                       [[d_per_qubit]*N],
+                                                       rank=1)
 
-    for attr in ('HV', 'Q', 'total_Q'):
+    for attr in ('eigvecs', 'propagators', 'total_propagator'):
         if pulse.is_cached(attr):
             setattr(remapped_pulse, attr, util.tensor_transpose(
                 getattr(pulse, attr), order, [[d_per_qubit]*N]*2
@@ -1812,31 +1829,35 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
     if pulse.is_cached('total_phases'):
         remapped_pulse.cache_total_phases(omega, pulse.get_total_phases(omega))
 
-    if pulse.is_cached('F'):
-        remapped_F = pulse.get_filter_function(omega)[n_sort_idx[:, None],
-                                                      n_sort_idx[None, :]]
-        remapped_pulse.cache_filter_function(omega, F=remapped_F)
+    if pulse.is_cached('filter_function'):
+        remapped_filter_function = \
+            pulse.get_filter_function(omega)[n_sort_idx[:, None],
+                                             n_sort_idx[None, :]]
+        remapped_pulse.cache_filter_function(
+            omega, filter_function=remapped_filter_function)
 
-    if pulse.is_cached('total_Q_liouville') or pulse.is_cached('R'):
+    if (pulse.is_cached('total_propagator_liouville')
+            or pulse.is_cached('control_matrix')):
         if pulse.basis.btype != 'Pauli':
             warn('pulse does not have a separable basis which is needed to ' +
                  'retain cached control matrices.')
 
             return remapped_pulse
 
-        permutation = remap_pauli_basis_elements(order, N)[None, :]
-        if pulse.is_cached('total_Q_liouville'):
-            remapped_pulse.total_Q_liouville = np.empty_like(
-                pulse.total_Q_liouville
+        perm = remap_pauli_basis_elements(order, N)[None, :]
+        if pulse.is_cached('total_propagator_liouville'):
+            remapped_pulse.total_propagator_liouville = np.empty_like(
+                pulse.total_propagator_liouville
             )
-            remapped_pulse.total_Q_liouville[permutation.T, permutation] = \
-                pulse.total_Q_liouville
+            remapped_pulse.total_propagator_liouville[perm.T, perm] = \
+                pulse.total_propagator_liouville
 
-        if pulse.is_cached('R'):
-            pulse_R = pulse.get_control_matrix(omega)
-            remapped_R = np.empty_like(pulse_R)
-            remapped_R[n_sort_idx.argsort()[:, None], permutation] = pulse_R
-            remapped_pulse.cache_control_matrix(omega, R=remapped_R)
+        if pulse.is_cached('control_matrix'):
+            pulse_control_matrix = pulse.get_control_matrix(omega)
+            remapped_control_matrix = np.empty_like(pulse_control_matrix)
+            remapped_control_matrix[n_sort_idx.argsort()[:, None], perm] = \
+                pulse_control_matrix
+            remapped_pulse.cache_control_matrix(omega, remapped_control_matrix)
 
     return remapped_pulse
 
@@ -1927,14 +1948,14 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
     >>> omega = ff.util.get_sample_frequencies(X_pulse)
     >>> X_pulse.cache_filter_function(omega)
     >>> XX_pulse = ff.extend([(X_pulse, 0), (X_pulse, 1)])
-    >>> XX_pulse.is_cached('F')
+    >>> XX_pulse.is_cached('filter_function')
     True
 
     This behavior can also be overriden manually:
 
     >>> XX_pulse = ff.extend([(X_pulse, 0), (X_pulse, 1)],
     ...                      cache_filter_function=False)
-    >>> XX_pulse.is_cached('F')
+    >>> XX_pulse.is_cached('filter_function')
     False
 
     Mapping pulses to non-neighboring qubits is also possible:
@@ -2076,7 +2097,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
     if cache_filter_function is not False:
         # Cache filter function of extended pulse if cached before for the same
         # frequencies
-        is_cached = all(pulse.is_cached('R') for pulse in pulses)
+        is_cached = all(pulse.is_cached('control_matrix') for pulse in pulses)
 
         try:
             equal_omega = util.all_array_equal((pulse.omega
@@ -2105,8 +2126,9 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
             cache_diagonalization = True
         else:
             # Extend propagators, eigenvalue and -vector arrays if calculated
+            attrs = ('eigvals', 'eigvecs', 'propagators')
             cache_diagonalization = all(pulse.is_cached(attr)
-                                        for attr in ('HD', 'HV', 'Q')
+                                        for attr in attrs
                                         for pulse in pulses)
     elif (cache_diagonalization is False and
           additional_noise_Hamiltonian is not None):
@@ -2233,81 +2255,89 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
         return newpulse
 
     if cache_diagonalization:
-        HD = np.zeros((n_dt, d_per_qubit**N))
-        HV, Q = None, None
+        eigvals = np.zeros((n_dt, d_per_qubit**N))
+        eigvecs, propagators = None, None
         # registers keeps track of the qubits already tensored
         registers = None
 
         for pulse, qubits in zip(multi_qubit_pulses, multi_qubit_idx):
-            # Insert ones into HD at these positions
+            # Insert ones into eigvals at these positions
             HD_pos = [bisect.bisect(qubits, q)
                       for q in all_qubits.difference(qubits)]
 
-            HD += util.tensor_insert(pulse.HD,
-                                     *np.ones((len(HD_pos), d_per_qubit)),
-                                     pos=HD_pos, rank=1,
-                                     arr_dims=[[d_per_qubit]*len(qubits)])
+            eigvals += util.tensor_insert(pulse.eigvals,
+                                          *np.ones((len(HD_pos), d_per_qubit)),
+                                          pos=HD_pos, rank=1,
+                                          arr_dims=[[d_per_qubit]*len(qubits)])
 
-            (HV, Q), registers = _merge_attrs([HV, Q], [pulse.HV, pulse.Q],
-                                              d_per_qubit, registers, qubits)
+            (eigvecs, propagators), registers = _merge_attrs(
+                [eigvecs, propagators], [pulse.eigvecs, pulse.propagators],
+                d_per_qubit, registers, qubits
+            )
 
         for pulse, qubit in zip(single_qubit_pulses, single_qubit_idx):
-            # For single qubit pulses we can just use normal tensor for HD
+            # For single qubit pulses we can just use normal tensor for eigvals
             ones_pre = [np.ones(d_per_qubit**qubit)] if qubit > 0 else []
             ones_post = [np.ones(d_per_qubit**(N - qubit - 1))] \
                 if qubit < N - 1 else []
-            HD += util.tensor(*(ones_pre + [pulse.HD] + ones_post), rank=1)
+            eigvals += util.tensor(*(ones_pre + [pulse.eigvals] + ones_post),
+                                   rank=1)
 
-            (HV, Q), registers = _insert_attrs([HV, Q], [pulse.HV, pulse.Q],
-                                               d_per_qubit, registers, qubit)
+            (eigvecs, propagators), registers = _insert_attrs(
+                [eigvecs, propagators], [pulse.eigvecs, pulse.propagators],
+                d_per_qubit, registers, qubit
+            )
 
         # Fill up registers no qubits have been mapped to with identities
         ID_idx = list(all_qubits.difference(active_qubits))
         if ID_idx:
-            (HV, Q), registers = _merge_attrs(
-                [HV, Q], [np.eye(d_per_qubit**len(ID_idx))]*2, d_per_qubit,
-                registers, ID_idx
+            (eigvecs, propagators), registers = _merge_attrs(
+                [eigvecs, propagators], [np.eye(d_per_qubit**len(ID_idx))]*2,
+                d_per_qubit, registers, ID_idx
             )
 
         # Set the new pulses's attributes
-        newpulse.HD = HD
-        newpulse.HV = HV
-        newpulse.Q = Q
-        # Set total propagator (easier to just grab after Q has been calculated
-        # than tensor separately)
-        newpulse.total_Q = Q[-1]
-    elif all(pulse.is_cached('total_Q') for pulse in pulses):
-        total_Q = None
+        newpulse.eigvals = eigvals
+        newpulse.eigvecs = eigvecs
+        newpulse.propagators = propagators
+        # Set total propagator (easier to just grab after propagators has been
+        # calculated than tensor separately)
+        newpulse.total_propagator = propagators[-1]
+    elif all(pulse.is_cached('total_propagator') for pulse in pulses):
+        total_propagator = None
         # registers keeps track of the qubits already tensored
         registers = None
 
         for pulse, qubits in zip(multi_qubit_pulses, multi_qubit_idx):
-            (total_Q,), registers = _merge_attrs([total_Q], [pulse.total_Q],
-                                                 d_per_qubit, registers,
-                                                 qubits)
+            (total_propagator,), registers = _merge_attrs(
+                [total_propagator], [pulse.total_propagator],
+                d_per_qubit, registers, qubits
+            )
 
         for pulse, qubit in zip(single_qubit_pulses, single_qubit_idx):
-            (total_Q,), registers = _insert_attrs([total_Q], [pulse.total_Q],
-                                                  d_per_qubit, registers,
-                                                  qubit)
+            (total_propagator,), registers = _insert_attrs(
+                [total_propagator], [pulse.total_propagator],
+                d_per_qubit, registers, qubit
+            )
 
         # Fill up registers no qubits have been mapped to with identities
         ID_idx = list(all_qubits.difference(active_qubits))
         if ID_idx:
-            (total_Q,), registers = _merge_attrs(
-                [total_Q], [np.eye(d_per_qubit**len(ID_idx))]*2,
+            (total_propagator,), registers = _merge_attrs(
+                [total_propagator], [np.eye(d_per_qubit**len(ID_idx))]*2,
                 d_per_qubit, registers, ID_idx
             )
 
-        newpulse.total_Q = total_Q
+        newpulse.total_propagator = total_propagator
 
     if cache_filter_function:
         newpulse.omega = omega
 
         n_nops_new = len(newpulse.n_opers)
-        R = np.zeros((n_nops_new, (d_per_qubit**N)**2, len(omega)),
-                     dtype=complex)
-        F = np.zeros((n_nops_new, n_nops_new, len(omega)), dtype=complex)
+        control_matrix = np.zeros(
+            (n_nops_new, (d_per_qubit**N)**2, len(omega)), dtype=complex)
+        filter_function = np.zeros((n_nops_new, n_nops_new, len(omega)),
+                                   dtype=complex)
         n_ops_counter = 0
         for ind, pulse in zip(idx, pulses):
             n_nops = len(pulse.n_opers)
@@ -2320,32 +2350,39 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
 
             # Need to scale the control matrix and filter function
             scaling_factor = d_per_qubit**(N - len(ind))
-            R[n_oper_idx, basis_idx] = pulse.get_control_matrix(
+            control_matrix[n_oper_idx, basis_idx] = pulse.get_control_matrix(
                 omega, show_progressbar=show_progressbar
             )*np.sqrt(scaling_factor)
-            F[n_oper_idx, n_oper_idx] = pulse.get_filter_function(
-                omega, show_progressbar=show_progressbar
+            filter_function[n_oper_idx, n_oper_idx] = \
+                pulse.get_filter_function(
+                    omega, show_progressbar=show_progressbar
             )*scaling_factor
 
         if additional_noise_Hamiltonian is not None:
             newpulse_n_oper_inds = util.get_indices_from_identifiers(
                 newpulse, n_oper_identifiers[n_ops_counter:], 'noise'
             )
-            R[n_ops_counter:] = numeric.calculate_control_matrix_from_scratch(
-                newpulse.HD, newpulse.HV, newpulse.Q, omega, newpulse.basis,
-                newpulse.n_opers[newpulse_n_oper_inds],
-                newpulse.n_coeffs[newpulse_n_oper_inds],
-                newpulse.dt, newpulse.t, show_progressbar=show_progressbar
+            control_matrix[n_ops_counter:] = \
+                numeric.calculate_control_matrix_from_scratch(
+                    newpulse.eigvals, newpulse.eigvecs, newpulse.propagators,
+                    omega, newpulse.basis,
+                    newpulse.n_opers[newpulse_n_oper_inds],
+                    newpulse.n_coeffs[newpulse_n_oper_inds],
+                    newpulse.dt, newpulse.t, show_progressbar=show_progressbar
             )
 
-            F[n_ops_counter:, n_ops_counter:] = \
-                numeric.calculate_filter_function(R[n_ops_counter:])
+            filter_function[n_ops_counter:, n_ops_counter:] = \
+                numeric.calculate_filter_function(
+                    control_matrix[n_ops_counter:]
+                )
 
         newpulse.cache_total_phases(omega)
-        newpulse.total_Q_liouville = numeric.liouville_representation(
-            newpulse.total_Q, newpulse.basis)
-        newpulse.cache_control_matrix(omega, R=R[n_sort_idx])
-        newpulse.cache_filter_function(omega, F=F[n_sort_idx[:, None],
-                                                  n_sort_idx[None, :]])
+        newpulse.total_propagator_liouville = numeric.liouville_representation(
+            newpulse.total_propagator, newpulse.basis)
+        newpulse.cache_control_matrix(omega, control_matrix[n_sort_idx])
+        newpulse.cache_filter_function(
+            omega, filter_function=filter_function[n_sort_idx[:, None],
+                                                   n_sort_idx[None, :]]
+        )
 
     return newpulse

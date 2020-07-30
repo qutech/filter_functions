@@ -214,13 +214,14 @@ class PrecisionTest(testutil.TestCase):
         cnot.diagonalize()
         cnot_subspace.diagonalize()
 
-        phase_eq = ff.util.oper_equiv(cnot_subspace.total_Q[1:5, 1:5],
+        phase_eq = ff.util.oper_equiv(cnot_subspace.total_propagator[1:5, 1:5],
                                       cnot_mat, eps=1e-9)
 
         self.assertTrue(phase_eq[0])
 
         phase_eq = ff.util.oper_equiv(
-            cnot.total_Q[np.ix_(*subspace)][1:5, 1:5], cnot_mat, eps=1e-9)
+            cnot.total_propagator[np.ix_(*subspace)][1:5, 1:5], cnot_mat,
+            eps=1e-9)
 
         self.assertTrue(phase_eq[0])
 

@@ -353,32 +353,31 @@ class CoreTest(testutil.TestCase):
 
         # Diagonalization attributes
         A.diagonalize()
-        self.assertIsNotNone(A.HD)
-        self.assertIsNotNone(A.HV)
-        self.assertIsNotNone(A.Q)
+        self.assertIsNotNone(A.eigvals)
+        self.assertIsNotNone(A.eigvecs)
+        self.assertIsNotNone(A.propagators)
 
         A.cleanup('conservative')
-        self.assertIsNotNone(A.HD)
+        self.assertIsNotNone(A.eigvals)
         A.cleanup('conservative')
-        self.assertIsNotNone(A.HV)
+        self.assertIsNotNone(A.eigvecs)
         A.cleanup('conservative')
-        self.assertIsNotNone(A.Q)
+        self.assertIsNotNone(A.propagators)
 
-        aliases = {'eigenvalues': '_HD',
-                   'eigenvectors': '_HV',
-                   'propagators': '_Q',
-                   'total propagator': '_total_Q',
-                   'total propagator liouville': '_total_Q_liouville',
+        aliases = {'eigenvalues': '_eigvals',
+                   'eigenvectors': '_eigvecs',
+                   'total propagator': '_total_propagator',
+                   'total propagator liouville': '_total_propagator_liouville',
                    'frequencies': '_omega',
                    'total phases': '_total_phases',
-                   'filter function': '_F',
-                   'fidelity filter function': '_F',
-                   'generalized filter function': '_F_kl',
-                   'pulse correlation filter function': '_F_pc',
-                   'fidelity pulse correlation filter function': '_F_pc',
-                   'generalized pulse correlation filter function': '_F_pc_kl',
-                   'control matrix': '_R',
-                   'pulse correlation control matrix': '_R_pc'}
+                   'filter function': '_filter_function',
+                   'fidelity filter function': '_filter_function',
+                   'generalized filter function': '_filter_function_gen',
+                   'pulse correlation filter function': '_filter_function_pc',
+                   'fidelity pulse correlation filter function': '_filter_function_pc',  # noqa
+                   'generalized pulse correlation filter function': '_filter_function_pc_gen',  # noqa
+                   'control matrix': '_control_matrix',
+                   'pulse correlation control matrix': '_control_matrix_pc'}
 
         for alias, attr in aliases.items():
             # set mock attribute at random
@@ -400,7 +399,7 @@ class CoreTest(testutil.TestCase):
                            which='generalized',
                            omega=util.get_sample_frequencies(A))
         C.diagonalize()
-        attrs = ['_HD', '_HV', '_Q']
+        attrs = ['_eigvals', '_eigvecs', '_propagators']
         for attr in attrs:
             self.assertIsNotNone(getattr(C, attr))
 
@@ -410,7 +409,8 @@ class CoreTest(testutil.TestCase):
 
         C.diagonalize()
         C.cache_control_matrix(A.omega)
-        attrs.extend(['_R', '_total_phases', '_total_Q', '_total_Q_liouville'])
+        attrs.extend(['_control_matrix', '_total_phases', '_total_propagator',
+                      '_total_propagator_liouville'])
         for attr in attrs:
             self.assertIsNotNone(getattr(C, attr))
 
@@ -419,25 +419,28 @@ class CoreTest(testutil.TestCase):
             self.assertIsNone(getattr(C, attr))
 
         C.cache_filter_function(A.omega, which='generalized')
-        for attr in attrs + ['omega', '_F_kl', '_F_pc_kl']:
+        for attr in attrs + ['omega', '_filter_function_gen',
+                             '_filter_function_pc_gen']:
             self.assertIsNotNone(getattr(C, attr))
 
         C = ff.concatenate((A, A), calc_pulse_correlation_FF=True,
                            which='fidelity', omega=A.omega)
         C.diagonalize()
         C.cache_filter_function(A.omega, which='fidelity')
-        attrs.extend(['omega', '_F', '_F_pc'])
+        attrs.extend(['omega', '_filter_function', '_filter_function_pc'])
         for attr in attrs:
             self.assertIsNotNone(getattr(C, attr))
 
         C.cleanup('all')
-        for attr in attrs + ['_F_kl', '_F_pc_kl']:
+        for attr in attrs + ['_filter_function_gen',
+                             '_filter_function_pc_gen']:
             self.assertIsNone(getattr(C, attr))
 
         C.cache_filter_function(A.omega, which='fidelity')
         C.cleanup('frequency dependent')
-        freq_attrs = {'omega', '_R', '_F', '_F_kl', '_F_pc', '_F_pc_kl',
-                      '_total_phases'}
+        freq_attrs = {'omega', '_control_matrix', '_filter_function',
+                      '_filter_function_gen', '_filter_function_pc',
+                      '_filter_function_pc_gen', '_total_phases'}
         for attr in freq_attrs:
             self.assertIsNone(getattr(C, attr))
 
@@ -515,16 +518,17 @@ class CoreTest(testutil.TestCase):
         pulses = (pulse_1, pulse_2, pulse_12, pulse_21)
         for pulse in pulses:
             self.assertIsNone(pulse._total_phases)
-            self.assertIsNone(pulse._total_Q)
-            self.assertIsNone(pulse._total_Q_liouville)
+            self.assertIsNone(pulse._total_propagator)
+            self.assertIsNone(pulse._total_propagator_liouville)
 
             total_phases = pulse.get_total_phases(omega)
-            total_Q = pulse.total_Q
-            total_Q_liouville = pulse.total_Q_liouville
+            total_propagator = pulse.total_propagator
+            total_propagator_liouville = pulse.total_propagator_liouville
 
             self.assertArrayEqual(total_phases, pulse._total_phases)
-            self.assertArrayEqual(total_Q, pulse._total_Q)
-            self.assertArrayEqual(total_Q_liouville, pulse._total_Q_liouville)
+            self.assertArrayEqual(total_propagator, pulse._total_propagator)
+            self.assertArrayEqual(total_propagator_liouville,
+                                  pulse._total_propagator_liouville)
 
         # Test custom identifiers
         letters = rng.choice(list(string.ascii_letters), size=(6, 5),
@@ -549,17 +553,18 @@ class CoreTest(testutil.TestCase):
             n_opers, n_coeffs = total_pulse.n_opers, total_pulse.n_coeffs
             dt = total_pulse.dt
 
-            total_HD, total_HV, _ = numeric.diagonalize(
+            total_eigvals, total_eigvecs, _ = numeric.diagonalize(
                 np.einsum('il,ijk->ljk', c_coeffs, c_opers), total_pulse.dt
             )
             omega = util.get_sample_frequencies(total_pulse, n_samples=100)
             # Try the progress bar
-            R = total_pulse.get_control_matrix(omega, show_progressbar=True)
+            control_matrix = total_pulse.get_control_matrix(
+                omega, show_progressbar=True)
 
             # Check that some attributes are cached
             self.assertIsNotNone(total_pulse._total_phases)
-            self.assertIsNotNone(total_pulse._total_Q)
-            self.assertIsNotNone(total_pulse._total_Q_liouville)
+            self.assertIsNotNone(total_pulse._total_propagator)
+            self.assertIsNotNone(total_pulse._total_propagator_liouville)
 
             # Calculate everything 'on foot'
             pulses = [ff.PulseSequence(list(zip(c_opers, c_coeffs[:, i:i+1])),
@@ -569,38 +574,44 @@ class CoreTest(testutil.TestCase):
 
             phases = np.empty((n_dt, len(omega)), dtype=complex)
             L = np.empty((n_dt, d**2, d**2))
-            R_l = np.empty((n_dt, 6, d**2, len(omega)), dtype=complex)
+            control_matrix_l = np.empty((n_dt, 6, d**2, len(omega)),
+                                        dtype=complex)
             for l, pulse in enumerate(pulses):
                 phases[l] = np.exp(1j*total_pulse.t[l]*omega)
-                L[l] = numeric.liouville_representation(total_pulse.Q[l],
-                                                        total_pulse.basis)
-                R_l[l] = pulse.get_control_matrix(omega)
+                L[l] = numeric.liouville_representation(
+                    total_pulse.propagators[l], total_pulse.basis)
+                control_matrix_l[l] = pulse.get_control_matrix(omega)
 
             # Check that both methods of calculating the control are the same
-            R_from_atomic = numeric.calculate_control_matrix_from_atomic(
-                phases, R_l, L)
-            R_from_scratch = numeric.calculate_control_matrix_from_scratch(
-                HD=total_HD,
-                HV=total_HV,
-                Q=total_pulse.Q,
-                omega=omega,
-                basis=total_pulse.basis,
-                n_opers=n_opers,
-                n_coeffs=n_coeffs,
-                dt=total_pulse.dt,
-                t=total_pulse.t
-            )
-            self.assertArrayAlmostEqual(R, R_from_scratch)
+            control_matrix_from_atomic = \
+                numeric.calculate_control_matrix_from_atomic(
+                    phases, control_matrix_l, L
+                )
+            control_matrix_from_scratch = \
+                numeric.calculate_control_matrix_from_scratch(
+                    eigvals=total_eigvals,
+                    eigvecs=total_eigvecs,
+                    propagators=total_pulse.propagators,
+                    omega=omega,
+                    basis=total_pulse.basis,
+                    n_opers=n_opers,
+                    n_coeffs=n_coeffs,
+                    dt=total_pulse.dt,
+                    t=total_pulse.t
+                )
+            self.assertArrayAlmostEqual(control_matrix,
+                                        control_matrix_from_scratch)
             # first column (identity element) always zero but susceptible to
             # floating point error, increase atol
-            self.assertArrayAlmostEqual(R_from_scratch, R_from_atomic,
+            self.assertArrayAlmostEqual(control_matrix_from_scratch,
+                                        control_matrix_from_atomic,
                                         atol=1e-13)
 
             # Check if the filter functions for autocorrelated noise are real
-            F = total_pulse.get_filter_function(omega)
-            self.assertTrue(
-                np.isreal(F[np.eye(len(n_opers), dtype=bool)]).all()
-            )
+            filter_function = total_pulse.get_filter_function(omega)
+            self.assertTrue(np.isreal(
+                filter_function[np.eye(len(n_opers), dtype=bool)]
+            ).all())
 
             # Check switch between fidelity and generalized filter function
             F_generalized = total_pulse.get_filter_function(
@@ -678,16 +689,16 @@ class CoreTest(testutil.TestCase):
                                  calc_pulse_correlation_FF=True,
                                  which='generalized')
 
-        self.assertTrue(pulse_2.is_cached('R_pc'))
-        self.assertTrue(pulse_2.is_cached('F_pc'))
-        self.assertTrue(pulse_3.is_cached('R_pc'))
-        self.assertTrue(pulse_3.is_cached('F_pc_kl'))
+        self.assertTrue(pulse_2.is_cached('control_matrix_pc'))
+        self.assertTrue(pulse_2.is_cached('filter_function_pc'))
+        self.assertTrue(pulse_3.is_cached('control_matrix_pc'))
+        self.assertTrue(pulse_3.is_cached('filter_function_pc_gen'))
 
         # Check if the filter functions on the diagonals are real
-        F = pulse_2.get_pulse_correlation_filter_function()
+        filter_function = pulse_2.get_pulse_correlation_filter_function()
         diag_1 = np.eye(2, dtype=bool)
         diag_2 = np.eye(3, dtype=bool)
-        self.assertTrue(np.isreal(F[diag_1][:, diag_2]).all())
+        self.assertTrue(np.isreal(filter_function[diag_1][:, diag_2]).all())
 
         self.assertEqual(pulse_1, pulse_2)
         self.assertEqual(pulse_2.get_pulse_correlation_filter_function().shape,
@@ -697,76 +708,91 @@ class CoreTest(testutil.TestCase):
             pulse_2.get_pulse_correlation_filter_function().sum((0, 1))
         )
         self.assertArrayAlmostEqual(pulse_1.get_filter_function(omega),
-                                    pulse_2._F)
+                                    pulse_2._filter_function)
 
         # Test the behavior of the pulse correlation control matrix
         with self.assertRaises(ValueError):
             # R wrong dimension
-            numeric.calculate_pulse_correlation_filter_function(pulse_1._R)
+            numeric.calculate_pulse_correlation_filter_function(
+                pulse_1._control_matrix)
 
         with self.assertRaises(util.CalculationError):
             # not calculated
             pulse_1.get_pulse_correlation_control_matrix()
 
-        R_pc = pulse_2.get_pulse_correlation_control_matrix()
+        control_matrix_pc = pulse_2.get_pulse_correlation_control_matrix()
         self.assertArrayEqual(
-            F, numeric.calculate_pulse_correlation_filter_function(
-                R_pc, 'fidelity'
+            filter_function,
+            numeric.calculate_pulse_correlation_filter_function(
+                control_matrix_pc, 'fidelity'
             )
         )
 
-        R_pc = pulse_3.get_pulse_correlation_control_matrix()
-        F = pulse_3.get_pulse_correlation_filter_function(which='fidelity')
+        control_matrix_pc = pulse_3.get_pulse_correlation_control_matrix()
+        filter_function = \
+            pulse_3.get_pulse_correlation_filter_function(which='fidelity')
         self.assertArrayEqual(
-            F, numeric.calculate_pulse_correlation_filter_function(
-                R_pc, 'fidelity'
+            filter_function,
+            numeric.calculate_pulse_correlation_filter_function(
+                control_matrix_pc, 'fidelity'
             )
         )
 
-        F = pulse_3.get_pulse_correlation_filter_function(which='generalized')
+        filter_function = \
+            pulse_3.get_pulse_correlation_filter_function(which='generalized')
         self.assertArrayEqual(
-            F, numeric.calculate_pulse_correlation_filter_function(
-                R_pc, 'generalized'
+            filter_function,
+            numeric.calculate_pulse_correlation_filter_function(
+                control_matrix_pc, 'generalized'
             )
         )
 
-        # If for some reason F_pc_xy is removed, check if recovered from R_pc
-        pulse_2._F_pc = None
-        pulse_3._F_pc_kl = None
+        # If for some reason filter_function_pc_xy is removed, check if
+        # recovered from control_matrix_pc
+        pulse_2._filter_function_pc = None
+        pulse_3._filter_function_pc_gen = None
 
-        R_pc = pulse_3.get_pulse_correlation_control_matrix()
-        F = pulse_3.get_pulse_correlation_filter_function(which='fidelity')
+        control_matrix_pc = pulse_3.get_pulse_correlation_control_matrix()
+        filter_function = \
+            pulse_3.get_pulse_correlation_filter_function(which='fidelity')
         self.assertArrayEqual(
-            F, numeric.calculate_pulse_correlation_filter_function(
-                R_pc, 'fidelity'
+            filter_function,
+            numeric.calculate_pulse_correlation_filter_function(
+                control_matrix_pc, 'fidelity'
             )
         )
 
-        F = pulse_3.get_pulse_correlation_filter_function(which='generalized')
+        filter_function = \
+            pulse_3.get_pulse_correlation_filter_function(which='generalized')
         self.assertArrayEqual(
-            F, numeric.calculate_pulse_correlation_filter_function(
-                R_pc, 'generalized'
+            filter_function,
+            numeric.calculate_pulse_correlation_filter_function(
+                control_matrix_pc, 'generalized'
             )
         )
 
-        S = omega**0*1e-2
+        spectrum = omega**0*1e-2
         with self.assertRaises(util.CalculationError):
-            infid_1 = ff.infidelity(pulse_1, S, omega, which='correlations')
+            infid_1 = ff.infidelity(pulse_1, spectrum, omega,
+                                    which='correlations')
 
         with self.assertRaises(ValueError):
-            infid_1 = ff.infidelity(pulse_1, S, omega, which='foobar')
+            infid_1 = ff.infidelity(pulse_1, spectrum, omega, which='foobar')
 
         for _ in range(10):
             n_nops = rng.randint(1, 4)
             identifiers = sample(['B_0', 'B_1', 'B_2'], n_nops)
 
-            infid_X = ff.infidelity(pulses['X'], S, omega, which='total',
+            infid_X = ff.infidelity(pulses['X'], spectrum, omega,
+                                    which='total',
                                     n_oper_identifiers=identifiers)
-            infid_Y = ff.infidelity(pulses['Y'], S, omega, which='total',
+            infid_Y = ff.infidelity(pulses['Y'], spectrum, omega,
+                                    which='total',
                                     n_oper_identifiers=identifiers)
-            infid_1 = ff.infidelity(pulse_1, S, omega, which='total',
+            infid_1 = ff.infidelity(pulse_1, spectrum, omega, which='total',
                                     n_oper_identifiers=identifiers)
-            infid_2 = ff.infidelity(pulse_2, S, omega, which='correlations',
+            infid_2 = ff.infidelity(pulse_2, spectrum, omega,
+                                    which='correlations',
                                     n_oper_identifiers=identifiers)
 
             self.assertAlmostEqual(infid_1.sum(), infid_2.sum())
@@ -774,11 +800,11 @@ class CoreTest(testutil.TestCase):
             self.assertArrayAlmostEqual(infid_Y, infid_2[1, 1])
 
         # Test function for correlated noise spectra
-        S = np.array([[1e-4/omega**2, 1e-4*np.exp(-omega**2)],
-                      [1e-4*np.exp(-omega**2), 1e-4/omega**2]])
-        infid_1 = ff.infidelity(pulse_1, S, omega, which='total',
+        spectrum = np.array([[1e-4/omega**2, 1e-4*np.exp(-omega**2)],
+                             [1e-4*np.exp(-omega**2), 1e-4/omega**2]])
+        infid_1 = ff.infidelity(pulse_1, spectrum, omega, which='total',
                                 n_oper_identifiers=['B_0', 'B_2'])
-        infid_2 = ff.infidelity(pulse_2, S, omega, which='correlations',
+        infid_2 = ff.infidelity(pulse_2, spectrum, omega, which='correlations',
                                 n_oper_identifiers=['B_0', 'B_2'])
 
         self.assertAlmostEqual(infid_1.sum(), infid_2.sum())
@@ -790,11 +816,11 @@ class CoreTest(testutil.TestCase):
 
         omega = rng.standard_normal(43)
         # single spectrum
-        S = rng.standard_normal(78)
+        spectrum = rng.standard_normal(78)
         for i in range(4):
             with self.assertRaises(ValueError):
                 numeric.calculate_error_vector_correlation_functions(
-                    pulse, np.tile(S, [1]*i), omega
+                    pulse, np.tile(spectrum, [1]*i), omega
                 )
 
     def test_infidelity_convergence(self):
@@ -807,14 +833,14 @@ class CoreTest(testutil.TestCase):
             'n_points': 4
         }
 
-        def S(omega):
+        def spectrum(omega):
             return omega**0
 
         simple_pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
         complicated_pulse = testutil.rand_pulse_sequence(2, 100, 3, 3)
 
         with self.assertRaises(TypeError):
-            n, infids = ff.infidelity(simple_pulse, S, [],
+            n, infids = ff.infidelity(simple_pulse, spectrum, [],
                                       test_convergence=True)
 
         with self.assertRaises(TypeError):
@@ -823,16 +849,18 @@ class CoreTest(testutil.TestCase):
                                       test_convergence=True)
 
         with self.assertRaises(ValueError):
-            n, infids = ff.infidelity(simple_pulse, S, dict(spacing='foobar'),
+            n, infids = ff.infidelity(simple_pulse, spectrum,
+                                      dict(spacing='foobar'),
                                       test_convergence=True)
 
         # Test with default args
-        n, infids = ff.infidelity(simple_pulse, S, {}, test_convergence=True)
+        n, infids = ff.infidelity(simple_pulse, spectrum, {},
+                                  test_convergence=True)
 
         # Test with non-default args
         identifiers = rng.choice(complicated_pulse.n_oper_identifiers,
                                  rng.randint(1, 4))
 
-        n, infids = ff.infidelity(complicated_pulse, S, omega,
+        n, infids = ff.infidelity(complicated_pulse, spectrum, omega,
                                   test_convergence=True,
                                   n_oper_identifiers=identifiers)

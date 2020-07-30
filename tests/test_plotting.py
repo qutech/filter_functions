@@ -210,30 +210,35 @@ class PlottingTest(testutil.TestCase):
     @pytest.mark.filterwarnings('ignore::PendingDeprecationWarning')
     def test_plot_error_transfer_matrix(self):
         omega = ff.util.get_sample_frequencies(simple_pulse)
-        S = 1e-4*np.sin(omega)/omega
+        spectrum = 1e-4*np.sin(omega)/omega
 
         # Test calling with pulse, spectrum, omega
-        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, S, omega,
+        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, spectrum,
+                                                        omega,
                                                         colorscale='linear')
-        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, S, omega,
-                                                        fig=fig)
-        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, S, omega,
-                                                        grid=grid)
+        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, spectrum,
+                                                        omega, fig=fig)
+        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, spectrum,
+                                                        omega, grid=grid)
 
         # Test calling with precomputed transfer matrix
-        U = ff.error_transfer_matrix(simple_pulse, S, omega)
-        fig, grid = plotting.plot_error_transfer_matrix(U=U)
+        U = ff.error_transfer_matrix(simple_pulse, spectrum, omega)
+        fig, grid = plotting.plot_error_transfer_matrix(
+            error_transfer_matrix=U)
 
         # Test calling with precomputed transfer matrix and pulse
-        U = ff.error_transfer_matrix(simple_pulse, S, omega)
-        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, U=U)
+        U = ff.error_transfer_matrix(simple_pulse, spectrum, omega)
+        fig, grid = plotting.plot_error_transfer_matrix(
+            simple_pulse, error_transfer_matrix=U)
 
         # Test calling with precomputed transfer matrix of ndim == 2
-        U = ff.error_transfer_matrix(simple_pulse, S, omega)
-        fig, grid = plotting.plot_error_transfer_matrix(U=U[0])
+        U = ff.error_transfer_matrix(simple_pulse, spectrum, omega)
+        fig, grid = plotting.plot_error_transfer_matrix(
+            error_transfer_matrix=U[0])
 
         # Log colorscale
-        fig, grid = plotting.plot_error_transfer_matrix(U=U, colorscale='log')
+        fig, grid = plotting.plot_error_transfer_matrix(
+            error_transfer_matrix=U, colorscale='log')
 
         # Non-default args
         n_oper_inds = sample(range(len(complicated_pulse.n_opers)),
@@ -246,46 +251,48 @@ class PlottingTest(testutil.TestCase):
 
         omega = ff.util.get_sample_frequencies(complicated_pulse, n_samples=50,
                                                spacing='log')
-        S = np.exp(-omega**2)
-        U = ff.error_transfer_matrix(complicated_pulse, S, omega)
+        spectrum = np.exp(-omega**2)
+        U = ff.error_transfer_matrix(complicated_pulse, spectrum, omega)
         fig, grid = plotting.plot_error_transfer_matrix(
-            complicated_pulse, S=S, omega=omega,
+            complicated_pulse, spectrum=spectrum, omega=omega,
             n_oper_identifiers=n_oper_identifiers, basis_labels=basis_labels,
             basis_labelsize=4, linthresh=1e-4, cmap=plt.cm.jet
         )
         fig, grid = plotting.plot_error_transfer_matrix(
-            U=U[n_oper_inds], n_oper_identifiers=n_oper_identifiers,
-            basis_labels=basis_labels, basis_labelsize=4, linthresh=1e-4,
-            cmap=plt.cm.jet
+            error_transfer_matrix=U[n_oper_inds],
+            n_oper_identifiers=n_oper_identifiers, basis_labels=basis_labels,
+            basis_labelsize=4, linthresh=1e-4, cmap=plt.cm.jet
         )
 
-        # neither U nor all of pulse, S, omega given
+        # neither U nor all of pulse, spectrum, omega given
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, S)
+            plotting.plot_error_transfer_matrix(complicated_pulse, spectrum)
 
         # invalid identifiers
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, S, omega,
+            plotting.plot_error_transfer_matrix(complicated_pulse, spectrum,
+                                                omega,
                                                 n_oper_identifiers=['foo'])
 
         # number of basis_labels not correct
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, S, omega,
+            plotting.plot_error_transfer_matrix(complicated_pulse, spectrum,
+                                                omega,
                                                 basis_labels=basis_labels[:2])
 
         # grid too small
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, S, omega,
-                                                grid=grid[:1])
+            plotting.plot_error_transfer_matrix(complicated_pulse, spectrum,
+                                                omega, grid=grid[:1])
 
         # Test various keyword args for matplotlib for the two-qubit pulse
-        S = np.tile(S, (6, 6, 1))
+        spectrum = np.tile(spectrum, (6, 6, 1))
         grid_kw = {'axes_pad': 0.1}
         cbar_kw = {'orientation': 'horizontal'}
         imshow_kw = {'interpolation': 'bilinear'}
         figure_kw = {'num': 1}
-        fig, ax = plotting.plot_error_transfer_matrix(two_qubit_pulse, S,
-                                                      omega,
+        fig, ax = plotting.plot_error_transfer_matrix(two_qubit_pulse,
+                                                      spectrum, omega,
                                                       imshow_kw=imshow_kw,
                                                       grid_kw=grid_kw,
                                                       cbar_kw=cbar_kw,
@@ -294,10 +301,11 @@ class PlottingTest(testutil.TestCase):
         plt.close('all')
 
     def test_plot_infidelity_convergence(self):
-        def S(omega):
+        def spectrum(omega):
             return omega**0
 
-        n, infids = ff.infidelity(simple_pulse, S, {}, test_convergence=True)
+        n, infids = ff.infidelity(simple_pulse, spectrum, {},
+                                  test_convergence=True)
         fig, ax = plotting.plot_infidelity_convergence(n, infids)
 
 
