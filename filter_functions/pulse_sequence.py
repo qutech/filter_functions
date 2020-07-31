@@ -1168,7 +1168,7 @@ def _concatenate_Hamiltonian(
             identifier_pos = [concat_hashed_opers.index(op) for op in oper]
             for i, p in zip(identifier_pos, pulse_pos):
                 concat_identifiers[i] = concat_identifiers[i] + f'_{p}'
-                pulse_identifier_mapping[p].update(dict(identifier_str=concat_identifiers[i]))
+                pulse_identifier_mapping[p].update({identifier_str: concat_identifiers[i]})
 
     # Sort everything by the identifiers
     sort_idx = np.argsort(concat_identifiers)
