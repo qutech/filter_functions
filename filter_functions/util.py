@@ -1070,8 +1070,7 @@ def progressbar(iterable: Iterable, *args, **kwargs):
     return _tqdm(iterable, *args, **kwargs)
 
 
-def progressbar_range(*args, show_progressbar: Optional[bool] = True,
-                      **kwargs):
+def progressbar_range(*args, show_progressbar: bool = True, **kwargs):
     """Wrapper for range() that shows a progressbar dependent on a kwarg.
 
     Parameters
