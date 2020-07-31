@@ -72,9 +72,11 @@ __all__ = ['calculate_control_matrix_from_atomic',
            'error_transfer_matrix', 'infidelity', 'liouville_representation']
 
 
+@util.parse_optional_parameter('which', ('total', 'correlations'))
 def calculate_control_matrix_from_atomic(
         phases: ndarray, R_g: ndarray, Q_liouville: ndarray,
-        show_progressbar: Optional[bool] = None) -> ndarray:
+        show_progressbar: Optional[bool] = None,
+        which: str = 'total') -> ndarray:
     r"""
     Calculate the control matrix from the control matrices of atomic segments.
 
@@ -89,10 +91,13 @@ def calculate_control_matrix_from_atomic(
         :math:`l\in\{0, 1, \dots, n-1\}`.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
+    which: str, ('total', 'correlations')
+        Compute the total control matrix (the sum of all time steps) or the
+        correlation control matrix (first axis holds each pulses' contribution)
 
     Returns
     -------
-    R: ndarray, shape (n_nops, d**2, n_omega)
+    R: ndarray, shape ([n_pls,] n_nops, d**2, n_omega)
         The control matrix :math:`\mathcal{R}(\omega)`.
 
     Notes
@@ -110,18 +115,24 @@ def calculate_control_matrix_from_atomic(
     liouville_representation: Liouville representation for a given basis.
     """
     n = len(R_g)
-    # Allocate memory
-    R = np.zeros(R_g.shape[1:], dtype=complex)
-
     # Set up a reusable contraction expression. In some cases it is faster to
     # also contract the time dimension in the same expression instead of
     # looping over it, but we don't distinguish here for readability.
     R_expr = oe.contract_expression('ijo,jk->iko',
                                     R_g.shape[1:], Q_liouville.shape[1:])
 
-    for g in util.progressbar_range(n, show_progressbar=show_progressbar,
-                                    desc='Calculating control matrix'):
-        R += R_expr(phases[g]*R_g[g], Q_liouville[g])
+    # Allocate memory
+    if which == 'total':
+        R = np.zeros(R_g.shape[1:], dtype=complex)
+        for g in util.progressbar_range(n, show_progressbar=show_progressbar,
+                                        desc='Calculating control matrix'):
+            R += R_expr(phases[g]*R_g[g], Q_liouville[g])
+    else:
+        # which == 'correlations'
+        R = np.zeros_like(R_g)
+        for g in util.progressbar_range(n, show_progressbar=show_progressbar,
+                                        desc='Calculating control matrix'):
+            R[g] = R_expr(phases[g]*R_g[g], Q_liouville[g])
 
     return R
 
@@ -136,7 +147,7 @@ def calculate_control_matrix_from_scratch(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         t: Optional[Coefficients] = None,
-        show_progressbar: Optional[bool] = False) -> ndarray:
+        show_progressbar: bool = False) -> ndarray:
     r"""
     Calculate the control matrix from scratch, i.e. without knowledge of the
     control matrices of more atomic pulse sequences.
@@ -335,8 +346,8 @@ def calculate_error_vector_correlation_functions(
         S: ndarray,
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
-        show_progressbar: Optional[bool] = False,
-        memory_parsimonious: Optional[bool] = False) -> ndarray:
+        show_progressbar: bool = False,
+        memory_parsimonious: bool = False) -> ndarray:
     r"""
     Get the error vector correlation functions
     :math:`\langle u_{1,k} u_{1, l}\rangle_{\alpha\beta}` for noise sources
@@ -584,8 +595,8 @@ def error_transfer_matrix(
         S: ndarray,
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
-        show_progressbar: Optional[bool] = False,
-        memory_parsimonious: Optional[bool] = False) -> ndarray:
+        show_progressbar: bool = False,
+        memory_parsimonious: bool = False) -> ndarray:
     r"""
     Compute the first correction to the error transfer matrix up to unitary
     rotations and second order in noise.
@@ -909,12 +920,12 @@ def infidelity(pulse: 'PulseSequence',
 
         # Parse argument dict
         try:
-            omega_IR = omega.get('omega_IR', 2*np.pi/pulse.t[-1]*1e-2)
+            omega_IR = omega.get('omega_IR', 2*np.pi/pulse.tau*1e-2)
         except AttributeError:
             raise TypeError('omega should be dictionary with parameters ' +
                             'when test_convergence == True.')
 
-        omega_UV = omega.get('omega_UV', 2*np.pi/pulse.t[-1]*1e+2)
+        omega_UV = omega.get('omega_UV', 2*np.pi/pulse.tau*1e+2)
         spacing = omega.get('spacing', 'linear')
         n_min = omega.get('n_min', 100)
         n_max = omega.get('n_max', 500)

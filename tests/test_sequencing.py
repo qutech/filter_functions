@@ -421,7 +421,7 @@ class ConcatenationTest(testutil.TestCase):
 
             with self.assertRaises(ValueError):
                 ff.concatenate([pulse_1, pulse_3],
-                               calc_pulse_correlation_ff=True)
+                               calc_pulse_correlation_FF=True)
 
             pulse_1.cache_filter_function(omega)
             pulse_2.cache_filter_function(omega)

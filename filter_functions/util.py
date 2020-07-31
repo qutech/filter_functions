@@ -222,6 +222,34 @@ def cexp(x: ndarray) -> ndarray:
     return df_exp
 
 
+def parse_optional_parameter(name: str, allowed: Sequence) -> Callable:
+    """Decorator factory to parse optional parameter with certain legal values.
+
+    If the parameter value corresponding to ``name`` (either in args or kwargs)
+    is not contained in ``allowed`` a ``ValueError`` is raised.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            parameters = inspect.signature(func).parameters
+            idx = tuple(parameters).index(name)
+            try:
+                value = args[idx]
+            except IndexError:
+                value = kwargs.get(name, parameters[name].default)
+
+            if value not in allowed:
+                raise ValueError(f"Invalid value for {name}: {value}. " +
+                                 f"Should be one of {allowed}.")
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+parse_which_FF_parameter = parse_optional_parameter(
+    'which', ('fidelity', 'generalized'))
+
+
 def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int],
                           rank: int):
     """Get shape of the tensor product between A and B of rank rank"""
@@ -265,7 +293,7 @@ def _parse_dims_arg(name: str, dims: Sequence[Sequence[int]],
 
 
 def get_indices_from_identifiers(pulse: 'PulseSequence',
-                                 identifiers: Union[None, Sequence[str]],
+                                 identifiers: Union[None, str, Sequence[str]],
                                  kind: str) -> Tuple[Sequence[int],
                                                      Sequence[str]]:
     """Get the indices of operators for given identifiers.
@@ -274,7 +302,7 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
     ----------
     pulse: PulseSequence
         The PulseSequence instance for which to get the indices.
-    identifiers: sequence of str
+    identifiers: str or sequence of str
         The identifiers whose indices to get.
     kind: str
         Whether to get 'control' or 'noise' operator indices.
@@ -290,8 +318,11 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
         inds = np.arange(len(pulse_identifiers))
     else:
         try:
-            inds = np.array([identifier_to_index_table[identifier]
-                             for identifier in identifiers])
+            if isinstance(identifiers, str):
+                inds = np.array([identifier_to_index_table[identifiers]])
+            else:
+                inds = np.array([identifier_to_index_table[identifier]
+                                 for identifier in identifiers])
         except KeyError:
             raise ValueError('Invalid identifiers given. All available ones ' +
                              f'are: {pulse_identifiers}')
@@ -932,6 +963,7 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
     return res if res.imag.any() else res.real
 
 
+@parse_optional_parameter('spacing', ('log', 'linear'))
 def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
                            spacing: str = 'log',
                            symmetric: bool = True) -> ndarray:
@@ -962,20 +994,19 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
     omega: ndarray
         The frequencies.
     """
-    tau = pulse.t[-1]
+    tau = pulse.tau
     if spacing == 'linear':
         if symmetric:
             freqs = np.linspace(-1e2/tau, 1e2/tau, n_samples)*2*np.pi
         else:
             freqs = np.linspace(0, 1e2/tau, n_samples)*2*np.pi
-    elif spacing == 'log':
+    else:
+        # spacing == 'log'
         if symmetric:
             freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples//2)*2*np.pi
             freqs = np.concatenate([-freqs[::-1], freqs])
         else:
             freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples)*2*np.pi
-    else:
-        raise ValueError("spacing should be either 'linear' or 'log'.")
 
     return freqs
 
@@ -1039,8 +1070,7 @@ def progressbar(iterable: Iterable, *args, **kwargs):
     return _tqdm(iterable, *args, **kwargs)
 
 
-def progressbar_range(*args, show_progressbar: Optional[bool] = True,
-                      **kwargs):
+def progressbar_range(*args, show_progressbar: bool = True, **kwargs):
     """Wrapper for range() that shows a progressbar dependent on a kwarg.
 
     Parameters
@@ -1061,34 +1091,6 @@ def progressbar_range(*args, show_progressbar: Optional[bool] = True,
         return progressbar(range(*args), **kwargs)
 
     return range(*args)
-
-
-def parse_optional_parameter(name: str, allowed: Sequence) -> Callable:
-    """Decorator factory to parse optional parameter with certain legal values.
-
-    If the parameter value corresponding to ``name`` (either in args or kwargs)
-    is not contained in ``allowed`` a ``ValueError`` is raised.
-    """
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            parameters = inspect.signature(func).parameters
-            idx = tuple(parameters).index(name)
-            try:
-                value = args[idx]
-            except IndexError:
-                value = kwargs.get(name, parameters[name].default)
-
-            if value not in allowed:
-                raise ValueError(f"Invalid value for {name}: {value}. " +
-                                 f"Should be one of {allowed}.")
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
-
-
-parse_which_FF_parameter = parse_optional_parameter(
-    'which', ('fidelity', 'generalized'))
 
 
 class CalculationError(Exception):

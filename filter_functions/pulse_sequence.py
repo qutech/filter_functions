@@ -172,6 +172,8 @@ class PulseSequence:
         Time steps
     t: ndarray, shape (n_dt + 1,)
         Absolute times taken to start at :math:`t_0\equiv 0`
+    tau: float
+        Total duration. Equal to t[-1].
     d: int
         Dimension of the Hamiltonian
     basis: Basis, shape (d**2, d, d)
@@ -236,12 +238,13 @@ class PulseSequence:
         self.n_coeffs = None
         self.dt = None
         self.t = None
+        self.tau = None
         self.d = None
         self.basis = None
 
         # Parse the input arguments and set attributes
         attributes = ('c_opers', 'c_oper_identifiers', 'c_coeffs', 'n_opers',
-                      'n_oper_identifiers', 'n_coeffs', 'dt', 't', 'd',
+                      'n_oper_identifiers', 'n_coeffs', 'dt', 't', 'tau', 'd',
                       'basis')
         if not args:
             # Bypass args parsing and directly set necessary attributes
@@ -278,12 +281,7 @@ class PulseSequence:
 
     def __str__(self):
         """String method."""
-        s = 'PulseSequence object with the following attributes:\n'
-        for attr in ('c_opers', 'c_coeffs', 'n_opers', 'n_coeffs', 'dt'):
-            s += f'{attr}:\n'
-            s += str(getattr(self, attr)) + '\n'
-
-        return s
+        return f'{repr(self)} with total duration {self.tau}'
 
     def __eq__(self, other: object) -> bool:
         """
@@ -510,7 +508,7 @@ class PulseSequence:
         raise util.CalculationError(
             "Could not get the pulse correlation control matrix since it " +
             "was not computed during concatenation. Please run the " +
-            "concatenation again with 'calc_pulse_correlation_ff' set to " +
+            "concatenation again with 'calc_pulse_correlation_FF' set to " +
             "True."
         )
 
@@ -706,7 +704,7 @@ class PulseSequence:
         raise util.CalculationError(
             "Could not get the pulse correlation filter function since it " +
             "was not computed during concatenation. Please run the " +
-            "concatenation again with 'calc_pulse_correlation_ff' set to True."
+            "concatenation again with 'calc_pulse_correlation_FF' set to True."
         )
 
     def get_total_phases(self, omega: Coefficients) -> ndarray:
@@ -737,7 +735,7 @@ class PulseSequence:
             they are computed.
         """
         if total_phases is None:
-            total_phases = util.cexp(np.asarray(omega)*self.t[-1])
+            total_phases = util.cexp(np.asarray(omega)*self.tau)
 
         self.omega = omega
         self._total_phases = total_phases
@@ -959,6 +957,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
         raise ValueError('Control and noise Hamiltonian not same dimension!')
 
     t = np.concatenate(([0], dt.cumsum()))
+    tau = t[-1]
     # Dimension of the system
     d = control_args[0].shape[-1]
 
@@ -978,7 +977,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
             raise ValueError("Expected basis elements to be of shape " +
                              f"({d}, {d}), not {basis.shape[1:]}!")
 
-    return (*control_args, *noise_args, dt, t, d, basis)
+    return (*control_args, *noise_args, dt, t, tau, d, basis)
 
 
 def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
@@ -1057,7 +1056,7 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int,
 
     # Check coeffs are all the same length as dt
     if not all(len(coeff) == n_dt for coeff in coeffs):
-        raise ValueError(f'Expected all coefficients in {H_str} '+
+        raise ValueError(f'Expected all coefficients in {H_str} ' +
                          f'to be of len(dt) = {n_dt}!')
 
     coeffs = np.asarray(coeffs)
@@ -1405,8 +1404,10 @@ def concatenate_without_filter_function(
 
     dt = np.concatenate(tuple(pulse.dt for pulse in pulses))
     t = np.concatenate(([0], dt.cumsum()))
+    tau = t[-1]
 
-    attributes = {'dt': dt, 't': t, 'd': pulses[0].d, 'basis': basis}
+    attributes = {'dt': dt, 't': t, 'tau': tau, 'd': pulses[0].d,
+                  'basis': basis}
     attributes.update(**{key: value for key, value
                          in zip(control_keys, control_values)})
     attributes.update(**{key: value for key, value
@@ -1421,7 +1422,7 @@ def concatenate_without_filter_function(
 
 @util.parse_which_FF_parameter
 def concatenate(pulses: Iterable[PulseSequence],
-                calc_pulse_correlation_ff: bool = False,
+                calc_pulse_correlation_FF: bool = False,
                 calc_filter_function: Optional[bool] = None,
                 which: str = 'fidelity',
                 omega: Optional[Coefficients] = None,
@@ -1445,7 +1446,7 @@ def concatenate(pulses: Iterable[PulseSequence],
         pulse will also be calculated in order to make use of the speedup
         gained from concatenating the filter functions. If *omega* is given,
         calculation of the composite filter function is forced.
-    calc_pulse_correlation_ff: bool, optional
+    calc_pulse_correlation_FF: bool, optional
         Switch to control whether the pulse correlation filter function (see
         :meth:`PulseSequence.get_pulse_correlation_filter_function`) is
         calculated. If *omega* is not given, the cached frequencies of all
@@ -1483,7 +1484,7 @@ def concatenate(pulses: Iterable[PulseSequence],
     if all(pls.is_cached('total_Q') for pls in pulses):
         newpulse.total_Q = util.mdot([pls.total_Q for pls in pulses][::-1])
 
-    if calc_filter_function is False and not calc_pulse_correlation_ff:
+    if calc_filter_function is False and not calc_pulse_correlation_FF:
         return newpulse
 
     # If the pulses have different noise operators, we cannot reuse cached
@@ -1525,12 +1526,12 @@ def concatenate(pulses: Iterable[PulseSequence],
         if not equal_omega:
             if calc_filter_function:
                 raise ValueError("Calculation of filter function forced " +
-                                "but not all pulses have the same " +
-                                "frequencies cached and none were supplied!")
-            if calc_pulse_correlation_ff:
+                                 "but not all pulses have the same " +
+                                 "frequencies cached and none were supplied!")
+            if calc_pulse_correlation_FF:
                 raise ValueError("Cannot compute the pulse correlation " +
-                                "filter functions; do not have the " +
-                                "frequencies at which to evaluate.")
+                                 "filter functions; do not have the " +
+                                 "frequencies at which to evaluate.")
 
             return newpulse
 
@@ -1597,12 +1598,10 @@ def concatenate(pulses: Iterable[PulseSequence],
     newpulse.total_Q_liouville = numeric.liouville_representation(
         newpulse.total_Q, newpulse.basis)
 
-    if calc_pulse_correlation_ff:
-        path = ['einsum_path', (1, 2), (0, 1)]
-        R = np.einsum('go,galo,glk->gako', phases, R_g, L, optimize=path)
-    else:
-        R = numeric.calculate_control_matrix_from_atomic(phases, R_g, L,
-                                                         show_progressbar)
+    R = numeric.calculate_control_matrix_from_atomic(
+        phases, R_g, L, show_progressbar,
+        'correlations' if calc_pulse_correlation_FF else 'total'
+    )
 
     # Set the attribute and calculate filter function (if the pulse correlation
     # FF has been calculated, this is a little overhead but negligible)
@@ -1669,6 +1668,8 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
     dt = np.tile(pulse.dt, repeats)
+    t = np.concatenate(([0], dt.cumsum()))
+    tau = t[-1]
     newpulse = PulseSequence(
         c_opers=pulse.c_opers,
         n_opers=pulse.n_opers,
@@ -1677,7 +1678,8 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
         c_coeffs=np.tile(pulse.c_coeffs, (1, repeats)),
         n_coeffs=np.tile(pulse.n_coeffs, (1, repeats)),
         dt=dt,
-        t=np.concatenate(([0], dt.cumsum())),
+        t=t,
+        tau=tau,
         d=pulse.d,
         basis=pulse.basis
     )
@@ -1786,6 +1788,7 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
         n_coeffs=pulse.n_coeffs[n_sort_idx],
         dt=pulse.dt,
         t=pulse.t,
+        tau=pulse.tau,
         d=pulse.d,
         basis=pulse.basis
     )
@@ -2215,6 +2218,7 @@ def extend(pulse_to_qubit_mapping: PulseMapping,
         n_coeffs=np.asarray(n_coeffs)[n_sort_idx],
         dt=pulses[0].dt,
         t=pulses[0].t,
+        tau=pulses[0].tau,
         d=d,
         basis=basis
     )
