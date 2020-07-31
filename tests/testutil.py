@@ -50,10 +50,11 @@ class TestCase(unittest.TestCase):
             raise ValueError('Can only work with PulseSequences')
 
         for i, H in enumerate(H):
-            self.assertArrayAlmostEqual(x._HV[i].conj().T @ H @ x._HV[i],
-                                        np.diag(x._HD[i]), err_msg=err_msg,
-                                        atol=atol, rtol=rtol, verbose=verbose,
-                                        equal_nan=equal_nan)
+            self.assertArrayAlmostEqual(
+                x._eigvecs[i].conj().T @ H @ x._eigvecs[i],
+                np.diag(x._eigvals[i]), err_msg=err_msg, atol=atol, rtol=rtol,
+                verbose=verbose, equal_nan=equal_nan
+            )
 
     def assertArrayEqual(self, x, y, err_msg='', verbose=True):
         """

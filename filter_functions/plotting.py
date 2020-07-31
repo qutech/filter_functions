@@ -418,11 +418,12 @@ def plot_filter_function(pulse: 'PulseSequence',
         xlabel = r'$\omega$'
 
     diag_idx = np.arange(len(pulse.n_opers))
-    F = pulse.get_filter_function(omega)[diag_idx, diag_idx].real
+    filter_function = pulse.get_filter_function(omega)[diag_idx, diag_idx].real
 
     handles = []
     for i, ind in enumerate(n_oper_inds):
-        handles += axes.plot(z, F[ind], label=n_oper_identifiers[i], **plot_kw)
+        handles += axes.plot(z, filter_function[ind],
+                             label=n_oper_identifiers[i], **plot_kw)
 
     # Set the axis scales
     axes.set_xscale(xscale)
@@ -624,9 +625,9 @@ def plot_infidelity_convergence(n_samples: Sequence[int],
 @util.parse_optional_parameter('colorscale', ['linear', 'log'])
 def plot_error_transfer_matrix(
         pulse: Optional['PulseSequence'] = None,
-        S: Optional[ndarray] = None,
+        spectrum: Optional[ndarray] = None,
         omega: Optional[Coefficients] = None,
-        U: Optional[ndarray] = None,
+        error_transfer_matrix: Optional[ndarray] = None,
         n_oper_identifiers: Optional[Sequence[int]] = None,
         basis_labels: Optional[Sequence[str]] = None,
         colorscale: str = 'linear',
@@ -653,15 +654,15 @@ def plot_error_transfer_matrix(
     ----------
     pulse: 'PulseSequence'
         The pulse sequence.
-    S: ndarray
+    spectrum: ndarray
         The two-sided noise spectrum.
     omega: array_like
         The frequencies for which to evaluate the error transfer matrix. Note
         that they should be symmetric around zero, that is, include negative
         frequencies.
-    U: ndarray, shape
-        A precomputed error transfer matrix. If given, *pulse*, *S*, *omega*
-        are not required.
+    error_transfer_matrix: ndarray, shape
+        A precomputed error transfer matrix. If given, *pulse*, *spectrum*,
+        *omega* are not required.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which the error transfer
         matrix should be plotted. All identifiers can be accessed via
@@ -702,6 +703,7 @@ def plot_error_transfer_matrix(
     grid: matplotlib ImageGrid
         The ImageGrid instance used for plotting.
     """
+    U = error_transfer_matrix
     if U is not None:
         if U.ndim == 2:
             U = np.array([U])
@@ -715,16 +717,17 @@ def plot_error_transfer_matrix(
                                       for i in range(len(n_oper_inds))]
 
     else:
-        if pulse is None or S is None or omega is None:
+        if pulse is None or spectrum is None or omega is None:
             raise ValueError('Require either precomputed error transfer ' +
-                             'matrix or pulse, S, and omega as arguments.')
+                             'matrix or pulse, spectrum, and omega as args.')
 
         n_oper_inds = util.get_indices_from_identifiers(pulse,
                                                         n_oper_identifiers,
                                                         'noise')
         n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
         # Get the error transfer matrix
-        U = numeric.error_transfer_matrix(pulse, S, omega, n_oper_identifiers)
+        U = numeric.error_transfer_matrix(pulse, spectrum, omega,
+                                          n_oper_identifiers)
         if U.ndim == 4:
             # Only autocorrelated noise supported
             U = U[range(len(n_oper_inds)), range(len(n_oper_inds))]

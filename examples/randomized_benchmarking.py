@@ -58,7 +58,7 @@ def find_inverse(U: ndarray) -> ndarray:
         return Id
 
     for i, gate in enumerate(permutation(cliffords)):
-        if util.oper_equiv(gate.total_Q @ U, eye, eps=1e-8)[0]:
+        if util.oper_equiv(gate.total_propagator @ U, eye, eps=1e-8)[0]:
             return gate
 
     # Shouldn't reach this point because the major axis pi and pi/2 rotations
@@ -83,7 +83,7 @@ def run_randomized_benchmarking(N_G: int, N_l: int, min_l: int, max_l: int,
         for j in range(N_G):
             randints = np.random.randint(0, len(cliffords), lengths[l])
             U = ff.concatenate(cliffords[randints])
-            U_inv = find_inverse(U.total_Q)
+            U_inv = find_inverse(U.total_propagator)
             pulse_sequence = U @ U_inv
             infidelities[l, j] = state_infidelity(
                 pulse_sequence, S, omega
