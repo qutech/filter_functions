@@ -1072,10 +1072,9 @@ def calculate_second_order_filter_function(
 
         result += step_buf  # last interval
         if g > 0:
-            step_buf = oe.contract('ako,blo->abklo',
-                                   ctrlmat_step.conj(),
-                                   ctrlmat_step_cumulative,
-                                   out=step_buf)
+            step_buf = np.einsum('ako,blo->abklo',
+                                 ctrlmat_step.conj(), ctrlmat_step_cumulative,
+                                 out=step_buf)
 
             result += step_buf  # all intervals up to last
 
