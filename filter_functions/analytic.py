@@ -20,11 +20,11 @@
 # =============================================================================
 r"""
 This file provides functions for the analytical solutions to some of the
-dynamical decoupling sequences. Note that the filter functions given here
-differ by a factor of 1/omega**2 from those defined in this package due to
-different conventions. See for example [Cyw08]_. Depending on the definition of
-the noise Hamiltonian one might also get different results. The functions here
-agree for
+dynamical decoupling sequences. Note that the filter functions given
+here differ by a factor of 1/omega**2 from those defined in this package
+due to different conventions. See for example [Cyw08]_. Depending on the
+definition of the noise Hamiltonian one might also get different
+results. The functions here agree for
 
 .. math::
 
@@ -48,9 +48,9 @@ Functions
 References
 ----------
 .. [Cyw08]
-    Cywiński, Ł., Lutchyn, R. M., Nave, C. P., & Das Sarma, S. (2008). How to
-    enhance dephasing time in superconducting qubits. Physical Review B -
-    Condensed Matter and Materials Physics, 77(17), 1–11.
+    Cywiński, Ł., Lutchyn, R. M., Nave, C. P., & Das Sarma, S. (2008).
+    How to enhance dephasing time in superconducting qubits. Physical
+    Review B - Condensed Matter and Materials Physics, 77(17), 1–11.
     https://doi.org/10.1103/PhysRevB.77.174509
 """
 import numpy as np

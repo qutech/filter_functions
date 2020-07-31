@@ -24,20 +24,22 @@ This module provides various plotting functions.
 Functions
 ---------
 :func:`plot_bloch_vector_evolution`
-    Plot the evolution of the Bloch vector on a QuTiP-generated Bloch sphere
+    Plot the evolution of the Bloch vector on a QuTiP-generated Bloch
+    sphere
 :func:`plot_filter_function`
     Plot the filter function of a given ``PulseSequence``
 :func:`plot_infidelity_convergence`
     Helper function called by
-    :func:`~filter_functions.pulse_sequence.infidelity` to plot the convergence
-    of the infidelity
+    :func:`~filter_functions.pulse_sequence.infidelity` to plot the
+    convergence of the infidelity
 :func:`plot_pulse_correlation_filter_function`
-    Plot the pulse correlation filter function of a given ``PulseSequence``
+    Plot the pulse correlation filter function of a given
+    ``PulseSequence``
 :func:`plot_pulse_train`
     Plot the pulse train of a given ``PulseSequence``
 :func:`plot_error_transfer_matrix`
-    Plot the error transfer matrix of a ``PulseSequence`` for a given spectrum
-    as an image.
+    Plot the error transfer matrix of a ``PulseSequence`` for a given
+    spectrum as an image.
 
 """
 from itertools import product
@@ -55,8 +57,7 @@ from . import numeric, util
 from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes,
                     FigureAxesLegend, FigureGrid, Grid, Operator, State)
 
-__all__ = ['plot_error_transfer_matrix', 'plot_filter_function',
-           'plot_infidelity_convergence',
+__all__ = ['plot_error_transfer_matrix', 'plot_filter_function', 'plot_infidelity_convergence',
            'plot_pulse_correlation_filter_function', 'plot_pulse_train']
 
 try:
@@ -74,8 +75,7 @@ def get_bloch_vector(states: Sequence[State]) -> ndarray:
     try:
         import qutip as qt
     except ImportError as err:
-        raise RuntimeError('Requirements not fulfilled. ' +
-                           'Please install Qutip') from err
+        raise RuntimeError('Requirements not fulfilled. Please install Qutip') from err
 
     if isinstance(states[0], qt.Qobj):
         a = np.empty((3, len(states)))
@@ -85,8 +85,8 @@ def get_bloch_vector(states: Sequence[State]) -> ndarray:
                        qt.expect(Y, state),
                        qt.expect(Z, state)]
     else:
-        a = np.einsum('...ij,kil,...lm->k...',
-                      np.conj(states), util.paulis[1:], states)
+        a = np.einsum('...ij,kil,...lm->k...', np.conj(states), util.paulis[1:], states)
+
     return a.real
 
 
@@ -96,8 +96,7 @@ def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
     try:
         import qutip as qt
     except ImportError as err:
-        raise RuntimeError('Requirements not fulfilled. ' +
-                           'Please install Qutip') from err
+        raise RuntimeError('Requirements not fulfilled. Please install Qutip') from err
 
     bloch_kwargs.setdefault('view', [-150, 30])
     b = qt.Bloch(**bloch_kwargs)
@@ -111,15 +110,15 @@ def get_states_from_prop(U: Sequence[Operator],
                          psi0: Optional[State] = None,
                          prop: str = 'total') -> ndarray:
     r"""
-    Get the the quantum state at time t from the propagator and the inital
-    state:
+    Get the the quantum state at time t from the propagator and the
+    inital state:
 
     .. math::
 
         |\psi(t)\rangle = U(t, 0)|\psi(0)\rangle
 
-    If *prop* is 'piecewise', then it is assumed that *U* is the propagator
-    of a piecewise-constant control:
+    If *prop* is 'piecewise', then it is assumed that *U* is the
+    propagator of a piecewise-constant control:
 
     .. math::
         |\psi(t)\rangle = \prod_{l=1}^n U(t_l, t_{l-1})|\psi(0)\rangle
@@ -145,27 +144,29 @@ def get_states_from_prop(U: Sequence[Operator],
     return states
 
 
-def plot_bloch_vector_evolution(pulse: 'PulseSequence',
-                                psi0: Optional[State] = None,
-                                b: Optional[qt.Bloch] = None,
-                                n_samples: Optional[int] = None,
-                                cmap: Optional[Colormap] = None,
-                                show: bool = True,
-                                return_Bloch: bool = False,
-                                **bloch_kwargs) -> Union[None, qt.Bloch]:
+def plot_bloch_vector_evolution(
+        pulse: 'PulseSequence',
+        psi0: Optional[State] = None,
+        b: Optional[qt.Bloch] = None,
+        n_samples: Optional[int] = None,
+        cmap: Optional[Colormap] = None,
+        show: bool = True, return_Bloch: bool = False,
+        **bloch_kwargs) -> Union[None, qt.Bloch]:
     r"""
-    Plot the evolution of the Bloch vector under the given pulse sequence.
+    Plot the evolution of the Bloch vector under the given pulse
+    sequence.
 
     Parameters
     ----------
     pulse: PulseSequence
-        The PulseSequence instance whose control Hamiltonian determines the
-        time evolution of the Bloch vector.
+        The PulseSequence instance whose control Hamiltonian determines
+        the time evolution of the Bloch vector.
     psi0: Qobj or array_like, optional
         The initial state before the pulse is applied. Defaults to
         :math:`|0\rangle`.
     b: qutip.Bloch, optional
-        If given, the QuTiP Bloch instance on which to plot the time evolution.
+        If given, the QuTiP Bloch instance on which to plot the time
+        evolution.
     n_samples: int, optional
         The number of time points to be sampled.
     cmap: matplotlib colormap, optional
@@ -175,8 +176,8 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     return_Bloch: bool, optional
         Whether to return the :class:`qutip.bloch.Bloch` instance
     bloch_kwargs: dict, optional
-        A dictionary with keyword arguments to be fed into the qutip.Bloch
-        constructor (if *b* not given).
+        A dictionary with keyword arguments to be fed into the
+        qutip.Bloch constructor (if *b* not given).
 
     Returns
     -------
@@ -194,8 +195,7 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     """
     # Raise an exception if not a one-qubit pulse
     if not pulse.d == 2:
-        raise ValueError('Plotting Bloch sphere evolution only implemented ' +
-                         'for one-qubit case!')
+        raise ValueError('Plotting Bloch sphere evolution only implemented for one-qubit case!')
 
     # Parse default arguments
     if b is None:
@@ -217,8 +217,7 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     for i in range(n_cops):
         for j, coeff in enumerate(pulse.c_coeffs[i]):
             if coeff != 0:
-                coeffs[i] += coeff*(pulse.t[j] <= times) *\
-                    (times <= pulse.t[j+1])
+                coeffs[i] += coeff*(pulse.t[j] <= times)*(times <= pulse.t[j+1])
 
     propagators = pulse.propagator_at_arb_t(times)
     points = get_bloch_vector(get_states_from_prop(propagators, psi0))
@@ -227,9 +226,7 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
     # The following enables a color gradient for the trajectory, but only works
     # by patching matplotlib, see
     # https://github.com/matplotlib/matplotlib/issues/17755
-    # points = get_bloch_vector(
-    #     get_states_from_prop(propagators, psi0)
-    # ).T.reshape(-1, 1, 3)
+    # points = get_bloch_vector(get_states_from_prop(propagators, psi0)).T.reshape(-1, 1, 3)
     # points[:, :, 1] *= -1  # qutip convention
     # segments = np.concatenate([points[:-1], points[1:]], axis=1)
 
@@ -247,14 +244,15 @@ def plot_bloch_vector_evolution(pulse: 'PulseSequence',
         return b
 
 
-def plot_pulse_train(pulse: 'PulseSequence',
-                     c_oper_identifiers: Optional[Sequence[int]] = None,
-                     fig: Optional[Figure] = None,
-                     axes: Optional[Axes] = None,
-                     plot_kw: Optional[dict] = {},
-                     subplot_kw: Optional[dict] = None,
-                     gridspec_kw: Optional[dict] = None,
-                     **figure_kw) -> FigureAxesLegend:
+def plot_pulse_train(
+        pulse: 'PulseSequence',
+        c_oper_identifiers: Optional[Sequence[int]] = None,
+        fig: Optional[Figure] = None,
+        axes: Optional[Axes] = None,
+        plot_kw: Optional[dict] = {},
+        subplot_kw: Optional[dict] = None,
+        gridspec_kw: Optional[dict] = None,
+        **figure_kw) -> FigureAxesLegend:
     """
     Plot the pulsetrain of the ``PulseSequence`` *pulse*.
 
@@ -263,8 +261,8 @@ def plot_pulse_train(pulse: 'PulseSequence',
     pulse: PulseSequence
         The pulse sequence whose pulse train to plot.
     c_oper_identifiers: array_like, optional
-        The identifiers of the control operators for which the pulse train
-        should be plotted. All identifiers can be accessed via
+        The identifiers of the control operators for which the pulse
+        train should be plotted. All identifiers can be accessed via
         ``pulse.c_oper_identifiers``. Defaults to all.
     fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
@@ -273,13 +271,15 @@ def plot_pulse_train(pulse: 'PulseSequence',
     plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
     subplot_kw: dict, optional
-        Dictionary with keyword arguments passed to the subplots constructor
+        Dictionary with keyword arguments passed to the subplots
+        constructor
     gridspec_kw: dict, optional
-        Dictionary with keyword arguments passed to the gridspec constructor
+        Dictionary with keyword arguments passed to the gridspec
+        constructor
     figure_kw: optional
         Keyword argument dictionaries that are fed into the
-        :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
-        specified.
+        :func:`matplotlib.pyplot.subplots` function if no *fig* instance
+        is specified.
 
     Returns
     -------
@@ -295,8 +295,7 @@ def plot_pulse_train(pulse: 'PulseSequence',
     ValueError
         If an invalid number of c_oper_labels were given
     """
-    c_oper_inds = util.get_indices_from_identifiers(pulse, c_oper_identifiers,
-                                                    'control')
+    c_oper_inds = util.get_indices_from_identifiers(pulse, c_oper_identifiers, 'control')
     c_oper_identifiers = pulse.c_oper_identifiers[c_oper_inds]
 
     if fig is None and axes is None:
@@ -312,8 +311,7 @@ def plot_pulse_train(pulse: 'PulseSequence',
     handles = []
     for i, c_coeffs in enumerate(pulse.c_coeffs[tuple(c_oper_inds), ...]):
         coeffs = np.insert(c_coeffs, 0, c_coeffs[0])
-        handles += axes.step(pulse.t, coeffs, label=c_oper_identifiers[i],
-                             **plot_kw)
+        handles += axes.step(pulse.t, coeffs, label=c_oper_identifiers[i], **plot_kw)
 
     axes.set_xlim(pulse.t[0], pulse.tau)
     axes.set_xlabel(r'$t$ / a.u.')
@@ -324,18 +322,19 @@ def plot_pulse_train(pulse: 'PulseSequence',
     return fig, axes, legend
 
 
-def plot_filter_function(pulse: 'PulseSequence',
-                         omega: Optional[Coefficients] = None,
-                         n_oper_identifiers: Optional[Sequence[int]] = None,
-                         fig: Optional[Figure] = None,
-                         axes: Optional[Axes] = None,
-                         xscale: str = 'log',
-                         yscale: str = 'linear',
-                         omega_in_units_of_tau: bool = True,
-                         plot_kw: dict = {},
-                         subplot_kw: Optional[dict] = None,
-                         gridspec_kw: Optional[dict] = None,
-                         **figure_kw) -> FigureAxesLegend:
+def plot_filter_function(
+        pulse: 'PulseSequence',
+        omega: Optional[Coefficients] = None,
+        n_oper_identifiers: Optional[Sequence[int]] = None,
+        fig: Optional[Figure] = None,
+        axes: Optional[Axes] = None,
+        xscale: str = 'log',
+        yscale: str = 'linear',
+        omega_in_units_of_tau: bool = True,
+        plot_kw: dict = {},
+        subplot_kw: Optional[dict] = None,
+        gridspec_kw: Optional[dict] = None,
+        **figure_kw) -> FigureAxesLegend:
     r"""
     Plot the fidelity filter function(s) of the given PulseSequence for
     positive frequencies. As of now only the diagonal elements of
@@ -347,12 +346,12 @@ def plot_filter_function(pulse: 'PulseSequence',
     pulse: PulseSequence
         The pulse sequence whose filter function to plot.
     omega: array_like, optional
-        The frequencies at which to evaluate the filter function. If not given,
-        the pulse sequence's omega attribute is used (if set) or sensible
-        values are chosen automatically (if ``None``)
+        The frequencies at which to evaluate the filter function. If not
+        given, the pulse sequence's omega attribute is used (if set) or
+        sensible values are chosen automatically (if ``None``)
     n_oper_identifiers: array_like, optional
-        The identifiers of the noise operators for which the filter function
-        should be plotted. All identifiers can be accessed via
+        The identifiers of the noise operators for which the filter
+        function should be plotted. All identifiers can be accessed via
         ``pulse.n_oper_identifiers``. Defaults to all.
     fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
@@ -367,13 +366,15 @@ def plot_filter_function(pulse: 'PulseSequence',
     plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
     subplot_kw: dict, optional
-        Dictionary with keyword arguments passed to the subplots constructor
+        Dictionary with keyword arguments passed to the subplots
+        constructor
     gridspec_kw: dict, optional
-        Dictionary with keyword arguments passed to the gridspec constructor
+        Dictionary with keyword arguments passed to the gridspec
+        constructor
     figure_kw: optional
         Keyword argument dictionaries that are fed into the
-        :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
-        specified.
+        :func:`matplotlib.pyplot.subplots` function if no *fig* instance
+        is specified.
 
     Returns
     -------
@@ -395,8 +396,7 @@ def plot_filter_function(pulse: 'PulseSequence',
         else:
             omega = pulse.omega
 
-    n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers,
-                                                    'noise')
+    n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
     n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
 
     if fig is None and axes is None:
@@ -458,21 +458,21 @@ def plot_pulse_correlation_filter_function(
         **figure_kw) -> FigureAxesLegend:
     r"""
     Plot the fidelity pulse correlation filter functions of the given
-    PulseSequence if they were computed during concatenation for positive
-    frequencies.
+    PulseSequence if they were computed during concatenation for
+    positive frequencies.
 
-    Returns a figure with *n* by *n* subplots where *n* is the number of pulses
-    that were concatenated. As of now only the diagonal elements of
-    :math:`F_{\alpha\beta}` are implemented, i.e. the filter functions
-    corresponding to uncorrelated noise sources.
+    Returns a figure with *n* by *n* subplots where *n* is the number of
+    pulses that were concatenated. As of now only the diagonal elements
+    of :math:`F_{\alpha\beta}` are implemented, i.e. the filter
+    functions corresponding to uncorrelated noise sources.
 
     Parameters
     ----------
     pulse: PulseSequence
         The pulse sequence whose filter function to plot.
     n_oper_identifiers: array_like, optional
-        The identifiers of the noise operators for which the filter function
-        should be plotted. All identifiers can be accessed via
+        The identifiers of the noise operators for which the filter
+        function should be plotted. All identifiers can be accessed via
         ``pulse.n_oper_identifiers``. Defaults to all.
     fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
@@ -485,13 +485,15 @@ def plot_pulse_correlation_filter_function(
     plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
     subplot_kw: dict, optional
-        Dictionary with keyword arguments passed to the subplots constructor
+        Dictionary with keyword arguments passed to the subplots
+        constructor
     gridspec_kw: dict, optional
-        Dictionary with keyword arguments passed to the gridspec constructor
+        Dictionary with keyword arguments passed to the gridspec
+        constructor
     figure_kw: optional
         Keyword argument dictionaries that are fed into the
-        :func:`matplotlib.pyplot.subplots` function if no *fig* instance is
-        specified.
+        :func:`matplotlib.pyplot.subplots` function if no *fig* instance
+        if specified.
 
     Returns
     -------
@@ -508,8 +510,7 @@ def plot_pulse_correlation_filter_function(
         If the pulse correlation filter function was not computed during
         concatenation.
     """
-    n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers,
-                                                    'noise')
+    n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
     n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
     diag_idx = np.arange(len(pulse.n_opers))
     F_pc = pulse.get_pulse_correlation_filter_function()
@@ -518,8 +519,7 @@ def plot_pulse_correlation_filter_function(
 
     if fig is None:
         fig, axes = plt.subplots(n, n, sharex=True, subplot_kw=subplot_kw,
-                                 gridspec_kw=gridspec_kw,
-                                 **figure_kw)
+                                 gridspec_kw=gridspec_kw, **figure_kw)
 
     else:
         subplot_kw = subplot_kw or {}
@@ -529,9 +529,7 @@ def plot_pulse_correlation_filter_function(
             for col in range(n):
                 if not (row == 0 and col == 0):
                     index = np.ravel_multi_index([row, col], dims=(n, n)) + 1
-                    axes[row, col] = fig.add_subplot(n, n, index,
-                                                     sharex=axes[0, 0],
-                                                     **subplot_kw)
+                    axes[row, col] = fig.add_subplot(n, n, index, sharex=axes[0, 0], **subplot_kw)
 
     omega = pulse.omega
     if omega_in_units_of_tau:
@@ -587,17 +585,19 @@ def plot_pulse_correlation_filter_function(
 def plot_infidelity_convergence(n_samples: Sequence[int],
                                 infids: Sequence[float]) -> FigureAxes:
     """
-    Plot the convergence of the infidelity integral. The function arguments are
-    those returned by :func:`~filter_functions.numeric.infidelity` with the
+    Plot the convergence of the infidelity integral. The function
+    arguments are those returned by
+    :func:`~filter_functions.numeric.infidelity` with the
     *test_convergence* flag set to ``True``.
 
     Parameters
     ----------
     n_samples: array_like
-        Array with the number of samples at which the integral was evaluated
+        Array with the number of samples at which the integral was
+        evaluated
     infids: array_like, shape (n_samples, [n_oper_inds, optional])
-        Array with the calculated infidelities for each noise operator on the
-        second axis or the second axis already traced out.
+        Array with the calculated infidelities for each noise operator
+        on the second axis or the second axis already traced out.
 
     Returns
     -------
@@ -616,8 +616,7 @@ def plot_infidelity_convergence(n_samples: Sequence[int],
     ax[1].grid()
 
     ax[0].plot(n_samples, infids, 'o-')
-    ax[1].semilogy(n_samples, np.abs(np.gradient(infids, axis=0))/infids*100,
-                   'o-')
+    ax[1].semilogy(n_samples, np.abs(np.gradient(infids, axis=0))/infids*100, 'o-')
 
     return fig, ax
 
@@ -642,11 +641,13 @@ def plot_error_transfer_matrix(
         imshow_kw: Optional[dict] = None,
         **figure_kw) -> FigureGrid:
     """
-    Plot the error transfer matrix for a given noise spectrum as an image.
+    Plot the error transfer matrix for a given noise spectrum as an
+    image.
 
-    The function may be called with either a ``PulseSequence``, a spectrum, and
-    a list of frequencies in which case the error transfer matrix is calculated
-    for those parameters, or with a precomputed error transfer matrix.
+    The function may be called with either a ``PulseSequence``, a
+    spectrum, and a list of frequencies in which case the error transfer
+    matrix is calculated for those parameters, or with a precomputed
+    error transfer matrix.
 
     As of now, only auto-correlated spectra are implemented.
 
@@ -657,24 +658,24 @@ def plot_error_transfer_matrix(
     spectrum: ndarray
         The two-sided noise spectrum.
     omega: array_like
-        The frequencies for which to evaluate the error transfer matrix. Note
-        that they should be symmetric around zero, that is, include negative
-        frequencies.
+        The frequencies for which to evaluate the error transfer matrix.
+        Note that they should be symmetric around zero, that is, include
+        negative frequencies.
     error_transfer_matrix: ndarray, shape
-        A precomputed error transfer matrix. If given, *pulse*, *spectrum*,
-        *omega* are not required.
+        A precomputed error transfer matrix. If given, *pulse*,
+        *spectrum*, *omega* are not required.
     n_oper_identifiers: array_like, optional
-        The identifiers of the noise operators for which the error transfer
-        matrix should be plotted. All identifiers can be accessed via
-        ``pulse.n_oper_identifiers``. Defaults to all.
+        The identifiers of the noise operators for which the error
+        transfer matrix should be plotted. All identifiers can be
+        accessed via ``pulse.n_oper_identifiers``. Defaults to all.
     basis_labels: array_like (str), optional
         Labels for the elements of the error transfer matrix (the basis
         elements).
     colorscale: str, optional
         The scale of the color code ('linear' or 'log' (default))
     linthresh: float, optional
-        The threshold below which the colorscale will be linear (only for
-        'log') colorscale
+        The threshold below which the colorscale will be linear (only
+        for 'log') colorscale
     cbar_label: str, optional
         The label for the colorbar. Default: 'Error transfer matrix'.
     basis_labelsize: int, optional
@@ -686,15 +687,17 @@ def plot_error_transfer_matrix(
     cmap: matplotlib colormap, optional
         The colormap for the matrix plot.
     grid_kw: dict, optional
-        Dictionary with keyword arguments passed to the ImageGrid constructor.
+        Dictionary with keyword arguments passed to the ImageGrid
+        constructor.
     cbar_kw: dict, optional
-        Dictionary with keyword arguments passed to the colorbar constructor.
+        Dictionary with keyword arguments passed to the colorbar
+        constructor.
     imshow_kw: dict, optional
         Dictionary with keyword arguments passed to imshow.
     figure_kw: optional
         Keyword argument dictionaries that are fed into the
-        :func:`matplotlib.pyplot.figure` function if no *fig* instance is
-        specified.
+        :func:`matplotlib.pyplot.figure` function if no *fig* instance
+        is specified.
 
     Returns
     -------
@@ -713,21 +716,17 @@ def plot_error_transfer_matrix(
             if pulse is not None and len(pulse.n_oper_identifiers) == len(U):
                 n_oper_identifiers = pulse.n_oper_identifiers
             else:
-                n_oper_identifiers = [f'$B_{{{i}}}$'
-                                      for i in range(len(n_oper_inds))]
+                n_oper_identifiers = [f'$B_{{{i}}}$' for i in range(len(n_oper_inds))]
 
     else:
         if pulse is None or spectrum is None or omega is None:
             raise ValueError('Require either precomputed error transfer ' +
                              'matrix or pulse, spectrum, and omega as args.')
 
-        n_oper_inds = util.get_indices_from_identifiers(pulse,
-                                                        n_oper_identifiers,
-                                                        'noise')
+        n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
         n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
         # Get the error transfer matrix
-        U = numeric.error_transfer_matrix(pulse, spectrum, omega,
-                                          n_oper_identifiers)
+        U = numeric.error_transfer_matrix(pulse, spectrum, omega, n_oper_identifiers)
         if U.ndim == 4:
             # Only autocorrelated noise supported
             U = U[range(len(n_oper_inds)), range(len(n_oper_inds))]
@@ -803,8 +802,7 @@ def plot_error_transfer_matrix(
         ax.set_title(n_oper_identifier)
         ax.set_xticks(np.arange(U.shape[-1]))
         ax.set_yticks(np.arange(U.shape[-1]))
-        ax.set_xticklabels(basis_labels, rotation='vertical',
-                           fontsize=basis_labelsize)
+        ax.set_xticklabels(basis_labels, fontsize=basis_labelsize, rotation='vertical')
         ax.set_yticklabels(basis_labels, fontsize=basis_labelsize)
         ax.spines['left'].set_visible(False)
         ax.spines['right'].set_visible(False)
