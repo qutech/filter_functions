@@ -152,7 +152,7 @@ def calculate_control_matrix_from_scratch(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         t: Optional[Coefficients] = None,
-        show_progressbar: Optional[bool] = False) -> ndarray:
+        show_progressbar: bool = False) -> ndarray:
     r"""
     Calculate the control matrix from scratch, i.e. without knowledge of
     the control matrices of more atomic pulse sequences.
@@ -359,8 +359,8 @@ def calculate_error_vector_correlation_functions(
         spectrum: ndarray,
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
-        show_progressbar: Optional[bool] = False,
-        memory_parsimonious: Optional[bool] = False) -> ndarray:
+        show_progressbar: bool = False,
+        memory_parsimonious: bool = False) -> ndarray:
     r"""
     Get the error vector correlation functions
     :math:`\langle u_{1,k} u_{1, l}\rangle_{\alpha\beta}` for noise
@@ -615,8 +615,8 @@ def error_transfer_matrix(
         spectrum: ndarray,
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
-        show_progressbar: Optional[bool] = False,
-        memory_parsimonious: Optional[bool] = False) -> ndarray:
+        show_progressbar: bool = False,
+        memory_parsimonious: bool = False) -> ndarray:
     r"""
     Compute the first correction to the error transfer matrix up to
     unitary rotations and second order in noise.
