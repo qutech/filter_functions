@@ -553,6 +553,7 @@ def calculate_cumulant_function(
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
         which: Optional[str] = 'total',
+        second_order: bool = False,
         show_progressbar: Optional[bool] = False,
         memory_parsimonious: Optional[bool] = False) -> ndarray:
     r"""Calculate the cumulant function :math:`K(\tau)`.
@@ -585,7 +586,12 @@ def calculate_cumulant_function(
     which: str, optional
         Which decay amplitudes should be calculated, may be either 'total'
         (default) or 'correlations'. See :func:`infidelity` and
-        :ref:`Notes <notes>`.
+        :ref:`Notes <notes>`. Note that the latter is not available for the
+        second order terms.
+    second_order: bool, optional
+        Also take into account the frequency shifts :math:`\Delta` that
+        correspond to second order Magnus expansion and constitute unitary
+        terms. Default ``False``.
     show_progressbar: bool, optional
         Show a progress bar for the calculation of the control matrix.
     memory_parsimonious: bool, optional
@@ -661,6 +667,14 @@ def calculate_cumulant_function(
     Gamma = calculate_decay_amplitudes(pulse, S, omega, n_oper_identifiers,
                                        which, show_progressbar,
                                        memory_parsimonious)
+    if second_order:
+        if which == 'correlations':
+            raise ValueError('Cannot compute correlation cumulant function' +
+                             'for second order terms.')
+
+        Delta = calculate_frequency_shifts(pulse, S, omega, n_oper_identifiers,
+                                           show_progressbar,
+                                           memory_parsimonious)
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
@@ -678,6 +692,9 @@ def calculate_cumulant_function(
             K[..., i, i] = - Gamma[..., diag_items, diag_items].sum(axis=-1)
             # shift the item not summed over by one
             diag_items.rotate()
+
+        if second_order:
+            K -= Delta - Delta.swapaxes(-1, -2)
     else:
         # Multi qubit case. Use general expression.
         T = pulse.basis.four_element_traces
@@ -685,6 +702,11 @@ def calculate_cumulant_function(
                oe.contract('...kl,kjli->...ij', Gamma, T, backend='sparse') -
                oe.contract('...kl,kilj->...ij', Gamma, T, backend='sparse') +
                oe.contract('...kl,kijl->...ij', Gamma, T, backend='sparse'))/2
+        if second_order:
+            K -= (oe.contract('...kl,klji->...ij', Delta, T, backend='sparse') -
+                  oe.contract('...kl,lkji->...ij', Delta, T, backend='sparse') -
+                  oe.contract('...kl,klij->...ij', Delta, T, backend='sparse') +
+                  oe.contract('...kl,lkij->...ij', Delta, T, backend='sparse'))/2
 
     return K.real
 
@@ -1204,6 +1226,7 @@ def error_transfer_matrix(
         omega: Optional[Coefficients] = None,
         K: Optional[ndarray] = None,
         n_oper_identifiers: Optional[Sequence[str]] = None,
+        second_order: bool = False,
         show_progressbar: Optional[bool] = False,
         memory_parsimonious: Optional[bool] = False) -> ndarray:
     r"""Compute the error transfer matrix up to unitary rotations.
@@ -1236,6 +1259,10 @@ def error_transfer_matrix(
         contributions from different noise operators won't commute, not
         selecting all noise operators results in neglecting terms of order
         :math:`\xi^4`.
+    second_order: bool, optional
+        Also take into account the frequency shifts :math:`\Delta` that
+        correspond to second order Magnus expansion and constitute unitary
+        terms. Default ``False``.
     show_progressbar: bool, optional
         Show a progress bar for the calculation of the control matrix.
     memory_parsimonious: bool, optional
@@ -1287,8 +1314,8 @@ def error_transfer_matrix(
                              ' or pulse, S, and omega as arguments.')
 
         K = calculate_cumulant_function(pulse, S, omega, n_oper_identifiers,
-                                        'total', show_progressbar,
-                                        memory_parsimonious)
+                                        'total', second_order,
+                                        show_progressbar, memory_parsimonious)
 
     try:
         U = sla.expm(K.sum(axis=tuple(range(K.ndim - 2))))
