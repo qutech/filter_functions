@@ -50,10 +50,11 @@ class TestCase(unittest.TestCase):
             raise ValueError('Can only work with PulseSequences')
 
         for i, H in enumerate(H):
-            self.assertArrayAlmostEqual(x._HV[i].conj().T @ H @ x._HV[i],
-                                        np.diag(x._HD[i]), err_msg=err_msg,
-                                        atol=atol, rtol=rtol, verbose=verbose,
-                                        equal_nan=equal_nan)
+            self.assertArrayAlmostEqual(
+                x._eigvecs[i].conj().T @ H @ x._eigvecs[i],
+                np.diag(x._eigvals[i]), err_msg=err_msg, atol=atol, rtol=rtol,
+                verbose=verbose, equal_nan=equal_nan
+            )
 
     def assertArrayEqual(self, x, y, err_msg='', verbose=True):
         """
@@ -78,8 +79,7 @@ class TestCase(unittest.TestCase):
             assert_array_equal(actual, desired, err_msg, verbose)
 
 
-def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg',
-                            pulse_type='primitive'):
+def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg', pulse_type='primitive'):
     """
     Generate a Hamiltonian in the correct format as required by PulseSequence
     for a dynamical decoupling sequence of duration *tau* and order *n*.
