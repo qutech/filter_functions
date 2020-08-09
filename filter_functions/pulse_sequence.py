@@ -533,7 +533,7 @@ class PulseSequence:
             "True."
         )
 
-    @util.parse_which_FF_parameter
+    @util.parse_optional_parameters({'which': ('fidelity', 'correlations'), 'order': (1, 2)})
     def get_filter_function(self, omega: Coefficients, which: str = 'fidelity',
                             order: int = 1, show_progressbar: bool = False) -> ndarray:
         r"""Get the first-order filter function.
@@ -622,7 +622,7 @@ class PulseSequence:
             # order == 2
             return self._filter_function_2
 
-    @util.parse_which_FF_parameter
+    @util.parse_optional_parameters({'which': ('fidelity', 'correlations'), 'order': (1, 2)})
     def cache_filter_function(self, omega: Coefficients, control_matrix: Optional[ndarray] = None,
                               filter_function: Optional[ndarray] = None, which: str = 'fidelity',
                               order: int = 1, show_progressbar: bool = False) -> None:
