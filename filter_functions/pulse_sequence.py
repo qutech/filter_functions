@@ -471,11 +471,14 @@ class PulseSequence:
             self.n_opers, self.n_coeffs, self.dt, self.t,
             show_progressbar=show_progressbar,
             cache_intermediates=cache_intermediates
-
         )
 
+        if cache_intermediates:
+            control_matrix, intermediates = control_matrix
+            self._intermediates = intermediates
+
         # Cache the result
-        self.cache_control_matrix(omega, control_matrix, cache_intermediates=cache_intermediates)
+        self.cache_control_matrix(omega, control_matrix)
 
         return self._control_matrix
 
@@ -499,14 +502,11 @@ class PulseSequence:
             matrix.
         cache_intermediates: bool, optional
             Keep intermediate terms of the calculation that are also
-            required by other computations.
+            required by other computations. Only applies if
+            control_matrix is not supplied.
         """
         if control_matrix is None:
             control_matrix = self.get_control_matrix(omega, show_progressbar, cache_intermediates)
-
-        if cache_intermediates:
-            control_matrix, intermediates = control_matrix
-            self._intermediates = intermediates
 
         self.omega = omega
         if control_matrix.ndim == 4:
@@ -533,9 +533,10 @@ class PulseSequence:
             "True."
         )
 
-    @util.parse_optional_parameters({'which': ('fidelity', 'correlations'), 'order': (1, 2)})
+    @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
     def get_filter_function(self, omega: Coefficients, which: str = 'fidelity',
-                            order: int = 1, show_progressbar: bool = False) -> ndarray:
+                            order: int = 1, show_progressbar: bool = False,
+                            cache_intermediates: bool = False) -> ndarray:
         r"""Get the first-order filter function.
 
         The filter function is cached so it doesn't need to be
@@ -554,6 +555,9 @@ class PulseSequence:
         show_progressbar: bool, optional
             Show a progress bar for the calculation of the control
             matrix.
+        cache_intermediates: bool, optional
+            Keep intermediate terms of the calculation that are also
+            required by other computations.
 
         Returns
         -------
@@ -605,13 +609,14 @@ class PulseSequence:
             self.cleanup('frequency dependent')
 
         if order == 1:
-            control_matrix = self.get_control_matrix(omega, show_progressbar)
+            control_matrix = self.get_control_matrix(omega, show_progressbar, cache_intermediates)
         else:
             # order == 2
             control_matrix = None
 
         self.cache_filter_function(omega, control_matrix=control_matrix, which=which,
-                                   order=order, show_progressbar=show_progressbar)
+                                   order=order, show_progressbar=show_progressbar,
+                                   cache_intermediates=cache_intermediates)
 
         if order == 1:
             if which == 'fidelity':
@@ -622,10 +627,11 @@ class PulseSequence:
             # order == 2
             return self._filter_function_2
 
-    @util.parse_optional_parameters({'which': ('fidelity', 'correlations'), 'order': (1, 2)})
+    @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
     def cache_filter_function(self, omega: Coefficients, control_matrix: Optional[ndarray] = None,
                               filter_function: Optional[ndarray] = None, which: str = 'fidelity',
-                              order: int = 1, show_progressbar: bool = False) -> None:
+                              order: int = 1, show_progressbar: bool = False,
+                              cache_intermediates: bool = False) -> None:
         r"""
         Cache the filter function. If control_matrix.ndim == 4, it is
         taken to be the 'pulse correlation control matrix' and summed
@@ -650,9 +656,12 @@ class PulseSequence:
             or 'generalized'.
         order: int, optional
             First or second order filter function.
-        show_progressbar: bool
+        show_progressbar: bool, optional
             Show a progress bar for the calculation of the control
             matrix.
+        cache_intermediates: bool, optional
+            Keep intermediate terms of the calculation that are also
+            required by other computations.
 
         See Also
         --------
@@ -661,7 +670,8 @@ class PulseSequence:
         if filter_function is None:
             if order == 1:
                 if control_matrix is None:
-                    control_matrix = self.get_control_matrix(omega, show_progressbar)
+                    control_matrix = self.get_control_matrix(omega, show_progressbar,
+                                                             cache_intermediates)
 
                 self.cache_control_matrix(omega, control_matrix)
                 if control_matrix.ndim == 4:
