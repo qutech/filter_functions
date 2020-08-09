@@ -589,20 +589,14 @@ def calculate_cumulant_function(
         The identifiers of the noise operators for which to evaluate the
         cumulant function. The default is all.
     which: str, optional
-<<<<<<< HEAD
-        Which decay amplitudes should be calculated, may be either 'total'
-        (default) or 'correlations'. See :func:`infidelity` and
-        :ref:`Notes <notes>`. Note that the latter is not available for the
-        second order terms.
-    second_order: bool, optional
-        Also take into account the frequency shifts :math:`\Delta` that
-        correspond to second order Magnus expansion and constitute unitary
-        terms. Default ``False``.
-=======
         Which decay amplitudes should be calculated, may be either
         'total' (default) or 'correlations'. See :func:`infidelity` and
-        :ref:`Notes <notes>`.
->>>>>>> feature/follow_new_formulation
+        :ref:`Notes <notes>`. Note that the latter is not available for
+        the second order terms.
+    second_order: bool, optional
+        Also take into account the frequency shifts :math:`\Delta` that
+        correspond to second order Magnus expansion and constitute
+        unitary terms. Default ``False``.
     show_progressbar: bool, optional
         Show a progress bar for the calculation of the control matrix.
     memory_parsimonious: bool, optional
