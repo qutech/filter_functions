@@ -134,7 +134,7 @@ def QFT_pulse(N: int = 4, tau: float = 1):
     pulses.append(H_k_pulse(N-1, N, tau))
     pulses.append(T_F_pulse(N, tau))
 
-    return ff.concatenate(pulses, calc_pulse_correlation_ff=False)
+    return ff.concatenate(pulses, calc_pulse_correlation_FF=False)
 
 
 # %% Get a 4-qubit QFT and plot the filter function
@@ -146,10 +146,9 @@ QFT = QFT_pulse(N)
 # Check the pulse produces the correct propagator after swapping the qubits
 swaps = [qip.operations.swap(N, [i, j]).full()
          for i, j in zip(range(N//2), range(N-1, N//2-1, -1))]
-prop = ff.util.mdot(swaps) @ QFT.total_Q
+prop = ff.util.mdot(swaps) @ QFT.total_propagator
 qt.matrix_histogram_complex(prop)
-print('Correct action: ',
-      ff.util.oper_equiv(prop, qt_qft(N), eps=1e-14))
+print('Correct action: ', ff.util.oper_equiv(prop, qt_qft(N), eps=1e-14))
 
 fig, ax, _ = plotting.plot_filter_function(QFT, omega)
 # Move the legend to the side because of many entries

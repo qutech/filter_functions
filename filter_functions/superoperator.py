@@ -19,18 +19,22 @@
 #     Contact email: tobias.hangleiter@rwth-aachen.de
 # =============================================================================
 """
-This module provides some functions related to superoperators and quantum maps.
+This module provides some functions related to superoperators and
+quantum maps.
 
 Functions
 ---------
 :func:`liouville_representation`
-    Calculate the Liouville representation of a unitary with respect to a basis
+    Calculate the Liouville representation of a unitary with respect to
+    a basis
 :func:`liouville_to_choi`
     Convert from Liouville to Choi matrix representation.
 :func:`liouville_is_CP`
-    Check if superoperator in Liouville representation is completely positive.
+    Check if superoperator in Liouville representation is completely
+    positive.
 :func:`liouville_is_cCP`
-    Check if superoperator in Liouville representation is conditional CP.
+    Check if superoperator in Liouville representation is conditional
+    CP.
 
 """
 from typing import Optional, Tuple, Union
@@ -44,7 +48,7 @@ from . import basis as _b
 
 def liouville_representation(U: ndarray, basis: _b.Basis) -> ndarray:
     r"""
-    Get the Liouville representaion of the unitary U with respect to the basis
+    Get the Liouville representaion of the unitary U with respect to the
     basis.
 
     Parameters
@@ -69,15 +73,14 @@ def liouville_representation(U: ndarray, basis: _b.Basis) -> ndarray:
         \mathcal{U}_{ij} = \mathrm{tr}(C_i U C_j U^\dagger)
 
     with :math:`C_i` elements of the basis spanning
-    :math:`\mathbb{C}^{d\times d}` with :math:`d` the dimension of the Hilbert
-    space.
+    :math:`\mathbb{C}^{d\times d}` with :math:`d` the dimension of the
+    Hilbert space.
     """
     U = np.asanyarray(U)
     if basis.btype == 'GGM' and basis.d > 12:
         # Can do closed form expansion and overhead compensated
         path = ['einsum_path', (0, 1), (0, 1)]
-        conjugated_basis = np.einsum('...ba,ibc,...cd->...iad', U.conj(),
-                                     basis, U, optimize=path)
+        conjugated_basis = np.einsum('...ba,ibc,...cd->...iad', U.conj(), basis, U, optimize=path)
         # If the basis is hermitian, the result will be strictly real so we can
         # drop the imaginary part
         R = _b.ggm_expand(conjugated_basis).real
@@ -106,7 +109,8 @@ def liouville_to_choi(superoperator: ndarray, basis: _b.Basis) -> ndarray:
     .. math::
 
         \mathrm{choi}(\mathcal{S})
-            &= (\mathbb{I}\otimes\mathcal{S}) (|\Omega\rangle\langle\Omega|) \\
+            &= (\mathbb{I}\otimes\mathcal{S})
+                (|\Omega\rangle\langle\Omega|) \\
             &= \sum_{ij} E_{ij}\otimes\mathcal{S}(E_{ij})
 
     where :math:`|\Omega\rangle` is a maximally entangled state and
@@ -141,36 +145,40 @@ def liouville_to_choi(superoperator: ndarray, basis: _b.Basis) -> ndarray:
     return choi
 
 
-def liouville_is_CP(superoperator: ndarray, basis: _b.Basis,
-                    return_eig: Optional[bool] = False,
-                    atol: Optional[float] = None
-                    ) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
+def liouville_is_CP(
+        superoperator: ndarray,
+        basis: _b.Basis,
+        return_eig: Optional[bool] = False,
+        atol: Optional[float] = None
+        ) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
     r"""Test if a Liouville superoperator is completely positive (CP).
 
     Parameters
     ----------
     superoperator: ndarray, shape (..., d**2, d**2)
-        The superoperator in Liouville representation to be checked for CPness.
+        The superoperator in Liouville representation to be checked for
+        CPness.
     basis: Basis, shape (d**2, d, d)
         The operator basis defining the Liouville representation.
     return_eig: bool, optional
-        Return the tuple of eigenvalues and eigenvectors of the Choi matrix.
-        The default is False.
+        Return the tuple of eigenvalues and eigenvectors of the Choi
+        matrix. The default is False.
     atol: float, optional
         Absolute tolerance for the complete positivity.
 
     Returns
     -------
     CP: bool, (shape (...,))
-        The (array, if broadcasted) of bools indicating if superoperator is CP.
+        The (array, if broadcasted) of bools indicating if superoperator
+        is CP.
     (D, V): Tuple[ndarray, ndarray]
-        The eigenvalues and eigenvectors of the Choi matrix (only if return_eig
-        is True).
+        The eigenvalues and eigenvectors of the Choi matrix (only if
+        return_eig is True).
 
     Notes
     -----
-    A superoperator :math:`\mathcal{S}` is completely positive (CP) if and only
-    if its Choi matrix representation is positive semidefinite:
+    A superoperator :math:`\mathcal{S}` is completely positive (CP) if
+    and only if its Choi matrix representation is positive semidefinite:
 
     .. math::
 
@@ -195,38 +203,43 @@ def liouville_is_CP(superoperator: ndarray, basis: _b.Basis,
     return CP
 
 
-def liouville_is_cCP(superoperator: ndarray, basis: _b.Basis,
-                     return_eig: Optional[bool] = False,
-                     atol: Optional[float] = None
-                     ) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
+def liouville_is_cCP(
+        superoperator: ndarray,
+        basis: _b.Basis,
+        return_eig: Optional[bool] = False,
+        atol: Optional[float] = None
+        ) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
     r"""Test if a Liouville superoperator is conditional completely positive.
 
     Parameters
     ----------
     superoperator: ndarray, shape (..., d**2, d**2)
-        The superoperator in Liouville representation to be checked for cCPness
+        The superoperator in Liouville representation to be checked for
+        cCPness
     basis: Basis, shape (d**2, d, d)
         The operator basis defining the Liouville representation.
     return_eig: bool, optional
-        Return the tuple of eigenvalues and eigenvectors of the Choi matrix
-        projected on the complement of the maximally entangled state. The
-        default is False.
+        Return the tuple of eigenvalues and eigenvectors of the Choi
+        matrix projected on the complement of the maximally entangled
+        state. The default is False.
     atol: float, optional
         Absolute tolerance for the complete positivity.
 
     Returns
     -------
     cCP: bool, (shape (...,))
-        The (array, if broadcasted) of bools indicating if superoperator is cCP
+        The (array, if broadcasted) of bools indicating if superoperator
+        is cCP
     (D, V): Tuple[ndarray, ndarray]
-        The eigenvalues and eigenvectors of the projected Choi matrix (only if
-        return_eig is True).
+        The eigenvalues and eigenvectors of the projected Choi matrix
+        (only if return_eig is True).
 
     Notes
     -----
-    A superoperator :math:`\mathcal{S}` is conditional completely positive
-    (cCP) if and only if its Choi matrix projected on the complement of the
-    maximally entangled state is positive semidefinite:
+    A superoperator :math:`\mathcal{S}` is conditional completely
+    positive (cCP) if and only if its Choi matrix projected on the
+    complement of the maximally entangled state is positive
+    semidefinite:
 
     .. math::
 

@@ -23,13 +23,11 @@
 from . import analytic, basis, numeric, pulse_sequence, superoperator, util
 from .basis import Basis
 from .numeric import error_transfer_matrix, infidelity
-from .pulse_sequence import (PulseSequence, concatenate, concatenate_periodic,
-                             extend, remap)
+from .pulse_sequence import PulseSequence, concatenate, concatenate_periodic, extend, remap
 from .superoperator import liouville_representation
 
-__all__ = ['Basis', 'PulseSequence', 'analytic', 'basis', 'concatenate',
-           'concatenate_periodic', 'error_transfer_matrix', 'extend',
-           'infidelity', 'liouville_representation', 'numeric',
+__all__ = ['Basis', 'PulseSequence', 'analytic', 'basis', 'concatenate', 'concatenate_periodic',
+           'error_transfer_matrix', 'extend', 'infidelity', 'liouville_representation', 'numeric',
            'pulse_sequence', 'remap', 'util', 'superoperator']
 
 __version__ = '0.2.4'

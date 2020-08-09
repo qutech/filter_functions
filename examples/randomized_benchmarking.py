@@ -59,7 +59,7 @@ def find_inverse(U: ndarray) -> ndarray:
         return Id
 
     for i, gate in enumerate(permutation(cliffords)):
-        if util.oper_equiv(gate.total_Q @ U, eye, eps=1e-8)[0]:
+        if util.oper_equiv(gate.total_propagator @ U, eye, eps=1e-8)[0]:
             return gate
 
     # Shouldn't reach this point because the major axis pi and pi/2 rotations
@@ -68,10 +68,8 @@ def find_inverse(U: ndarray) -> ndarray:
     raise Exception
 
 
-def run_randomized_benchmarking(N_G: int, N_l: int, min_l: int, max_l: int,
-                                alpha: Sequence[float],
-                                spectra: Dict[float, Sequence[float]],
-                                omega: Sequence[float]):
+def run_randomized_benchmarking(N_G: int, N_l: int, min_l: int, max_l: int, alpha: Sequence[float],
+                                spectra: Dict[float, Sequence[float]], omega: Sequence[float]):
     infidelities = {a: np.empty((N_l, N_G), dtype=float) for a in alpha}
     lengths = np.round(np.linspace(min_l, max_l, N_l)).astype(int)
     delta_t = []
@@ -81,17 +79,14 @@ def run_randomized_benchmarking(N_G: int, N_l: int, min_l: int, max_l: int,
     for l, length in enumerate(lengths):
         t_now.append(time.perf_counter())
         delta_t.append(t_now[-1] - t_now[-2])
-        print('Sequence length', length,
-              f'Elapsed time: {t_now[-1] - t_now[0]:.2f} s', sep='\t')
+        print('Sequence length', length, f'Elapsed time: {t_now[-1] - t_now[0]:.2f} s', sep='\t')
         for j in range(N_G):
             randints = np.random.randint(0, len(cliffords), lengths[l])
             U = ff.concatenate(cliffords[randints])
-            U_inv = find_inverse(U.total_Q)
+            U_inv = find_inverse(U.total_propagator)
             pulse_sequence = U @ U_inv
             for k, a in enumerate(alpha):
-                infidelities[a][l, j] = state_infidelity(
-                    pulse_sequence, spectra[a], omega
-                ).sum()
+                infidelities[a][l, j] = state_infidelity(pulse_sequence, spectra[a], omega).sum()
 
     return infidelities, delta_t
 
@@ -174,10 +169,8 @@ eps0 = 2.7241e-4
 alpha = (0.0, 0.7)
 # Scaling factor for the noise so that alpha = 0 and alpha = 0.7 give the same
 # average clifford fidelity
-noise_scaling_factor = {
-    0.0: 0.4415924985735799,
-    0.7: 1
-}
+noise_scaling_factor = {0.0: 0.4415924985735799,
+                        0.7: 1}
 
 state_infidelities = {}
 clifford_infidelities = {}
@@ -189,14 +182,11 @@ for i, a in enumerate(alpha):
     spectra[a], omega_twosided = util.symmetrize_spectrum(S, omega)
 
     # Need to calculate with two-sided spectra
-    clifford_infidelities[a] = [
-        ff.infidelity(C, spectra[a], omega_twosided).sum()
-        for C in cliffords
-    ]
+    clifford_infidelities[a] = [ff.infidelity(C, spectra[a], omega_twosided).sum()
+                                for C in cliffords]
 
-state_infidelities, exec_times = run_randomized_benchmarking(
-    N_G, N_l, m_min, m_max, alpha, spectra, omega_twosided
-)
+state_infidelities, exec_times = run_randomized_benchmarking(N_G, N_l, m_min, m_max, alpha,
+                                                             spectra, omega_twosided)
 
 # %% Plot results
 fig, ax = plt.subplots(1, 2, sharex=True, sharey=True, figsize=(8, 3))
@@ -207,29 +197,23 @@ for i, a in enumerate(alpha):
     means = np.mean(fidelities[a], axis=1)
     stds = np.std(fidelities[a], axis=1)
 
-    popt, pcov = optimize.curve_fit(fitfun, lengths, means, [0], stds,
-                                    absolute_sigma=True)
+    popt, pcov = optimize.curve_fit(fitfun, lengths, means, [0], stds, absolute_sigma=True)
 
     for j in range(N_G):
-        fid = ax[i].plot(lengths, fidelities[a][:, j], 'k.', alpha=0.1,
-                         zorder=2)
+        fid = ax[i].plot(lengths, fidelities[a][:, j], 'k.', alpha=0.1, zorder=2)
 
-    mean = ax[i].errorbar(lengths, means, stds, fmt='.', zorder=3,
-                          color='tab:red')
-    fit = ax[i].plot(lengths, fitfun(lengths, *popt), '--', zorder=4,
-                     color='tab:red')
+    mean = ax[i].errorbar(lengths, means, stds, fmt='.', zorder=3, color='tab:red')
+    fit = ax[i].plot(lengths, fitfun(lengths, *popt), '--', zorder=4, color='tab:red')
     # The expectation for uncorrelated pulses is F = 1 - r*m with m the
     # sequence length and r = 1 - F_avg = d/(d + 1)*(1 - F_ent) the average
     # error per gate
-    exp = ax[i].plot(lengths,
-                     1 - np.mean(clifford_infidelities[a])*lengths*2/3,
+    exp = ax[i].plot(lengths, 1 - np.mean(clifford_infidelities[a])*lengths*2/3,
                      '--', zorder=4, color='tab:blue')
-    ax[i].set_title(rf'$\alpha = {alpha}$')
+    ax[i].set_title(rf'$\alpha = {a}$')
     ax[i].set_xlabel(r'Sequence length $m$')
 
 handles = [fid[0], mean[0], fit[0], exp[0]]
-labels = ['State Fidelity', 'Fidelity mean', 'Fit',
-          'RB theory w/o pulse correlations']
+labels = ['State Fidelity', 'Fidelity mean', 'Fit', 'RB theory w/o pulse correlations']
 ax[0].set_xlim(0, max(lengths))
 # ax[0].set_ylim(.9, 1)
 ax[0].set_ylabel(r'Surival Probability')

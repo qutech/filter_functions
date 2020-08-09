@@ -174,13 +174,13 @@ class PrecisionTest(testutil.TestCase):
         cnot.diagonalize()
         cnot_subspace.diagonalize()
 
-        phase_eq = util.oper_equiv(cnot_subspace.total_Q[1:5, 1:5], cnot_mat,
-                                   eps=1e-9)
+        phase_eq = ff.util.oper_equiv(cnot_subspace.total_propagator[1:5, 1:5],
+                                      cnot_mat, eps=1e-9)
 
         self.assertTrue(phase_eq[0])
 
-        phase_eq = util.oper_equiv(cnot.total_Q[np.ix_(*subspace)][1:5, 1:5],
-                                   cnot_mat, eps=1e-9)
+        phase_eq = ff.util.oper_equiv(cnot.total_propagator[np.ix_(*subspace)][1:5, 1:5],
+                                      cnot_mat, eps=1e-9)
 
         self.assertTrue(phase_eq[0])
 
@@ -250,7 +250,7 @@ class PrecisionTest(testutil.TestCase):
         ]
 
         pulse = ff.concatenate(pulses, omega=omega,
-                               calc_pulse_correlation_ff=True)
+                               calc_pulse_correlation_FF=True)
 
         idx = testutil.rng.choice(np.arange(2), testutil.rng.randint(1, 3),
                                   replace=False)
@@ -273,15 +273,18 @@ class PrecisionTest(testutil.TestCase):
             R_1 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='total',
                                          which_FF='fidelity',
-                                         R=R, F=None)
+                                         control_matrix=R,
+                                         filter_function=None)
             R_2 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='total',
                                          which_FF='fidelity',
-                                         R=[R, R], F=None)
+                                         control_matrix=[R, R],
+                                         filter_function=None)
             F_1 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='total',
                                          which_FF='fidelity',
-                                         R=None, F=F)
+                                         control_matrix=None,
+                                         filter_function=F)
 
             self.assertArrayAlmostEqual(R_1, R_2)
             self.assertArrayAlmostEqual(R_1, F_1)
@@ -289,15 +292,18 @@ class PrecisionTest(testutil.TestCase):
             R_1 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='correlations',
                                          which_FF='fidelity',
-                                         R=R_pc, F=None)
+                                         control_matrix=R_pc,
+                                         filter_function=None)
             R_2 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='correlations',
                                          which_FF='fidelity',
-                                         R=[R_pc, R_pc], F=None)
+                                         control_matrix=[R_pc, R_pc],
+                                         filter_function=None)
             F_1 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='correlations',
                                          which_FF='fidelity',
-                                         R=None, F=F_pc)
+                                         control_matrix=None,
+                                         filter_function=F_pc)
 
             self.assertArrayAlmostEqual(R_1, R_2)
             self.assertArrayAlmostEqual(R_1, F_1)
@@ -305,15 +311,18 @@ class PrecisionTest(testutil.TestCase):
             R_1 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='total',
                                          which_FF='generalized',
-                                         R=R, F=None)
+                                         control_matrix=R,
+                                         filter_function=None)
             R_2 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='total',
                                          which_FF='generalized',
-                                         R=[R, R], F=None)
+                                         control_matrix=[R, R],
+                                         filter_function=None)
             F_1 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='total',
                                          which_FF='generalized',
-                                         R=None, F=F_kl)
+                                         control_matrix=None,
+                                         filter_function=F_kl)
 
             self.assertArrayAlmostEqual(R_1, R_2)
             self.assertArrayAlmostEqual(R_1, F_1)
@@ -321,15 +330,18 @@ class PrecisionTest(testutil.TestCase):
             R_1 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='correlations',
                                          which_FF='generalized',
-                                         R=R_pc, F=None)
+                                         control_matrix=R_pc,
+                                         filter_function=None)
             R_2 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='correlations',
                                          which_FF='generalized',
-                                         R=[R_pc, R_pc], F=None)
+                                         control_matrix=[R_pc, R_pc],
+                                         filter_function=None)
             F_1 = numeric._get_integrand(S, omega, idx,
                                          which_pulse='correlations',
                                          which_FF='generalized',
-                                         R=None, F=F_pc_kl)
+                                         control_matrix=None,
+                                         filter_function=F_pc_kl)
 
             self.assertArrayAlmostEqual(R_1, R_2)
             self.assertArrayAlmostEqual(R_1, F_1)
@@ -467,7 +479,7 @@ class PrecisionTest(testutil.TestCase):
                   np.einsum('...kl,kilj->...ij', Gamma, traces) +
                   np.einsum('...kl,kijl->...ij', Gamma, traces))/2
             U_onfoot = sla.expm(K.sum(0))
-            U_from_K = ff.error_transfer_matrix(K=K)
+            U_from_K = ff.error_transfer_matrix(cumulant_function=K)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_decayamps = -np.einsum('...ii', K)/d**2
             I_transfer = 1 - np.einsum('...ii', U)/d**2
@@ -490,7 +502,7 @@ class PrecisionTest(testutil.TestCase):
                   np.einsum('...kl,kilj->...ij', Gamma, traces) +
                   np.einsum('...kl,kijl->...ij', Gamma, traces))/2
             U_onfoot = sla.expm(K.sum(0))
-            U_from_K = ff.error_transfer_matrix(K=K)
+            U_from_K = ff.error_transfer_matrix(cumulant_function=K)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_decayamps = -np.einsum('...ii', K)/d**2
             I_transfer = 1 - np.einsum('...ii', U)/d**2
@@ -515,7 +527,7 @@ class PrecisionTest(testutil.TestCase):
                   np.einsum('...kl,kilj->...ij', Gamma, traces) +
                   np.einsum('...kl,kijl->...ij', Gamma, traces))/2
             U_onfoot = sla.expm(K.sum((0, 1)))
-            U_from_K = ff.error_transfer_matrix(K=K)
+            U_from_K = ff.error_transfer_matrix(cumulant_function=K)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_decayamps = -np.einsum('...ii', K)/d**2
             I_transfer = 1 - np.einsum('...ii', U)/d**2

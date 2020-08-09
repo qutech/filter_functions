@@ -58,6 +58,9 @@ class UtilTest(testutil.TestCase):
         idx = util.get_indices_from_identifiers(pulse, ['X'], 'control')
         self.assertArrayEqual(idx, [0])
 
+        idx = util.get_indices_from_identifiers(pulse, 'X', 'control')
+        self.assertArrayEqual(idx, [0])
+
         idx = util.get_indices_from_identifiers(pulse, ['Z', 'X'], 'control')
         self.assertArrayEqual(idx, [1, 0])
 
@@ -65,6 +68,9 @@ class UtilTest(testutil.TestCase):
         self.assertArrayEqual(idx, [0, 1])
 
         idx = util.get_indices_from_identifiers(pulse, ['B_0'], 'noise')
+        self.assertArrayEqual(idx, [0])
+
+        idx = util.get_indices_from_identifiers(pulse, 'B_0', 'noise')
         self.assertArrayEqual(idx, [0])
 
         with self.assertRaises(ValueError):
@@ -436,7 +442,7 @@ class UtilTest(testutil.TestCase):
 
     def test_remove_float_errors(self):
         for eps_scale in (None, 2):
-            scale = 1 if eps_scale is None else eps_scale
+            scale = eps_scale or 1
             for dtype in (float, complex):
                 arr = np.zeros((10, 10), dtype=dtype)
                 arr += scale*np.finfo(arr.dtype).eps *\
