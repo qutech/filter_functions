@@ -880,7 +880,6 @@ def calculate_frequency_shifts(
         spectrum: ndarray,
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
-        return_filter_function: bool = False,
         show_progressbar: bool = False,
         memory_parsimonious: bool = False
         ) -> ndarray:
