@@ -477,11 +477,9 @@ class PulseSequence:
             control_matrix, intermediates = control_matrix
             self._intermediates = intermediates
 
-        # Cache the result
         self.cache_control_matrix(omega, control_matrix)
 
         return self._control_matrix
-
 
     def cache_control_matrix(self, omega: Coefficients,
                              control_matrix: Optional[ndarray] = None,
