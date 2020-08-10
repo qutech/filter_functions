@@ -1120,17 +1120,17 @@ def calculate_second_order_filter_function(
 
             result += step_buf  # all intervals up to last
 
-        # Add G^(g-1) to cumulative sum for g > 1, for g=0 it's zero.
-        ctrlmat_step_cumulative += ctrlmat_step
+        if g < len(dt):
+            # Add G^(g-1) to cumulative sum for 1 < g < G, for g=0 it's
+            # zero, for G it's not required as the loop terminates
+            ctrlmat_step_cumulative += ctrlmat_step
 
     return result
 
 
 @util.parse_which_FF_parameter
-def calculate_pulse_correlation_filter_function(
-        control_matrix: ndarray,
-        which: str = 'fidelity'
-        ) -> ndarray:
+def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
+                                                which: str = 'fidelity') -> ndarray:
     r"""Compute pulse correlation filter function from control matrix.
 
     Parameters
