@@ -641,8 +641,6 @@ def calculate_cumulant_function(
 
     """
     N, d = pulse.basis.shape[:2]
-    decay_amplitudes = calculate_decay_amplitudes(pulse, spectrum, omega, n_oper_identifiers,
-                                                  which, show_progressbar, memory_parsimonious)
     if second_order:
         if which == 'correlations':
             raise ValueError('Cannot compute correlation cumulant function' +
@@ -650,6 +648,9 @@ def calculate_cumulant_function(
 
         frequency_shifts = calculate_frequency_shifts(pulse, spectrum, omega, n_oper_identifiers,
                                                       show_progressbar, memory_parsimonious)
+
+    decay_amplitudes = calculate_decay_amplitudes(pulse, spectrum, omega, n_oper_identifiers,
+                                                  which, show_progressbar, memory_parsimonious)
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
