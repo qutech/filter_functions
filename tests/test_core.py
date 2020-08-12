@@ -651,7 +651,9 @@ class CoreTest(testutil.TestCase):
             pulse.cache_control_matrix(omega, cache_intermediates=True)
             F = pulse.get_filter_function(omega, order=1)
             F_1 = pulse.get_filter_function(omega, order=2)
-            F_2 = numeric.calculate_second_order_filter_function(
+            # Test caching
+            F_2 = pulse.get_filter_function(omega, order=2)
+            F_3 = numeric.calculate_second_order_filter_function(
                 pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis,
                 pulse.n_opers, pulse.n_coeffs, pulse.dt, memory_parsimonious=False,
                 show_progressbar=False, intermediates=None
@@ -659,7 +661,8 @@ class CoreTest(testutil.TestCase):
             # Make sure first and second order are of same order of magnitude
             rel = np.linalg.norm(F) / np.linalg.norm(F_1)
 
-            self.assertArrayEqual(F_1, F_2)
+            self.assertIs(F_1, F_2)
+            self.assertArrayEqual(F_1, F_3)
             self.assertEqual(F_1.shape, (n_nops, n_nops, d**2, d**2, 42))
             self.assertLessEqual(rel, 10)
             self.assertGreaterEqual(rel, 1/10)
@@ -839,8 +842,19 @@ class CoreTest(testutil.TestCase):
             with self.assertRaises(ValueError):
                 numeric.calculate_decay_amplitudes(pulse, np.tile(spectrum, [1]*i), omega)
 
+    def test_calculate_frequency_shifts(self):
+        """Test raises of numeric.calculate_frequency_shifts"""
+        pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
+
+        omega = rng.standard_normal(43)
+        # single spectrum
+        spectrum = rng.standard_normal(78)
+        for i in range(4):
+            with self.assertRaises(ValueError):
+                numeric.calculate_frequency_shifts(pulse, np.tile(spectrum, [1]*i), omega)
+
     def test_cumulant_function(self):
-        for d in rng.randint(2, 7, 5):
+        for d in [2, *rng.randint(2, 7, 5)]:
             pulse = testutil.rand_pulse_sequence(d, 3, 2, 2)
             omega = util.get_sample_frequencies(pulse, n_samples=42)
             spectrum = 4e-3/abs(omega)
