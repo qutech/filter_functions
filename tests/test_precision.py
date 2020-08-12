@@ -520,57 +520,6 @@ class PrecisionTest(testutil.TestCase):
                           n_oper_identifiers=['B_0', 'B_2'],
                           return_smallness=True)
 
-    def test_second_order_filter_function(self):
-        for d, n_nops in zip(rng.randint(2, 7, 5), rng.randint(1, 5, 5)):
-            pulse = testutil.rand_pulse_sequence(d, 3, 2, n_nops)
-            omega = util.get_sample_frequencies(pulse, n_samples=42)
-
-            # Make sure result is the same with or without intermediates
-            pulse.cache_control_matrix(omega, cache_intermediates=True)
-            F = pulse.get_filter_function(omega, order=1)
-            F_1 = pulse.get_filter_function(omega, order=2)
-            F_2 = numeric.calculate_second_order_filter_function(
-                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis,
-                pulse.n_opers, pulse.n_coeffs, pulse.dt, memory_parsimonious=False,
-                show_progressbar=False, intermediates=None
-            )
-            # Make sure first and second order are of same order of magnitude
-            rel = np.linalg.norm(F) / np.linalg.norm(F_1)
-
-            self.assertArrayEqual(F_1, F_2)
-            self.assertEqual(F_1.shape, (n_nops, n_nops, d**2, d**2, 42))
-            self.assertLessEqual(rel, 10)
-            self.assertGreaterEqual(rel, 1/10)
-
-    def test_cumulant_function(self):
-        for d in rng.randint(2, 7, 5):
-            pulse = testutil.rand_pulse_sequence(d, 3, 2, 2)
-            omega = util.get_sample_frequencies(pulse, n_samples=42)
-            spectrum = 4e-3/abs(omega)
-
-            with self.assertRaises(ValueError):
-                numeric.calculate_cumulant_function(
-                    pulse, spectrum, omega, second_order=True, which='correlations'
-                )
-
-            pulse.cache_control_matrix(omega, cache_intermediates=True)
-            cumulant_function_first_order = numeric.calculate_cumulant_function(
-                pulse, spectrum, omega, second_order=False
-            )
-            cumulant_function_second_order = numeric.calculate_cumulant_function(
-                pulse, spectrum, omega, second_order=True
-            )
-            # Make sure first and second order are of same order of magnitude
-            second_order_contribution = (cumulant_function_second_order -
-                                         cumulant_function_first_order)
-            rel = (np.linalg.norm(cumulant_function_first_order) /
-                   np.linalg.norm(second_order_contribution))
-
-            self.assertEqual(cumulant_function_first_order.shape,
-                             cumulant_function_second_order.shape)
-            self.assertLessEqual(rel, 10)
-            self.assertGreaterEqual(rel, 1/10)
-
     def test_single_qubit_error_transfer_matrix(self):
         """Test the calculation of the single-qubit transfer matrix"""
         d = 2
