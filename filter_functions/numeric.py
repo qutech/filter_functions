@@ -170,37 +170,6 @@ def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
 
     with :math:`\Omega_{mn}^{(g)} = \omega_m^{(g)} - \omega_n^{(g)}`.
 
-    Test
-    ----
-    Set t_{g-1} = 1/np.sqrt(2)
-
-    >>> from scipy import integrate
-    >>> from tests import testutil
-    >>> d, t0 = 2, 1/np.sqrt(2)
-    >>> (t1, t2), dt = np.tile(np.linspace(0, 1, 1001), (2, 1)) + t0, 1
-    >>> eigvals = np.random.randn()*np.array([-1, 1])
-    >>> dE = np.subtract.outer(eigvals, eigvals)
-    >>> E = np.linspace(-1, 1, 101)
-    >>> ex = 1j*(np.multiply.outer(dE, t2 - t0) +
-    ...          np.expand_dims(np.multiply.outer(E, t2), (1, 2)))
-    >>> I1 = integrate.cumtrapz(np.exp(ex), t2, initial=0)
-    >>> ex = 1j*(np.multiply.outer(dE, t1 - t0) -
-    ...          np.expand_dims(np.multiply.outer(E, t1), (1, 2)))
-    >>> integrand = (np.expand_dims(np.exp(ex), (3, 4)) *
-    ...              np.expand_dims(I1, (1, 2)))
-    >>> I2 = integrate.trapz(integrand, t1)
-    >>> dE_bufs = (np.empty((d, d, d, d), dtype=float),
-    ...            np.empty((len(E), d, d), dtype=float),
-    ...            np.empty((len(E), d, d), dtype=float))
-    >>> exp_buf = np.empty((len(E), d, d), dtype=complex)
-    >>> frc_bufs = (np.empty((len(E), d, d), dtype=complex),
-    ...             np.empty((d, d, d, d), dtype=complex))
-    >>> int_buf = np.empty((len(E), d, d, d, d), dtype=complex)
-    >>> msk_bufs = np.empty((2, len(E), d, d, d, d), dtype=bool)
-    >>> I3 = _second_order_integral(E, eigvals, dt, int_buf, frc_bufs, dE_bufs,
-    ...                             exp_buf, msk_bufs)
-    >>> np.allclose(I2, I3)
-
     """
     # frc_buf1 has shape (len(E), *dE.shape), frc_buf2 has shape dE.shape*2
     frc_buf1, frc_buf2 = frc_bufs

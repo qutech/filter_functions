@@ -24,11 +24,52 @@ This module tests if the package produces the correct results numerically.
 
 import numpy as np
 from scipy import linalg as sla
+from scipy import integrate
 
 import filter_functions as ff
 from filter_functions import analytic, numeric, util
 from tests import testutil
 from tests.testutil import rng
+
+
+def _get_integrals_first_order(d, E, eigval, dt, t0):
+    # first order
+    exp_buf, int_buf = np.zeros((2, len(E), d, d), complex)
+    tspace = np.linspace(0, dt, 1001) + t0
+    dE = np.subtract.outer(eigval, eigval)
+    EdE = np.add.outer(E, dE)
+    integrand = np.exp(1j*np.multiply.outer(EdE, tspace - t0))
+
+    integral_numeric = integrate.trapz(integrand, tspace)
+    integral = numeric._first_order_integral(E, eigval, dt, exp_buf, int_buf)
+    return integral, integral_numeric
+
+
+def _get_integrals_second_order(d, E, eigval, dt, t0):
+    # second order
+    dE_bufs = (np.empty((d, d, d, d), dtype=float),
+               np.empty((len(E), d, d), dtype=float),
+               np.empty((len(E), d, d), dtype=float))
+    exp_buf = np.empty((len(E), d, d), dtype=complex)
+    frc_bufs = (np.empty((len(E), d, d), dtype=complex),
+                np.empty((d, d, d, d), dtype=complex))
+    int_buf = np.empty((len(E), d, d, d, d), dtype=complex)
+    msk_bufs = np.empty((2, len(E), d, d, d, d), dtype=bool)
+    tspace = np.linspace(0, dt, 1001) + t0
+    dE = np.subtract.outer(eigval, eigval)
+
+    ex = (np.multiply.outer(dE, tspace - t0) +
+          np.expand_dims(np.multiply.outer(E, tspace), (1, 2)))
+    I1 = integrate.cumtrapz(util.cexp(ex), tspace, initial=0)
+    ex = (np.multiply.outer(dE, tspace - t0) -
+          np.expand_dims(np.multiply.outer(E, tspace), (1, 2)))
+    integrand = (np.expand_dims(util.cexp(ex), (3, 4)) *
+                 np.expand_dims(I1, (1, 2)))
+
+    integral_numeric = integrate.trapz(integrand, tspace)
+    integral = numeric._second_order_integral(E, eigval, dt, int_buf, frc_bufs, dE_bufs,
+                                              exp_buf, msk_bufs)
+    return integral, integral_numeric
 
 
 class PrecisionTest(testutil.TestCase):
@@ -232,7 +273,7 @@ class PrecisionTest(testutil.TestCase):
             self.assertLessEqual(np.abs(1 - (infid_P.sum()/MC)), rtol)
             self.assertLessEqual(infid.sum(), xi**2/4)
 
-    def test_integration(self):
+    def test_get_integrand(self):
         """Test the private function used to set up the integrand."""
         pulses = [testutil.rand_pulse_sequence(3, 1, 2, 3),
                   testutil.rand_pulse_sequence(3, 1, 2, 3)]
@@ -346,6 +387,30 @@ class PrecisionTest(testutil.TestCase):
             self.assertArrayAlmostEqual(R_1, R_2)
             self.assertArrayAlmostEqual(R_1, F_1)
 
+    def test_integration(self):
+        """Compare integrals to numerical results."""
+        d = 3
+        pulse = testutil.rand_pulse_sequence(d, 5)
+        # including zero
+        E = util.get_sample_frequencies(pulse, 51)
+
+        for i, (eigval, dt, t) in enumerate(zip(pulse.eigvals, pulse.dt, pulse.t)):
+            integral, integral_numeric = _get_integrals_first_order(d, E, eigval, dt, t)
+            self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
+
+            integral, integral_numeric = _get_integrals_second_order(d, E, eigval, dt, t)
+            self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
+
+        # excluding (most likely) zero
+        E = testutil.rng.randn(51)
+
+        for i, (eigval, dt, t) in enumerate(zip(pulse.eigvals, pulse.dt, pulse.t)):
+            integral, integral_numeric = _get_integrals_first_order(d, E, eigval, dt, t)
+            self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
+
+            integral, integral_numeric = _get_integrals_second_order(d, E, eigval, dt, t)
+            self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
+
     def test_infidelity(self):
         """Benchmark infidelity results against previous version's results"""
         rng.seed(123456789)
@@ -454,6 +519,55 @@ class PrecisionTest(testutil.TestCase):
             ff.infidelity(pulse, spectra[4](S0, omega), omega,
                           n_oper_identifiers=['B_0', 'B_2'],
                           return_smallness=True)
+
+    def test_second_order_filter_function(self):
+        for d, n_nops in zip(rng.randint(2, 7, 5), rng.randint(1, 5, 5)):
+            pulse = testutil.rand_pulse_sequence(d, 3, 2, n_nops)
+            omega = util.get_sample_frequencies(pulse, n_samples=42)
+
+            # Make sure result is the same with or without intermediates
+            pulse.cache_control_matrix(omega, cache_intermediates=True)
+            F = pulse.get_filter_function(omega, order=1)
+            F_1 = pulse.get_filter_function(omega, order=2)
+            F_2 = numeric.calculate_second_order_filter_function(
+                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis,
+                pulse.n_opers, pulse.n_coeffs, pulse.dt, memory_parsimonious=False,
+                show_progressbar=False, intermediates=None
+            )
+            # Make sure first and second order are of same order of magnitude
+            rel = np.linalg.norm(F) / np.linalg.norm(F_1)
+
+            self.assertArrayEqual(F_1, F_2)
+            self.assertEqual(F_1.shape, (n_nops, n_nops, d**2, d**2, 42))
+            self.assertLessEqual(rel, 10)
+            self.assertGreaterEqual(rel, 1/10)
+
+    def test_cumulant_function(self):
+        for d in rng.randint(2, 7, 5):
+            pulse = testutil.rand_pulse_sequence(d, 3, 2, 2)
+            omega = util.get_sample_frequencies(pulse, n_samples=42)
+            spectrum = 4e-3/abs(omega)
+
+            with self.assertRaises(ValueError):
+                numeric.calculate_cumulant_function(
+                    pulse, spectrum, omega, second_order=True, which='correlations'
+                )
+
+            pulse.cache_control_matrix(omega, cache_intermediates=True)
+            cumulant_function_first_order = numeric.calculate_cumulant_function(
+                pulse, spectrum, omega, second_order=False
+            )
+            cumulant_function_second_order = numeric.calculate_cumulant_function(
+                pulse, spectrum, omega, second_order=True
+            )
+            # Make sure first and second order are of same order of magnitude
+            rel = (np.linalg.norm(cumulant_function_first_order) /
+                   np.linalg.norm(cumulant_function_second_order))
+
+            self.assertEqual(cumulant_function_first_order.shape,
+                             cumulant_function_second_order.shape)
+            self.assertLessEqual(rel, 10)
+            self.assertGreaterEqual(rel, 1/10)
 
     def test_single_qubit_error_transfer_matrix(self):
         """Test the calculation of the single-qubit transfer matrix"""
