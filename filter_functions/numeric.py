@@ -1184,7 +1184,7 @@ def calculate_second_order_filter_function(
 
             result += step_buf  # all intervals up to last
 
-        if g < len(dt):
+        if g < len(dt) - 1:
             # Add G^(g-1) to cumulative sum for 1 < g < G, for g=0 it's
             # zero, for G it's not required as the loop terminates
             ctrlmat_step_cumulative += ctrlmat_step
