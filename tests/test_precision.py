@@ -561,8 +561,10 @@ class PrecisionTest(testutil.TestCase):
                 pulse, spectrum, omega, second_order=True
             )
             # Make sure first and second order are of same order of magnitude
+            second_order_contribution = (cumulant_function_second_order -
+                                         cumulant_function_first_order)
             rel = (np.linalg.norm(cumulant_function_first_order) /
-                   np.linalg.norm(cumulant_function_second_order))
+                   np.linalg.norm(second_order_contribution))
 
             self.assertEqual(cumulant_function_first_order.shape,
                              cumulant_function_second_order.shape)
