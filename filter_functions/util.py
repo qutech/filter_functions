@@ -289,6 +289,7 @@ def _parse_dims_arg(name: str, dims: Sequence[Sequence[int]], rank: int) -> None
         raise ValueError(f'Require all lists in {name}_dims to be of same length!')
 
 
+@parse_optional_parameters({'kind': ('noise', 'control')})
 def get_indices_from_identifiers(pulse: 'PulseSequence',
                                  identifiers: Union[None, str, Sequence[str]],
                                  kind: str) -> Tuple[Sequence[int],
@@ -306,7 +307,8 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
     """
     if kind == 'noise':
         pulse_identifiers = pulse.n_oper_identifiers
-    elif kind == 'control':
+    else:
+        # kind == 'control'
         pulse_identifiers = pulse.c_oper_identifiers
 
     identifier_to_index_table = {identifier: index for index, identifier
