@@ -945,7 +945,7 @@ def calculate_frequency_shifts(
         integrand = _get_integrand(spectrum, omega, idx, which_pulse='total',
                                    which_FF='generalized', filter_function=filter_function_2)
         frequency_shifts = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
-        return frequency_shifts
+        return frequency_shifts.real
 
     raise NotImplementedError
 
