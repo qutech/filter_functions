@@ -569,7 +569,8 @@ class PulseSequence:
             if which == 'fidelity':
                 if self.is_cached('filter_function'):
                     return self._filter_function
-            elif which == 'generalized':
+            else:
+                # which == 'generalized'
                 if self.is_cached('filter_function_gen'):
                     return self._filter_function_gen
         else:
@@ -583,7 +584,8 @@ class PulseSequence:
 
         if which == 'fidelity':
             return self._filter_function
-        elif which == 'generalized':
+        else:
+            # which == 'generalized'
             return self._filter_function_gen
 
     @util.parse_which_FF_parameter
@@ -630,7 +632,8 @@ class PulseSequence:
 
                 if which == 'fidelity':
                     self._filter_function_pc = F_pc
-                elif which == 'generalized':
+                else:
+                    # which == 'generalized'
                     self._filter_function_pc_gen = F_pc
 
                 filter_function = F_pc.sum(axis=(0, 1))
@@ -641,7 +644,8 @@ class PulseSequence:
         self.omega = omega
         if which == 'fidelity':
             self._filter_function = filter_function
-        elif which == 'generalized':
+        else:
+            # which == 'generalized'
             self._filter_function_gen = filter_function
 
     @util.parse_which_FF_parameter
@@ -692,7 +696,8 @@ class PulseSequence:
         if which == 'fidelity':
             if self.is_cached('filter_function_pc'):
                 return self._filter_function_pc
-        elif which == 'generalized':
+        else:
+            # which == 'generalized'
             if self.is_cached('filter_function_pc_gen'):
                 return self._filter_function_pc_gen
 
@@ -702,7 +707,8 @@ class PulseSequence:
 
             if which == 'fidelity':
                 self._filter_function_pc = F_pc
-            elif which == 'generalized':
+            else:
+                # which == 'generalized'
                 self._filter_function_pc_gen = F_pc
 
             return F_pc
@@ -1040,7 +1046,8 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[
     if identifiers is None:
         if H_str == 'H_c':
             identifiers = np.fromiter((f'A_{i}' for i in range(len(opers))), dtype='<U4')
-        elif H_str == 'H_n':
+        else:
+            # H_str == 'H_n'
             identifiers = np.fromiter((f'B_{i}' for i in range(len(opers))), dtype='<U4')
     else:
         for i, identifier in enumerate(identifiers):

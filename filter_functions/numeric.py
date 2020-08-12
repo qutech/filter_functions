@@ -706,7 +706,8 @@ def calculate_filter_function(control_matrix: ndarray, which: str = 'fidelity') 
     """
     if which == 'fidelity':
         subscripts = 'ako,bko->abo'
-    elif which == 'generalized':
+    else:
+        # which == 'generalized'
         subscripts = 'ako,blo->abklo'
 
     return np.einsum(subscripts, control_matrix.conj(), control_matrix)
@@ -769,7 +770,8 @@ def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
 
     if which == 'fidelity':
         subscripts = 'gako,hbko->ghabo'
-    elif which == 'generalized':
+    else:
+        # which == 'generalized'
         subscripts = 'gako,hblo->ghabklo'
 
     return np.einsum(subscripts, control_matrix.conj(), control_matrix)
