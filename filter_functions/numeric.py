@@ -1018,6 +1018,99 @@ def calculate_second_order_filter_function(
         memory_parsimonious: Optional[bool] = False,
         show_progressbar: Optional[bool] = False
         ) -> ndarray:
+    r"""Calculate the second order filter function for frequency shifts.
+
+    Parameters
+    ----------
+    eigvals: array_like, shape (n_dt, d)
+        Eigenvalue vectors for each time pulse segment *l* with the
+        first axis counting the pulse segment, i.e.
+        ``eigvals == array([D_0, D_1, ...])``.
+    eigvecs: array_like, shape (n_dt, d, d)
+        Eigenvector matrices for each time pulse segment *l* with the
+        first axis counting the pulse segment, i.e.
+        ``eigvecs == array([V_0, V_1, ...])``.
+    propagators: array_like, shape (n_dt+1, d, d)
+        The propagators :math:`Q_l = P_l P_{l-1}\cdots P_0` as a (d, d)
+        array with *d* the dimension of the Hilbert space.
+    omega: array_like, shape (n_omega,)
+        Frequencies at which the pulse control matrix is to be
+        evaluated.
+    basis: Basis, shape (d**2, d, d)
+        The basis elements in which the pulse control matrix will be
+        expanded.
+    n_opers: array_like, shape (n_nops, d, d)
+        Noise operators :math:`B_\alpha`.
+    n_coeffs: array_like, shape (n_nops, n_dt)
+        The sensitivities of the system to the noise operators given by
+        *n_opers* at the given time step.
+    dt: array_like, shape (n_dt)
+        Sequence duration, i.e. for the :math:`l`-th pulse
+        :math:`t_l - t_{l-1}`.
+    intermediates: Tuple[ndarray, ndarray, ndarray], optional
+        Intermediate terms of the calculation of the control matrix that
+        can be reused here. If None (default), they are computed from
+        scratch.
+    memory_parsimonious: bool, optional
+
+        .. warning:: Not implemented.
+
+        For large dimensions, the integrand
+
+        .. math::
+
+            F_{\alpha\beta, kl}^{(2)}(\omega)S_{\alpha\beta}(\omega)
+
+        can consume quite a large amount of memory if set up for all
+        :math:`\alpha,\beta,k,l` at once. If ``True``, it is only set up
+        and integrated for a single :math:`k` at a time and looped over.
+        This is slower but requires much less memory. The default is
+        ``False``.
+    show_progressbar: bool, optional
+        Show a progress bar for the calculation.
+
+    Returns
+    -------
+    second_order_filter_function: ndarray, shape (n_nops, n_nops, d**2, d**2, n_omega)
+        The second order filter function.
+
+    .. _notes:
+
+    Notes
+    -----
+    The second order filter function is given by
+
+    .. math::
+
+        F_{\alpha\beta, kl}^{(2)} = \sum_{g=1}^G\left[
+                \mathcal{G}_{\alpha k}^{(g)\ast}(\omega)
+                \sum_{g'=1}^{g-1}\mathcal{G}_{\beta l}^{(g')}(\omega) +
+                \bar{B}_{\alpha,ij}^{(g)}\bar{C}_{k,ji}^{(g)}
+                I_{ijmn}^{(g)}(\omega)\bar{C}_{l,nm}^{(g)}
+                \bar{B}_{\beta,mn}^{(g)}
+            \right]
+
+    with
+
+    .. math::
+
+        \mathcal{G}^{(g)}(\omega) &=
+            e^{i\omega t_{g-1}}\mathcal{R}^{(g)}(\omega)
+            \mathcal{Q}^{(g-1)}, \\
+        I_{ijmn}^{(g)}(\omega) &=
+            \int_{t_{g-1}}^{t_g}\mathrm{d}{t}
+            e^{i\Omega_{ij}^{(g)}(t - t_{g-1}) - i\omega t}
+            \int_{t_{g-1}}^{t}\mathrm{d}{t'}
+            e^{i\Omega_{mn}^{(g)}(t' - t_{g-1}) + i\omega t'}.
+
+    See Also
+    --------
+    calculate_frequency_shifts: Integrate over filter function times spectrum.
+    calculate_decay_amplitudes: First order (dissipative) terms.
+    infidelity: Compute the infidelity directly.
+    pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
+    calculate_pulse_correlation_filter_function
+    """
 
     d = eigvals.shape[-1]
     # We're lazy
