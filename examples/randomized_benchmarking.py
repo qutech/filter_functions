@@ -58,7 +58,7 @@ def find_inverse(U: ndarray) -> ndarray:
         return Id
 
     for i, gate in enumerate(permutation(cliffords)):
-        if util.oper_equiv(gate.total_Q @ U, eye, eps=1e-8)[0]:
+        if util.oper_equiv(gate.total_propagator @ U, eye, eps=1e-8)[0]:
             return gate
 
     # Shouldn't reach this point because the major axis pi and pi/2 rotations
@@ -73,17 +73,17 @@ def run_randomized_benchmarking(N_G: int, N_l: int, min_l: int, max_l: int,
     lengths = np.round(np.linspace(min_l, max_l, N_l)).astype(int)
     delta_t = []
     t_now = [time.perf_counter()]
-    print('Start simulation with {} sequence lengths'.format(len(lengths)))
+    print(f'Start simulation with {len(lengths)} sequence lengths')
     print('---------------------------------------------')
     for l, length in enumerate(lengths):
         t_now.append(time.perf_counter())
         delta_t.append(t_now[-1] - t_now[-2])
         print('Sequence length', length,
-              'Elapsed time: {:.2f} s'.format(t_now[-1] - t_now[0]), sep='\t')
+              f'Elapsed time: {t_now[-1] - t_now[0]:.2f} s', sep='\t')
         for j in range(N_G):
             randints = np.random.randint(0, len(cliffords), lengths[l])
             U = ff.concatenate(cliffords[randints])
-            U_inv = find_inverse(U.total_Q)
+            U_inv = find_inverse(U.total_propagator)
             pulse_sequence = U @ U_inv
             infidelities[l, j] = state_infidelity(
                 pulse_sequence, S, omega
@@ -161,7 +161,7 @@ cliffords = np.array([
 ])
 
 toc = time.perf_counter()
-print('Construction of Clifford group: {:.2f} s'.format(toc - tic))
+print(f'Construction of Clifford group: {toc - tic:.2f} s')
 print()
 # %% Run simulation
 
@@ -187,7 +187,7 @@ for i, alpha in enumerate((0.0, 0.7)):
     ]
 
     print('=============================================')
-    print('\t\talpha = {}'.format(alpha))
+    print(f'\t\talpha = {alpha}')
     print('=============================================')
     state_infidelities[alpha], exec_times = run_randomized_benchmarking(
         N_G, N_l, m_min, m_max, omega
@@ -219,7 +219,7 @@ for i, alpha in enumerate((0.0, 0.7)):
     exp = ax[i].plot(lengths,
                      1 - np.mean(clifford_infidelities[alpha])*lengths*2/3,
                      '--', zorder=4, color='tab:blue')
-    ax[i].set_title(r'$\alpha = {}$'.format(alpha))
+    ax[i].set_title(rf'$\alpha = {alpha}$')
     ax[i].set_xlabel(r'Sequence length $m$')
 
 handles = [fid[0], mean[0], fit[0], exp[0]]

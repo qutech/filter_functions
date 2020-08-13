@@ -23,24 +23,34 @@ Defines custom types for the package.
 """
 from typing import Mapping, Optional, Sequence, Tuple, Union
 
-from matplotlib import axes, colors, figure, legend
-from mpl_toolkits import axes_grid1
 from numpy import ndarray
-from qutip import Qobj
 
-State = Union[ndarray, Qobj]
-Operator = Union[ndarray, Qobj]
+try:
+    from matplotlib import axes, colors, figure, legend
+    from mpl_toolkits import axes_grid1
+
+    Axes = axes.Axes
+    Colormap = Union[colors.Colormap, str]
+    Figure = figure.Figure
+    Grid = axes_grid1.ImageGrid
+    Legend = legend.Legend
+    FigureAxes = Tuple[Figure, Axes]
+    FigureAxesLegend = Tuple[Figure, Axes, Legend]
+    FigureGrid = Tuple[Figure, Grid]
+except ImportError:
+    pass
+
+try:
+    from qutip import Qobj
+
+    State = Union[ndarray, Qobj]
+    Operator = Union[ndarray, Qobj]
+except ImportError:
+    State = ndarray
+    Operator = ndarray
+
 Coefficients = Sequence[float]
 Hamiltonian = Sequence[Sequence[Union[Operator, Coefficients]]]
 PulseMapping = Sequence[Sequence[Union['PulseSequence',
                                        Union[Sequence[int], int],
                                        Optional[Mapping[str, str]]]]]
-
-Axes = axes.Axes
-Colormap = Union[colors.Colormap, str]
-Figure = figure.Figure
-Grid = axes_grid1.ImageGrid
-Legend = legend.Legend
-FigureAxes = Tuple[Figure, Axes]
-FigureAxesLegend = Tuple[Figure, Axes, Legend]
-FigureGrid = Tuple[Figure, Grid]

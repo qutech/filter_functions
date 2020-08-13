@@ -26,24 +26,25 @@ Functions
 :func:`abs2`
     Absolute value squared
 :func:`get_indices_from_identifiers`
-    The the indices of control or noise operators with given identifiers as
-    they are saved in a ``PulseSequence``.
+    The the indices of control or noise operators with given identifiers
+    as they are saved in a ``PulseSequence``.
 :func:`tensor`
     Fast, flexible tensor product of an arbitrary number of inputs using
     :func:`~numpy.einsum`
 :func:`tensor_insert`
-    For an array that is known to be a tensor product, insert arrays at a given
-    position in the product chain
+    For an array that is known to be a tensor product, insert arrays at
+    a given position in the product chain
 :func:`tensor_merge`
-    For two arrays that are tensor products of known dimensions, merge them
-    at arbitary positions in the product chain
+    For two arrays that are tensor products of known dimensions, merge
+    them at arbitary positions in the product chain
 :func:`tensor_transpose`
     For a tensor product, transpose the order of the constituents in the
     product chain
 :func:`mdot`
     Multiple matrix product
 :func:`remove_float_errors`
-    Set entries whose absolute value is below a certain threshold to zero
+    Set entries whose absolute value is below a certain threshold to
+    zero
 :func:`oper_equiv`
     Determine if two vectors or operators are equal up to a global phase
 :func:`dot_HS`
@@ -52,11 +53,11 @@ Functions
     Get frequencies with typical infrared and ultraviolet cutoffs for a
     ``PulseSequence``
 :func:`symmetrize_spectrum`
-    Symmetrize a one-sided power spectrum as well as the frequencies associated
-    with it to get a two-sided spectrum.
+    Symmetrize a one-sided power spectrum as well as the frequencies
+    associated with it to get a two-sided spectrum.
 :func:`progressbar`
-    A progress bar for loops. Uses tqdm if available and a simple custom one if
-    not.
+    A progress bar for loops. Uses tqdm if available and a simple custom
+    one if not.
 :func:`hash_array_along_axis`
     Return a list of hashes along a given axis
 :func:`all_array_equal`
@@ -65,25 +66,21 @@ Functions
 Exceptions
 ----------
 :class:`CalculationError`
-    Exception raised if trying to fetch the pulse correlation function when it
-    was not computed during concatenation
+    Exception raised if trying to fetch the pulse correlation function
+    when it was not computed during concatenation
 
 """
 import functools
 import inspect
-import io
 import json
 import operator
 import os
 import re
 import string
-import sys
 from itertools import zip_longest
-from typing import (Callable, Generator, Iterable, List, Optional, Sequence,
-                    Tuple, Union)
+from typing import Callable, Iterable, List, Sequence, Tuple, Union
 
 import numpy as np
-import qutip as qt
 from numpy import linalg as nla
 from numpy import ndarray
 
@@ -92,8 +89,6 @@ from .types import Operator, State
 try:
     import jupyter_client
     import requests
-    from jupyter_core.paths import jupyter_runtime_dir
-    from notebook.utils import check_pid
     from notebook.notebookapp import list_running_servers
     from requests.compat import urljoin
 
@@ -155,8 +150,7 @@ try:
                     if nn['kernel']['id'] == kernel_id:
                         try:
                             relative_path = nn['notebook']['path']
-                            return os.path.join(ss['notebook_dir'],
-                                                relative_path)
+                            return os.path.join(ss['notebook_dir'], relative_path)
                         except KeyError:
                             return ''
                 except TypeError:
@@ -168,26 +162,27 @@ try:
 except ImportError:
     _NOTEBOOK_NAME = ''
 
-try:
-    if _NOTEBOOK_NAME:
-        from tqdm.notebook import tqdm
-    else:
-        # Either not running notebook or not able to determine
-        from tqdm import tqdm
-except ImportError:
-    tqdm = None
+if _NOTEBOOK_NAME:
+    from tqdm.notebook import tqdm as _tqdm
+else:
+    # Either not running notebook or not able to determine
+    from tqdm import tqdm as _tqdm
 
-__all__ = ['P_np', 'P_qt', 'abs2', 'all_array_equal', 'dot_HS',
-           'get_sample_frequencies', 'hash_array_along_axis', 'mdot',
-           'oper_equiv', 'progressbar', 'remove_float_errors', 'tensor',
-           'tensor_insert', 'tensor_merge', 'tensor_transpose']
+__all__ = ['paulis', 'abs2', 'all_array_equal', 'dot_HS', 'get_sample_frequencies',
+           'hash_array_along_axis', 'mdot', 'oper_equiv', 'progressbar', 'remove_float_errors',
+           'tensor', 'tensor_insert', 'tensor_merge', 'tensor_transpose']
 
 # Pauli matrices
-P_qt = [qt.qeye(2),
-        qt.sigmax(),
-        qt.sigmay(),
-        qt.sigmaz()]
-P_np = [P.full() for P in P_qt]
+paulis = np.array([
+    [[1, 0],
+     [0, 1]],
+    [[0, 1],
+     [1, 0]],
+    [[0, -1j],
+     [1j, 0]],
+    [[1, 0],
+     [0, -1]],
+])
 
 
 def abs2(x: ndarray) -> ndarray:
@@ -220,7 +215,7 @@ def cexp(x: ndarray) -> ndarray:
 
     References
     ----------
-    https://software.intel.com/en-us/forums/intel-distribution-for-python/topic/758148  # noqa
+    https://software.intel.com/en-us/forums/intel-distribution-for-python/topic/758148
     """
     df_exp = np.empty(x.shape, dtype=np.complex128)
     df_exp.real = np.cos(x, out=df_exp.real)
@@ -228,14 +223,39 @@ def cexp(x: ndarray) -> ndarray:
     return df_exp
 
 
-def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int],
-                          rank: int):
+def parse_optional_parameter(name: str, allowed: Sequence) -> Callable:
+    """Decorator factory to parse optional parameter with certain legal values.
+
+    If the parameter value corresponding to ``name`` (either in args or
+    kwargs) is not contained in ``allowed`` a ``ValueError`` is raised.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            parameters = inspect.signature(func).parameters
+            idx = tuple(parameters).index(name)
+            try:
+                value = args[idx]
+            except IndexError:
+                value = kwargs.get(name, parameters[name].default)
+
+            if value not in allowed:
+                raise ValueError(f"Invalid value for {name}: {value}. Should be one of {allowed}.")
+
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+parse_which_FF_parameter = parse_optional_parameter('which', ('fidelity', 'generalized'))
+
+
+def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int], rank: int):
     """Get shape of the tensor product between A and B of rank rank"""
     broadcast_shape = ()
     # Loop over dimensions from last to first, filling the 'shorter' shape
     # with 1's once it is exhausted
-    for dims in zip_longest(shape_A[-rank-1::-1], shape_B[-rank-1::-1],
-                            fillvalue=1):
+    for dims in zip_longest(shape_A[-rank-1::-1], shape_B[-rank-1::-1], fillvalue=1):
         if 1 in dims:
             # Broadcast 1-d of argument to dimension of other
             broadcast_shape = (max(dims),) + broadcast_shape
@@ -243,16 +263,16 @@ def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int],
             # Both arguments have same dimension on axis.
             broadcast_shape = dims[:1] + broadcast_shape
         else:
-            raise ValueError('Incompatible shapes ' +
-                             '{} and {} '.format(shape_A, shape_B) +
-                             'for tensor product of rank {}.'.format(rank))
+            raise ValueError(f'Incompatible shapes {shape_A} and {shape_B} ' +
+                             f'for tensor product of rank {rank}.')
 
     # Shape of the actual tensor product is product of each dimension,
     # again broadcasting if need be
     tensor_shape = tuple(
         functools.reduce(operator.mul, dimensions)
         for dimensions in zip_longest(shape_A[:-rank-1:-1],
-                                      shape_B[:-rank-1:-1], fillvalue=1)
+                                      shape_B[:-rank-1:-1],
+                                      fillvalue=1)
     )[::-1]
 
     return broadcast_shape + tensor_shape
@@ -262,17 +282,15 @@ def _parse_dims_arg(name: str, dims: Sequence[Sequence[int]],
                     rank: int) -> None:
     """Check if dimension arg for a tensor_* function is correct format"""
     if not len(dims) == rank:
-        raise ValueError('{}_dims should be of length '.format(name) +
-                         'rank = {}, not {}'.format(rank, len(dims)))
+        raise ValueError(f'{name}_dims should be of length rank = {rank}, not {len(dims)}')
 
     if not len(set(len(dim) for dim in dims)) == 1:
         # Not all nested lists the same length as required
-        raise ValueError('Require all lists in {}_dims '.format(name) +
-                         'to be of same length!')
+        raise ValueError(f'Require all lists in {name}_dims to be of same length!')
 
 
 def get_indices_from_identifiers(pulse: 'PulseSequence',
-                                 identifiers: Union[None, Sequence[str]],
+                                 identifiers: Union[None, str, Sequence[str]],
                                  kind: str) -> Tuple[Sequence[int],
                                                      Sequence[str]]:
     """Get the indices of operators for given identifiers.
@@ -281,7 +299,7 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
     ----------
     pulse: PulseSequence
         The PulseSequence instance for which to get the indices.
-    identifiers: sequence of str
+    identifiers: str or sequence of str
         The identifiers whose indices to get.
     kind: str
         Whether to get 'control' or 'noise' operator indices.
@@ -291,17 +309,20 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
     elif kind == 'control':
         pulse_identifiers = pulse.c_oper_identifiers
 
-    identifier_to_index_table = {identifier: index for index, identifier in
-                                 enumerate(pulse_identifiers)}
+    identifier_to_index_table = {identifier: index for index, identifier
+                                 in enumerate(pulse_identifiers)}
     if identifiers is None:
         inds = np.arange(len(pulse_identifiers))
     else:
         try:
-            inds = np.array([identifier_to_index_table[identifier]
-                             for identifier in identifiers])
+            if isinstance(identifiers, str):
+                inds = np.array([identifier_to_index_table[identifiers]])
+            else:
+                inds = np.array([identifier_to_index_table[identifier]
+                                 for identifier in identifiers])
         except KeyError:
             raise ValueError('Invalid identifiers given. All available ones ' +
-                             'are: {}'.format(pulse_identifiers))
+                             f'are: {pulse_identifiers}')
 
     return inds
 
@@ -309,10 +330,10 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
 def tensor(*args, rank: int = 2,
            optimize: Union[bool, str] = False) -> ndarray:
     """
-    Fast, flexible tensor product using einsum. The product is taken over the
-    last *rank* axes and broadcast over the remaining axes which thus need to
-    follow numpy broadcasting rules. Note that vectors are treated as rank 2
-    tensors with shape (1, x) or (x, 1).
+    Fast, flexible tensor product using einsum. The product is taken
+    over the last *rank* axes and broadcast over the remaining axes
+    which thus need to follow numpy broadcasting rules. Note that
+    vectors are treated as rank 2 tensors with shape (1, x) or (x, 1).
 
     For example, the following shapes are compatible:
 
@@ -332,8 +353,9 @@ def tensor(*args, rank: int = 2,
     args: array_like
         The elements of the tensor product
     rank: int, optional (default: 2)
-        The rank of the tensors. E.g., for a Kronecker product between two
-        matrices ``rank == 2``. The remaining axes are broadcast over.
+        The rank of the tensors. E.g., for a Kronecker product between
+        two matrices ``rank == 2``. The remaining axes are broadcast
+        over.
     optimize: bool|str, optional (default: False)
         Optimize the tensor contraction order. Passed through to
         :func:`numpy.einsum`.
@@ -405,9 +427,7 @@ def tensor(*args, rank: int = 2,
     n = len(args)
     bit = n % 2
     while n > 1:
-        args = args[:bit] + tuple(binary_tensor(*args[i:i+2])
-                                  for i in range(bit, n, 2))
-
+        args = args[:bit] + tuple(binary_tensor(*args[i:i+2]) for i in range(bit, n, 2))
         n = len(args)
         bit = n % 2
 
@@ -418,16 +438,17 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
                   arr_dims: Sequence[Sequence[int]], rank: int = 2,
                   optimize: Union[bool, str] = False) -> ndarray:
     r"""
-    For a tensor product *arr*, insert *args* into the product chain at *pos*.
-    E.g, if :math:`\verb|arr|\equiv A\otimes B\otimes C` and
+    For a tensor product *arr*, insert *args* into the product chain at
+    *pos*. E.g, if :math:`\verb|arr|\equiv A\otimes B\otimes C` and
     :math:`\verb|pos|\equiv 2`, the result will be the tensor product
 
     .. math::
-        A\otimes B\otimes\left[\bigotimes_{X\in\verb|args|}X\right]\otimes C.
+        A\otimes B\otimes\left[\bigotimes_{X\in\verb|args|}X\right]
+        \otimes C.
 
     This function works in a similar way to :func:`numpy.insert` and the
-    following would be functionally equivalent in the case that the constituent
-    tensors of the product *arr* are known:
+    following would be functionally equivalent in the case that the
+    constituent tensors of the product *arr* are known:
 
     >>> tensor_insert(tensor(*arrs, rank=rank), *args, pos=pos, arr_dims=...,
     ...               rank=rank)
@@ -438,28 +459,30 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
     Parameters
     ----------
     arr: ndarray
-        The tensor product in whose chain the other args should be inserted
+        The tensor product in whose chain the other args should be
+        inserted
     *args: ndarray
         The tensors to be inserted in the product chain
     pos: int|sequence of ints
-        The position(s) at which the args are inserted in the product chain. If
-        an int and ``len(args) > 1``, it is repeated so that all args are
-        inserted in a row. If a sequence, it should indicate the indices in the
-        original tensor product chain that led to *arr* before which *args*
-        should be inserted.
+        The position(s) at which the args are inserted in the product
+        chain. If an int and ``len(args) > 1``, it is repeated so that
+        all args are inserted in a row. If a sequence, it should
+        indicate the indices in the original tensor product chain that
+        led to *arr* before which *args* should be inserted.
     arr_dims: array_like, shape (rank, n_const)
-        The last *rank* dimensions of the *n_const* constituent tensors of the
-        tensor product *arr* as a list of lists with the list at position *i*
-        containing the *i*-th relevant dimension of all args. Since the remaing
-        axes are broadcast over, their shape is irrelevant.
+        The last *rank* dimensions of the *n_const* constituent tensors
+        of the tensor product *arr* as a list of lists with the list at
+        position *i* containing the *i*-th relevant dimension of all
+        args. Since the remaing axes are broadcast over, their shape is
+        irrelevant.
 
-        For example, if ``arr = tensor(a, b, c, rank=2)`` and ``a,b,c`` have
-        shapes ``(2, 3, 4), (5, 2, 2, 1), (2, 2)``,
+        For example, if ``arr = tensor(a, b, c, rank=2)`` and ``a,b,c``
+        have shapes ``(2, 3, 4), (5, 2, 2, 1), (2, 2)``,
         ``arr_dims = [[3, 2, 2], [4, 1, 2]]``.
     rank: int, optional (default: 2)
-        The rank of the tensors. E.g., for a Kronecker product between two
-        vectors, ``rank == 1``, and between two matrices ``rank == 2``. The
-        remaining axes are broadcast over.
+        The rank of the tensors. E.g., for a Kronecker product between
+        two vectors, ``rank == 1``, and between two matrices
+        ``rank == 2``. The remaining axes are broadcast over.
     optimize: bool|str, optional (default: False)
         Optimize the tensor contraction order. Passed through to
         :func:`numpy.einsum`.
@@ -467,7 +490,7 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
 
     Examples
     --------
-    >>> I, X, Y, Z = P_np
+    >>> I, X, Y, Z = paulis
     >>> arr = tensor(X, I)
     >>> r = tensor_insert(arr, Y, Z, arr_dims=[[2, 2], [2, 2]], pos=0)
     >>> np.allclose(r, tensor(Y, Z, X, I))
@@ -521,9 +544,8 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
             args = (tensor(*args, rank=rank, optimize=optimize),)
     else:
         if not len(pos) == len(args):
-            raise ValueError('Expected pos to be either an int or a ' +
-                             'sequence of the same length as the number of ' +
-                             'args, not length {}'.format(len(pos)))
+            raise ValueError('Expected pos to be either an int or a sequence of the same length ' +
+                             f'as the number of args, not length {len(pos)}')
 
     _parse_dims_arg('arr', arr_dims, rank)
 
@@ -532,7 +554,8 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
         ins_chars = string.ascii_letters[:rank]
         arr_chars = string.ascii_letters[rank:(ndim+1)*rank]
         subscripts = '...{},...{}->...{}'.format(
-            ins_chars, arr_chars,
+            ins_chars,
+            arr_chars,
             arr_chars[:pos] + ''.join(
                 ins_chars[i] + arr_chars[pos+i*ndim:pos+(i+1)*ndim]
                 for i in range(rank)
@@ -549,8 +572,7 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
         # output of the regular tensor einsum call
         flat_arr_dims = [dim for axis in arr_dims for dim in axis]
         reshaped_arr = arr.reshape(*arr.shape[:-rank], *flat_arr_dims)
-        result = np.einsum(subscripts, ins, reshaped_arr,
-                           optimize=optimize).reshape(outshape)
+        result = np.einsum(subscripts, ins, reshaped_arr, optimize=optimize).reshape(outshape)
 
         return result
 
@@ -567,20 +589,16 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
             key=operator.itemgetter(0))):
 
         if div not in (-1, 0):
-            raise IndexError('Invalid position {} '.format(cpos[i]) +
-                             'specified. Must be between ' +
-                             '-{0} and {0}.'.format(ndim))
+            raise IndexError(f'Invalid position {cpos[i]} specified. Must ' +
+                             f'be between -{ndim} and {ndim}.')
 
         # Insert argument arg at position p+i (since every iteration the index
         # shifts by 1)
         try:
             result = single_tensor_insert(result, arg, carr_dims, p+i)
         except ValueError as err:
-            raise ValueError(
-                'Could not insert arg {} with shape '.format(arg_counter) +
-                '{} into the array with shape '.format(result.shape) +
-                '{} at position {}.'.format(arg.shape, p)
-            ) from err
+            raise ValueError(f'Could not insert arg {arg_counter} with shape {result.shape} ' +
+                             f'into the array with shape {arg.shape} at position {p}.') from err
 
         # Update arr_dims
         for axis, d in zip(carr_dims, arg.shape[-rank:]):
@@ -594,10 +612,12 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
                  ins_dims: Sequence[Sequence[int]],
                  rank: int = 2, optimize: Union[bool, str] = False) -> ndarray:
     r"""
-    For two tensor products *arr* and *ins*, merge *ins* into the product chain
-    at indices *pos*. E.g, if :math:`\verb|arr|\equiv A\otimes B\otimes C`,
-    :math:`\verb|ins|\equiv D\otimes E`, and :math:`\verb|pos|\equiv [1, 2]`,
-    the result will be the tensor product
+    For two tensor products *arr* and *ins*, merge *ins* into the
+    product chain at indices *pos*. E.g, if
+    :math:`\verb|arr|\equiv A\otimes B\otimes C`,
+    :math:`\verb|ins|\equiv D\otimes E`, and
+    :math:`\verb|pos|\equiv [1, 2]`, the result will be the tensor
+    product
 
     .. math::
         A\otimes D\otimes B\otimes E\otimes C.
@@ -608,39 +628,42 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
     Parameters
     ----------
     arr: ndarray
-        The tensor product in whose chain the other args should be inserted
+        The tensor product in whose chain the other args should be
+        inserted
     ins: ndarray
         The tensor product to be inserted in the product chain
     pos: sequence of ints
-        The positions at which the constituent tensors of *ins* are inserted in
-        the product chain. Should indicate the indices in the original tensor
-        product chain that led to *arr* before which the constituents of *ins*
-        should be inserted.
+        The positions at which the constituent tensors of *ins* are
+        inserted in the product chain. Should indicate the indices in
+        the original tensor product chain that led to *arr* before which
+        the constituents of *ins* should be inserted.
     arr_dims: array_like, shape (rank, n_const)
-        The last *rank* dimensions of the *n_const* constituent tensors of the
-        tensor product *arr* as a list of lists with the list at position *i*
-        containing the *i*-th relevant dimension of all args. Since the remaing
-        axes are broadcast over, their shape is irrelevant.
+        The last *rank* dimensions of the *n_const* constituent tensors
+        of the tensor product *arr* as a list of lists with the list at
+        position *i* containing the *i*-th relevant dimension of all
+        args. Since the remaing axes are broadcast over, their shape is
+        irrelevant.
 
-        For example, if ``arr = tensor(a, b, c, rank=2)`` and ``a,b,c`` have
-        shapes ``(2, 3, 4), (5, 2, 2, 1), (2, 2)``,
+        For example, if ``arr = tensor(a, b, c, rank=2)`` and ``a,b,c``
+        have shapes ``(2, 3, 4), (5, 2, 2, 1), (2, 2)``,
         ``arr_dims = [[3, 2, 2], [4, 1, 2]]``.
     ins_dims: array_like, shape (rank, n_const)
-        The last *rank* dimensions of the *n_const* constituent tensors of the
-        tensor product *ins* as a list of lists with the list at position *i*
-        containing the *i*-th relevant dimension of *ins*. Since the remaing
-        axes are broadcast over, their shape is irrelevant.
+        The last *rank* dimensions of the *n_const* constituent tensors
+        of the tensor product *ins* as a list of lists with the list at
+        position *i* containing the *i*-th relevant dimension of *ins*.
+        Since the remaing axes are broadcast over, their shape is
+        irrelevant.
     rank: int, optional (default: 2)
-        The rank of the tensors. E.g., for a Kronecker product between two
-        vectors, ``rank == 1``, and between two matrices ``rank == 2``. The
-        remaining axes are broadcast over.
+        The rank of the tensors. E.g., for a Kronecker product between
+        two vectors, ``rank == 1``, and between two matrices
+        ``rank == 2``. The remaining axes are broadcast over.
     optimize: bool|str, optional (default: False)
         Optimize the tensor contraction order. Passed through to
         :func:`numpy.einsum`.
 
     Examples
     --------
-    >>> I, X, Y, Z = P_np
+    >>> I, X, Y, Z = paulis
     >>> arr = tensor(X, Y, Z)
     >>> ins = tensor(I, I)
     >>> r1 = tensor_merge(arr, ins, pos=[1, 2], arr_dims=[[2]*3, [2]*3],
@@ -652,7 +675,8 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
     >>> np.allclose(r1, r2)
     True
 
-    :func:`tensor_insert` can provide the same functionality in some cases:
+    :func:`tensor_insert` can provide the same functionality in some
+    cases:
 
     >>> arr = tensor(Y, Z)
     >>> ins = tensor(I, X)
@@ -662,7 +686,8 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
     >>> np.allclose(r1, r2)
     True
 
-    Also tensors of rank other than 2 and numpy broadcasting are supported:
+    Also tensors of rank other than 2 and numpy broadcasting are
+    supported:
 
     >>> arr = np.random.randn(2, 10, 3, 4)
     >>> ins = np.random.randn(2, 10, 3, 2)
@@ -695,16 +720,13 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
             if p != arr_ndim:
                 div, p = divmod(p, arr_ndim)
                 if div not in (-1, 0):
-                    raise IndexError('Invalid position {} '.format(pos[i]) +
-                                     'specified. Must be between ' +
-                                     '-{0} and {0}.'.format(arr_ndim))
+                    raise IndexError(f'Invalid position {pos[i]} specified. Must be between ' +
+                                     f'-{arr_ndim} and {arr_ndim}.')
             arr_part = arr_part[:p+i] + ins_p + arr_part[p+i:]
 
         out_chars += arr_part
 
-    subscripts = '...{},...{}->...{}'.format(
-        ins_chars, arr_chars, out_chars
-    )
+    subscripts = f'...{ins_chars},...{arr_chars}->...{out_chars}'
 
     outshape = _tensor_product_shape(ins.shape, arr.shape, rank)
     # Need to reshape arr to the rank*ndim-dimensional shape that's the
@@ -717,15 +739,14 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
         ins_reshaped = ins.reshape(*ins.shape[:-rank], *flat_ins_dims)
     except ValueError as err:
         raise ValueError('ins_dims not compatible with ins.shape[-rank:] = ' +
-                         '{}'.format(ins.shape[-rank:])) from err
+                         f'{ins.shape[-rank:]}') from err
     try:
         arr_reshaped = arr.reshape(*arr.shape[:-rank], *flat_arr_dims)
     except ValueError as err:
         raise ValueError('arr_dims not compatible with arr.shape[-rank:] = ' +
-                         '{}'.format(arr.shape[-rank:])) from err
+                         f'{arr.shape[-rank:]}') from err
 
-    result = np.einsum(subscripts, ins_reshaped, arr_reshaped,
-                       optimize=optimize).reshape(outshape)
+    result = np.einsum(subscripts, ins_reshaped, arr_reshaped, optimize=optimize).reshape(outshape)
 
     return result
 
@@ -744,27 +765,29 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
         The transposition order. If ``arr == tensor(A, B)`` and
         ``order == (1, 0)``, the result will be ``tensor(B, A)``.
     arr_dims: array_like, shape (rank, n_const)
-        The last *rank* dimensions of the *n_const* constituent tensors of the
-        tensor product *arr* as a list of lists with the list at position *i*
-        containing the *i*-th relevant dimension of all args. Since the remaing
-        axes are broadcast over, their shape is irrelevant.
+        The last *rank* dimensions of the *n_const* constituent tensors
+        of the tensor product *arr* as a list of lists with the list at
+        position *i* containing the *i*-th relevant dimension of all
+        args. Since the remaing axes are broadcast over, their shape is
+        irrelevant.
 
-        For example, if ``arr = tensor(a, b, c, rank=2)`` and ``a,b,c`` have
-        shapes ``(2, 3, 4), (5, 2, 2, 1), (2, 2)``,
+        For example, if ``arr = tensor(a, b, c, rank=2)`` and ``a,b,c``
+        have shapes ``(2, 3, 4), (5, 2, 2, 1), (2, 2)``,
         ``arr_dims = [[3, 2, 2], [4, 1, 2]]``.
     rank: int, optional (default: 2)
-        The rank of the tensors. E.g., for a Kronecker product between two
-        vectors, ``rank == 1``, and between two matrices ``rank == 2``. The
-        remaining axes are broadcast over.
+        The rank of the tensors. E.g., for a Kronecker product between
+        two vectors, ``rank == 1``, and between two matrices
+        ``rank == 2``. The remaining axes are broadcast over.
 
     Returns
     -------
     transposed_arr: ndarray
-        The tensor product *arr* with its order transposed according to *order*
+        The tensor product *arr* with its order transposed according to
+        *order*
 
     Examples
     --------
-    >>> I, X, Y, Z = P_np
+    >>> I, X, Y, Z = paulis
     >>> arr = tensor(X, Y, Z)
     >>> transposed = tensor_transpose(arr, [1, 2, 0], arr_dims=[[2, 2, 2]]*2)
     >>> np.allclose(transposed, tensor(Y, Z, X))
@@ -783,8 +806,8 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
     ndim = len(arr_dims[0])
     # Number of axes that are broadcast over
     n_broadcast = len(arr.shape[:-rank])
-    transpose_axes = [i for i in range(n_broadcast)] + \
-        [n_broadcast + r*ndim + o for r in range(rank) for o in order]
+    transpose_axes = ([i for i in range(n_broadcast)] +
+                      [n_broadcast + r*ndim + o for r in range(rank) for o in order])
 
     # Need to reshape arr to the rank*ndim-dimensional shape that's the
     # output of the regular tensor einsum call
@@ -795,13 +818,13 @@ def tensor_transpose(arr: ndarray, order: Sequence[int],
         arr_reshaped = arr.reshape(*arr.shape[:-rank], *flat_arr_dims)
     except ValueError as err:
         raise ValueError('arr_dims not compatible with arr.shape[-rank:] = ' +
-                         '{}'.format(arr.shape[-rank:])) from err
+                         f'{arr.shape[-rank:]}') from err
 
     try:
         result = arr_reshaped.transpose(*transpose_axes).reshape(arr.shape)
     except TypeError as type_err:
         raise TypeError("Could not transpose the order. Are all elements of " +
-                        "'order' ints?") from type_err
+                        "'order' integers?") from type_err
     except ValueError as val_err:
         raise ValueError("Could not transpose the order. Are all elements " +
                          "of 'order' unique and match the array?") from val_err
@@ -816,9 +839,9 @@ def mdot(arr: Sequence, axis: int = 0) -> ndarray:
 
 def remove_float_errors(arr: ndarray, eps_scale: float = None):
     """
-    Clean up arr by removing floating point numbers smaller than the dtype's
-    precision multiplied by eps_scale. Treats real and imaginary parts
-    separately.
+    Clean up arr by removing floating point numbers smaller than the
+    dtype's precision multiplied by eps_scale. Treats real and imaginary
+    parts separately.
     """
     if eps_scale is None:
         atol = np.finfo(arr.dtype).eps*arr.shape[-1]
@@ -848,35 +871,37 @@ def oper_equiv(psi: Union[Operator, State],
         |\psi\rangle = e^{i\chi}|\phi\rangle \Leftrightarrow
         \langle \phi|\psi\rangle = e^{i\chi},
 
-    and returns the phase. If the first return value is false, the second is
-    meaningless in this context. psi and phi can also be operators.
+    and returns the phase. If the first return value is false, the
+    second is meaningless in this context. psi and phi can also be
+    operators.
 
     Parameters
     ----------
-    psi, phi: Qobj or array_like
+    psi, phi: qutip.Qobj or array_like
         Vectors or operators to be compared
     eps: float
-        The tolerance below which the two objects are treated as equal, i.e.,
-        the function returns ``True`` if ``abs(1 - modulus) <= eps``.
+        The tolerance below which the two objects are treated as equal,
+        i.e., the function returns ``True`` if
+        ``abs(1 - modulus) <= eps``.
     normalized: bool
-        Flag indicating if *psi* and *phi* are normalized with respect to the
-        Hilbert-Schmidt inner product :func:`dot_HS`.
+        Flag indicating if *psi* and *phi* are normalized with respect
+        to the Hilbert-Schmidt inner product :func:`dot_HS`.
 
     Examples
     --------
-    >>> psi = qt.sigmax()
-    >>> phi = qt.sigmax()*np.exp(1j*1.2345)
+    >>> psi = paulis[1]
+    >>> phi = paulis[1]*np.exp(1j*1.2345)
     >>> oper_equiv(psi, phi)
     (True, 1.2345)
     """
-    psi, phi = [obj.full() if isinstance(obj, qt.Qobj) else obj
-                for obj in (psi, phi)]
+    # Convert qutip.Qobj's to numpy arrays
+    psi, phi = [obj.full() if hasattr(obj, 'full') else obj for obj in (psi, phi)]
 
     if eps is None:
         # Tolerance the floating point eps times the # of flops for the matrix
         # multiplication, i.e. for psi and phi n x m matrices 2*n**2*m
-        eps = max(np.finfo(psi.dtype).eps, np.finfo(phi.dtype).eps) *\
-            np.prod(psi.shape)*phi.shape[-1]*2
+        eps = (max(np.finfo(psi.dtype).eps, np.finfo(phi.dtype).eps) *
+               np.prod(psi.shape)*phi.shape[-1]*2)
         if not normalized:
             # normalization introduces more floating point error
             eps *= (np.prod(psi.shape)*phi.shape[-1]*2)**2
@@ -901,7 +926,7 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
 
     Parameters
     ----------
-    U, V: Qobj or ndarray
+    U, V: qutip.Qobj or ndarray
         Objects to compute the inner product of.
 
     Returns
@@ -911,15 +936,16 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
 
     Examples
     --------
-    >>> U, V = qt.sigmax(), qt.sigmay()
+    >>> U, V = paulis[1:3]
     >>> dot_HS(U, V)
     0.0
     >>> dot_HS(U, U)
     2.0
     """
-    if isinstance(U, qt.Qobj):
+    # Convert qutip.Qobj's to numpy arrays
+    if hasattr(U, 'full'):
         U = U.full()
-    if isinstance(V, qt.Qobj):
+    if hasattr(V, 'full'):
         V = V.full()
 
     if eps is None:
@@ -940,6 +966,7 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
     return res if res.imag.any() else res.real
 
 
+@parse_optional_parameter('spacing', ('log', 'linear'))
 def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
                            spacing: str = 'log',
                            symmetric: bool = True) -> ndarray:
@@ -947,10 +974,10 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
     Get *n_samples* sample frequencies spaced either 'linear' or 'log'
     symmetrically around zero.
 
-    The ultraviolet cutoff is taken to be two orders of magnitude larger than
-    the timescale of the pulse tau. In the case of log spacing, the values are
-    clipped in the infrared at two orders of magnitude below the timescale of
-    the pulse.
+    The ultraviolet cutoff is taken to be two orders of magnitude larger
+    than the timescale of the pulse tau. In the case of log spacing, the
+    values are clipped in the infrared at two orders of magnitude below
+    the timescale of the pulse.
 
     Parameters
     ----------
@@ -959,31 +986,30 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
     n_samples: int, optional
         The number of frequency samples. Default is 300.
     spacing: str, optional
-        The spacing of the frequencies. Either 'log' or 'linear', default is
-        'log'.
+        The spacing of the frequencies. Either 'log' or 'linear',
+        default is 'log'.
     symmetric: bool, optional
-        Whether the frequencies should be symmetric around zero or positive
-        only. Default is True.
+        Whether the frequencies should be symmetric around zero or
+        positive only. Default is True.
 
     Returns
     -------
     omega: ndarray
         The frequencies.
     """
-    tau = pulse.t[-1]
+    tau = pulse.tau
     if spacing == 'linear':
         if symmetric:
             freqs = np.linspace(-1e2/tau, 1e2/tau, n_samples)*2*np.pi
         else:
             freqs = np.linspace(0, 1e2/tau, n_samples)*2*np.pi
-    elif spacing == 'log':
+    else:
+        # spacing == 'log'
         if symmetric:
             freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples//2)*2*np.pi
             freqs = np.concatenate([-freqs[::-1], freqs])
         else:
             freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples)*2*np.pi
-    else:
-        raise ValueError("spacing should be either 'linear' or 'log'.")
 
     return freqs
 
@@ -1008,8 +1034,8 @@ def symmetrize_spectrum(S: ndarray, omega: ndarray) -> Tuple[ndarray, ndarray]:
 
     Notes
     -----
-    The two-sided power spectral density is in the symmetric case given by
-    :math:`S^{(1)}(\omega) = 2S^{(2)}(\omega)`.
+    The two-sided power spectral density is in the symmetric case given
+    by :math:`S^{(1)}(\omega) = 2S^{(2)}(\omega)`.
     """
     # Catch zero frequency component
     if omega[0] == 0:
@@ -1029,60 +1055,26 @@ def hash_array_along_axis(arr: ndarray, axis: int = 0) -> List[int]:
 
 def all_array_equal(it: Iterable) -> bool:
     """
-    Return ``True`` if all array elements of ``it`` are equal by hashing the
-    bytes representation of each array. Note that this is not thread-proof.
+    Return ``True`` if all array elements of ``it`` are equal by hashing
+    the bytes representation of each array. Note that this is not
+    thread-proof.
     """
     return len(set(hash(i.tobytes()) for i in it)) == 1
 
 
-def _simple_progressbar(iterable: Iterable, desc: str = "Computing",
-                        size: int = 25, count: int = None, file=None):
-    """https://stackoverflow.com/a/34482761"""
-    if count is None:
-        try:
-            count = len(iterable)
-        except TypeError:
-            raise TypeError("Require total number of iterations 'count'.")
-
-    file = sys.stdout if file is None else file
-
-    if desc:
-        # tqdm desc compatibility
-        desc = desc.strip(': ') + ': '
-
-    def show(j):
-        x = int(size*j/count)
-        file.write("\r{}[{}{}] {} %".format(desc, "#"*x, "."*(size - x),
-                                            int(100*j/count)))
-        file.flush()
-
-    show(0)
-    for i, item in enumerate(iterable):
-        yield item
-        show(i + 1)
-
-    file.write("\n")
-    file.flush()
-
-
 def progressbar(iterable: Iterable, *args, **kwargs):
     """
-    Progress bar for loops. Uses tqdm if available or a quick-and-dirty
-    implementation from stackoverflow.
+    Progress bar for loops. Uses tqdm.
 
     Usage::
 
         for i in progressbar(range(10)):
             do_something()
     """
-    if tqdm is not None:
-        return tqdm(iterable, *args, **kwargs)
-
-    return _simple_progressbar(iterable, *args, **kwargs)
+    return _tqdm(iterable, *args, **kwargs)
 
 
-def progressbar_range(*args, show_progressbar: Optional[bool] = True,
-                      **kwargs):
+def progressbar_range(*args, show_progressbar: bool = True, **kwargs):
     """Wrapper for range() that shows a progressbar dependent on a kwarg.
 
     Parameters
@@ -1097,42 +1089,13 @@ def progressbar_range(*args, show_progressbar: Optional[bool] = True,
     Returns
     -------
     it: Iterator
-        Range iterator dressed with a progressbar if ``show_progressbar=True``.
+        Range iterator dressed with a progressbar if
+        ``show_progressbar=True``.
     """
     if show_progressbar:
         return progressbar(range(*args), **kwargs)
 
     return range(*args)
-
-
-def parse_optional_parameter(name: str, allowed: Sequence) -> Callable:
-    """Decorator factory to parse optional parameter with certain legal values.
-
-    If the parameter value corresponding to ``name`` (either in args or kwargs)
-    is not contained in ``allowed`` a ``ValueError`` is raised.
-    """
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            parameters = inspect.signature(func).parameters
-            idx = tuple(parameters).index(name)
-            try:
-                value = args[idx]
-            except IndexError:
-                value = kwargs.get(name, parameters[name].default)
-
-            if value not in allowed:
-                raise ValueError(
-                    "Invalid value for {}: {}. ".format(name, value) +
-                    "Should be one of {}.".format(allowed)
-                )
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
-
-
-parse_which_FF_parameter = parse_optional_parameter(
-    'which', ('fidelity', 'generalized'))
 
 
 class CalculationError(Exception):
