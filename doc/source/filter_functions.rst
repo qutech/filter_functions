@@ -44,6 +44,14 @@ filter\_functions.pulse\_sequence module
    :undoc-members:
    :show-inheritance:
 
+filter\_functions.gradient module
+----------------------------------------
+
+.. automodule:: filter_functions.gradient
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 filter\_functions.types module
 ------------------------------
 
