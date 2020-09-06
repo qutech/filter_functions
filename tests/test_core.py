@@ -81,19 +81,19 @@ class CoreTest(testutil.TestCase):
 
         with self.assertRaises(TypeError):
             # Control Hamiltonian not list or tuple
-            ff.PulseSequence(np.array(H_c), H_n, dt)
+            ff.PulseSequence(np.array(H_c, dtype=object), H_n, dt)
 
         with self.assertRaises(TypeError):
             # Noise Hamiltonian not list or tuple
-            ff.PulseSequence(H_c, np.array(H_n), dt)
+            ff.PulseSequence(H_c, np.array(H_n, dtype=object), dt)
 
         with self.assertRaises(TypeError):
             # Element of control Hamiltonian not list or tuple
-            ff.PulseSequence([np.array(H_c[0])], H_n, dt)
+            ff.PulseSequence([np.array(H_c[0], dtype=object)], H_n, dt)
 
         with self.assertRaises(TypeError):
             # Element of noise Hamiltonian not list or tuple
-            ff.PulseSequence(H_c, [np.array(H_n[0])], dt)
+            ff.PulseSequence(H_c, [np.array(H_n[0], dtype=object)], dt)
 
         idx = rng.randint(0, 3)
         with self.assertRaises(TypeError):
@@ -136,34 +136,22 @@ class CoreTest(testutil.TestCase):
             ff.PulseSequence(H_c, H_n, dt)
 
         H_n[idx][1] = coeff
-        with self.assertRaises(TypeError):
-            # Control operators weird dimensions
-            H_c[idx][0] = H_c[idx][0][:, :, None]
-            ff.PulseSequence(H_c, H_n, dt)
-
-        H_c[idx][0] = H_c[idx][0].squeeze()
-        with self.assertRaises(TypeError):
-            # Noise operators weird dimensions
-            H_n[idx][0] = H_n[idx][0][:, :, None]
-            ff.PulseSequence(H_c, H_n, dt)
-
-        H_n[idx][0] = H_n[idx][0].squeeze()
         with self.assertRaises(ValueError):
             # Control operators not 2d
             for hc in H_c:
-                hc[0] = hc[0][:, :, None]
+                hc[0] = np.tile(hc[0], (rng.randint(2, 11), 1, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hc in H_c:
-            hc[0] = hc[0].squeeze()
+            hc[0] = hc[0][0]
         with self.assertRaises(ValueError):
             # Noise operators not 2d
             for hn in H_n:
-                hn[0] = hn[0][:, :, None]
+                hn[0] = np.tile(hn[0], (rng.randint(2, 11), 1, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hn in H_n:
-            hn[0] = hn[0].squeeze()
+            hn[0] = hn[0][0]
         with self.assertRaises(ValueError):
             # Control operators not square
             for hc in H_c:
