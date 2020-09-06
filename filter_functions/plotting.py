@@ -755,7 +755,6 @@ def plot_error_transfer_matrix(
         grid_kw.setdefault('nrows_ncols', (n_rows, n_cols))
         grid_kw.setdefault('axes_pad', 0.3)
         grid_kw.setdefault('label_mode', 'L')
-        grid_kw.setdefault('add_all', True)
         grid_kw.setdefault('share_all', True)
         grid_kw.setdefault('direction', 'row')
         grid_kw.setdefault('cbar_mode', 'single')
