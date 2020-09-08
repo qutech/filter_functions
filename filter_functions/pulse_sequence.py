@@ -1016,23 +1016,28 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[
         coeffs = args[0]
         identifiers = list(args[1])
 
-    if any(not isinstance(oper, ndarray) for oper in opers):
-        if any(not hasattr(oper, 'full') for oper in opers):
+    # Parse opers and convert to squeezed ndarray if possible
+    parsed_opers = []
+    for oper in opers:
+        if isinstance(oper, ndarray):
+            parsed_opers.append(oper.squeeze())
+        elif hasattr(oper, 'full'):
+            # qutip.Qobj
+            parsed_opers.append(oper.full())
+        elif hasattr(oper, 'todense'):
+            # sparse object
+            parsed_opers.append(oper.todense())
+        else:
             raise TypeError(f'Expected operators in {H_str} to be NumPy arrays or QuTiP Qobjs!')
 
-        # Convert qutip.Qobjs to full arrays
-        opers = [oper.full() if hasattr(oper, 'full') else oper for oper in opers]
-    else:
-        opers = [oper.squeeze() for oper in opers]
-
     # Check correct dimensions for the operators
-    if set(oper.ndim for oper in opers) != {2}:
+    if set(oper.ndim for oper in parsed_opers) != {2}:
         raise ValueError(f'Expected all operators in {H_str} to be two-dimensional!')
 
-    if len(set(oper.shape for oper in opers)) != 1:
+    if len(set(*set(oper.shape for oper in parsed_opers))) != 1:
         raise ValueError(f'Expected operators in {H_str} to be square!')
 
-    opers = np.asarray(opers)
+    parsed_opers = np.asarray(parsed_opers)
 
     if not all(hasattr(coeff, '__len__') for coeff in coeffs):
         raise TypeError(f'Expected coefficients in {H_str} to be a sequence')
@@ -1061,7 +1066,7 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[
 
     coeffs = np.asarray(coeffs)
     idx = np.argsort(identifiers)
-    return opers[idx], identifiers[idx], coeffs[idx]
+    return parsed_opers[idx], identifiers[idx], coeffs[idx]
 
 
 def _concatenate_Hamiltonian(

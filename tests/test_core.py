@@ -155,19 +155,19 @@ class CoreTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             # Control operators not square
             for hc in H_c:
-                hc[0] = hc[0].reshape(1, 4)
+                hc[0] = np.tile(hc[0].reshape(1, 4), (2, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hc in H_c:
-            hc[0] = hc[0].reshape(2, 2)
+            hc[0] = hc[0][0].reshape(2, 2)
         with self.assertRaises(ValueError):
             # Noise operators not square
             for hn in H_n:
-                hn[0] = hn[0].reshape(1, 4)
+                hn[0] = np.tile(hn[0].reshape(1, 4), (2, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hn in H_n:
-            hn[0] = hn[0].reshape(2, 2)
+            hn[0] = hn[0][0].reshape(2, 2)
         with self.assertRaises(ValueError):
             # Control and noise operators not same dimension
             for hn in H_n:
