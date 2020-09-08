@@ -195,7 +195,7 @@ class PrecisionTest(testutil.TestCase):
 
         # Basis for qubit subspace
         qubit_subspace_basis = ff.Basis(
-            [np.pad(b, 1, 'constant') for b in ff.Basis.pauli(2)],
+            [np.pad(b, 1, 'constant') for b in ff.Basis.pauli(2)[1:]],
             skip_check=True,
             btype='Pauli'
         )
@@ -211,25 +211,21 @@ class PrecisionTest(testutil.TestCase):
         # Manually set dimension of pulse as the dimension of the computational
         # subspace
         cnot.d = 4
-        T = dt.sum()
+        f_min = 1/cnot.tau
+        omega = np.geomspace(f_min, 1e2, 250)
 
-        for f_min, A, alpha, MC, rtol in zip((1/T, 1e-2/T), A, (0.0, 0.7),
-                                             infid_MC, (0.04, 0.02)):
+        for A, alpha, MC in zip(A, (0.0, 0.7), infid_MC):
+            S = A/omega**alpha
 
-            omega = np.geomspace(f_min, 1e2, 250)*2*np.pi
-            S_t, omega_t = util.symmetrize_spectrum(A/omega**alpha, omega)
-
-            infid, xi = ff.infidelity(cnot, S_t, omega_t, identifiers[:3],
+            infid, xi = ff.infidelity(cnot, S, omega, identifiers[:3],
                                       return_smallness=True)
 
-            K = numeric.calculate_cumulant_function(cnot_full, S_t, omega_t,
+            K = numeric.calculate_cumulant_function(cnot_full, S, omega,
                                                     identifiers[:3])
             infid_P = - np.trace(K[:, :16, :16], axis1=1, axis2=2).real/4**2
 
-            print(np.abs(1 - (infid.sum()/MC)))
-            print(np.abs(1 - (infid_P.sum()/MC)))
-            self.assertLessEqual(np.abs(1 - (infid.sum()/MC)), rtol)
-            self.assertLessEqual(np.abs(1 - (infid_P.sum()/MC)), rtol)
+            self.assertLessEqual(np.abs(1 - (infid.sum()/MC)), 0.10)
+            self.assertLessEqual(np.abs(1 - (infid_P.sum()/MC)), 0.10)
             self.assertLessEqual(infid.sum(), xi**2/4)
 
     def test_integration(self):
@@ -364,24 +360,24 @@ class PrecisionTest(testutil.TestCase):
         ]
 
         ref_infids = (
-            [0.448468950307, 0.941871479562],
-            [0.65826575772, 1.042914346335],
-            [0.163303005479, 0.239032549377],
-            [0.448468950307, 1.042914346335],
-            [[0.65826575772, 0.458623551679],
-             [0.458623551679, 1.042914346335]],
-            [3.687399348243, 3.034914820757],
-            [2.590545568435, 3.10093804628],
-            [0.55880380219, 0.782544974968],
-            [3.687399348243, 3.10093804628],
-            [[2.590545568435, 0.577397865625],
-             [0.577397865625, 3.10093804628]],
-            [2.864567451344, 1.270260393902],
-            [1.847740998731, 1.559401345443],
-            [0.362116177417, 0.388022992097],
-            [2.864567451344, 1.559401345443],
-            [[1.847740998731, 0.741483515315],
-             [0.741483515315, 1.559401345443]]
+            [[0.415494970094, 0.89587362496],
+             [0.493004378474, 0.812378971328],
+             [0.133466914361, 0.197411969384],
+             [0.415494970094, 0.812378971328],
+             [[0.493004378474, 0.435140425045],
+              [0.435140425045, 0.812378971328]],
+             [3.62995021962, 2.938710386281],
+             [2.302617869945, 2.6187737025],
+             [0.506821680978, 0.695495602872],
+             [3.62995021962, 2.6187737025],
+             [[2.302617869945, 0.58515469294],
+              [0.58515469294, 2.6187737025]],
+             [2.822636459567, 1.205901937127],
+             [1.63758822101, 1.236844976323],
+             [0.324175447082, 0.329789052239],
+             [2.822636459567, 1.236844976323],
+             [[1.63758822101, 0.72007826813],
+              [0.72007826813, 1.236844976323]]]
         )
 
         count = 0
@@ -392,8 +388,8 @@ class PrecisionTest(testutil.TestCase):
             omega = np.geomspace(0.1, 10, 51)
             S0 = np.abs(rng.standard_normal())
             for spec in spectra:
-                S, omega_t = util.symmetrize_spectrum(spec(S0, omega), omega)
-                infids = ff.infidelity(pulse, S, omega_t,
+                S = spec(S0, omega)
+                infids = ff.infidelity(pulse, S, omega,
                                        n_oper_identifiers=['B_0', 'B_2'])
                 self.assertArrayAlmostEqual(infids, ref_infids[count],
                                             atol=1e-12)
@@ -401,7 +397,7 @@ class PrecisionTest(testutil.TestCase):
                     # Diagonal of the infidelity matrix should correspond to
                     # uncorrelated terms
                     uncorrelated_infids = ff.infidelity(
-                        pulse, S[range(2), range(2)], omega_t,
+                        pulse, S[range(2), range(2)], omega,
                         n_oper_identifiers=['B_0', 'B_2']
                     )
                     self.assertArrayAlmostEqual(np.diag(infids),
@@ -415,7 +411,7 @@ class PrecisionTest(testutil.TestCase):
         # Check raises
         with self.assertRaises(TypeError):
             # spectrum not callable
-            ff.infidelity(pulse, 2, omega_t, test_convergence=True)
+            ff.infidelity(pulse, 2, omega, test_convergence=True)
 
         with self.assertRaises(TypeError):
             # omega not dict
@@ -428,11 +424,11 @@ class PrecisionTest(testutil.TestCase):
 
         with self.assertRaises(ValueError):
             # which not total or correlation
-            ff.infidelity(pulse, spectra[0](S0, omega_t), omega, which=2)
+            ff.infidelity(pulse, spectra[0](S0, omega), omega, which=2)
 
         with self.assertRaises(ValueError):
             # S wrong dimensions
-            ff.infidelity(pulse, spectra[0](S0, omega_t)[:10], omega)
+            ff.infidelity(pulse, spectra[0](S0, omega)[:10], omega)
 
         with self.assertRaises(ValueError):
             # S wrong dimensions

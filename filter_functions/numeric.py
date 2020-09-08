@@ -390,8 +390,7 @@ def calculate_cumulant_function(
         between them. n_nops is the number of noise operators considered
         and should be equal to ``len(n_oper_identifiers)``.
     omega: array_like,
-        The frequencies. Note that the frequencies are assumed to be
-        symmetric about zero.
+        The frequencies at which to evaluate the filter functions.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to evaluate the
         cumulant function. The default is all.
@@ -531,8 +530,7 @@ def calculate_decay_amplitudes(
         a matrix of cross-spectra such that
         ``spectrum[i, j] == spectrum[j, i].conj()``.
     omega: array_like,
-        The frequencies. Note that the frequencies are assumed to be
-        symmetric about zero.
+        The frequencies at which to calculate the filter functions.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to calculate
         the decay amplitudes. The default is all.
@@ -858,9 +856,8 @@ def error_transfer_matrix(
         each pair of noise operators corresponding to the correlations
         between them. n_nops is the number of noise operators considered
         and should be equal to ``len(n_oper_identifiers)``.
-    omega: array_like,
-        The frequencies. Note that the frequencies are assumed to be
-        symmetric about zero.
+    omega: array_like, shape (n_omega,)
+        The frequencies at which to calculate the filter functions.
     cumulant_function: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
         A precomputed cumulant function. If given, *pulse*, *spectrum*, *omega*
         are not required.
@@ -979,8 +976,7 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
         ('omega_IR', 'omega_UV', 'spacing', 'n_min', 'n_max',
         'n_points'), where all entries are integers except for
         ``spacing`` which should be a string, either 'linear' or 'log'.
-        'n_points' controls how many steps are taken. Note that the
-        frequencies are assumed to be symmetric about zero.
+        'n_points' controls how many steps are taken.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to calculate
         the infidelity  contribution. If given, the infidelities for
@@ -1132,11 +1128,9 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
         convergence_infids = np.empty((len(n_samples), len(idx)))
         for i, n in enumerate(n_samples):
             freqs = xspace(omega_IR, omega_UV, n//2)
-            convergence_infids[i] = infidelity(pulse,
-                                               *util.symmetrize_spectrum(spectrum(freqs), freqs),
+            convergence_infids[i] = infidelity(pulse, spectrum(freqs), freqs,
                                                n_oper_identifiers=n_oper_identifiers,
-                                               which='total',
-                                               return_smallness=False,
+                                               which='total', return_smallness=False,
                                                test_convergence=False)
 
         return n_samples, convergence_infids
@@ -1214,8 +1208,7 @@ def _get_integrand(
     spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega)
         The two-sided noise power spectral density.
     omega: array_like,
-        The frequencies. Note that the frequencies are assumed to be
-        symmetric about zero.
+        The frequencies at which to calculate the filter functions.
     idx: ndarray
         Noise operator indices to consider.
     which_pulse: str, optional {'total', 'correlations'}

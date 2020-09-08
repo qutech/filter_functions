@@ -664,8 +664,6 @@ def plot_cumulant_function(
         The two-sided noise spectrum.
     omega: array_like
         The frequencies for which to evaluate the error transfer matrix.
-        Note that they should be symmetric around zero, that is, include
-        negative frequencies.
     cumulant_function: ndarray, shape (n_nops, d**2, d**2)
         A precomputed cumulant function. If given, *pulse*, *spectrum*,
         *omega* are not required.
@@ -764,7 +762,6 @@ def plot_cumulant_function(
         grid_kw.setdefault('nrows_ncols', (n_rows, n_cols))
         grid_kw.setdefault('axes_pad', 0.3)
         grid_kw.setdefault('label_mode', 'L')
-        grid_kw.setdefault('add_all', True)
         grid_kw.setdefault('share_all', True)
         grid_kw.setdefault('direction', 'row')
         grid_kw.setdefault('cbar_mode', 'single')

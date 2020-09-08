@@ -178,15 +178,14 @@ clifford_infidelities = {}
 spectra = {}
 for i, a in enumerate(alpha):
     S0 = 4e-11*(2*np.pi*1e-3)**a/eps0**2*noise_scaling_factor[a]
-    S = S0/omega**a
-    spectra[a], omega_twosided = util.symmetrize_spectrum(S, omega)
+    spectra[a] = S0/omega**a
 
     # Need to calculate with two-sided spectra
-    clifford_infidelities[a] = [ff.infidelity(C, spectra[a], omega_twosided).sum()
+    clifford_infidelities[a] = [ff.infidelity(C, spectra[a], omega).sum()
                                 for C in cliffords]
 
 state_infidelities, exec_times = run_randomized_benchmarking(N_G, N_l, m_min, m_max, alpha,
-                                                             spectra, omega_twosided)
+                                                             spectra, omega)
 
 # %% Plot results
 fig, ax = plt.subplots(1, 2, sharex=True, sharey=True, figsize=(8, 3))
