@@ -967,7 +967,7 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
 @parse_optional_parameter('spacing', ('log', 'linear'))
 def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
                            spacing: str = 'log',
-                           symmetric: bool = True) -> ndarray:
+                           include_quasistatic: bool = False) -> ndarray:
     """
     Get *n_samples* sample frequencies spaced either 'linear' or 'log'
     symmetrically around zero.
@@ -986,30 +986,27 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
     spacing: str, optional
         The spacing of the frequencies. Either 'log' or 'linear',
         default is 'log'.
-    symmetric: bool, optional
-        Whether the frequencies should be symmetric around zero or
-        positive only. Default is True.
+    include_quasistatic: bool, optional
+        Include zero frequency. Default is False.
 
     Returns
     -------
     omega: ndarray
         The frequencies.
     """
-    tau = pulse.tau
     if spacing == 'linear':
-        if symmetric:
-            freqs = np.linspace(-1e2/tau, 1e2/tau, n_samples)*2*np.pi
-        else:
-            freqs = np.linspace(0, 1e2/tau, n_samples)*2*np.pi
+        xspace = np.linspace
     else:
         # spacing == 'log'
-        if symmetric:
-            freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples//2)*2*np.pi
-            freqs = np.concatenate([-freqs[::-1], freqs])
-        else:
-            freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples)*2*np.pi
+        xspace = np.geomspace
 
-    return freqs
+    if include_quasistatic:
+        freqs = xspace(1e-2/pulse.tau, 1e2/pulse.tau, n_samples - 1)
+        freqs = np.insert(freqs, 0, 0)
+    else:
+        freqs = xspace(1e-2/pulse.tau, 1e2/pulse.tau, n_samples)
+
+    return 2*np.pi*freqs
 
 
 def symmetrize_spectrum(S: ndarray, omega: ndarray) -> Tuple[ndarray, ndarray]:

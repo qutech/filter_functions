@@ -659,8 +659,6 @@ def plot_error_transfer_matrix(
         The two-sided noise spectrum.
     omega: array_like
         The frequencies for which to evaluate the error transfer matrix.
-        Note that they should be symmetric around zero, that is, include
-        negative frequencies.
     error_transfer_matrix: ndarray, shape
         A precomputed error transfer matrix. If given, *pulse*,
         *spectrum*, *omega* are not required.

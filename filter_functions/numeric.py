@@ -374,8 +374,7 @@ def calculate_error_vector_correlation_functions(
     spectrum: array_like, shape (..., n_omega)
         The two-sided noise power spectral density.
     omega: array_like,
-        The frequencies. Note that the frequencies are assumed to be
-        symmetric about zero.
+        The frequencies at which to calculate the filter functions.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to calculate
         the error vector correlation functions. The default is all.
@@ -638,8 +637,7 @@ def error_transfer_matrix(
         between them. n_nops is the number of noise operators considered
         and should be equal to ``len(n_oper_identifiers)``.
     omega: array_like,
-        The frequencies. Note that the frequencies are assumed to be
-        symmetric about zero.
+        The frequencies at which to calculate the filter functions.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to evaluate the
         error transfer matrix. The default is all.
@@ -822,8 +820,7 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
         ('omega_IR', 'omega_UV', 'spacing', 'n_min', 'n_max',
         'n_points'), where all entries are integers except for
         ``spacing`` which should be a string, either 'linear' or 'log'.
-        'n_points' controls how many steps are taken. Note that the
-        frequencies are assumed to be symmetric about zero.
+        'n_points' controls how many steps are taken.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to calculate
         the infidelity  contribution. If given, the infidelities for
@@ -1096,8 +1093,7 @@ def _get_integrand(
     spectrum: array_like, shape (..., n_omega)
         The two-sided noise power spectral density.
     omega: array_like,
-        The frequencies. Note that the frequencies are assumed to be
-        symmetric about zero.
+        The frequencies at which to calculate the filter functions.
     idx: ndarray
         Noise operator indices to consider.
     control_matrix: ndarray, optional
