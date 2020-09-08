@@ -26,11 +26,15 @@ from copy import copy
 from random import sample
 
 import numpy as np
+import pytest
+import sparse
 
 import filter_functions as ff
 from filter_functions import numeric, util
 from tests import testutil
 from tests.testutil import rng
+
+from . import qutip
 
 
 class CoreTest(testutil.TestCase):
@@ -81,19 +85,19 @@ class CoreTest(testutil.TestCase):
 
         with self.assertRaises(TypeError):
             # Control Hamiltonian not list or tuple
-            ff.PulseSequence(np.array(H_c), H_n, dt)
+            ff.PulseSequence(np.array(H_c, dtype=object), H_n, dt)
 
         with self.assertRaises(TypeError):
             # Noise Hamiltonian not list or tuple
-            ff.PulseSequence(H_c, np.array(H_n), dt)
+            ff.PulseSequence(H_c, np.array(H_n, dtype=object), dt)
 
         with self.assertRaises(TypeError):
             # Element of control Hamiltonian not list or tuple
-            ff.PulseSequence([np.array(H_c[0])], H_n, dt)
+            ff.PulseSequence([np.array(H_c[0], dtype=object)], H_n, dt)
 
         with self.assertRaises(TypeError):
             # Element of noise Hamiltonian not list or tuple
-            ff.PulseSequence(H_c, [np.array(H_n[0])], dt)
+            ff.PulseSequence(H_c, [np.array(H_n[0], dtype=object)], dt)
 
         idx = rng.randint(0, 3)
         with self.assertRaises(TypeError):
@@ -136,50 +140,38 @@ class CoreTest(testutil.TestCase):
             ff.PulseSequence(H_c, H_n, dt)
 
         H_n[idx][1] = coeff
-        with self.assertRaises(TypeError):
-            # Control operators weird dimensions
-            H_c[idx][0] = H_c[idx][0][:, :, None]
-            ff.PulseSequence(H_c, H_n, dt)
-
-        H_c[idx][0] = H_c[idx][0].squeeze()
-        with self.assertRaises(TypeError):
-            # Noise operators weird dimensions
-            H_n[idx][0] = H_n[idx][0][:, :, None]
-            ff.PulseSequence(H_c, H_n, dt)
-
-        H_n[idx][0] = H_n[idx][0].squeeze()
         with self.assertRaises(ValueError):
             # Control operators not 2d
             for hc in H_c:
-                hc[0] = hc[0][:, :, None]
+                hc[0] = np.tile(hc[0], (rng.randint(2, 11), 1, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hc in H_c:
-            hc[0] = hc[0].squeeze()
+            hc[0] = hc[0][0]
         with self.assertRaises(ValueError):
             # Noise operators not 2d
             for hn in H_n:
-                hn[0] = hn[0][:, :, None]
+                hn[0] = np.tile(hn[0], (rng.randint(2, 11), 1, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hn in H_n:
-            hn[0] = hn[0].squeeze()
+            hn[0] = hn[0][0]
         with self.assertRaises(ValueError):
             # Control operators not square
             for hc in H_c:
-                hc[0] = hc[0].reshape(1, 4)
+                hc[0] = np.tile(hc[0].reshape(1, 4), (2, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hc in H_c:
-            hc[0] = hc[0].reshape(2, 2)
+            hc[0] = hc[0][0].reshape(2, 2)
         with self.assertRaises(ValueError):
             # Noise operators not square
             for hn in H_n:
-                hn[0] = hn[0].reshape(1, 4)
+                hn[0] = np.tile(hn[0].reshape(1, 4), (2, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hn in H_n:
-            hn[0] = hn[0].reshape(2, 2)
+            hn[0] = hn[0][0].reshape(2, 2)
         with self.assertRaises(ValueError):
             # Control and noise operators not same dimension
             for hn in H_n:
@@ -333,6 +325,15 @@ class CoreTest(testutil.TestCase):
         )
         self.assertFalse(A == B)
         self.assertTrue(A != B)
+
+        # Test sparse operators for whatever reason
+        A = ff.PulseSequence([[util.paulis[1], [1]]],
+                             [[sparse.COO.from_numpy(util.paulis[2]), [2]]],
+                             [3])
+        B = ff.PulseSequence([[sparse.COO.from_numpy(util.paulis[1]), [1]]],
+                             [[util.paulis[2], [2]]],
+                             [3])
+        self.assertEqual(A, B)
 
         # Test for attributes
         for attr in A.__dict__.keys():
@@ -864,3 +865,31 @@ class CoreTest(testutil.TestCase):
         n, infids = ff.infidelity(complicated_pulse, spectrum, omega,
                                   test_convergence=True,
                                   n_oper_identifiers=identifiers)
+
+
+@pytest.mark.skipif(
+    qutip is None,
+    reason='Skipping qutip compatibility tests for build without qutip')
+class QutipCompatibilityTest(testutil.TestCase):
+
+    def test_pulse_sequence_constructor(self):
+        X, Y, Z = qutip.sigmax(), qutip.sigmay(), qutip.sigmaz()
+        pulse_1 = ff.PulseSequence(
+            [[X, [1, 2, 3], 'X'],
+             [util.paulis[2], [3, 4, 5], 'Y'],
+             [Z, [5, 6, 7], 'Z']],
+            [[util.paulis[3], [1, 2, 3], 'Z'],
+             [Y, [3, 4, 5], 'Y'],
+             [util.paulis[1], [5, 6, 7], 'X']],
+            [1, 3, 5]
+        )
+        pulse_2 = ff.PulseSequence(
+            [[Y, [3, 4, 5], 'Y'],
+             [util.paulis[3], [5, 6, 7], 'Z'],
+             [util.paulis[1], [1, 2, 3], 'X']],
+            [[X, [5, 6, 7], 'X'],
+             [Z, [1, 2, 3], 'Z'],
+             [util.paulis[2], [3, 4, 5], 'Y']],
+            [1, 3, 5]
+        )
+        self.assertEqual(pulse_1, pulse_2)
