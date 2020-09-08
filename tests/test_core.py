@@ -26,11 +26,15 @@ from copy import copy
 from random import sample
 
 import numpy as np
+import pytest
+import sparse
 
 import filter_functions as ff
 from filter_functions import numeric, util
 from tests import testutil
 from tests.testutil import rng
+
+from . import qutip
 
 
 class CoreTest(testutil.TestCase):
@@ -321,6 +325,15 @@ class CoreTest(testutil.TestCase):
         )
         self.assertFalse(A == B)
         self.assertTrue(A != B)
+
+        # Test sparse operators for whatever reason
+        A = ff.PulseSequence([[util.paulis[1], [1]]],
+                             [[sparse.COO.from_numpy(util.paulis[2]), [2]]],
+                             [3])
+        B = ff.PulseSequence([[sparse.COO.from_numpy(util.paulis[1]), [1]]],
+                             [[util.paulis[2], [2]]],
+                             [3])
+        self.assertEqual(A, B)
 
         # Test for attributes
         for attr in A.__dict__.keys():
@@ -852,3 +865,31 @@ class CoreTest(testutil.TestCase):
         n, infids = ff.infidelity(complicated_pulse, spectrum, omega,
                                   test_convergence=True,
                                   n_oper_identifiers=identifiers)
+
+
+@pytest.mark.skipif(
+    qutip is None,
+    reason='Skipping qutip compatibility tests for build without qutip')
+class QutipCompatibilityTest(testutil.TestCase):
+
+    def test_pulse_sequence_constructor(self):
+        X, Y, Z = qutip.sigmax(), qutip.sigmay(), qutip.sigmaz()
+        pulse_1 = ff.PulseSequence(
+            [[X, [1, 2, 3], 'X'],
+             [util.paulis[2], [3, 4, 5], 'Y'],
+             [Z, [5, 6, 7], 'Z']],
+            [[util.paulis[3], [1, 2, 3], 'Z'],
+             [Y, [3, 4, 5], 'Y'],
+             [util.paulis[1], [5, 6, 7], 'X']],
+            [1, 3, 5]
+        )
+        pulse_2 = ff.PulseSequence(
+            [[Y, [3, 4, 5], 'Y'],
+             [util.paulis[3], [5, 6, 7], 'Z'],
+             [util.paulis[1], [1, 2, 3], 'X']],
+            [[X, [5, 6, 7], 'X'],
+             [Z, [1, 2, 3], 'Z'],
+             [util.paulis[2], [3, 4, 5], 'Y']],
+            [1, 3, 5]
+        )
+        self.assertEqual(pulse_1, pulse_2)

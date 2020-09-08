@@ -300,7 +300,7 @@ class PulseSequence:
             - basis
 
         """
-        if not isinstance(other, PulseSequence):
+        if not isinstance(other, self.__class__):
             return NotImplemented
 
         A = self
