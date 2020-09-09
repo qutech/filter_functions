@@ -611,8 +611,8 @@ class PulseSequence:
             The filter function for the frequencies *omega*. If
             ``None``, it is computed from control_matrix.
         which: str, optional
-            Which filter function to cache. Either 'fidelity' (default) or
-            'generalized'.
+            Which filter function to cache. Either 'fidelity' (default)
+            or 'generalized'.
         show_progressbar: bool
             Show a progress bar for the calculation of the control
             matrix.

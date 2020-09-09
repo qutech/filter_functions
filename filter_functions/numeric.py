@@ -515,8 +515,8 @@ def calculate_decay_amplitudes(
         memory_parsimonious: Optional[bool] = False
         ) -> ndarray:
     r"""
-    Get the decay amplitudes :math:`\Gamma_{\alpha\beta, kl}` for noise sources
-    :math:`\alpha,\beta` and basis elements :math:`k,l`.
+    Get the decay amplitudes :math:`\Gamma_{\alpha\beta, kl}` for noise
+    sources :math:`\alpha,\beta` and basis elements :math:`k,l`.
 
     Parameters
     ----------
@@ -671,8 +671,9 @@ def calculate_filter_function(control_matrix: ndarray, which: str = 'fidelity') 
     Returns
     -------
     filter_function: ndarray, shape (n_nops, n_nops, [d**2, d**2,] n_omega)
-        The filter functions for each noise operator correlation. The diagonal
-        corresponds to the filter functions for uncorrelated noise sources.
+        The filter functions for each noise operator correlation. The
+        diagonal corresponds to the filter functions for uncorrelated
+        noise sources.
 
     .. _notes:
 
@@ -843,8 +844,8 @@ def error_transfer_matrix(
     Parameters
     ----------
     pulse: PulseSequence
-        The ``PulseSequence`` instance for which to compute the error transfer
-        matrix.
+        The ``PulseSequence`` instance for which to compute the error
+        transfer matrix.
     spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega)
         The two-sided noise power spectral density in units of inverse
         frequencies as an array of shape (n_omega,), (n_nops, n_omega),
@@ -859,14 +860,14 @@ def error_transfer_matrix(
     omega: array_like, shape (n_omega,)
         The frequencies at which to calculate the filter functions.
     cumulant_function: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
-        A precomputed cumulant function. If given, *pulse*, *spectrum*, *omega*
-        are not required.
+        A precomputed cumulant function. If given, *pulse*, *spectrum*,
+        *omega* are not required.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to evaluate the
-        error transfer matrix. The default is all. Note that, since in general
-        contributions from different noise operators won't commute, not
-        selecting all noise operators results in neglecting terms of order
-        :math:`\xi^4`.
+        error transfer matrix. The default is all. Note that, since in
+        general contributions from different noise operators won't
+        commute, not selecting all noise operators results in neglecting
+        terms of order :math:`\xi^4`.
     show_progressbar: bool, optional
         Show a progress bar for the calculation of the control matrix.
     memory_parsimonious: bool, optional
@@ -945,16 +946,17 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
                test_convergence: bool = False) -> Union[ndarray, Any]:
     r"""Calculate the leading order entanglement infidelity.
 
-    This function calculates the infidelity approximately from the leading
-    peturbation (see :ref:`Notes <notes>`). To compute it exactly for Gaussian
-    noise and vanishing coherent errors (second order Magnus terms), use
-    :func:`error_transfer_matrix` to obtain it from the full process matrix.
+    This function calculates the infidelity approximately from the
+    leading peturbation (see :ref:`Notes <notes>`). To compute it
+    exactly for Gaussian noise and vanishing coherent errors (second
+    order Magnus terms), use :func:`error_transfer_matrix` to obtain it
+    from the full process matrix.
 
     Parameters
     ----------
     pulse: PulseSequence
-        The ``PulseSequence`` instance for which to calculate the infidelity
-        for.
+        The ``PulseSequence`` instance for which to calculate the
+        infidelity for.
     spectrum: array_like, shape ([[n_nops,] n_nops,] omega) or callable
         The two-sided noise power spectral density in units of inverse
         frequencies as an array of shape (n_omega,), (n_nops, n_omega),
@@ -1006,12 +1008,13 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
     Returns
     -------
     infid: ndarray, shape ([[n_pls, n_pls,], n_nops,] n_nops)
-        Array with the infidelity contributions for each spectrum *spectrum* on the
-        last axis or axes, depending on the shape of *spectrum* and *which*. If
-        ``which`` is ``correlations``, the first two axes are the individual
-        pulse contributions. If *spectrum* is 2-d (3-d), the last axis (two axes) are
-        the individual spectral contributions.
-        Only if *test_convergence* is ``False``.
+        Array with the infidelity contributions for each spectrum
+        *spectrum* on the last axis or axes, depending on the shape of
+        *spectrum* and *which*. If ``which`` is ``correlations``, the
+        first two axes are the individual pulse contributions. If
+        *spectrum* is 2-d (3-d), the last axis (two axes) are the
+        individual spectral contributions. Only if *test_convergence* is
+        ``False``.
     n_samples: array_like
         Array with number of frequency samples used for convergence
         test. Only if *test_convergence* is ``True``.
@@ -1200,8 +1203,8 @@ def _get_integrand(
         filter_function: Optional[ndarray] = None
         ) -> ndarray:
     """
-    Private function to generate the integrand for either :func:`infidelity` or
-    :func:`calculate_decay_amplitudes`.
+    Private function to generate the integrand for either
+    :func:`infidelity` or :func:`calculate_decay_amplitudes`.
 
     Parameters
     ----------
@@ -1214,8 +1217,8 @@ def _get_integrand(
     which_pulse: str, optional {'total', 'correlations'}
         Use pulse correlations or total filter function.
     which_FF: str, optional {'fidelity', 'generalized'}
-        Fidelity or generalized filter functions. Needed to determine output
-        shape.
+        Fidelity or generalized filter functions. Needed to determine
+        output shape.
     control_matrix: ndarray, optional
         Control matrix. If given, returns the integrand for
         :func:`calculate_error_vector_correlation_functions`. If given
