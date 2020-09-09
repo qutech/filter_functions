@@ -136,7 +136,7 @@ def calculate_control_matrix_from_atomic(
             control_matrix += expr(phases[g]*control_matrix_atomic[g], propagators_liouville[g])
     else:
         # which == 'correlations'
-        control_matrix = np.zeros_like(control_matrix_atomic)
+        control_matrix = np.zeros(control_matrix_atomic.shape, dtype=complex)
         for g in util.progressbar_range(n, show_progressbar=show_progressbar,
                                         desc='Calculating control matrix'):
             control_matrix[g] = expr(phases[g]*control_matrix_atomic[g], propagators_liouville[g])
