@@ -473,33 +473,35 @@ def calculate_cumulant_function(
 
     """
     N, d = pulse.basis.shape[:2]
-    Gamma = calculate_decay_amplitudes(pulse, spectrum, omega,
-                                       n_oper_identifiers, which,
-                                       show_progressbar, memory_parsimonious)
+    decay_amplitudes = calculate_decay_amplitudes(pulse, spectrum, omega,
+                                                  n_oper_identifiers, which,
+                                                  show_progressbar, memory_parsimonious)
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
-        cumulant_function = np.zeros_like(Gamma)
+        cumulant_function = np.zeros(decay_amplitudes.shape)
         diag_mask = np.eye(N, dtype=bool)
 
         # Offdiagonal terms
-        cumulant_function[..., ~diag_mask] = Gamma[..., ~diag_mask]
+        cumulant_function[..., ~diag_mask] = decay_amplitudes[..., ~diag_mask]
 
         # Diagonal terms K_ii given by sum over diagonal of Gamma excluding
         # Gamma_ii. Since the Pauli basis is traceless, K_00 is zero, therefore
         # start at K_11.
-        diag_items = deque((True, False, True, True))
+        diag_idx = deque((True, False, True, True))
         for i in range(1, N):
-            cumulant_function[..., i, i] = - Gamma[..., diag_items, diag_items].sum(axis=-1)
+            cumulant_function[..., i, i] = - decay_amplitudes[..., diag_idx, diag_idx].sum(axis=-1)
             # shift the item not summed over by one
-            diag_items.rotate()
+            diag_idx.rotate()
     else:
         # Multi qubit case. Use general expression.
-        T = pulse.basis.four_element_traces
-        cumulant_function = - (oe.contract('...kl,klji->...ij', Gamma, T, backend='sparse') -
-                               oe.contract('...kl,kjli->...ij', Gamma, T, backend='sparse') -
-                               oe.contract('...kl,kilj->...ij', Gamma, T, backend='sparse') +
-                               oe.contract('...kl,kijl->...ij', Gamma, T, backend='sparse'))/2
+        traces = pulse.basis.four_element_traces
+        cumulant_function = - (
+            oe.contract('...kl,klji->...ij', decay_amplitudes, traces, backend='sparse') -
+            oe.contract('...kl,kjli->...ij', decay_amplitudes, traces, backend='sparse') -
+            oe.contract('...kl,kilj->...ij', decay_amplitudes, traces, backend='sparse') +
+            oe.contract('...kl,kijl->...ij', decay_amplitudes, traces, backend='sparse')
+        ) / 2
 
     return cumulant_function.real
 
@@ -561,7 +563,7 @@ def calculate_decay_amplitudes(
 
     Returns
     -------
-    Gamma: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
+    decay_amplitudes: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
         The decay amplitudes.
 
     .. _notes:
@@ -619,8 +621,8 @@ def calculate_decay_amplitudes(
         integrand = _get_integrand(spectrum, omega, idx, which, 'generalized',
                                    control_matrix=control_matrix,
                                    filter_function=filter_function)
-        Gamma = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
-        return Gamma.real
+        decay_amplitudes = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
+        return decay_amplitudes.real
 
     # Conserve memory by looping. Let _get_integrand determine the shape
     if control_matrix is not None:
@@ -634,8 +636,8 @@ def calculate_decay_amplitudes(
                                    control_matrix=control_matrix,
                                    filter_function=filter_function[..., 0:1, :, :])
 
-    Gamma = np.zeros(integrand.shape[:-3] + (n_kl,)*2, dtype=integrand.dtype)
-    Gamma[..., 0:1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
+    decay_amplitudes = np.zeros(integrand.shape[:-3] + (n_kl,)*2, dtype=integrand.dtype)
+    decay_amplitudes[..., 0:1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
 
     for k in util.progressbar_range(1, n_kl, show_progressbar=show_progressbar,
                                     desc='Integrating'):
@@ -650,10 +652,9 @@ def calculate_decay_amplitudes(
                                        control_matrix=control_matrix,
                                        filter_function=filter_function[..., k:k+1, :, :])
 
-        Gamma[..., k:k+1, :] = integrate.trapz(integrand, omega,
-                                               axis=-1)/(2*np.pi)
+        decay_amplitudes[..., k:k+1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
 
-    return Gamma.real
+    return decay_amplitudes.real
 
 
 @util.parse_which_FF_parameter
