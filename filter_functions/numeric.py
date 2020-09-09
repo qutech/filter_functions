@@ -360,10 +360,11 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
 @util.parse_optional_parameters({'which': ('total', 'correlations')})
 def calculate_cumulant_function(
         pulse: 'PulseSequence',
-        spectrum: ndarray,
-        omega: Coefficients,
+        spectrum: Optional[ndarray] = None,
+        omega: Optional[Coefficients] = None,
         n_oper_identifiers: Optional[Sequence[str]] = None,
         which: Optional[str] = 'total',
+        decay_amplitudes: Optional[ndarray] = None,
         show_progressbar: Optional[bool] = False,
         memory_parsimonious: Optional[bool] = False
         ) -> ndarray:
@@ -378,7 +379,7 @@ def calculate_cumulant_function(
     pulse: PulseSequence
         The ``PulseSequence`` instance for which to compute the cumulant
         function.
-    spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega)
+    spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega), optional
         The two-sided noise power spectral density in units of inverse
         frequencies as an array of shape (n_omega,), (n_nops, n_omega),
         or (n_nops, n_nops, n_omega). In the first case, the same
@@ -389,7 +390,7 @@ def calculate_cumulant_function(
         each pair of noise operators corresponding to the correlations
         between them. n_nops is the number of noise operators considered
         and should be equal to ``len(n_oper_identifiers)``.
-    omega: array_like,
+    omega: array_like, shape (n_omega,), optional
         The frequencies at which to evaluate the filter functions.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to evaluate the
@@ -398,6 +399,9 @@ def calculate_cumulant_function(
         Which decay amplitudes should be calculated, may be either
         'total' (default) or 'correlations'. See :func:`infidelity` and
         :ref:`Notes <notes>`.
+    decay_amplitudes, array_like, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2), optional
+        A precomputed cumulant function. If given, *spectrum*, *omega*
+        are not required.
     show_progressbar: bool, optional
         Show a progress bar for the calculation of the control matrix.
     memory_parsimonious: bool, optional
@@ -473,9 +477,13 @@ def calculate_cumulant_function(
 
     """
     N, d = pulse.basis.shape[:2]
-    decay_amplitudes = calculate_decay_amplitudes(pulse, spectrum, omega,
-                                                  n_oper_identifiers, which,
-                                                  show_progressbar, memory_parsimonious)
+    if decay_amplitudes is None:
+        if spectrum is None and omega is None:
+            raise ValueError('Require either spectrum and frequencies or precomputed ' +
+                             'decay amplitudes')
+
+        decay_amplitudes = calculate_decay_amplitudes(pulse, spectrum, omega, n_oper_identifiers,
+                                                      which, show_progressbar, memory_parsimonious)
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
@@ -835,8 +843,8 @@ def error_transfer_matrix(
         pulse: Optional['PulseSequence'] = None,
         spectrum: Optional[ndarray] = None,
         omega: Optional[Coefficients] = None,
-        cumulant_function: Optional[ndarray] = None,
         n_oper_identifiers: Optional[Sequence[str]] = None,
+        cumulant_function: Optional[ndarray] = None,
         show_progressbar: bool = False,
         memory_parsimonious: bool = False
         ) -> ndarray:
@@ -860,15 +868,15 @@ def error_transfer_matrix(
         and should be equal to ``len(n_oper_identifiers)``.
     omega: array_like, shape (n_omega,)
         The frequencies at which to calculate the filter functions.
-    cumulant_function: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
-        A precomputed cumulant function. If given, *pulse*, *spectrum*,
-        *omega* are not required.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to evaluate the
         error transfer matrix. The default is all. Note that, since in
         general contributions from different noise operators won't
         commute, not selecting all noise operators results in neglecting
         terms of order :math:`\xi^4`.
+    cumulant_function: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2), optional
+        A precomputed cumulant function. If given, *pulse*, *spectrum*,
+        *omega* are not required.
     show_progressbar: bool, optional
         Show a progress bar for the calculation of the control matrix.
     memory_parsimonious: bool, optional
@@ -924,8 +932,10 @@ def error_transfer_matrix(
                              'or pulse, spectrum, and omega as arguments.')
 
         cumulant_function = calculate_cumulant_function(pulse, spectrum, omega,
-                                                        n_oper_identifiers, 'total',
-                                                        show_progressbar, memory_parsimonious)
+                                                        n_oper_identifiers=n_oper_identifiers,
+                                                        which='total',
+                                                        show_progressbar=show_progressbar,
+                                                        memory_parsimonious=memory_parsimonious)
 
     try:
         error_transfer_matrix = sla.expm(

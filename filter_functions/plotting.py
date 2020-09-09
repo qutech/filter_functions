@@ -733,7 +733,8 @@ def plot_cumulant_function(
         n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
         n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
         K = numeric.calculate_cumulant_function(pulse, spectrum, omega,
-                                                n_oper_identifiers, 'total')
+                                                n_oper_identifiers=n_oper_identifiers,
+                                                which='total')
         if K.ndim == 4:
             # Only autocorrelated noise supported
             K = K[tuple(n_oper_inds), tuple(n_oper_inds)]

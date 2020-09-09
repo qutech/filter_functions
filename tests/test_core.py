@@ -818,6 +818,21 @@ class CoreTest(testutil.TestCase):
             with self.assertRaises(ValueError):
                 numeric.calculate_decay_amplitudes(pulse, np.tile(spectrum, [1]*i), omega)
 
+    def test_calculate_cumulant_function(self):
+        """Test numeric.calculate_cumulant_function"""
+        pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
+
+        omega = rng.standard_normal(43)
+        # single spectrum
+        spectrum = rng.standard_normal(43)
+        Gamma = numeric.calculate_decay_amplitudes(pulse, spectrum, omega)
+        K_1 = numeric.calculate_cumulant_function(pulse, spectrum, omega)
+        K_2 = numeric.calculate_cumulant_function(pulse, decay_amplitudes=Gamma)
+        self.assertArrayAlmostEqual(K_1, K_2)
+
+        with self.assertRaises(ValueError):
+            numeric.calculate_cumulant_function(pulse, None, None, None)
+
     def test_error_transfer_matrix(self):
         """Test raises of numeric.error_transfer_matrix."""
         pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
