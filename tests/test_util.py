@@ -536,73 +536,24 @@ class UtilTest(testutil.TestCase):
         )
         # Default args
         omega = util.get_sample_frequencies(pulse)
-        self.assertAlmostEqual(omega[0], -2e2*np.pi/pulse.tau)
+        self.assertAlmostEqual(omega[0], 2e-2*np.pi/pulse.tau)
         self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.tau)
         self.assertEqual(len(omega), 300)
-        self.assertTrue((omega[:150] <= 0).all())
+        self.assertTrue((omega >= 0).all())
         self.assertLessEqual(np.var(np.diff(np.log(omega[150:]))), 1e-16)
 
         # custom args
         omega = util.get_sample_frequencies(pulse, spacing='linear',
-                                            n_samples=50, symmetric=False)
+                                            n_samples=50, include_quasistatic=True)
         self.assertAlmostEqual(omega[0], 0)
         self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.tau)
         self.assertEqual(len(omega), 50)
         self.assertTrue((omega >= 0).all())
-        self.assertLessEqual(np.var(np.diff(omega)), 1e-16)
+        self.assertLessEqual(np.var(np.diff(omega[1:])), 1e-16)
 
         # Exceptions
         with self.assertRaises(ValueError):
             omega = util.get_sample_frequencies(pulse, spacing='foo')
-
-    def test_symmetrize_spectrum(self):
-        pulse = PulseSequence(
-            [[util.paulis[1], [np.pi/2]]],
-            [[util.paulis[1], [1]]],
-            [abs(rng.standard_normal())]
-        )
-
-        asym_omega = util.get_sample_frequencies(pulse, symmetric=False,
-                                                 n_samples=100)
-        sym_omega = util.get_sample_frequencies(pulse, symmetric=True,
-                                                n_samples=200)
-
-        S_symmetrized, omega_symmetrized = util.symmetrize_spectrum(
-            1/asym_omega**0.7, asym_omega)
-        self.assertArrayEqual(omega_symmetrized, sym_omega)
-        self.assertArrayEqual(S_symmetrized[99::-1], S_symmetrized[100:])
-        self.assertArrayEqual(S_symmetrized[100:]*2, 1/asym_omega**0.7)
-
-        # zero frequency not doubled
-        omega = np.arange(10)
-        S_sym, omega_sym = util.symmetrize_spectrum(omega, omega)
-        self.assertArrayEqual(S_sym, np.abs(np.arange(-9, 10)/2))
-        self.assertArrayEqual(omega_sym, np.arange(-9, 10))
-
-        # Cross-correlated spectra
-        S = np.array([[np.ones_like(asym_omega),
-                       np.ones_like(asym_omega) + 1j*asym_omega],
-                      [np.ones_like(asym_omega) - 1j*asym_omega,
-                       np.ones_like(asym_omega)]])
-        S_symmetrized, omega_symmetrized = util.symmetrize_spectrum(S,
-                                                                    asym_omega)
-        self.assertArrayEqual(omega_symmetrized, sym_omega)
-        self.assertArrayEqual(S_symmetrized[..., 99::-1].real,
-                              S_symmetrized[..., 100:].real)
-        self.assertArrayEqual(S_symmetrized[..., 99::-1].imag,
-                              - S_symmetrized[..., 100:].imag)
-        self.assertArrayEqual(S_symmetrized[..., 100:]*2, S)
-        self.assertArrayEqual(S_symmetrized[..., 99::-1]*2, S.conj())
-
-        # zero frequency not doubled
-        omega = np.arange(10)
-        S_sym, omega_sym = util.symmetrize_spectrum(omega, omega)
-        self.assertArrayEqual(S_sym, np.abs(np.arange(-9, 10)/2))
-        self.assertArrayEqual(omega_sym, np.arange(-9, 10))
-
-        with self.assertRaises(ValueError):
-            util.symmetrize_spectrum(testutil.rng.randn(2, 2, 2, omega.size),
-                                     omega)
 
     def test_progressbar_range(self):
         ii = []

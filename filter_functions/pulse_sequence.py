@@ -303,7 +303,7 @@ class PulseSequence:
             - basis
 
         """
-        if not isinstance(other, PulseSequence):
+        if not isinstance(other, self.__class__):
             return NotImplemented
 
         A = self
@@ -1077,32 +1077,35 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[
     if len(args) == 1:
         coeffs = args[0]
         identifiers = None
-    elif len(args) == 2:
-        coeffs = args[0]
-        identifiers = list(args[1])
     else:
         coeffs = args[0]
         identifiers = list(args[1])
 
-    if not all(isinstance(oper, ndarray) or hasattr(oper, 'full') for oper in opers):
-        raise TypeError(f'Expected operators in {H_str} to be NumPy arrays or QuTiP Qobjs!')
+    # Parse opers and convert to squeezed ndarray if possible
+    parsed_opers = []
+    for oper in opers:
+        if isinstance(oper, ndarray):
+            parsed_opers.append(oper.squeeze())
+        elif hasattr(oper, 'full'):
+            # qutip.Qobj
+            parsed_opers.append(oper.full())
+        elif hasattr(oper, 'todense'):
+            # sparse object
+            parsed_opers.append(oper.todense())
+        else:
+            raise TypeError(f'Expected operators in {H_str} to be NumPy arrays or QuTiP Qobjs!')
+
+    # Check correct dimensions for the operators
+    if set(oper.ndim for oper in parsed_opers) != {2}:
+        raise ValueError(f'Expected all operators in {H_str} to be two-dimensional!')
+
+    if len(set(*set(oper.shape for oper in parsed_opers))) != 1:
+        raise ValueError(f'Expected operators in {H_str} to be square!')
+
+    parsed_opers = np.asarray(parsed_opers)
 
     if not all(hasattr(coeff, '__len__') for coeff in coeffs):
         raise TypeError(f'Expected coefficients in {H_str} to be a sequence')
-
-    # Convert qutip.Qobjs to full arrays
-    try:
-        opers = np.array([oper.full() if hasattr(oper, 'full') else oper for oper in opers])
-    except ValueError:
-        raise TypeError(f"Couldn't parse operators in {H_str}. " +
-                        "Are you sure they are all 2d arrays or qutip.Qobjs?")
-
-    # Check correct dimensions for the operators
-    if set(oper.ndim for oper in opers) != {2}:
-        raise ValueError(f'Expected all operators in {H_str} to be two-dimensional!')
-
-    if len(set(opers[0].shape)) != 1:
-        raise ValueError(f'Expected operators in {H_str} to be square!')
 
     # parse the identifiers
     if identifiers is None:
@@ -1130,7 +1133,7 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[
 
     coeffs = np.asarray(coeffs)
     idx = np.argsort(identifiers)
-    return opers[idx], identifiers[idx], coeffs[idx]
+    return parsed_opers[idx], identifiers[idx], coeffs[idx]
 
 
 def _concatenate_Hamiltonian(

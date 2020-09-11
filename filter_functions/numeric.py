@@ -35,8 +35,14 @@ Functions
 :func:`calculate_decay_amplitudes`
     Calculate the decay amplitudes, corresponding to first order terms
     of the Magnus expansion
+:func:`calculate_frequency_shifts`
+    Calculate the frequency shifts, corresponding to second order terms
+    of the Magnus expansion
 :func:`calculate_filter_function`
     Calculate the filter function from the control matrix
+:func:`calculate_second_order_filter_function`
+    Calculate the second order filter function used to compute the
+    frequency shifts.
 :func:`calculate_pulse_correlation_filter_function`
     Calculate the pulse correlation filter function from the control
     matrix
@@ -68,8 +74,9 @@ from .basis import Basis
 from .types import Coefficients, Operator
 
 __all__ = ['calculate_control_matrix_from_atomic', 'calculate_control_matrix_from_scratch',
-           'calculate_cumulant_function', 'calculate_decay_amplitudes',
-           'calculate_filter_function', 'calculate_pulse_correlation_filter_function',
+           'calculate_control_matrix_periodic', 'calculate_cumulant_function',
+           'calculate_decay_amplitudes', 'calculate_frequency_shifts', 'calculate_filter_function',
+           'calculate_second_order_filter_function', 'calculate_pulse_correlation_filter_function',
            'diagonalize', 'error_transfer_matrix', 'infidelity']
 
 
@@ -220,6 +227,143 @@ def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     int_buf[mask_nEdE_ndEE] = dt**2 / 2
 
     return int_buf
+
+
+def _get_integrand(
+        spectrum: ndarray,
+        omega: ndarray,
+        idx: ndarray,
+        which_pulse: str,
+        which_FF: str,
+        control_matrix: Optional[Union[ndarray, Sequence[ndarray]]] = None,
+        filter_function: Optional[ndarray] = None
+        ) -> ndarray:
+    """
+    Private function to generate the integrand for either
+    :func:`infidelity` or :func:`calculate_decay_amplitudes`.
+
+    Parameters
+    ----------
+    spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega)
+        The two-sided noise power spectral density.
+    omega: array_like,
+        The frequencies at which to calculate the filter functions.
+    idx: ndarray
+        Noise operator indices to consider.
+    which_pulse: str, optional {'total', 'correlations'}
+        Use pulse correlations or total filter function.
+    which_FF: str, optional {'fidelity', 'generalized'}
+        Fidelity or generalized filter functions. Needed to determine
+        output shape.
+    control_matrix: ndarray, optional
+        Control matrix. If given, returns the integrand for
+        :func:`calculate_error_vector_correlation_functions`. If given
+        as a list or tuple, taken to be the left and right control
+        matrices in the integrand (allows for slicing up the integrand).
+    filter_function: ndarray, optional
+        Filter function. If given, returns the integrand for
+        :func:`infidelity`.
+
+    Raises
+    ------
+    ValueError
+        If ``spectrum`` and ``control_matrix`` or ``filter_function``,
+        depending on which was given, have incompatible shapes.
+
+    Returns
+    -------
+    integrand: ndarray, shape (..., n_omega)
+        The integrand.
+
+    """
+    if control_matrix is not None:
+        # ctrl_left is the complex conjugate
+        funs = (np.conj, lambda x: x)
+        if isinstance(control_matrix, (list, tuple)):
+            ctrl_left, ctrl_right = [f(c) for f, c in zip(funs, control_matrix)]
+        else:
+            ctrl_left, ctrl_right = [f(r) for f, r in zip(funs, [control_matrix]*2)]
+    else:
+        # filter_function is not None
+        if which_FF == 'generalized':
+            # Everything simpler if noise operators always on 2nd-to-last axes
+            filter_function = np.moveaxis(filter_function, source=[-5, -4], destination=[-3, -2])
+
+    spectrum = np.asarray(spectrum)
+    S_err_str = 'spectrum should be of shape {}, not {}.'
+    if spectrum.ndim == 1 or spectrum.ndim == 2:
+        if spectrum.ndim == 1:
+            # Only single spectrum
+            shape = (len(omega),)
+            if spectrum.shape != shape:
+                raise ValueError(S_err_str.format(shape, spectrum.shape))
+
+            spectrum = np.expand_dims(spectrum, 0)
+        else:
+            # spectrum.ndim == 2, spectrum is diagonal (no correlation between noise sources)
+            shape = (len(idx), len(omega))
+            if spectrum.shape != shape:
+                raise ValueError(S_err_str.format(shape, spectrum.shape))
+
+        # spectrum is real, integrand therefore also
+        if filter_function is not None:
+            integrand = (filter_function[..., tuple(idx), tuple(idx), :]*spectrum).real
+            if which_FF == 'generalized':
+                # move axes back to expected position, ie (pulses, noise opers,
+                # basis elements, frequencies)
+                integrand = np.moveaxis(integrand, source=-2, destination=-4)
+        else:
+            # R is not None
+            if which_pulse == 'correlations':
+                if which_FF == 'fidelity':
+                    einsum_str = 'gako,ao,hako->ghao'
+                else:
+                    # which_FF == 'generalized'
+                    einsum_str = 'gako,ao,halo->ghaklo'
+            else:
+                # which_pulse == 'total'
+                if which_FF == 'fidelity':
+                    einsum_str = 'ako,ao,ako->ao'
+                else:
+                    # which_FF == 'generalized'
+                    einsum_str = 'ako,ao,alo->aklo'
+
+            integrand = np.einsum(einsum_str,
+                                  ctrl_left[..., idx, :, :], spectrum,
+                                  ctrl_right[..., idx, :, :]).real
+    elif spectrum.ndim == 3:
+        # General case where spectrum is a matrix with correlation spectra on off-diag
+        shape = (len(idx), len(idx), len(omega))
+        if spectrum.shape != shape:
+            raise ValueError(S_err_str.format(shape, spectrum.shape))
+
+        if filter_function is not None:
+            integrand = filter_function[..., idx[:, None], idx, :]*spectrum
+            if which_FF == 'generalized':
+                integrand = np.moveaxis(integrand, source=[-3, -2], destination=[-5, -4])
+        else:
+            # R is not None
+            if which_pulse == 'correlations':
+                if which_FF == 'fidelity':
+                    einsum_str = 'gako,abo,hbko->ghabo'
+                else:
+                    # which_FF == 'generalized'
+                    einsum_str = 'gako,abo,hblo->ghabklo'
+            else:
+                # which_pulse == 'total'
+                if which_FF == 'fidelity':
+                    einsum_str = 'ako,abo,bko->abo'
+                else:
+                    # which_FF == 'generalized'
+                    einsum_str = 'ako,abo,blo->abklo'
+
+            integrand = np.einsum(einsum_str,
+                                  ctrl_left[..., idx, :, :], spectrum,
+                                  ctrl_right[..., idx, :, :])
+    else:
+        raise ValueError('Expected spectrum to be array_like with < 4 dimensions')
+
+    return integrand
 
 
 @util.parse_optional_parameters({'which': ('total', 'correlations')})
@@ -521,11 +665,13 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
 @util.parse_optional_parameters({'which': ('total', 'correlations')})
 def calculate_cumulant_function(
         pulse: 'PulseSequence',
-        spectrum: ndarray,
-        omega: Coefficients,
+        spectrum: Optional[ndarray] = None,
+        omega: Optional[Coefficients] = None,
         n_oper_identifiers: Optional[Sequence[str]] = None,
         which: Optional[str] = 'total',
         second_order: bool = False,
+        decay_amplitudes: Optional[ndarray] = None,
+        frequency_shifts: Optional[ndarray] = None,
         show_progressbar: Optional[bool] = False,
         memory_parsimonious: Optional[bool] = False
         ) -> ndarray:
@@ -540,7 +686,7 @@ def calculate_cumulant_function(
     pulse: PulseSequence
         The ``PulseSequence`` instance for which to compute the cumulant
         function.
-    spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega)
+    spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega), optional
         The two-sided noise power spectral density in units of inverse
         frequencies as an array of shape (n_omega,), (n_nops, n_omega),
         or (n_nops, n_nops, n_omega). In the first case, the same
@@ -551,9 +697,8 @@ def calculate_cumulant_function(
         each pair of noise operators corresponding to the correlations
         between them. n_nops is the number of noise operators considered
         and should be equal to ``len(n_oper_identifiers)``.
-    omega: array_like,
-        The frequencies. Note that the frequencies are assumed to be
-        symmetric about zero.
+    omega: array_like, shape (n_omega,), optional
+        The frequencies at which to evaluate the filter functions.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to evaluate the
         cumulant function. The default is all.
@@ -566,6 +711,12 @@ def calculate_cumulant_function(
         Also take into account the frequency shifts :math:`\Delta` that
         correspond to second order Magnus expansion and constitute
         unitary terms. Default ``False``.
+    decay_amplitudes, array_like, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2), optional
+        A precomputed cumulant function. If given, *spectrum*, *omega*
+        are not required.
+    frequency_shifts, array_like, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2), optional
+        A precomputed frequency shift. If given, *spectrum*, *omega*
+        are not required for second order terms.
     show_progressbar: bool, optional
         Show a progress bar for the calculation of the control matrix.
     memory_parsimonious: bool, optional
@@ -641,16 +792,27 @@ def calculate_cumulant_function(
 
     """
     N, d = pulse.basis.shape[:2]
+    if spectrum is None and omega is None:
+        if decay_amplitudes is None or (frequency_shifts is None and second_order):
+            raise ValueError('Require either spectrum and frequencies or precomputed ' +
+                             'decay amplitudes (frequency shifts)')
+
+    if which == 'correlations' and second_order:
+        raise ValueError('Cannot compute correlation cumulant function' +
+                         'for second order terms')
+
+    if decay_amplitudes is None:
+        decay_amplitudes = calculate_decay_amplitudes(pulse, spectrum, omega, n_oper_identifiers,
+                                                      which, show_progressbar, memory_parsimonious)
+
     if second_order:
-        if which == 'correlations':
-            raise ValueError('Cannot compute correlation cumulant function' +
-                             'for second order terms.')
+        if frequency_shifts is None:
+            frequency_shifts = calculate_frequency_shifts(pulse, spectrum, omega,
+                                                          n_oper_identifiers, show_progressbar,
+                                                          memory_parsimonious)
 
-        frequency_shifts = calculate_frequency_shifts(pulse, spectrum, omega, n_oper_identifiers,
-                                                      show_progressbar, memory_parsimonious)
-
-    decay_amplitudes = calculate_decay_amplitudes(pulse, spectrum, omega, n_oper_identifiers,
-                                                  which, show_progressbar, memory_parsimonious)
+        if frequency_shifts.shape != decay_amplitudes.shape:
+            raise ValueError('Frequency shifts not same shape as decay amplitudes')
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
@@ -703,8 +865,8 @@ def calculate_decay_amplitudes(
         memory_parsimonious: Optional[bool] = False
         ) -> ndarray:
     r"""
-    Get the decay amplitudes :math:`\Gamma_{\alpha\beta, kl}` for noise sources
-    :math:`\alpha,\beta` and basis elements :math:`k,l`.
+    Get the decay amplitudes :math:`\Gamma_{\alpha\beta, kl}` for noise
+    sources :math:`\alpha,\beta` and basis elements :math:`k,l`.
 
     Parameters
     ----------
@@ -718,8 +880,7 @@ def calculate_decay_amplitudes(
         a matrix of cross-spectra such that
         ``spectrum[i, j] == spectrum[j, i].conj()``.
     omega: array_like,
-        The frequencies. Note that the frequencies are assumed to be
-        symmetric about zero.
+        The frequencies at which to calculate the filter functions.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to calculate
         the decay amplitudes. The default is all.
@@ -750,7 +911,7 @@ def calculate_decay_amplitudes(
 
     Returns
     -------
-    Gamma: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
+    decay_amplitudes: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
         The decay amplitudes.
 
     .. _notes:
@@ -1315,9 +1476,9 @@ def error_transfer_matrix(
         pulse: Optional['PulseSequence'] = None,
         spectrum: Optional[ndarray] = None,
         omega: Optional[Coefficients] = None,
-        cumulant_function: Optional[ndarray] = None,
         n_oper_identifiers: Optional[Sequence[str]] = None,
         second_order: bool = False,
+        cumulant_function: Optional[ndarray] = None,
         show_progressbar: bool = False,
         memory_parsimonious: bool = False
         ) -> ndarray:
@@ -1339,12 +1500,8 @@ def error_transfer_matrix(
         each pair of noise operators corresponding to the correlations
         between them. n_nops is the number of noise operators considered
         and should be equal to ``len(n_oper_identifiers)``.
-    omega: array_like,
-        The frequencies. Note that the frequencies are assumed to be
-        symmetric about zero.
-    cumulant_function: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
-        A precomputed cumulant function. If given, *pulse*, *spectrum*,
-        *omega* are not required.
+    omega: array_like, shape (n_omega,)
+        The frequencies at which to calculate the filter functions.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to evaluate the
         error transfer matrix. The default is all. Note that, since in
@@ -1355,6 +1512,9 @@ def error_transfer_matrix(
         Also take into account the frequency shifts :math:`\Delta` that
         correspond to second order Magnus expansion and constitute
         unitary terms. Default ``False``.
+    cumulant_function: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
+        A precomputed cumulant function. If given, *pulse*, *spectrum*,
+        *omega* are not required.
     show_progressbar: bool, optional
         Show a progress bar for the calculation of the control matrix.
     memory_parsimonious: bool, optional
@@ -1411,7 +1571,8 @@ def error_transfer_matrix(
 
         cumulant_function = calculate_cumulant_function(pulse, spectrum, omega,
                                                         n_oper_identifiers, 'total', second_order,
-                                                        show_progressbar, memory_parsimonious)
+                                                        show_progressbar=show_progressbar,
+                                                        memory_parsimonious=memory_parsimonious)
 
     try:
         # agnostic of the specific shape of cumulant_function, just sum over everything except for
@@ -1467,8 +1628,7 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
         ('omega_IR', 'omega_UV', 'spacing', 'n_min', 'n_max',
         'n_points'), where all entries are integers except for
         ``spacing`` which should be a string, either 'linear' or 'log'.
-        'n_points' controls how many steps are taken. Note that the
-        frequencies are assumed to be symmetric about zero.
+        'n_points' controls how many steps are taken.
     n_oper_identifiers: array_like, optional
         The identifiers of the noise operators for which to calculate
         the infidelity  contribution. If given, the infidelities for
@@ -1621,11 +1781,9 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
         convergence_infids = np.empty((len(n_samples), len(idx)))
         for i, n in enumerate(n_samples):
             freqs = xspace(omega_IR, omega_UV, n//2)
-            convergence_infids[i] = infidelity(pulse,
-                                               *util.symmetrize_spectrum(spectrum(freqs), freqs),
+            convergence_infids[i] = infidelity(pulse, spectrum(freqs), freqs,
                                                n_oper_identifiers=n_oper_identifiers,
-                                               which='total',
-                                               return_smallness=False,
+                                               which='total', return_smallness=False,
                                                test_convergence=False)
 
         return n_samples, convergence_infids
@@ -1683,141 +1841,3 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
         return infid, xi
 
     return infid
-
-
-def _get_integrand(
-        spectrum: ndarray,
-        omega: ndarray,
-        idx: ndarray,
-        which_pulse: str,
-        which_FF: str,
-        control_matrix: Optional[Union[ndarray, Sequence[ndarray]]] = None,
-        filter_function: Optional[ndarray] = None
-        ) -> ndarray:
-    """
-    Private function to generate the integrand for either
-    :func:`infidelity` or :func:`calculate_decay_amplitudes`.
-
-    Parameters
-    ----------
-    spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega)
-        The two-sided noise power spectral density.
-    omega: array_like,
-        The frequencies. Note that the frequencies are assumed to be
-        symmetric about zero.
-    idx: ndarray
-        Noise operator indices to consider.
-    which_pulse: str, optional {'total', 'correlations'}
-        Use pulse correlations or total filter function.
-    which_FF: str, optional {'fidelity', 'generalized'}
-        Fidelity or generalized filter functions. Needed to determine output
-        shape.
-    control_matrix: ndarray, optional
-        Control matrix. If given, returns the integrand for
-        :func:`calculate_error_vector_correlation_functions`. If given
-        as a list or tuple, taken to be the left and right control
-        matrices in the integrand (allows for slicing up the integrand).
-    filter_function: ndarray, optional
-        Filter function. If given, returns the integrand for
-        :func:`infidelity`.
-
-    Raises
-    ------
-    ValueError
-        If ``spectrum`` and ``control_matrix`` or ``filter_function``,
-        depending on which was given, have incompatible shapes.
-
-    Returns
-    -------
-    integrand: ndarray, shape (..., n_omega)
-        The integrand.
-
-    """
-    if control_matrix is not None:
-        # ctrl_left is the complex conjugate
-        funs = (np.conj, lambda x: x)
-        if isinstance(control_matrix, (list, tuple)):
-            ctrl_left, ctrl_right = [f(c) for f, c in zip(funs, control_matrix)]
-        else:
-            ctrl_left, ctrl_right = [f(r) for f, r in zip(funs, [control_matrix]*2)]
-    else:
-        # filter_function is not None
-        if which_FF == 'generalized':
-            # Everything simpler if noise operators always on 2nd-to-last axes
-            filter_function = np.moveaxis(filter_function, source=[-5, -4], destination=[-3, -2])
-
-    spectrum = np.asarray(spectrum)
-    S_err_str = 'spectrum should be of shape {}, not {}.'
-    if spectrum.ndim == 1 or spectrum.ndim == 2:
-        if spectrum.ndim == 1:
-            # Only single spectrum
-            shape = (len(omega),)
-            if spectrum.shape != shape:
-                raise ValueError(S_err_str.format(shape, spectrum.shape))
-
-            spectrum = np.expand_dims(spectrum, 0)
-        else:
-            # spectrum.ndim == 2, spectrum is diagonal (no correlation between noise sources)
-            shape = (len(idx), len(omega))
-            if spectrum.shape != shape:
-                raise ValueError(S_err_str.format(shape, spectrum.shape))
-
-        # spectrum is real, integrand therefore also
-        if filter_function is not None:
-            integrand = (filter_function[..., tuple(idx), tuple(idx), :]*spectrum).real
-            if which_FF == 'generalized':
-                # move axes back to expected position, ie (pulses, noise opers,
-                # basis elements, frequencies)
-                integrand = np.moveaxis(integrand, source=-2, destination=-4)
-        else:
-            # R is not None
-            if which_pulse == 'correlations':
-                if which_FF == 'fidelity':
-                    einsum_str = 'gako,ao,hako->ghao'
-                else:
-                    # which_FF == 'generalized'
-                    einsum_str = 'gako,ao,halo->ghaklo'
-            else:
-                # which_pulse == 'total'
-                if which_FF == 'fidelity':
-                    einsum_str = 'ako,ao,ako->ao'
-                else:
-                    # which_FF == 'generalized'
-                    einsum_str = 'ako,ao,alo->aklo'
-
-            integrand = np.einsum(einsum_str,
-                                  ctrl_left[..., idx, :, :], spectrum,
-                                  ctrl_right[..., idx, :, :]).real
-    elif spectrum.ndim == 3:
-        # General case where spectrum is a matrix with correlation spectra on off-diag
-        shape = (len(idx), len(idx), len(omega))
-        if spectrum.shape != shape:
-            raise ValueError(S_err_str.format(shape, spectrum.shape))
-
-        if filter_function is not None:
-            integrand = filter_function[..., idx[:, None], idx, :]*spectrum
-            if which_FF == 'generalized':
-                integrand = np.moveaxis(integrand, source=[-3, -2], destination=[-5, -4])
-        else:
-            # R is not None
-            if which_pulse == 'correlations':
-                if which_FF == 'fidelity':
-                    einsum_str = 'gako,abo,hbko->ghabo'
-                else:
-                    # which_FF == 'generalized'
-                    einsum_str = 'gako,abo,hblo->ghabklo'
-            else:
-                # which_pulse == 'total'
-                if which_FF == 'fidelity':
-                    einsum_str = 'ako,abo,bko->abo'
-                else:
-                    # which_FF == 'generalized'
-                    einsum_str = 'ako,abo,blo->abklo'
-
-            integrand = np.einsum(einsum_str,
-                                  ctrl_left[..., idx, :, :], spectrum,
-                                  ctrl_right[..., idx, :, :])
-    else:
-        raise ValueError('Expected spectrum to be array_like with < 4 dimensions')
-
-    return integrand

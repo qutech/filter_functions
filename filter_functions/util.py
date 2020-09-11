@@ -52,9 +52,6 @@ Functions
 :func:`get_sample_frequencies`
     Get frequencies with typical infrared and ultraviolet cutoffs for a
     ``PulseSequence``
-:func:`symmetrize_spectrum`
-    Symmetrize a one-sided power spectrum as well as the frequencies
-    associated with it to get a two-sided spectrum.
 :func:`progressbar`
     A progress bar for loops. Uses tqdm if available and a simple custom
     one if not.
@@ -971,10 +968,9 @@ def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> float:
 
 @parse_optional_parameters({'spacing': ('log', 'linear')})
 def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
-                           spacing: str = 'log', symmetric: bool = True) -> ndarray:
-    """
-    Get *n_samples* sample frequencies spaced either 'linear' or 'log'
-    symmetrically around zero.
+                           spacing: str = 'log',
+                           include_quasistatic: bool = False) -> ndarray:
+    """Get *n_samples* sample frequencies spaced 'linear' or 'log'.
 
     The ultraviolet cutoff is taken to be two orders of magnitude larger
     than the timescale of the pulse tau. In the case of log spacing, the
@@ -990,84 +986,27 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
     spacing: str, optional
         The spacing of the frequencies. Either 'log' or 'linear',
         default is 'log'.
-    symmetric: bool, optional
-        Whether the frequencies should be symmetric around zero or
-        positive only. Default is True.
+    include_quasistatic: bool, optional
+        Include zero frequency. Default is False.
 
     Returns
     -------
     omega: ndarray
         The frequencies.
     """
-    tau = pulse.tau
     if spacing == 'linear':
-        if symmetric:
-            freqs = np.linspace(-1e2/tau, 1e2/tau, n_samples)*2*np.pi
-        else:
-            freqs = np.linspace(0, 1e2/tau, n_samples)*2*np.pi
+        xspace = np.linspace
     else:
         # spacing == 'log'
-        if symmetric:
-            freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples//2)*2*np.pi
-            freqs = np.concatenate([-freqs[::-1], freqs])
-        else:
-            freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples)*2*np.pi
+        xspace = np.geomspace
 
-    return freqs
-
-
-def symmetrize_spectrum(S: ndarray, omega: ndarray) -> Tuple[ndarray, ndarray]:
-    r"""Symmetrize a one-sided power spectrum around zero frequency.
-
-    Cross-spectra will have their real parts symmetrized and imaginary parts
-    anti-symmetrized such that for the correlation functions in time space
-    :math:`C_{\alpha\beta}(t) = C_{\beta\alpha}(-t)` holds.
-
-    Parameters
-    ----------
-    S: ndarray, shape ([[n_nops,] n_nops,] n_omega)
-        The one-sided power spectrum.
-    omega: ndarray, shape (n_omega,)
-        The positive and strictly increasing frequencies.
-
-    Returns
-    -------
-    S: ndarray, shape ([[n_nops,] n_nops,], 2*n_omega)
-        The two-sided power spectrum.
-    omega: ndarray, shape (2*n_omega,)
-        The frequencies mirrored about zero.
-
-    Notes
-    -----
-    The two-sided power spectral density is in the symmetric case given
-    by :math:`S^{(1)}(\omega) = 2S^{(2)}(\omega)`.
-    """
-    # Catch zero frequency component
-    if omega[0] == 0:
-        ix = 1
+    if include_quasistatic:
+        freqs = xspace(1e-2/pulse.tau, 1e2/pulse.tau, n_samples - 1)
+        freqs = np.insert(freqs, 0, 0)
     else:
-        ix = 0
+        freqs = xspace(1e-2/pulse.tau, 1e2/pulse.tau, n_samples)
 
-    omega = np.concatenate((-omega[::-1], omega[ix:]))
-    S_one = np.asarray(S)
-    S_two_real = np.concatenate(
-        (S_one[..., ::-1].real, S_one[..., ix:].real), axis=-1
-    )/2
-    if S_one.ndim < 3:
-        S_two = S_two_real
-    elif S_one.ndim == 3:
-        # Cross-correlated noise
-        diag = np.eye(S_one.shape[0], dtype=bool)
-        S_two_imag = np.zeros_like(S_two_real)
-        S_two_imag[~diag] = np.concatenate(
-            (-S_one[~diag, ::-1].imag, S_one[~diag, ix:].imag), axis=-1
-        )/2
-
-        S_two = S_two_real + 1j*S_two_imag
-    else:
-        raise ValueError('Expected S.ndim <= 3 but found {}'.format(S.ndim))
-
-    return S_two, omega
+    return 2*np.pi*freqs
 
 
 def hash_array_along_axis(arr: ndarray, axis: int = 0) -> List[int]:

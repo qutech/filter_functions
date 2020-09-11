@@ -54,7 +54,7 @@ hadamard.is_cached('filter function')
 To compute, for example, the infidelity of the gate in the presence of an arbitrary classical noise spectrum, we can simply call `infidelity()`:
 
 ```python
-spectrum = 1e-2/abs(omega)  # omega is symmetric about zero
+spectrum = 1e-2/abs(omega)
 infidelity = ff.infidelity(hadamard, spectrum, omega)
 # array([0.006037])  (one contribution per noise operator)
 ```
