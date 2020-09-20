@@ -25,8 +25,8 @@ represent operator bases.
 Classes
 -------
 :class:`Basis`
-    The operator basis as an array of  shape (d**2, d, d) with d the dimension
-    of the Hilbert space
+    The operator basis as an array of  shape (d**2, d, d) with d the
+    dimension of the Hilbert space
 
 Functions
 ---------
@@ -35,8 +35,8 @@ Functions
 :func:`expand`
     Function to expand an array of operators in a given basis
 :func:`ggm_expand`
-    Fast function to expand an array of operators in a Generalized Gell-Mann
-    basis
+    Fast function to expand an array of operators in a Generalized
+    Gell-Mann basis
 
 """
 
@@ -45,26 +45,25 @@ from warnings import warn
 
 import numpy as np
 import opt_einsum as oe
+from numpy import linalg as nla
 from numpy.core import ndarray
-from numpy.linalg import norm
-from qutip import Qobj
-from scipy.linalg import null_space
+from scipy import linalg as sla
 from sparse import COO
 
-from .util import P_np, remove_float_errors, tensor
+from . import util
 
 __all__ = ['Basis', 'expand', 'ggm_expand', 'normalize']
 
 
 class Basis(ndarray):
     r"""
-    Class for operator bases. There are several ways to instantiate a Basis
-    object:
+    Class for operator bases. There are several ways to instantiate a
+    Basis object:
 
-        - by just calling this constructor with a (possibly incomplete) array
-          of basis matrices. In this case, it is attempted to construct from
-          the input a complete basis with the following properties that retains
-          all original (input) elements:
+        - by just calling this constructor with a (possibly incomplete)
+          array of basis matrices. In this case, it is attempted to
+          construct from the input a complete basis with the following
+          properties that retains all original (input) elements:
 
               - hermitian
               - orthonormal
@@ -77,84 +76,84 @@ class Basis(ndarray):
               - :meth:`ggm`: Generalized Gell-Mann basis
               - :meth:`partial` (not implemented)
 
-    Since Basis is a subclass of NumPy's ``ndarray``, it inherits all of its
-    attributes, e.g. ``shape``. The following attributes behave slightly
-    differently to a ndarray, however
+    Since Basis is a subclass of NumPy's ``ndarray``, it inherits all of
+    its attributes, e.g. ``shape``. The following attributes behave
+    slightly differently to a ndarray, however
 
-        - ``A == B`` is ``True`` if all elements evaluate almost equal, i.e.
-          equivalent to ``np.allclose(A, B)``.
-        - ``basis.T`` transposes the last two axes of ``basis``. For a full
-          basis, this corresponds to transposing each element individually. For
-          a basis element, it corresponds to normal transposition.
+        - ``A == B`` is ``True`` if all elements evaluate almost equal,
+          i.e. equivalent to ``np.allclose(A, B)``.
+        - ``basis.T`` transposes the last two axes of ``basis``. For a
+          full basis, this corresponds to transposing each element
+          individually. For a basis element, it corresponds to normal
+          transposition.
 
     Parameters
     ----------
-
-    basis_array : array_like, shape (n, d, d)
-        An array or list of square matrices that are elements of an operator
-        basis spanning :math:`\mathbb{C}^{d\times d}`. *n* should be smaller
-        than or equal to *d**2*.
-    traceless : bool, optional (default: auto)
-        Controls whether a traceless basis is forced. Here, traceless means
-        that the first element of the basis is the identity and the remaining
-        elements are matrices of trace zero. If an element of ``basis_array``
-        is neither traceless nor the identity and ``traceless == True``, an
-        exception will be raised. Defaults to ``True`` if basis_array is
-        traceless and ``False`` if not.
-    btype : str, optional (default: ``'custom'``)
-        A string describing the basis type. For example, a basis created by the
-        factory method :meth:`pauli` has *btype* 'pauli'.
-    skip_check : bool, optional (default: ``False``)
+    basis_array: array_like, shape (n, d, d)
+        An array or list of square matrices that are elements of an
+        operator basis spanning :math:`\mathbb{C}^{d\times d}`. *n*
+        should be smaller than or equal to *d**2*.
+    traceless: bool, optional (default: auto)
+        Controls whether a traceless basis is forced. Here, traceless
+        means that the first element of the basis is the identity and
+        the remaining elements are matrices of trace zero. If an element
+        of ``basis_array`` is neither traceless nor the identity and
+        ``traceless == True``, an exception will be raised. Defaults to
+        ``True`` if basis_array is traceless and ``False`` if not.
+    btype: str, optional (default: ``'custom'``)
+        A string describing the basis type. For example, a basis created
+        by the factory method :meth:`pauli` has *btype* 'pauli'.
+    skip_check: bool, optional (default: ``False``)
         Skip the internal routine for checking ``basis_array``'s
         orthonormality and completeness. Use with caution.
 
     Attributes
     ----------
-    Other than the attributes inherited from ``ndarray``, a ``Basis`` instance
-    has the following attributes:
+    Other than the attributes inherited from ``ndarray``, a ``Basis``
+    instance has the following attributes:
 
-    btype : str
+    btype: str
         Basis type.
-    d : int
+    d: int
         Dimension of the space spanned by the basis.
-    H : Basis
+    H: Basis
         Hermitian conjugate.
-    isherm : bool
+    isherm: bool
         If the basis is hermitian.
-    isorthonorm : bool
+    isorthonorm: bool
         If the basis is orthonormal.
-    istraceless : bool
+    istraceless: bool
         If the basis is traceless except for an identity element
-    iscomplete : bool
+    iscomplete: bool
         If the basis is complete, ie spans the full space.
-    sparse : COO, shape (n, d, d)
-        Representation in the COO format supplied by the ``sparse`` package.
-    four_element_traces : COO, shape (n, n, n, n)
-        Traces over all possible combinations of four elements of self. This is
-        required for the calculation of the error transfer matrix and thus
-        cached in the Basis instance.
+    sparse: COO, shape (n, d, d)
+        Representation in the COO format supplied by the ``sparse``
+        package.
+    four_element_traces: COO, shape (n, n, n, n)
+        Traces over all possible combinations of four elements of self.
+        This is required for the calculation of the error transfer
+        matrix and thus cached in the Basis instance.
 
-    Most of the attributes above are properties which are lazily evaluated and
-    cached.
+    Most of the attributes above are properties which are lazily
+    evaluated and cached.
 
     Methods
     -------
-    Other than the methods inherited from ``ndarray``, a ``Basis`` instance has
-    the following methods:
+    Other than the methods inherited from ``ndarray``, a ``Basis``
+    instance has the following methods:
 
     normalize(b)
-        Normalizes the basis in-place (used internally when creating a basis
-        from elements)
+        Normalizes the basis in-place (used internally when creating a
+        basis from elements)
     tidyup(eps_scale=None)
-        Cleans up floating point errors in-place to make zeros actual zeros.
-        ``eps_scale`` is an optional argument multiplied to the data type's
-        ``eps`` to get the absolute tolerance.
+        Cleans up floating point errors in-place to make zeros actual
+        zeros. ``eps_scale`` is an optional argument multiplied to the
+        data type's ``eps`` to get the absolute tolerance.
 
     """
 
     def __new__(cls, basis_array: Sequence, traceless: Optional[bool] = None,
-                btype: Optional[str] = None, skip_check: bool = False
-                ) -> 'Basis':
+                btype: Optional[str] = None, skip_check: bool = False) -> 'Basis':
         """Constructor."""
         if not skip_check:
             if not hasattr(basis_array, '__getitem__'):
@@ -170,14 +169,13 @@ class Basis(ndarray):
                 except AttributeError:
                     pass
 
-                basis = np.empty((len(basis_array), *basis_array[0].shape),
-                                 dtype=complex)
+                basis = np.empty((len(basis_array), *basis_array[0].shape), dtype=complex)
                 for i, elem in enumerate(basis_array):
-                    if isinstance(elem, ndarray):
+                    if isinstance(elem, ndarray):   # numpy array
                         basis[i] = elem
-                    elif isinstance(elem, Qobj):
+                    elif hasattr(elem, 'full'):     # qutip.Qobj
                         basis[i] = elem.full()
-                    elif isinstance(elem, COO):
+                    elif hasattr(elem, 'todense'):  # sparse array
                         basis[i] = elem.todense()
                     else:
                         raise TypeError('At least one element invalid type!')
@@ -194,7 +192,7 @@ class Basis(ndarray):
             d = basis.shape[-1]
 
         basis = basis.view(cls)
-        basis.btype = btype if btype is not None else 'Custom'
+        basis.btype = btype or 'Custom'
         basis.d = d
         return basis
 
@@ -205,7 +203,7 @@ class Basis(ndarray):
 
         self.btype = getattr(basis, 'btype', 'Custom')
         self.d = getattr(basis, 'd', basis.shape[-1])
-        self._sparse = None     # sparse representation of self
+        self._sparse = None
         self._four_element_traces = None
         self._isherm = None
         self._isorthonorm = None
@@ -229,9 +227,9 @@ class Basis(ndarray):
 
     def __contains__(self, item: ndarray) -> bool:
         """Implement 'in' operator."""
-        return any(np.all(np.isclose(
-            item.view(ndarray), self.view(ndarray), rtol=self._rtol,
-            atol=self._atol), axis=(1, 2)))
+        return any(np.all(np.isclose(item.view(ndarray), self.view(ndarray),
+                                     rtol=self._rtol, atol=self._atol),
+                          axis=(1, 2)))
 
     def __array_wrap__(self, out_arr, context=None):
         """
@@ -285,7 +283,7 @@ class Basis(ndarray):
         """
         if self._istraceless is None:
             trace = np.einsum('...jj', self)
-            trace = remove_float_errors(trace, self.d)
+            trace = util.remove_float_errors(trace, self.d)
             nonzero = trace.nonzero()
             if nonzero[0].size == 0:
                 self._istraceless = True
@@ -345,9 +343,9 @@ class Basis(ndarray):
     @property
     def four_element_traces(self) -> COO:
         r"""
-        Return all traces of the form :math:`\mathrm{tr}(C_i C_j C_k C_l)` as
-        a sparse COO array for :math:`i,j,k,l > 0` (i.e. excluding the
-        identity).
+        Return all traces of the form
+        :math:`\mathrm{tr}(C_i C_j C_k C_l)` as a sparse COO array for
+        :math:`i,j,k,l > 0` (i.e. excluding the identity).
         """
         if self._four_element_traces is None:
             # Most of the traces are zero, therefore store the result in a
@@ -358,14 +356,11 @@ class Basis(ndarray):
             path = [(0, 1), (0, 1), (0, 1)]
             if self.btype == 'Pauli' and self.d <= 12:
                 # For d == 12, the result is ~270 MB.
-                self._four_element_traces = COO.from_numpy(oe.contract(
-                    'iab,jbc,kcd,lda->ijkl', *(self,)*4, optimize=path
-                ))
+                self._four_element_traces = COO.from_numpy(oe.contract('iab,jbc,kcd,lda->ijkl',
+                                                                       *(self,)*4, optimize=path))
             else:
-                self._four_element_traces = oe.contract(
-                    'iab,jbc,kcd,lda->ijkl', *(self.sparse,)*4,
-                    backend='sparse', optimize=path
-                )
+                self._four_element_traces = oe.contract('iab,jbc,kcd,lda->ijkl', *(self.sparse,)*4,
+                                                        backend='sparse', optimize=path)
 
         return self._four_element_traces
 
@@ -376,9 +371,9 @@ class Basis(ndarray):
     def normalize(self) -> None:
         """Normalize the basis in-place"""
         if self.ndim == 2:
-            self /= norm(self)
+            self /= nla.norm(self)
         elif self.ndim == 3:
-            np.einsum('ijk,i->ijk', self, 1/norm(self, axis=(1, 2)),
+            np.einsum('ijk,i->ijk', self, 1/nla.norm(self, axis=(1, 2)),
                       out=self)
 
     def tidyup(self, eps_scale: Optional[float] = None) -> None:
@@ -398,8 +393,8 @@ class Basis(ndarray):
     @classmethod
     def pauli(cls, n: int) -> 'Basis':
         r"""
-        Returns a Pauli basis for :math:`n` qubits, i.e. the basis spans the
-        space :math:`\mathbb{C}^{d\times d}` with :math:`d = 2^n`:
+        Returns a Pauli basis for :math:`n` qubits, i.e. the basis spans
+        the space :math:`\mathbb{C}^{d\times d}` with :math:`d = 2^n`:
 
         .. math::
             \mathcal{P} = \{I, X, Y, Z\}^{\otimes n}.
@@ -415,25 +410,26 @@ class Basis(ndarray):
 
         Parameters
         ----------
-        n : int
+        n: int
             The number of qubits.
 
         Returns
         -------
-        basis : Basis
+        basis: Basis
             The Basis object representing the Pauli basis.
         """
         normalization = np.sqrt(2**n)
         combinations = np.indices((4,)*n).reshape(n, 4**n)
-        sigma = tensor(*np.array(P_np)[combinations], rank=2)/normalization
+        sigma = util.tensor(*util.paulis[combinations], rank=2)
+        sigma /= normalization
         return cls(sigma, btype='Pauli', skip_check=True)
 
     @classmethod
     def ggm(cls, d: int) -> 'Basis':
         r"""
-        Returns a generalized Gell-Mann basis in :math:`d` dimensions [Bert08]_
-        where the elements :math:`\Lambda_i` are normalized with respect to the
-        Hilbert-Schmidt inner product,
+        Returns a generalized Gell-Mann basis in :math:`d` dimensions
+        [Bert08]_ where the elements :math:`\Lambda_i` are normalized
+        with respect to the Hilbert-Schmidt inner product,
 
         .. math::
 
@@ -443,20 +439,20 @@ class Basis(ndarray):
 
         Parameters
         ----------
-        d : int
+        d: int
             The dimensionality of the space spanned by the basis
 
         Returns
         -------
-        basis : Basis
+        basis: Basis
             The Basis object representing the GGM.
 
         References
         ----------
         .. [Bert08]
-            Bertlmann, R. A., & Krammer, P. (2008). Bloch vectors for qudits.
-            Journal of Physics A: Mathematical and Theoretical, 41(23).
-            https://doi.org/10.1088/1751-8113/41/23/235303
+            Bertlmann, R. A., & Krammer, P. (2008). Bloch vectors for
+            qudits. Journal of Physics A: Mathematical and Theoretical,
+            41(23). https://doi.org/10.1088/1751-8113/41/23/235303
 
         """
         n_sym = int(d*(d - 1)/2)
@@ -485,17 +481,19 @@ class Basis(ndarray):
         Lambda[np.repeat(diag_rng, diag_rng)+2*n_sym, j_diag, j_diag] = 1
         Lambda[diag_rng + 2*n_sym, l_diag, l_diag] = -diag_rng
         # Normalize
-        Lambda[2*n_sym + 1:, range(d), range(d)] /= \
-            np.tile(np.sqrt(diag_rng*(diag_rng + 1))[:, None], (1, d))
+        Lambda[2*n_sym + 1:, range(d), range(d)] /= np.tile(
+            np.sqrt(diag_rng*(diag_rng + 1))[:, None], (1, d)
+        )
 
         return cls(Lambda, btype='GGM', skip_check=True)
 
 
 def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
     """
-    Internal function to parse the basis elements *elems*. By default, checks
-    are performed for orthogonality and linear independence. If either fails an
-    exception is raised. Returns a full hermitian and orthonormal basis.
+    Internal function to parse the basis elements *elems*. By default,
+    checks are performed for orthogonality and linear independence. If
+    either fails an exception is raised. Returns a full hermitian and
+    orthonormal basis.
     """
     elems = np.asanyarray(elems)
     if not isinstance(elems, Basis):
@@ -535,7 +533,7 @@ def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
         # Those together with coeffs span the whole space, and therefore also
         # the linear combinations of GGMs weighted with the coefficients will
         # span the whole matrix space
-        coeffs = np.concatenate((coeffs, null_space(coeffs).T))
+        coeffs = np.concatenate((coeffs, sla.null_space(coeffs).T))
         # Our new basis is given by linear combinations of GGMs with coeffs
         basis = np.einsum('ij,jkl', coeffs, ggm)
     else:
@@ -556,13 +554,13 @@ def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
 
 def normalize(b: Sequence) -> Basis:
     r"""
-    Return a copy of the basis *b* normalized with respect to the Frobenius
-    norm [Gol85]_:
+    Return a copy of the basis *b* normalized with respect to the
+    Frobenius norm [Gol85]_:
 
         :math:`||A||_F = \left[\sum_{i,j} |a_{i,j}|^2\right]^{1/2}`
 
-    or equivalently, with respect to the Hilbert-Schmidt inner product as
-    implemented by :func:`~filter_functions.util.dot_HS`.
+    or equivalently, with respect to the Hilbert-Schmidt inner product
+    as implemented by :func:`~filter_functions.util.dot_HS`.
 
     References
     ----------
@@ -573,12 +571,11 @@ def normalize(b: Sequence) -> Basis:
     """
     b = np.asanyarray(b)
     if b.ndim == 2:
-        return (b/norm(b)).view(Basis)
+        return (b/nla.norm(b)).view(Basis)
     if b.ndim == 3:
-        return np.einsum('ijk,i->ijk', b, 1/norm(b, axis=(1, 2))).view(Basis)
+        return np.einsum('ijk,i->ijk', b, 1/nla.norm(b, axis=(1, 2))).view(Basis)
 
-    raise ValueError('Expected b.ndim to be either 2 or 3, not ' +
-                     '{}.'.format(b.ndim))
+    raise ValueError(f'Expected b.ndim to be either 2 or 3, not {b.ndim}.')
 
 
 def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
@@ -588,27 +585,27 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
 
     Parameters
     ----------
-    M : array_like
-        The square matrix (d, d) or array of square matrices (..., d, d) to be
-        expanded in *basis*
-    basis : array_like
+    M: array_like
+        The square matrix (d, d) or array of square matrices (..., d, d)
+        to be expanded in *basis*
+    basis: array_like
         The basis of shape (m, d, d) in which to expand.
-    normalized : bool {True}
+    normalized: bool {True}
         Wether the basis is normalized.
-    tidyup : bool {False}
+    tidyup: bool {False}
         Whether to set values below the floating point eps to zero.
 
     Returns
     -------
-    coefficients : ndarray
+    coefficients: ndarray
         The coefficient array with shape (..., m) or (m,) if *M* was 2-d
 
     Notes
     -----
     For an orthogonal matrix basis :math:`\mathcal{C} = \big\{C_k\in
     \mathbb{C}^{d\times d}: \langle C_k,C_l\rangle_\mathrm{HS} \propto
-    \delta_{kl}\big\}_{k=0}^{d^2-1}` with the Hilbert-Schmidt inner product as
-    implemented by :func:`~filter_functions.util.dot_HS` and
+    \delta_{kl}\big\}_{k=0}^{d^2-1}` with the Hilbert-Schmidt inner
+    product as implemented by :func:`~filter_functions.util.dot_HS` and
     :math:`M\in\mathbb{C}^{d\times d}`, the expansion of
     :math:`M` in terms of :math:`\mathcal{C}` is given by
 
@@ -618,42 +615,44 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
                     {\mathrm{tr}\big(C_j^\dagger C_j\big)}.
 
     """
-    coefficients = np.einsum('...ij,bji->...b', np.asarray(M), basis)
+    coefficients = np.tensordot(M, basis, axes=[(-2, -1), (-1, -2)])
 
     if not normalized:
         coefficients /= np.einsum('bij,bji->b', basis, basis).real
 
-    return remove_float_errors(coefficients) if tidyup else coefficients
+    return util.remove_float_errors(coefficients) if tidyup else coefficients
 
 
 def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False) -> ndarray:
     r"""
-    Expand the matrix *M* in a Generalized Gell-Mann basis [Bert08]_. This
-    function makes use of the explicit construction prescription of the basis
-    and thus makes do without computing the expansion coefficients as the
-    overlap between the matrix and each basis element.
+    Expand the matrix *M* in a Generalized Gell-Mann basis [Bert08]_.
+    This function makes use of the explicit construction prescription of
+    the basis and thus makes do without computing the expansion
+    coefficients as the overlap between the matrix and each basis
+    element.
 
     Parameters
     ----------
-    M : array_like
-        The square matrix (d, d) or array of square matrices (..., d, d) to be
-        expanded in a GGM basis.
-    traceless : bool (default: False)
+    M: array_like
+        The square matrix (d, d) or array of square matrices (..., d, d)
+        to be expanded in a GGM basis.
+    traceless: bool (default: False)
         Include the basis element proportional to the identity in the
         expansion. If it is known beforehand that M is traceless, the
-        corresponding coefficient is zero and thus doesn't need to be computed.
+        corresponding coefficient is zero and thus doesn't need to be
+        computed.
 
     Returns
     -------
-    coefficients : ndarray
+    coefficients: ndarray
         The coefficient array with shape (d**2,) or (..., d**2)
 
     References
     ----------
     .. [Bert08]
-        Bertlmann, R. A., & Krammer, P. (2008). Bloch vectors for qudits.
-        Journal of Physics A: Mathematical and Theoretical, 41(23).
-        https://doi.org/10.1088/1751-8113/41/23/235303
+        Bertlmann, R. A., & Krammer, P. (2008). Bloch vectors for
+        qudits. Journal of Physics A: Mathematical and Theoretical,
+        41(23). https://doi.org/10.1088/1751-8113/41/23/235303
     """
     if M.shape[-1] != M.shape[-2]:
         raise ValueError('M should be square in its last two axes')
@@ -687,20 +686,19 @@ def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False) -> ndarray:
     if not traceless:
         # First element is proportional to the trace of M
         coeffs[..., 0] = np.einsum('...jj', M)/np.sqrt(d)
+
     # Elements proportional to the symmetric GGMs
     coeffs[..., sym_rng] = (M[triu_idx] + M[tril_idx])/np.sqrt(2)
     # Elements proportional to the antisymmetric GGMs
     coeffs[..., sym_rng + n_sym] = 1j*(M[triu_idx] - M[tril_idx])/np.sqrt(2)
     # Elements proportional to the diagonal GGMs
-    coeffs[..., diag_rng + 2*n_sym] = (M[diag_idx].cumsum(axis=-1) -
-                                       diag_rng*M[diag_idx_shifted])
+    coeffs[..., diag_rng + 2*n_sym] = M[diag_idx].cumsum(axis=-1) - diag_rng*M[diag_idx_shifted]
     coeffs[..., diag_rng + 2*n_sym] /= np.sqrt(diag_rng*(diag_rng + 1))
 
     return coeffs.squeeze() if square else coeffs
 
 
-def equivalent_pauli_basis_elements(idx: Union[Sequence[int], int],
-                                    N: int) -> ndarray:
+def equivalent_pauli_basis_elements(idx: Union[Sequence[int], int], N: int) -> ndarray:
     """
     Get the indices of the equivalent (up to identities tensored to it)
     basis elements of Pauli bases of qubits at position idx in the total
@@ -715,8 +713,8 @@ def equivalent_pauli_basis_elements(idx: Union[Sequence[int], int],
 
 def remap_pauli_basis_elements(order: Sequence[int], N: int) -> ndarray:
     """
-    For a N-qubit Pauli basis, transpose the order of the subsystems and return
-    the indices that permute the old basis to the new.
+    For a N-qubit Pauli basis, transpose the order of the subsystems and
+    return the indices that permute the old basis to the new.
     """
     # Index tuples for single qubit paulis that give the n-qubit paulis when
     # tensored together

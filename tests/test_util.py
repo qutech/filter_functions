@@ -22,22 +22,24 @@
 This module tests the utility functions in util.py
 """
 import numpy as np
-import qutip as qt
-from numpy.random import randint, randn, random
-from tests import testutil
+import pytest
 
 from filter_functions import PulseSequence, util
+from tests import testutil
+from tests.testutil import rng
+
+from . import qutip
 
 
 class UtilTest(testutil.TestCase):
 
     def test_abs2(self):
-        x = randn(20, 100) + 1j*randn(20, 100)
+        x = rng.standard_normal((20, 100)) + 1j*rng.standard_normal((20, 100))
         self.assertArrayAlmostEqual(np.abs(x)**2, util.abs2(x))
 
     def test_cexp(self):
         """Fast complex exponential."""
-        x = randn(50, 100)
+        x = rng.standard_normal((50, 100))
         a = util.cexp(x)
         b = np.exp(1j*x)
         self.assertArrayAlmostEqual(a, b)
@@ -48,12 +50,15 @@ class UtilTest(testutil.TestCase):
 
     def test_get_indices_from_identifiers(self):
         pulse = PulseSequence(
-            [[util.P_np[3], [2], 'Z'],
-             [util.P_np[1], [1], 'X']],
-            [[util.P_np[2], [2]]],
+            [[util.paulis[3], [2], 'Z'],
+             [util.paulis[1], [1], 'X']],
+            [[util.paulis[2], [2]]],
             [1]
         )
         idx = util.get_indices_from_identifiers(pulse, ['X'], 'control')
+        self.assertArrayEqual(idx, [0])
+
+        idx = util.get_indices_from_identifiers(pulse, 'X', 'control')
         self.assertArrayEqual(idx, [0])
 
         idx = util.get_indices_from_identifiers(pulse, ['Z', 'X'], 'control')
@@ -65,19 +70,22 @@ class UtilTest(testutil.TestCase):
         idx = util.get_indices_from_identifiers(pulse, ['B_0'], 'noise')
         self.assertArrayEqual(idx, [0])
 
+        idx = util.get_indices_from_identifiers(pulse, 'B_0', 'noise')
+        self.assertArrayEqual(idx, [0])
+
         with self.assertRaises(ValueError):
             util.get_indices_from_identifiers(pulse, ['foobar'], 'noise')
 
     def test_tensor(self):
         shapes = [(1, 2, 3, 4, 5), (5, 4, 3, 2, 1)]
-        A = randn(*shapes[0])
-        B = randn(*shapes[1])
+        A = rng.standard_normal(shapes[0])
+        B = rng.standard_normal(shapes[1])
         with self.assertRaises(ValueError):
             util.tensor(A, B)
 
         shapes = [(3, 2, 1), (3, 4, 2)]
-        A = randn(*shapes[0])
-        B = randn(*shapes[1])
+        A = rng.standard_normal(shapes[0])
+        B = rng.standard_normal(shapes[1])
         with self.assertRaises(ValueError):
             util.tensor(A, B, rank=1)
 
@@ -85,32 +93,35 @@ class UtilTest(testutil.TestCase):
         self.assertEqual(util.tensor(A, B, rank=3).shape, (9, 8, 2))
 
         shapes = [(10, 1, 3, 2), (10, 1, 2, 3)]
-        A = randn(*shapes[0])
-        B = randn(*shapes[1])
+        A = rng.standard_normal(shapes[0])
+        B = rng.standard_normal(shapes[1])
         self.assertEqual(util.tensor(A, B).shape, (10, 1, 6, 6))
 
         shapes = [(3, 5, 4, 4), (3, 5, 4, 4)]
-        A = randn(*shapes[0])
-        B = randn(*shapes[1])
+        A = rng.standard_normal(shapes[0])
+        B = rng.standard_normal(shapes[1])
         self.assertEqual(util.tensor(A, B).shape, (3, 5, 16, 16))
 
-        d = randint(2, 9)
+        d = rng.randint(2, 9)
         eye = np.eye(d)
         for i in range(d):
             for j in range(d):
                 A, B = eye[i:i+1, :], eye[:, j:j+1]
                 self.assertArrayEqual(util.tensor(A, B, rank=1), np.kron(A, B))
 
-        i, j = randint(0, 4, (2,))
-        A, B = util.P_np[i], util.P_np[j]
+        i, j = rng.randint(0, 4, (2,))
+        A, B = util.paulis[i], util.paulis[j]
         self.assertArrayEqual(util.tensor(A, B), np.kron(A, B))
 
-        args = [randn(4, 1, 2), randn(3, 2), randn(4, 3, 5)]
+        args = [rng.standard_normal((4, 1, 2)),
+                rng.standard_normal((3, 2)),
+                rng.standard_normal((4, 3, 5))]
         self.assertEqual(util.tensor(*args, rank=1).shape, (4, 3, 20))
         self.assertEqual(util.tensor(*args, rank=2).shape, (4, 9, 20))
         self.assertEqual(util.tensor(*args, rank=3).shape, (16, 9, 20))
 
-        args = [randn(2, 3, 4), randn(4, 3)]
+        args = [rng.standard_normal((2, 3, 4)),
+                rng.standard_normal((4, 3))]
         with self.assertRaises(ValueError) as err:
             util.tensor(*args, rank=1)
 
@@ -119,7 +130,7 @@ class UtilTest(testutil.TestCase):
         self.assertEqual(msg, str(err.exception))
 
     def test_tensor_insert(self):
-        I, X, Y, Z = util.P_np
+        I, X, Y, Z = util.paulis
         arr = util.tensor(X, I)
 
         with self.assertRaises(ValueError):
@@ -147,7 +158,9 @@ class UtilTest(testutil.TestCase):
         self.assertEqual(msg, str(err.exception))
 
         # Test broadcasting and rank != 2
-        A, B, C = randn(2, 3, 1, 2), randn(2, 3, 1, 2), randn(3, 1, 3)
+        A, B, C = (rng.standard_normal((2, 3, 1, 2)),
+                   rng.standard_normal((2, 3, 1, 2)),
+                   rng.standard_normal((3, 1, 3)))
 
         arr = util.tensor(A, C, rank=1)
         r = util.tensor_insert(arr, B, pos=1, rank=1,
@@ -163,7 +176,9 @@ class UtilTest(testutil.TestCase):
             util.tensor_insert(arr, B, pos=1, rank=1,
                                arr_dims=[[2], [2, 1]])
 
-        A, B, C = randn(2, 3, 1, 2), randn(2, 3, 2, 2), randn(3, 2, 1)
+        A, B, C = (rng.standard_normal((2, 3, 1, 2)),
+                   rng.standard_normal((2, 3, 2, 2)),
+                   rng.standard_normal((3, 2, 1)))
         arr = util.tensor(A, C, rank=3)
         r = util.tensor_insert(arr, B, pos=1, rank=3,
                                arr_dims=[[3, 3], [1, 2], [2, 1]])
@@ -178,13 +193,16 @@ class UtilTest(testutil.TestCase):
             util.tensor_insert(arr, B, pos=1, rank=2,
                                arr_dims=[[3, 3, 1], [1, 2], [2]])
 
-        A, B, C = randn(2, 1), randn(1, 2, 3), randn(1)
+        A, B, C = (rng.standard_normal((2, 1)),
+                   rng.standard_normal((1, 2, 3)),
+                   rng.standard_normal(1))
 
         arr = util.tensor(A, C, rank=1)
         r = util.tensor_insert(arr, B, pos=0, rank=1, arr_dims=[[1, 1]])
         self.assertArrayAlmostEqual(r, util.tensor(A, B, C, rank=1))
 
-        arrs, args = randn(2, 2, 2), randn(2, 2, 2)
+        arrs, args = [rng.standard_normal((2, 2, 2)),
+                      rng.standard_normal((2, 2, 2))]
         arr_dims = [[2, 2], [2, 2]]
 
         r = util.tensor_insert(util.tensor(*arrs), *args, pos=(0, 1),
@@ -209,7 +227,8 @@ class UtilTest(testutil.TestCase):
                                arr_dims=arr_dims)
 
         # Test exception for wrong shapes
-        arrs, args = randn(2, 4, 3, 2), randn(2, 2, 3, 4)
+        arrs, args = (rng.standard_normal((2, 4, 3, 2)),
+                      rng.standard_normal((2, 2, 3, 4)))
         with self.assertRaises(ValueError) as err:
             util.tensor_insert(util.tensor(*arrs), *args, pos=(1, 2),
                                arr_dims=[[3, 3], [2, 2]])
@@ -223,12 +242,13 @@ class UtilTest(testutil.TestCase):
         self.assertEqual(cause_msg, str(err.exception.__cause__))
 
         # Do some random tests
-        for rank, n_args, n_broadcast in zip(randint(1, 4, 10),
-                                             randint(3, 6, 10),
-                                             randint(1, 11, 10)):
-            arrs = randn(n_args, n_broadcast, *[2]*rank)
-            split_idx = randint(1, n_args-1)
-            ins_idx = randint(split_idx-n_args, n_args-split_idx)
+        for rank, n_args, n_broadcast in zip(
+                rng.randint(1, 4, 10),
+                rng.randint(3, 6, 10),
+                rng.randint(1, 11, 10)):
+            arrs = rng.randn(n_args, n_broadcast, *[2]*rank)
+            split_idx = rng.randint(1, n_args-1)
+            ins_idx = rng.randint(split_idx-n_args, n_args-split_idx)
             ins_arrs = arrs[:split_idx]
             arr = util.tensor(*arrs[split_idx:], rank=rank)
             sorted_arrs = np.insert(arrs[split_idx:], ins_idx, ins_arrs,
@@ -240,7 +260,7 @@ class UtilTest(testutil.TestCase):
             self.assertArrayAlmostEqual(
                 r, util.tensor(*sorted_arrs, rank=rank))
 
-            pos = randint(-split_idx+1, split_idx, split_idx)
+            pos = rng.randint(-split_idx+1, split_idx, split_idx)
             r = util.tensor_insert(arr, *ins_arrs, pos=pos, rank=rank,
                                    arr_dims=arr_dims)
             sorted_arrs = np.insert(arrs[split_idx:], pos, ins_arrs, axis=0)
@@ -251,7 +271,7 @@ class UtilTest(testutil.TestCase):
 
     def test_tensor_merge(self):
         # Test basic functionality
-        I, X, Y, Z = util.P_np
+        I, X, Y, Z = util.paulis
         arr = util.tensor(X, Y, Z)
         ins = util.tensor(I, I)
         r1 = util.tensor_merge(arr, ins, pos=[1, 2], arr_dims=[[2]*3, [2]*3],
@@ -316,7 +336,8 @@ class UtilTest(testutil.TestCase):
                               ins_dims=[[2, 3], [2, 2]])
 
         # Incompatible shapes
-        arrs, args = randn(2, 4, 3, 2), randn(2, 2, 3, 4)
+        arrs, args = (rng.standard_normal((2, 4, 3, 2)),
+                      rng.standard_normal((2, 2, 3, 4)))
         with self.assertRaises(ValueError) as err:
             util.tensor_merge(util.tensor(*arrs), util.tensor(*args),
                               pos=(1, 2), arr_dims=[[3, 3], [2, 2]],
@@ -328,8 +349,8 @@ class UtilTest(testutil.TestCase):
         self.assertEqual(msg, str(err.exception))
 
         # Test rank 1 and broadcasting
-        arr = np.random.randn(2, 10, 3, 4)
-        ins = np.random.randn(2, 10, 3, 2)
+        arr = rng.standard_normal((2, 10, 3, 4))
+        ins = rng.standard_normal((2, 10, 3, 2))
         r = util.tensor_merge(util.tensor(*arr, rank=1),
                               util.tensor(*ins, rank=1), pos=[0, 1],
                               arr_dims=[[4, 4]], ins_dims=[[2, 2]], rank=1)
@@ -338,14 +359,15 @@ class UtilTest(testutil.TestCase):
         )
 
         # Do some random tests
-        for rank, n_args, n_broadcast in zip(randint(1, 4, 10),
-                                             randint(3, 6, 10),
-                                             randint(1, 11, 10)):
-            arrs = randn(n_args, n_broadcast, *[2]*rank)
-            split_idx = randint(1, n_args-1)
+        for rank, n_args, n_broadcast in zip(
+                rng.randint(1, 4, 10),
+                rng.randint(3, 6, 10),
+                rng.randint(1, 11, 10)):
+            arrs = rng.standard_normal((n_args, n_broadcast, *[2]*rank))
+            split_idx = rng.randint(1, n_args-1)
             arr = util.tensor(*arrs[split_idx:], rank=rank)
             ins = util.tensor(*arrs[:split_idx], rank=rank)
-            pos = randint(0, split_idx, split_idx)
+            pos = rng.randint(0, split_idx, split_idx)
             sorted_arrs = np.insert(arrs[split_idx:], pos, arrs[:split_idx],
                                     axis=0)
 
@@ -358,14 +380,14 @@ class UtilTest(testutil.TestCase):
 
     def test_tensor_transpose(self):
         # Test basic functionality
-        paulis = np.array(util.P_np)
+        paulis = np.array(util.paulis)
         I, X, Y, Z = paulis
         arr = util.tensor(I, X, Y, Z)
         arr_dims = [[2]*4]*2
         order = np.arange(4)
 
         for _ in range(20):
-            order = np.random.permutation(order)
+            order = rng.permutation(order)
             r = util.tensor_transpose(arr, order, arr_dims)
             self.assertArrayAlmostEqual(r, util.tensor(*paulis[order]))
 
@@ -398,12 +420,13 @@ class UtilTest(testutil.TestCase):
             # wrong order (floats instead of ints)
             r = util.tensor_transpose(arr, (0., 1., 2., 3.), arr_dims)
 
-        # Random tests
-        for rank, n_args, n_broadcast in zip(randint(1, 4, 10),
-                                             randint(3, 6, 10),
-                                             randint(1, 11, 10)):
-            arrs = randn(n_args, n_broadcast, *[2]*rank)
-            order = np.random.permutation(n_args)
+        # random tests
+        for rank, n_args, n_broadcast in zip(
+                rng.randint(1, 4, 10),
+                rng.randint(3, 6, 10),
+                rng.randint(1, 11, 10)):
+            arrs = rng.standard_normal((n_args, n_broadcast, *[2]*rank))
+            order = rng.permutation(n_args)
             arr_dims = [[2]*n_args]*rank
 
             r = util.tensor_transpose(util.tensor(*arrs, rank=rank),
@@ -413,28 +436,31 @@ class UtilTest(testutil.TestCase):
                 r, util.tensor(*arrs[order], rank=rank))
 
     def test_mdot(self):
-        arr = randn(3, 2, 4, 4)
+        arr = rng.standard_normal((3, 2, 4, 4))
         self.assertArrayEqual(util.mdot(arr, 0), arr[0] @ arr[1] @ arr[2])
         self.assertArrayEqual(util.mdot(arr, 1), arr[:, 0] @ arr[:, 1])
 
     def test_remove_float_errors(self):
         for eps_scale in (None, 2):
-            scale = 1 if eps_scale is None else eps_scale
+            scale = eps_scale or 1
             for dtype in (float, complex):
                 arr = np.zeros((10, 10), dtype=dtype)
-                arr += scale*np.finfo(arr.dtype).eps*random(arr.shape)
-                arr[randint(0, 2, arr.shape, dtype=bool)] *= -1
+                arr += scale*np.finfo(arr.dtype).eps *\
+                    rng.random_sample(arr.shape)
+                arr[rng.randint(0, 2, arr.shape, dtype=bool)] *= -1
                 arr = util.remove_float_errors(arr, eps_scale)
                 self.assertArrayEqual(arr, np.zeros(arr.shape, dtype=dtype))
 
     def test_oper_equiv(self):
         with self.assertRaises(ValueError):
-            util.oper_equiv(*[np.ones((1, 2, 3))]*2)
+            util.oper_equiv(rng.standard_normal((2, 2)),
+                            rng.standard_normal((3, 3)))
 
-        for d in randint(2, 10, (5,)):
-            psi = qt.rand_ket(d)
-            U = qt.rand_dm(d)
-            phase = randn()
+        for d in rng.randint(2, 10, (5,)):
+            psi = rng.standard_normal((d, 1)) + 1j*rng.standard_normal((d, 1))
+            # Also test broadcasting
+            U = testutil.rand_herm(d, rng.randint(1, 11)).squeeze()
+            phase = rng.standard_normal()
 
             result = util.oper_equiv(psi, psi*np.exp(1j*phase))
             self.assertTrue(result[0])
@@ -444,53 +470,54 @@ class UtilTest(testutil.TestCase):
             self.assertTrue(result[0])
             self.assertAlmostEqual(result[1], -phase, places=5)
 
-            psi = psi.full()
-            psi /= np.sqrt(np.linalg.norm(psi, ord=2))
+            psi /= np.linalg.norm(psi, ord=2)
 
             result = util.oper_equiv(psi, psi*np.exp(1j*phase),
                                      normalized=True, eps=1e-13)
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase, places=5)
+            self.assertArrayAlmostEqual(result[1], phase, atol=1e-5)
 
             result = util.oper_equiv(psi, psi+1)
             self.assertFalse(result[0])
 
             result = util.oper_equiv(U, U*np.exp(1j*phase))
-            self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase, places=5)
+            self.assertTrue(np.all(result[0]))
+            self.assertArrayAlmostEqual(result[1], phase, atol=1e-5)
 
             result = util.oper_equiv(U*np.exp(1j*phase), U)
-            self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], -phase, places=5)
+            self.assertTrue(np.all(result[0]))
+            self.assertArrayAlmostEqual(result[1], -phase, atol=1e-5)
 
-            U = U.full()
-            U /= np.sqrt(util.dot_HS(U, U))
+            norm = np.sqrt(util.dot_HS(U, U))
+            norm = norm[:, None, None] if U.ndim == 3 else norm
+            U /= norm
+            # TIP: In numpy 1.18 we could just do:
+            # U /= np.expand_dims(np.sqrt(util.dot_HS(U, U)), axis=(-1, -2))
             result = util.oper_equiv(U, U*np.exp(1j*phase), normalized=True,
                                      eps=1e-10)
-            self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase)
+            self.assertTrue(np.all(result[0]))
+            self.assertArrayAlmostEqual(result[1], phase)
 
             result = util.oper_equiv(U, U+1)
-            self.assertFalse(result[0])
+            self.assertFalse(np.all(result[0]))
 
     def test_dot_HS(self):
-        U, V = randint(0, 100, (2, 2, 2))
+        U, V = rng.randint(0, 100, (2, 2, 2))
         S = util.dot_HS(U, V)
         T = util.dot_HS(U, V, eps=0)
         self.assertArrayEqual(S, T)
 
-        for d in randint(2, 10, (5,)):
-            U = qt.rand_herm(d)
-            V = qt.rand_herm(d)
-            self.assertArrayAlmostEqual(util.dot_HS(U, V), (U.dag()*V).tr())
+        for d in rng.randint(2, 10, (5,)):
+            U, V = testutil.rand_herm(d, 2)
+            self.assertArrayAlmostEqual(util.dot_HS(U, V),
+                                        (U.conj().T @ V).trace())
 
-            U = qt.rand_unitary(d)
+            U = testutil.rand_unit(d).squeeze()
             self.assertEqual(util.dot_HS(U, U), d)
-
             self.assertEqual(util.dot_HS(U, U + 1e-14, eps=1e-10), d)
 
     def test_all_array_equal(self):
-        for n in randint(2, 10, (10,)):
+        for n in rng.randint(2, 10, (10,)):
             gen = (np.ones((10, 10)) for _ in range(n))
             lst = [np.ones((10, 10)) for _ in range(n)]
             self.assertTrue(util.all_array_equal(gen))
@@ -503,63 +530,30 @@ class UtilTest(testutil.TestCase):
 
     def test_get_sample_frequencies(self):
         pulse = PulseSequence(
-            [[util.P_np[1], [np.pi/2]]],
-            [[util.P_np[1], [1]]],
-            [abs(np.random.randn())]
+            [[util.paulis[1], [np.pi/2]]],
+            [[util.paulis[1], [1]]],
+            [abs(rng.standard_normal())]
         )
         # Default args
         omega = util.get_sample_frequencies(pulse)
-        self.assertAlmostEqual(omega[0], -2e2*np.pi/pulse.t[-1])
-        self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.t[-1])
-        self.assertEqual(len(omega), 200)
-        self.assertTrue((omega[:100] <= 0).all())
-        self.assertLessEqual(np.var(np.diff(np.log(omega[100:]))), 1e-16)
+        self.assertAlmostEqual(omega[0], 2e-2*np.pi/pulse.tau)
+        self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.tau)
+        self.assertEqual(len(omega), 300)
+        self.assertTrue((omega >= 0).all())
+        self.assertLessEqual(np.var(np.diff(np.log(omega[150:]))), 1e-16)
 
         # custom args
         omega = util.get_sample_frequencies(pulse, spacing='linear',
-                                            n_samples=50, symmetric=False)
+                                            n_samples=50, include_quasistatic=True)
         self.assertAlmostEqual(omega[0], 0)
-        self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.t[-1])
+        self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.tau)
         self.assertEqual(len(omega), 50)
         self.assertTrue((omega >= 0).all())
-        self.assertLessEqual(np.var(np.diff(omega)), 1e-16)
+        self.assertLessEqual(np.var(np.diff(omega[1:])), 1e-16)
 
         # Exceptions
         with self.assertRaises(ValueError):
             omega = util.get_sample_frequencies(pulse, spacing='foo')
-
-    def test_symmetrize_spectrum(self):
-        pulse = PulseSequence(
-            [[util.P_np[1], [np.pi/2]]],
-            [[util.P_np[1], [1]]],
-            [abs(np.random.randn())]
-        )
-
-        asym_omega = util.get_sample_frequencies(pulse, symmetric=False,
-                                                 n_samples=100)
-        sym_omega = util.get_sample_frequencies(pulse, symmetric=True,
-                                                n_samples=200)
-
-        S_symmetrized, omega_symmetrized = util.symmetrize_spectrum(
-            1/asym_omega**0.7, asym_omega)
-        self.assertArrayEqual(omega_symmetrized, sym_omega)
-        self.assertArrayEqual(S_symmetrized[99::-1], S_symmetrized[100:])
-        self.assertArrayEqual(S_symmetrized[100:]*2, 1/asym_omega**0.7)
-
-        # zero frequency not doubled
-        omega = np.arange(10)
-        S_sym, omega_sym = util.symmetrize_spectrum(omega, omega)
-        self.assertArrayEqual(S_sym, np.abs(np.arange(-9, 10)/2))
-        self.assertArrayEqual(omega_sym, np.arange(-9, 10))
-
-    def test_simple_progressbar(self):
-        with self.assertRaises(TypeError):
-            for i in util._simple_progressbar((i for i in range(10))):
-                pass
-
-        for i in util._simple_progressbar(range(10), desc="foo", size=10,
-                                          count=5):
-            pass
 
     def test_progressbar_range(self):
         ii = []
@@ -574,3 +568,75 @@ class UtilTest(testutil.TestCase):
             ii.append(i)
 
         self.assertEqual(ii, list(range(523, 123, -32)))
+
+    def test_parse_optional_parameters(self):
+
+        @util.parse_optional_parameters({'foo': [1, 'bar', (2, 3)]})
+        def foobar(a, b, foo=None, x=2):
+            pass
+
+        with self.assertRaises(ValueError) as err:
+            foobar(1, 1, 2)
+            self.assertEqual(str(err.exception),
+                             f"Invalid value for foo: {2}." +
+                             f" Should be one of {[1, 'bar', (2, 3)]}")
+
+        with self.assertRaises(ValueError):
+            foobar(1, 1, 'x')
+            self.assertEqual(str(err.exception),
+                             f"Invalid value for foo: {'x'}." +
+                             f" Should be one of {[1, 'bar', (2, 3)]}")
+
+        with self.assertRaises(ValueError):
+            foobar(1, 1, [1, 2])
+            self.assertEqual(str(err.exception),
+                             f"Invalid value for foo: {[1, 2]}." +
+                             f" Should be one of {[1, 'bar', (2, 3)]}")
+
+
+@pytest.mark.skipif(
+    qutip is None,
+    reason='Skipping qutip compatibility tests for build without qutip')
+class QutipCompatibilityTest(testutil.TestCase):
+
+    def test_dot_HS(self):
+        for d in rng.randint(2, 10, (5,)):
+            U = qutip.rand_herm(d)
+            V = qutip.rand_herm(d)
+            self.assertArrayAlmostEqual(util.dot_HS(U, V), (U.dag()*V).tr())
+
+            U = qutip.rand_unitary(d)
+            self.assertEqual(util.dot_HS(U, U), d)
+
+            self.assertEqual(util.dot_HS(U, U + 1e-14, eps=1e-10), d)
+            self.assertArrayAlmostEqual(util.dot_HS(U, V), (U.dag()*V).tr())
+
+            U = qutip.rand_unitary(d)
+            self.assertEqual(util.dot_HS(U, U), d)
+
+            self.assertEqual(util.dot_HS(U, U + 1e-14, eps=1e-10), d)
+
+    def test_oper_equiv(self):
+        self.assertFalse(
+            util.oper_equiv(qutip.rand_ket(2), qutip.rand_dm(2))[0])
+
+        for d in rng.randint(2, 10, (5,)):
+            psi = qutip.rand_ket(d)
+            U = qutip.rand_dm(d)
+            phase = rng.standard_normal()
+
+            result = util.oper_equiv(psi, psi*np.exp(1j*phase))
+            self.assertTrue(result[0])
+            self.assertAlmostEqual(result[1], phase, places=5)
+
+            result = util.oper_equiv(psi*np.exp(1j*phase), psi)
+            self.assertTrue(result[0])
+            self.assertAlmostEqual(result[1], -phase, places=5)
+
+            result = util.oper_equiv(U, U*np.exp(1j*phase))
+            self.assertTrue(result[0])
+            self.assertAlmostEqual(result[1], phase, places=5)
+
+            result = util.oper_equiv(U*np.exp(1j*phase), U)
+            self.assertTrue(result[0])
+            self.assertAlmostEqual(result[1], -phase, places=5)
