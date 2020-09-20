@@ -542,6 +542,7 @@ def calculate_control_matrix_from_scratch(
     See Also
     --------
     calculate_control_matrix_from_atomic: Control matrix from concatenation.
+    calculate_control_matrix_periodic: Control matrix for periodic system.
     """
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
@@ -552,44 +553,46 @@ def calculate_control_matrix_from_scratch(
     n_coeffs = np.asarray(n_coeffs)
 
     # Precompute noise opers transformed to eigenbasis of each pulse segment
-    # and Q^\dagger @ HV
+    # and Q^\dagger @ V
     eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
     n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
 
-    # Allocate result and buffers for intermediate arrays
+    # Allocate result and buffers for intermediate arrays and caches
     exp_buf, int_buf = np.empty((2, len(E), d, d), dtype=complex)
     if out is None:
         out = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
 
     if cache_intermediates:
-        basis_transformed_out = np.empty((len(dt), *basis.shape), dtype=complex)
-        G_out = np.empty((len(dt), len(n_opers), len(basis), len(E)), dtype=complex)
+        basis_transformed_cache = np.empty((len(dt), *basis.shape), dtype=complex)
+        sum_cache = np.empty((len(dt), len(n_opers), len(basis), len(E)), dtype=complex)
     else:
         basis_transformed = np.empty(basis.shape, dtype=complex)
-        G = np.empty((len(n_opers), len(basis), len(E)), dtype=complex)
+        sum_buf = np.empty((len(n_opers), len(basis), len(E)), dtype=complex)
 
-    path = ['einsum_path', (0, 2), (0, 1), (0, 1)]
-    for l in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
+    # Optimize the contraction path dynamically since it differs for different
+    # values of d
+    expr = oe.contract_expression('o,jmn,omn,knm->jko',
+                                  E.shape, n_opers_transformed[:, 0].shape,
+                                  int_buf.shape, basis.shape,
+                                  optimize=True)
+    for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
 
         if cache_intermediates:
-            basis_transformed = basis_transformed_out[l]
-            G = G_out[l]
+            basis_transformed = basis_transformed_cache[g]
+            sum_buf = sum_cache[g]
 
-        basis_transformed = _transform_basis(basis, eigvecs_propagated[l], out=basis_transformed)
-        int_buf = _first_order_integral(E, eigvals[l], dt[l], exp_buf, int_buf)
-        # G points to the memory occupied by G_out[l] if cache_intermediates is
-        # True, otherwise to itself.
-        G = np.einsum('o,jmn,omn,knm->jko',
-                      util.cexp(E*t[l]), n_opers_transformed[:, l], int_buf, basis_transformed,
-                      optimize=path, out=G)
+        basis_transformed = _transform_basis(basis, eigvecs_propagated[g], out=basis_transformed)
+        int_buf = _first_order_integral(E, eigvals[g], dt[g], exp_buf, int_buf)
+        # sum_buf points to the memory occupied by sum_cache[l] if
+        # cache_intermediates is True.
+        sum_buf = expr(util.cexp(E*t[g]), n_opers_transformed[:, g], int_buf, basis_transformed,
+                       out=sum_buf)
 
-        out += G
+        out += sum_buf
 
     if cache_intermediates:
-        # intermediates are: noise operators in eigenspace, transformed basis,
-        # individual terms of the sum
-        return out, (n_opers_transformed, basis_transformed_out, G_out)
+        return out, (n_opers_transformed, basis_transformed_cache, sum_cache)
 
     return out
 
@@ -656,6 +659,9 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     S[good_inverse] = M_inv[good_inverse] @ (eye - nla.matrix_power(T[good_inverse], repeats))
 
     # Evaluate the sum for non-invertible frequencies
+    # HINT: Using numba, this could be a factor of ten or so faster. But since
+    # usually very few omega-values have a bad inverse, the compilation
+    # overhead is not compensated.
     if (~good_inverse).any():
         S[~good_inverse] = eye + sum(accumulate(repeat(T[~good_inverse], repeats-1), np.matmul))
 
@@ -670,12 +676,12 @@ def calculate_cumulant_function(
         spectrum: Optional[ndarray] = None,
         omega: Optional[Coefficients] = None,
         n_oper_identifiers: Optional[Sequence[str]] = None,
-        which: Optional[str] = 'total',
+        which: str = 'total',
         second_order: bool = False,
         decay_amplitudes: Optional[ndarray] = None,
         frequency_shifts: Optional[ndarray] = None,
-        show_progressbar: Optional[bool] = False,
-        memory_parsimonious: Optional[bool] = False
+        show_progressbar: bool = False,
+        memory_parsimonious: bool = False
         ) -> ndarray:
     r"""Calculate the cumulant function :math:`K(\tau)`.
 
@@ -863,8 +869,8 @@ def calculate_decay_amplitudes(
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
         which: str = 'total',
-        show_progressbar: Optional[bool] = False,
-        memory_parsimonious: Optional[bool] = False
+        show_progressbar: bool = False,
+        memory_parsimonious: bool = False
         ) -> ndarray:
     r"""
     Get the decay amplitudes :math:`\Gamma_{\alpha\beta, kl}` for noise
@@ -1179,8 +1185,8 @@ def calculate_second_order_filter_function(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         intermediates: Optional[Sequence[ndarray]] = None,
-        memory_parsimonious: Optional[bool] = False,
-        show_progressbar: Optional[bool] = False
+        memory_parsimonious: bool = False,
+        show_progressbar: bool = False
         ) -> ndarray:
     r"""Calculate the second order filter function for frequency shifts.
 
