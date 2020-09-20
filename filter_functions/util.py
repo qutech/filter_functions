@@ -195,7 +195,7 @@ def abs2(x: ndarray) -> ndarray:
     return x.real**2 + x.imag**2
 
 
-def cexp(x: ndarray) -> ndarray:
+def cexp(x: ndarray, out=None, where=True) -> ndarray:
     r"""Fast complex exponential.
 
     Parameters
@@ -212,10 +212,10 @@ def cexp(x: ndarray) -> ndarray:
     ----------
     https://software.intel.com/en-us/forums/intel-distribution-for-python/topic/758148
     """
-    df_exp = np.empty(x.shape, dtype=np.complex128)
-    df_exp.real = np.cos(x, out=df_exp.real)
-    df_exp.imag = np.sin(x, out=df_exp.imag)
-    return df_exp
+    out = np.empty(x.shape, dtype=np.complex128) if out is None else out
+    out.real = np.cos(x, out=out.real, where=where)
+    out.imag = np.sin(x, out=out.imag, where=where)
+    return out
 
 
 def parse_optional_parameters(params_dict: Dict[str, Sequence]) -> Callable:
