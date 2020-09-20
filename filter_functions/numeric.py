@@ -1281,7 +1281,6 @@ def calculate_second_order_filter_function(
     pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
     calculate_pulse_correlation_filter_function
     """
-
     d = eigvals.shape[-1]
     # We're lazy
     E = omega
@@ -1316,6 +1315,9 @@ def calculate_second_order_filter_function(
     else:
         n_opers_transformed, basis_transformed_cache, ctrlmat_step_cache = intermediates
 
+    step_expr = oe.contract_expression('oijmn,akij,blmn->abklo', int_buf.shape,
+                                       *[(len(n_coeffs), len(basis), d, d)]*2,
+                                       optimize=[(0, 1), (0, 1)])
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating second order FF'):
         if intermediates is None:
@@ -1343,8 +1345,7 @@ def calculate_second_order_filter_function(
         # dependence) and afterwards the intervals up to the last (where the
         # time dependence separates and we can use previous result for the
         # control matrix). opt_einsum seems to be faster than numpy here.
-        step_buf = oe.contract('oijmn,akij,blmn->abklo', int_buf, n_opers_basis, n_opers_basis,
-                               optimize=[(0, 1), (0, 1)], out=step_buf)
+        step_buf = step_expr(int_buf, n_opers_basis, n_opers_basis, out=step_buf)
 
         result += step_buf  # last interval
         if g > 0:
