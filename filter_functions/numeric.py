@@ -73,6 +73,211 @@ __all__ = ['calculate_control_matrix_from_atomic', 'calculate_control_matrix_fro
            'diagonalize', 'error_transfer_matrix', 'infidelity']
 
 
+def _propagate_eigenvectors(propagators, eigvecs):
+    """Propagate the eigenvectors with the unitary propagators"""
+    return propagators.transpose(0, 2, 1).conj() @ eigvecs
+
+
+def _transform_noise_operators(n_coeffs, n_opers, eigvecs):
+    r"""
+    Transform noise operators into the eigenspaces spanned by eigvecs.
+    I.e., the following transformation is performed:
+
+    .. math::
+
+        B_\alpha\rightarrow s_\alpha^{(g)}V^{(g)}B_\alpha V^{(g)\dagger}
+
+    """
+    n_opers_transformed = np.empty((len(n_opers), *eigvecs.shape), dtype=complex)
+    for j, (n_coeff, n_oper) in enumerate(zip(n_coeffs, n_opers)):
+        n_opers_transformed[j] = n_oper @ eigvecs
+        n_opers_transformed[j] = eigvecs.conj().transpose(0, 2, 1) @ n_opers_transformed[j]
+        n_opers_transformed[j] *= n_coeff[:, None, None]
+
+    return n_opers_transformed
+
+
+def _transform_basis(basis, eigvecs_propagated, out=None):
+    r"""
+    Transform the basis into the eigenspace spanned by V propagated by Q
+
+    I.e., the following transformation is performed:
+
+    .. math::
+
+        C_k\rightarrow Q_{g-1}V^{(g)\dagger}C_k V^{(g)}Q_{g-1}^\dagger.
+
+    """
+    out = np.matmul(basis, eigvecs_propagated, out=out)
+    out = np.matmul(eigvecs_propagated.conj().T, out, out=out)
+    return out
+
+
+def _first_order_integral(E: ndarray, eigvals: ndarray, dt: float,
+                          exp_buf: ndarray, int_buf: ndarray) -> ndarray:
+    r"""Calculate the integral appearing in first order Magnus expansion.
+
+    The integral is evaluated as
+
+    .. math::
+        I_{mn}^{(g)}(\omega) = \frac
+            {e^{i(\omega + \Omega_{mn}^{(g)})\Delta t_g} - 1}
+            {i(\omega + \Omega_{mn}^{(g)})}
+
+    """
+    dE = np.subtract.outer(eigvals, eigvals)
+    # iEdE_nm = 1j*(omega + omega_n - omega_m)
+    int_buf.real = 0
+    int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
+
+    # Catch zero-division
+    mask = (int_buf.imag != 0)
+    exp_buf = util.cexp(int_buf.imag*dt, out=exp_buf, where=mask)
+    exp_buf = np.subtract(exp_buf, 1, out=exp_buf, where=mask)
+    int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=mask)
+    int_buf[~mask] = dt
+
+    return int_buf
+
+
+def _get_integrand(
+        spectrum: ndarray,
+        omega: ndarray,
+        idx: ndarray,
+        which_pulse: str,
+        which_FF: str,
+        control_matrix: Optional[Union[ndarray, Sequence[ndarray]]] = None,
+        filter_function: Optional[ndarray] = None
+        ) -> ndarray:
+    """
+    Private function to generate the integrand for either
+    :func:`infidelity` or :func:`calculate_decay_amplitudes`.
+
+    Parameters
+    ----------
+    spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega)
+        The two-sided noise power spectral density.
+    omega: array_like,
+        The frequencies at which to calculate the filter functions.
+    idx: ndarray
+        Noise operator indices to consider.
+    which_pulse: str, optional {'total', 'correlations'}
+        Use pulse correlations or total filter function.
+    which_FF: str, optional {'fidelity', 'generalized'}
+        Fidelity or generalized filter functions. Needed to determine
+        output shape.
+    control_matrix: ndarray, optional
+        Control matrix. If given, returns the integrand for
+        :func:`calculate_error_vector_correlation_functions`. If given
+        as a list or tuple, taken to be the left and right control
+        matrices in the integrand (allows for slicing up the integrand).
+    filter_function: ndarray, optional
+        Filter function. If given, returns the integrand for
+        :func:`infidelity`.
+
+    Raises
+    ------
+    ValueError
+        If ``spectrum`` and ``control_matrix`` or ``filter_function``,
+        depending on which was given, have incompatible shapes.
+
+    Returns
+    -------
+    integrand: ndarray, shape (..., n_omega)
+        The integrand.
+
+    """
+    if control_matrix is not None:
+        # ctrl_left is the complex conjugate
+        funs = (np.conj, lambda x: x)
+        if isinstance(control_matrix, (list, tuple)):
+            ctrl_left, ctrl_right = [f(c) for f, c in zip(funs, control_matrix)]
+        else:
+            ctrl_left, ctrl_right = [f(r) for f, r in zip(funs, [control_matrix]*2)]
+    else:
+        # filter_function is not None
+        if which_FF == 'generalized':
+            # Everything simpler if noise operators always on 2nd-to-last axes
+            filter_function = np.moveaxis(filter_function, source=[-5, -4], destination=[-3, -2])
+
+    spectrum = np.asarray(spectrum)
+    S_err_str = 'spectrum should be of shape {}, not {}.'
+    if spectrum.ndim == 1 or spectrum.ndim == 2:
+        if spectrum.ndim == 1:
+            # Only single spectrum
+            shape = (len(omega),)
+            if spectrum.shape != shape:
+                raise ValueError(S_err_str.format(shape, spectrum.shape))
+
+            spectrum = np.expand_dims(spectrum, 0)
+        else:
+            # spectrum.ndim == 2, spectrum is diagonal (no correlation between noise sources)
+            shape = (len(idx), len(omega))
+            if spectrum.shape != shape:
+                raise ValueError(S_err_str.format(shape, spectrum.shape))
+
+        # spectrum is real, integrand therefore also
+        if filter_function is not None:
+            integrand = (filter_function[..., tuple(idx), tuple(idx), :]*spectrum).real
+            if which_FF == 'generalized':
+                # move axes back to expected position, ie (pulses, noise opers,
+                # basis elements, frequencies)
+                integrand = np.moveaxis(integrand, source=-2, destination=-4)
+        else:
+            # R is not None
+            if which_pulse == 'correlations':
+                if which_FF == 'fidelity':
+                    einsum_str = 'gako,ao,hako->ghao'
+                else:
+                    # which_FF == 'generalized'
+                    einsum_str = 'gako,ao,halo->ghaklo'
+            else:
+                # which_pulse == 'total'
+                if which_FF == 'fidelity':
+                    einsum_str = 'ako,ao,ako->ao'
+                else:
+                    # which_FF == 'generalized'
+                    einsum_str = 'ako,ao,alo->aklo'
+
+            integrand = np.einsum(einsum_str,
+                                  ctrl_left[..., idx, :, :], spectrum,
+                                  ctrl_right[..., idx, :, :]).real
+    elif spectrum.ndim == 3:
+        # General case where spectrum is a matrix with correlation spectra on off-diag
+        shape = (len(idx), len(idx), len(omega))
+        if spectrum.shape != shape:
+            raise ValueError(S_err_str.format(shape, spectrum.shape))
+
+        if filter_function is not None:
+            integrand = filter_function[..., idx[:, None], idx, :]*spectrum
+            if which_FF == 'generalized':
+                integrand = np.moveaxis(integrand, source=[-3, -2],
+                                        destination=[-5, -4])
+        else:
+            # R is not None
+            if which_pulse == 'correlations':
+                if which_FF == 'fidelity':
+                    einsum_str = 'gako,abo,hbko->ghabo'
+                else:
+                    # which_FF == 'generalized'
+                    einsum_str = 'gako,abo,hblo->ghabklo'
+            else:
+                # which_pulse == 'total'
+                if which_FF == 'fidelity':
+                    einsum_str = 'ako,abo,bko->abo'
+                else:
+                    # which_FF == 'generalized'
+                    einsum_str = 'ako,abo,blo->abklo'
+
+            integrand = np.einsum(einsum_str,
+                                  ctrl_left[..., idx, :, :], spectrum,
+                                  ctrl_right[..., idx, :, :])
+    else:
+        raise ValueError('Expected spectrum to be array_like with < 4 dimensions')
+
+    return integrand
+
+
 def calculate_noise_operators_from_atomic(
         phases: ndarray, noise_operators_atomic: ndarray, propagators: ndarray,
         show_progressbar: bool = False) -> ndarray:
@@ -405,7 +610,7 @@ def calculate_control_matrix_from_scratch(
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
     out: ndarray, shape (n_nops, d**2, n_omega), optional
-        Array to place the result in
+        Array to place the result in.
 
     Returns
     -------
@@ -453,51 +658,34 @@ def calculate_control_matrix_from_scratch(
     E = omega
     n_coeffs = np.asarray(n_coeffs)
 
-    # Precompute noise opers transformed to eigenbasis of each pulse
-    # segment and Q^\dagger @ eigvecs
-    if d < 4:
-        # Einsum contraction faster
-        QdagV = np.einsum('lba,lbc->lac', propagators[:-1].conj(), eigvecs)
-        path = ['einsum_path', (0, 1), (0, 1)]
-        n_opers_transformed = np.einsum('lba,jbc,lcd->jlad', eigvecs.conj(), n_opers, eigvecs,
-                                        optimize=path)
-    else:
-        QdagV = propagators[:-1].transpose(0, 2, 1).conj() @ eigvecs
-        n_opers_transformed = np.empty((len(n_opers), len(dt), d, d), dtype=complex)
-        for j, n_oper in enumerate(n_opers):
-            n_opers_transformed[j] = eigvecs.conj().transpose(0, 2, 1) @ n_oper @ eigvecs
+    # Precompute noise opers transformed to eigenbasis of each pulse segment
+    # and Q^\dagger @ HV
+    eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
+    n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
 
     # Allocate result and buffers for intermediate arrays
     if out is None:
         out = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
 
-    exp_buf = np.empty((len(E), d, d), dtype=complex)
-    int_buf = np.empty((len(E), d, d), dtype=complex)
-    msk_buf = np.empty((len(E), d, d), dtype=bool)
-    path = ['einsum_path', (0, 3), (0, 1), (0, 2), (0, 1)]
+    exp_buf, int_buf = np.empty((2, len(E), d, d), dtype=complex)
+    sum_buf = np.empty((len(n_opers), len(basis), len(E)), dtype=complex)
+    basis_transformed = np.empty(basis.shape, dtype=complex)
 
+    # Optimize the contraction path dynamically since it differs for different
+    # values of d
+    expr = oe.contract_expression('o,jmn,omn,knm->jko',
+                                  E.shape, n_opers_transformed[:, 0].shape,
+                                  int_buf.shape, basis_transformed.shape,
+                                  optimize=True)
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
 
-        dE = np.subtract.outer(eigvals[g], eigvals[g])
-        # iEdE_nm = 1j*(omega + omega_n - omega_m)
-        int_buf.real = 0
-        int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
+        basis_transformed = _transform_basis(basis, eigvecs_propagated[g], out=basis_transformed)
+        int_buf = _first_order_integral(E, eigvals[g], dt[g], exp_buf, int_buf)
+        sum_buf = expr(util.cexp(E*t[g]), n_opers_transformed[:, g], int_buf, basis_transformed,
+                       out=sum_buf)
 
-        # Use expm1 for better convergence with small arguments
-        exp_buf = np.expm1(int_buf*dt[g], out=exp_buf)
-        # Catch zero-division warnings
-        msk_buf = np.not_equal(int_buf, 0, out=msk_buf)
-        int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=msk_buf)
-        int_buf[~msk_buf] = dt[g]
-
-        # Faster for d = 2 to also contract over the time dimension instead of
-        # loop, but for readability we don't distinguish.
-        out += np.einsum('o,j,jmn,omn,knm->jko',
-                         util.cexp(E*t[g]), n_coeffs[:, g],
-                         n_opers_transformed[:, g], int_buf,
-                         QdagV[g].conj().T @ basis @ QdagV[g],
-                         optimize=path)
+        out += sum_buf
 
     return out
 
@@ -559,12 +747,14 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     good_inverse = np.isclose(M_inv @ M, eye, atol=1e-10, rtol=0).all((1, 2))
 
     # Allocate memory
-    S = np.empty((*phases.shape, *total_propagator_liouville.shape),
-                 dtype=complex)
+    S = np.empty((*phases.shape, *total_propagator_liouville.shape), dtype=complex)
     # Evaluate the sum for invertible frequencies
     S[good_inverse] = M_inv[good_inverse] @ (eye - nla.matrix_power(T[good_inverse], repeats))
 
     # Evaluate the sum for non-invertible frequencies
+    # HINT: Using numba, this could be a factor of ten or so faster. But since
+    # usually very few omega-values have a bad inverse, the compilation
+    # overhead is not compensated.
     if (~good_inverse).any():
         S[~good_inverse] = eye + sum(accumulate(repeat(T[~good_inverse], repeats-1), np.matmul))
 
@@ -1418,141 +1608,3 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
         return infid, xi
 
     return infid
-
-
-def _get_integrand(
-        spectrum: ndarray,
-        omega: ndarray,
-        idx: ndarray,
-        which_pulse: str,
-        which_FF: str,
-        control_matrix: Optional[Union[ndarray, Sequence[ndarray]]] = None,
-        filter_function: Optional[ndarray] = None
-        ) -> ndarray:
-    """
-    Private function to generate the integrand for either
-    :func:`infidelity` or :func:`calculate_decay_amplitudes`.
-
-    Parameters
-    ----------
-    spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega)
-        The two-sided noise power spectral density.
-    omega: array_like,
-        The frequencies at which to calculate the filter functions.
-    idx: ndarray
-        Noise operator indices to consider.
-    which_pulse: str, optional {'total', 'correlations'}
-        Use pulse correlations or total filter function.
-    which_FF: str, optional {'fidelity', 'generalized'}
-        Fidelity or generalized filter functions. Needed to determine
-        output shape.
-    control_matrix: ndarray, optional
-        Control matrix. If given, returns the integrand for
-        :func:`calculate_error_vector_correlation_functions`. If given
-        as a list or tuple, taken to be the left and right control
-        matrices in the integrand (allows for slicing up the integrand).
-    filter_function: ndarray, optional
-        Filter function. If given, returns the integrand for
-        :func:`infidelity`.
-
-    Raises
-    ------
-    ValueError
-        If ``spectrum`` and ``control_matrix`` or ``filter_function``,
-        depending on which was given, have incompatible shapes.
-
-    Returns
-    -------
-    integrand: ndarray, shape (..., n_omega)
-        The integrand.
-
-    """
-    if control_matrix is not None:
-        # ctrl_left is the complex conjugate
-        funs = (np.conj, lambda x: x)
-        if isinstance(control_matrix, (list, tuple)):
-            ctrl_left, ctrl_right = [f(c) for f, c in zip(funs, control_matrix)]
-        else:
-            ctrl_left, ctrl_right = [f(r) for f, r in zip(funs, [control_matrix]*2)]
-    else:
-        # filter_function is not None
-        if which_FF == 'generalized':
-            # Everything simpler if noise operators always on 2nd-to-last axes
-            filter_function = np.moveaxis(filter_function, source=[-5, -4], destination=[-3, -2])
-
-    spectrum = np.asarray(spectrum)
-    S_err_str = 'spectrum should be of shape {}, not {}.'
-    if spectrum.ndim == 1 or spectrum.ndim == 2:
-        if spectrum.ndim == 1:
-            # Only single spectrum
-            shape = (len(omega),)
-            if spectrum.shape != shape:
-                raise ValueError(S_err_str.format(shape, spectrum.shape))
-
-            spectrum = np.expand_dims(spectrum, 0)
-        else:
-            # spectrum.ndim == 2, spectrum is diagonal (no correlation between noise sources)
-            shape = (len(idx), len(omega))
-            if spectrum.shape != shape:
-                raise ValueError(S_err_str.format(shape, spectrum.shape))
-
-        # spectrum is real, integrand therefore also
-        if filter_function is not None:
-            integrand = (filter_function[..., tuple(idx), tuple(idx), :]*spectrum).real
-            if which_FF == 'generalized':
-                # move axes back to expected position, ie (pulses, noise opers,
-                # basis elements, frequencies)
-                integrand = np.moveaxis(integrand, source=-2, destination=-4)
-        else:
-            # R is not None
-            if which_pulse == 'correlations':
-                if which_FF == 'fidelity':
-                    einsum_str = 'gako,ao,hako->ghao'
-                else:
-                    # which_FF == 'generalized'
-                    einsum_str = 'gako,ao,halo->ghaklo'
-            else:
-                # which_pulse == 'total'
-                if which_FF == 'fidelity':
-                    einsum_str = 'ako,ao,ako->ao'
-                else:
-                    # which_FF == 'generalized'
-                    einsum_str = 'ako,ao,alo->aklo'
-
-            integrand = np.einsum(einsum_str,
-                                  ctrl_left[..., idx, :, :], spectrum,
-                                  ctrl_right[..., idx, :, :]).real
-    elif spectrum.ndim == 3:
-        # General case where spectrum is a matrix with correlation spectra on off-diag
-        shape = (len(idx), len(idx), len(omega))
-        if spectrum.shape != shape:
-            raise ValueError(S_err_str.format(shape, spectrum.shape))
-
-        if filter_function is not None:
-            integrand = filter_function[..., idx[:, None], idx, :]*spectrum
-            if which_FF == 'generalized':
-                integrand = np.moveaxis(integrand, source=[-3, -2],
-                                        destination=[-5, -4])
-        else:
-            # R is not None
-            if which_pulse == 'correlations':
-                if which_FF == 'fidelity':
-                    einsum_str = 'gako,abo,hbko->ghabo'
-                else:
-                    # which_FF == 'generalized'
-                    einsum_str = 'gako,abo,hblo->ghabklo'
-            else:
-                # which_pulse == 'total'
-                if which_FF == 'fidelity':
-                    einsum_str = 'ako,abo,bko->abo'
-                else:
-                    # which_FF == 'generalized'
-                    einsum_str = 'ako,abo,blo->abklo'
-
-            integrand = np.einsum(einsum_str,
-                                  ctrl_left[..., idx, :, :], spectrum,
-                                  ctrl_right[..., idx, :, :])
-    else:
-        raise ValueError('Expected spectrum to be array_like with < 4 dimensions')
-
-    return integrand
