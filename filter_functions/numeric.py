@@ -260,27 +260,27 @@ def calculate_control_matrix_from_scratch(
     int_buf = np.empty((len(E), d, d), dtype=complex)
     path = ['einsum_path', (0, 3), (0, 1), (0, 2), (0, 1)]
 
-    for l in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
+    for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
 
-        dE = np.subtract.outer(eigvals[l], eigvals[l])
+        dE = np.subtract.outer(eigvals[g], eigvals[g])
         # iEdE_nm = 1j*(omega + omega_n - omega_m)
         int_buf.real = 0
         int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
 
         # Use expm1 for better convergence with small arguments
-        exp_buf = np.expm1(int_buf*dt[l], out=exp_buf)
+        exp_buf = np.expm1(int_buf*dt[g], out=exp_buf)
         # Catch zero-division warnings
         mask = (int_buf != 0)
         int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=mask)
-        int_buf[~mask] = dt[l]
+        int_buf[~mask] = dt[g]
 
         # Faster for d = 2 to also contract over the time dimension instead of
         # loop, but for readability we don't distinguish.
         control_matrix += np.einsum('o,j,jmn,omn,knm->jko',
-                                    util.cexp(E*t[l]), n_coeffs[:, l],
-                                    n_opers_transformed[:, l], int_buf,
-                                    QdagV[l].conj().T @ basis @ QdagV[l],
+                                    util.cexp(E*t[g]), n_coeffs[:, g],
+                                    n_opers_transformed[:, g], int_buf,
+                                    QdagV[g].conj().T @ basis @ QdagV[g],
                                     optimize=path)
 
     return control_matrix
