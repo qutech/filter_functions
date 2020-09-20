@@ -139,8 +139,8 @@ def _first_order_integral(E: ndarray, eigvals: ndarray, dt: float,
 
     # Catch zero-division
     mask = (int_buf.imag != 0)
-    # Use expm1 for better convergence with small arguments
-    exp_buf = np.expm1(int_buf*dt, out=exp_buf, where=mask)
+    exp_buf = util.cexp(int_buf.imag*dt, out=exp_buf, where=mask)
+    exp_buf = np.subtract(exp_buf, 1, out=exp_buf, where=mask)
     int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=mask)
     int_buf[~mask] = dt
 
@@ -197,12 +197,14 @@ def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     mask_EdE_dEE = np.broadcast_to(mask_EdE[:, None, None], int_buf.shape)
 
     # First term in the brackets
-    exp_buf = np.expm1(1j*dEE*dt, out=exp_buf, where=mask_dEE)
+    exp_buf = util.cexp(dEE*dt, out=exp_buf, where=mask_dEE)
+    exp_buf = np.subtract(exp_buf, 1, out=exp_buf, where=mask_dEE)
     frc_buf1 = np.divide(exp_buf, dEE, out=frc_buf1, where=mask_dEE)
     frc_buf1[~mask_dEE] = 1j*dt
 
     # Second term in the brackets
-    frc_buf2 = np.expm1(1j*dEdE*dt, out=frc_buf2, where=mask_dEdE)
+    frc_buf2 = util.cexp(dEdE*dt, out=frc_buf2, where=mask_dEdE)
+    frc_buf2 = np.subtract(frc_buf2, 1, out=frc_buf2, where=mask_dEdE)
     frc_buf2 = np.divide(frc_buf2, dEdE, out=frc_buf2, where=mask_dEdE)
     frc_buf2[~mask_dEdE] = 1j*dt
 
