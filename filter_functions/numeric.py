@@ -363,10 +363,10 @@ def calculate_cumulant_function(
         spectrum: Optional[ndarray] = None,
         omega: Optional[Coefficients] = None,
         n_oper_identifiers: Optional[Sequence[str]] = None,
-        which: Optional[str] = 'total',
+        which: str = 'total',
         decay_amplitudes: Optional[ndarray] = None,
-        show_progressbar: Optional[bool] = False,
-        memory_parsimonious: Optional[bool] = False
+        show_progressbar: bool = False,
+        memory_parsimonious: bool = False
         ) -> ndarray:
     r"""Calculate the cumulant function :math:`K(\tau)`.
 
@@ -521,8 +521,8 @@ def calculate_decay_amplitudes(
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
         which: str = 'total',
-        show_progressbar: Optional[bool] = False,
-        memory_parsimonious: Optional[bool] = False
+        show_progressbar: bool = False,
+        memory_parsimonious: bool = False
         ) -> ndarray:
     r"""
     Get the decay amplitudes :math:`\Gamma_{\alpha\beta, kl}` for noise
