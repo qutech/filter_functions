@@ -30,6 +30,14 @@ Functions
     Calculate the control matrix from scratch
 :func:`calculate_control_matrix_periodic`
     Calculate the control matrix for a periodic Hamiltonian
+:func:`calculate_noise_operators_from_atomic`
+    Calculate the interaction picture noise operators from atomic segments.
+    Same calculation as :func:`calculate_control_matrix_from_atomic`
+    except in Hilbert space.
+:func:`calculate_noise_operators_from_scratch`
+    Calculate the interaction picture noise operators from scratch. Same
+    calculation as :func:`calculate_control_matrix_from_scratch` except
+    in Hilbert space.
 :func:`calculate_cumulant_function`
     Calculate the cumulant function for a given ``PulseSequence`` object.
 :func:`calculate_decay_amplitudes`
@@ -68,9 +76,11 @@ from .basis import Basis
 from .types import Coefficients, Operator
 
 __all__ = ['calculate_control_matrix_from_atomic', 'calculate_control_matrix_from_scratch',
-           'calculate_cumulant_function', 'calculate_decay_amplitudes',
-           'calculate_filter_function', 'calculate_pulse_correlation_filter_function',
-           'diagonalize', 'error_transfer_matrix', 'infidelity']
+           'calculate_control_matrix_periodic', 'calculate_noise_operators_from_atomic',
+           'calculate_noise_operators_from_scratch', 'calculate_cumulant_function',
+           'calculate_decay_amplitudes', 'calculate_filter_function',
+           'calculate_pulse_correlation_filter_function', 'diagonalize', 'error_transfer_matrix',
+           'infidelity']
 
 
 def _propagate_eigenvectors(propagators, eigvecs):
@@ -278,68 +288,57 @@ def _get_integrand(
     return integrand
 
 
-def calculate_noise_operators_from_atomic(
-        phases: ndarray, noise_operators_atomic: ndarray, propagators: ndarray,
-        show_progressbar: bool = False) -> ndarray:
+def calculate_noise_operators_from_atomic(phases: ndarray, noise_operators_atomic: ndarray,
+                                          propagators: ndarray, show_progressbar: bool = False
+                                          ) -> ndarray:
     r"""
-    Calculate the control matrix from the control matrices of atomic segments.
+    Calculate the interaction picutre noise operators from atomic segments.
 
     Parameters
     ----------
     phases: array_like, shape (n_dt, n_omega)
-        The phase factors for :math:`l\in\{0, 1, \dots, n-1\}`.
+        The phase factors for :math:`g\in\{0, 1, \dots, n-1\}`.
     noise_operators_atomic: array_like, shape (n_dt, n_nops, d, d, n_omega)
-        The pulse control matrices for :math:`l\in\{1, 2, \dots, n\}`.
+        The noise operators in the interaction picture of the g-th
+        pulse, i.e. for :math:`g\in\{1, 2, \dots, n\}`.
     propagators: array_like, shape (n_dt, d, d)
-        The transfer matrices of the cumulative propagators for
-        :math:`l\in\{0, 1, \dots, n-1\}`.
+        The cumulative propagators of the pulses
+        :math:`g\in\{0, 1, \dots, n-1\}`.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
 
     Returns
     -------
-    R: ndarray, shape (n_nops, d**2, n_omega)
-        The control matrix :math:`\mathcal{R}(\omega)`.
+    noise_operators: ndarray, shape (n_nops, d, d, n_omega)
+        The interaction picture noise operators
+        :math:`\tilde{B}_\alpha(\omega)`.
 
     Notes
     -----
-    The control matrix is calculated by evaluating the sum
+    The noise operators are calculated by evaluating the sum
 
     .. math::
 
-        \mathcal{R}(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}}
-            \mathcal{R}^{(l)}(\omega)\mathcal{Q}^{(l-1)}.
+        \tilde{B}_\alpha(\omega) = \sum_{g=1}^n e^{i\omega t_{g-1}}
+             Q_{g-1}^\dagger\tilde{B}_\alpha^{(g)}(\omega) Q_{g-1}.
 
     See Also
     --------
-    :func:`calculate_control_matrix_from_scratch`
-
-    :func:`liouville_representation`
+    :func:`calculate_noise_operators_from_scratch`: Compute the operators from scratch.
+    :func:`calculate_control_matrix_from_atomic`: Same calculation in Liouville space.
     """
-    # B = np.moveaxis((
-    #     propagators.conj().swapaxes(1, 2) @
-    #     (B_g.transpose(1, 2, 3, 0, 4) * phases).transpose(4, 0, 3, 1, 2) @ propagators
-    # ).sum(2), 0, -1)
-
     n = len(noise_operators_atomic)
     # Allocate memory
-    intermediate = np.empty(noise_operators_atomic.shape[1:], dtype=complex)
     noise_operators = np.zeros(noise_operators_atomic.shape[1:], dtype=complex)
 
-    # Set up a reusable contraction expression. In some cases it is faster to
-    # also contract the time dimension in the same expression instead of
-    # looping over it, but we don't distinguish here for readability.
-    # B_expr = contract_expression('ji,ajko,kl->ailo',
-    #                              propagators.shape[1:], B_g.shape[1:], propagators.shape[1:],
-    #                              optimize=[(0, 1), (0, 1)])
+    expr = oe.contract_expression('ji,oajk,kl->oail',
+                                  propagators.shape[1:], noise_operators_atomic.shape[1:],
+                                  propagators.shape[1:], optimize=[(0, 1), (0, 1)])
 
     for g in util.progressbar_range(n, show_progressbar=show_progressbar,
                                     desc='Calculating noise operators'):
-        # noise_operators += B_expr(propagators[g].conj(), phases[g]*B_g[g], propagators[g])
-
-        intermediate = np.einsum('o,o...->o...', phases[g], noise_operators_atomic[g],
-                                 out=intermediate)
-        noise_operators += propagators[g].conj().T @ intermediate @ propagators[g]
+        noise_operators += expr(propagators[g].conj(), phases[g]*noise_operators_atomic[g],
+                                propagators[g])
 
     return noise_operators
 
@@ -349,28 +348,27 @@ def calculate_noise_operators_from_scratch(
         eigvecs: ndarray,
         propagators: ndarray,
         omega: Coefficients,
-        basis: Basis,
         n_opers: Sequence[Operator],
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         t: Optional[Coefficients] = None,
-        show_progressbar: bool = False) -> ndarray:
+        show_progressbar: bool = False
+        ) -> ndarray:
     r"""
-    Calculate the control matrix from scratch, i.e. without knowledge of the
-    control matrices of more atomic pulse sequences.
+    Calculate the noise operators in interaction picture from scratch.
 
     Parameters
     ----------
     eigvals: array_like, shape (n_dt, d)
-        Eigenvalue vectors for each time pulse segment *l* with the first
+        Eigenvalue vectors for each time pulse segment *g* with the first
         axis counting the pulse segment, i.e.
         ``eigvals == array([D_0, D_1, ...])``.
     eigvecs: array_like, shape (n_dt, d, d)
-        Eigenvector matrices for each time pulse segment *l* with the first
+        Eigenvector matrices for each time pulse segment *g* with the first
         axis counting the pulse segment, i.e.
         ``eigvecs == array([V_0, V_1, ...])``.
     propagators: array_like, shape (n_dt+1, d, d)
-        The propagators :math:`Q_l = P_l P_{l-1}\cdots P_0` as a (d, d) array
+        The propagators :math:`Q_g = P_g P_{g-1}\cdots P_0` as a (d, d) array
         with *d* the dimension of the Hilbert space.
     omega: array_like, shape (n_omega,)
         Frequencies at which the pulse control matrix is to be evaluated.
@@ -380,50 +378,52 @@ def calculate_noise_operators_from_scratch(
         The sensitivities of the system to the noise operators given by
         *n_opers* at the given time step.
     dt: array_like, shape (n_dt)
-        Sequence duration, i.e. for the :math:`l`-th pulse
-        :math:`t_l - t_{l-1}`.
+        Sequence duration, i.e. for the :math:`g`-th pulse
+        :math:`t_g - t_{g-1}`.
     t: array_like, shape (n_dt+1), optional
-        The absolute times of the different segments. Can also be computed from
-        *dt*.
+        The absolute times of the different segments. Can also be
+        computed from *dt*.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
 
     Returns
     -------
-    R: ndarray, shape (n_nops, d**2, n_omega)
-        The control matrix :math:`\mathcal{R}(\omega)`
+    noise_operators: ndarray, shape (n_nops, d, d, n_omega)
+        The interaction picutre noise operators
+        :math:`\tilde{B}_\alpha(\omega)`.
 
     Notes
     -----
-    The control matrix is calculated according to
+    The interaction picture noise operators are calculated according to
 
     .. math::
 
-        \mathcal{R}_{\alpha k}(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}}
-            s_\alpha^{(l)}\mathrm{tr}\left(
-                [\bar{B}_\alpha^{(l)}\circ I(\omega)] \bar{C}_k^{(l)}
-            \right)
+        \tilde{B}_\alpha(\omega) = \sum_{g=1}^n e^{i\omega t_{g-1}}
+            s_\alpha^{(g)} P^{(g)\dagger}\left[
+                \bar{B}^{(g)}_\alpha(\omega)\circ I^{(g)}(\omega)
+            \right] P^{(g)}
 
     where
 
     .. math::
 
-        I^{(l)}_{nm}(\omega) &= \int_0^{t_l - t_{l-1}}\mathrm{d}t\,
+        I^{(g)}_{nm}(\omega) &= \int_0^{t_g - t_{g-1}}\mathrm{d}t\,
                                 e^{i(\omega+\omega_n-\omega_m)t} \\
                              &= \frac{e^{i(\omega+\omega_n-\omega_m)
-                                (t_l - t_{l-1})} - 1}
+                                (t_g - t_{g-1})} - 1}
                                 {i(\omega+\omega_n-\omega_m)}, \\
-        \bar{B}_\alpha^{(l)} &= V^{(l)\dagger} B_\alpha V^{(l)}, \\
-        \bar{C}_k^{(l)} &= V^{(l)\dagger} Q_{l-1} C_k Q_{l-1}^\dagger V^{(l)},
+        \bar{B}_\alpha^{(g)} &= V^{(g)\dagger} B_\alpha V^{(g)}, \\
+        P^{(g)} &= V^{(g)\dagger} Q_{g-1},
 
-    and :math:`V^{(l)}` is the matrix of eigenvectors that diagonalizes
-    :math:`\tilde{\mathcal{H}}_n^{(l)}`, :math:`B_\alpha` the :math:`\alpha`-th
-    noise operator :math:`s_\alpha^{(l)}` the noise sensitivity during interval
-    :math:`l`, and :math:`C_k` the :math:`k`-th basis element.
+    and :math:`V^{(g)}` is the matrix of eigenvectors that diagonalizes
+    :math:`\tilde{\mathcal{H}}_n^{(g)}`, :math:`B_\alpha` the
+    :math:`\alpha`-th noise operator, and  :math:`s_\alpha^{(g)}` the
+    noise sensitivity during interval :math:`g`.
 
     See Also
     --------
-    :func:`calculate_control_matrix_from_atomic`
+    :func:`calculate_noise_operators_from_atomic`: Compute the operators from atomic segments.
+    :func:`calculate_control_matrix_from_scratch`: Same calculation in Liouville space.
     """
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
