@@ -309,7 +309,7 @@ def calculate_noise_operators_from_atomic(phases: ndarray, noise_operators_atomi
 
     Returns
     -------
-    noise_operators: ndarray, shape (n_nops, d, d, n_omega)
+    noise_operators: ndarray, shape (n_omega, n_nops, d, d)
         The interaction picture noise operators
         :math:`\tilde{B}_\alpha(\omega)`.
 
@@ -331,13 +331,14 @@ def calculate_noise_operators_from_atomic(phases: ndarray, noise_operators_atomi
     # Allocate memory
     noise_operators = np.zeros(noise_operators_atomic.shape[1:], dtype=complex)
 
-    expr = oe.contract_expression('ji,oajk,kl->oail',
+    expr = oe.contract_expression('ji,...jk,kl->...il',
                                   propagators.shape[1:], noise_operators_atomic.shape[1:],
                                   propagators.shape[1:], optimize=[(0, 1), (0, 1)])
 
     for g in util.progressbar_range(n, show_progressbar=show_progressbar,
                                     desc='Calculating noise operators'):
-        noise_operators += expr(propagators[g].conj(), phases[g]*noise_operators_atomic[g],
+        noise_operators += expr(propagators[g].conj(),
+                                noise_operators_atomic[g]*phases[g, :, None, None, None],
                                 propagators[g])
 
     return noise_operators
@@ -388,8 +389,8 @@ def calculate_noise_operators_from_scratch(
 
     Returns
     -------
-    noise_operators: ndarray, shape (n_nops, d, d, n_omega)
-        The interaction picutre noise operators
+    noise_operators: ndarray, shape (n_omega, n_nops, d, d)
+        The interaction picture noise operators
         :math:`\tilde{B}_\alpha(\omega)`.
 
     Notes
@@ -400,7 +401,7 @@ def calculate_noise_operators_from_scratch(
 
         \tilde{B}_\alpha(\omega) = \sum_{g=1}^n e^{i\omega t_{g-1}}
             s_\alpha^{(g)} P^{(g)\dagger}\left[
-                \bar{B}^{(g)}_\alpha(\omega)\circ I^{(g)}(\omega)
+                \bar{B}^{(g)}_\alpha \circ I^{(g)}(\omega)
             \right] P^{(g)}
 
     where
@@ -429,64 +430,33 @@ def calculate_noise_operators_from_scratch(
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
 
     d = eigvecs.shape[-1]
-    # We're lazy
-    E = omega
     n_coeffs = np.asarray(n_coeffs)
 
     # Precompute noise opers transformed to eigenbasis of each pulse
-    # segment and propagators^\dagger @ eigvecs
-    if d < 4:
-        # Einsum contraction faster
-        VdagQ = np.einsum('lba,lbc->lac', eigvecs.conj(), propagators[:-1])
-        n_opers_transformed = np.einsum('lba,jbc,lcd->jlad', eigvecs.conj(), n_opers, eigvecs,
-                                        optimize=['einsum_path', (0, 1), (0, 1)])
-    else:
-        VdagQ = eigvecs.transpose(0, 2, 1).conj() @ propagators[:-1]
-        n_opers_transformed = np.empty((len(n_opers), len(dt), d, d), dtype=complex)
-        for alpha, n_oper in enumerate(n_opers):
-            n_opers_transformed[alpha] = eigvecs.conj().transpose(0, 2, 1) @ n_oper @ eigvecs
+    # segment and Q^\dagger @ V
+    eigvecs_propagated = _propagate_eigenvectors(eigvecs, propagators[:-1])
+    n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
 
     # Allocate memory
-    exp_buf = np.empty((d, d, len(E)), dtype=complex)
-    int_buf = np.empty((d, d, len(E)), dtype=complex)
-    msk_buf = np.empty((d, d, len(E)), dtype=bool)
-    intermediate = np.empty((len(E), len(n_opers), d, d), dtype=complex)
-    B_omega = np.zeros((len(E), len(n_opers), d, d), dtype=complex)
+    exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
+    intermediate, noise_operators = np.empty((2, len(omega), len(n_opers), d, d), dtype=complex)
 
-    # path = ['einsum_path', (0, 2), (0, 3), (1, 2), (0, 1)]
-    # path = ['einsum_path', (0, 1), (0, 1), (0, 2), (0, 1)]
+    # Set up reusable expressions
+    expr_1 = oe.contract_expression('akl,okl->oakl',
+                                    n_opers_transformed[:, 0].shape, int_buf.shape)
+    expr_2 = oe.contract_expression('ji,...jk,kl',
+                                    eigvecs_propagated[0].shape, intermediate.shape,
+                                    eigvecs_propagated[0].shape, optimize=[(0, 1), (0, 1)])
 
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating noise operators'):
+        int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
+        intermediate = expr_1(n_opers_transformed[:, g],
+                              util.cexp(omega[:, None, None]*t[g])*int_buf, out=intermediate)
+        noise_operators += expr_2(eigvecs_propagated[g].conj(), intermediate,
+                                  eigvecs_propagated[g])
 
-        dE = np.subtract.outer(eigvals[g], eigvals[g])
-        # iEdE_nm = 1j*(omega + omega_n - omega_m)
-        int_buf.real = 0
-        int_buf.imag = np.add.outer(dE, E, out=int_buf.imag)
-
-        # Use expm1 for better convergence with small arguments
-        exp_buf = np.expm1(int_buf*dt[g], out=exp_buf)
-        # Catch zero-division warnings
-        msk_buf = np.not_equal(int_buf, 0, out=msk_buf)
-        int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=msk_buf)
-        int_buf[~msk_buf] = dt[g]
-
-        intermediate = oe.contract('akl,klo->oakl',
-                                   n_coeffs[:, g, None, None]*n_opers_transformed[:, g],
-                                   util.cexp(E*t[g])*int_buf,
-                                   out=intermediate)
-
-        B_omega += oe.contract('ji,...jk,kl',
-                               VdagQ[g].conj(), intermediate, VdagQ[g],
-                               optimize=[(0, 1), (0, 1)])
-        # B_omega += VdagQ[g].conj().T @ intermediate @ VdagQ[g]
-
-        # B_omega += np.einsum('a,ki,akl,klo,lj->aijo',
-        #                      n_coeffs[:, g], VdagQ[g].conj(), B[:, g],
-        #                      cexp(E*t[g])*integral, VdagQ[g],
-        #                      optimize=path)
-
-    return B_omega
+    return noise_operators
 
 
 @util.parse_optional_parameters({'which': ('total', 'correlations')})
