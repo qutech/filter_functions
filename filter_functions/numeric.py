@@ -297,13 +297,13 @@ def calculate_noise_operators_from_atomic(phases: ndarray, noise_operators_atomi
     Parameters
     ----------
     phases: array_like, shape (n_dt, n_omega)
-        The phase factors for :math:`g\in\{0, 1, \dots, n-1\}`.
+        The phase factors for :math:`g\in\{0, 1, \dots, G-1\}`.
     noise_operators_atomic: array_like, shape (n_dt, n_nops, d, d, n_omega)
         The noise operators in the interaction picture of the g-th
-        pulse, i.e. for :math:`g\in\{1, 2, \dots, n\}`.
+        pulse, i.e. for :math:`g\in\{1, 2, \dots, G\}`.
     propagators: array_like, shape (n_dt, d, d)
         The cumulative propagators of the pulses
-        :math:`g\in\{0, 1, \dots, n-1\}`.
+        :math:`g\in\{0, 1, \dots, G-1\}`.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
 
@@ -319,7 +319,7 @@ def calculate_noise_operators_from_atomic(phases: ndarray, noise_operators_atomi
 
     .. math::
 
-        \tilde{B}_\alpha(\omega) = \sum_{g=1}^n e^{i\omega t_{g-1}}
+        \tilde{B}_\alpha(\omega) = \sum_{g=1}^G e^{i\omega t_{g-1}}
              Q_{g-1}^\dagger\tilde{B}_\alpha^{(g)}(\omega) Q_{g-1}.
 
     See Also
@@ -399,7 +399,7 @@ def calculate_noise_operators_from_scratch(
 
     .. math::
 
-        \tilde{B}_\alpha(\omega) = \sum_{g=1}^n e^{i\omega t_{g-1}}
+        \tilde{B}_\alpha(\omega) = \sum_{g=1}^G e^{i\omega t_{g-1}}
             s_\alpha^{(g)} P^{(g)\dagger}\left[
                 \bar{B}^{(g)}_\alpha \circ I^{(g)}(\omega)
             \right] P^{(g)}
@@ -474,12 +474,12 @@ def calculate_control_matrix_from_atomic(
     Parameters
     ----------
     phases: array_like, shape (n_dt, n_omega)
-        The phase factors for :math:`l\in\{0, 1, \dots, n-1\}`.
+        The phase factors for :math:`g\in\{0, 1, \dots, G-1\}`.
     control_matrix_atomic: array_like, shape (n_dt, n_nops, d**2, n_omega)
-        The pulse control matrices for :math:`l\in\{1, 2, \dots, n\}`.
+        The pulse control matrices for :math:`g\in\{1, 2, \dots, G\}`.
     propagators_liouville: array_like, shape (n_dt, n_nops, d**2, d**2)
         The transfer matrices of the cumulative propagators for
-        :math:`l\in\{0, 1, \dots, n-1\}`.
+        :math:`g\in\{0, 1, \dots, G-1\}`.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
     which: str, ('total', 'correlations')
@@ -498,8 +498,8 @@ def calculate_control_matrix_from_atomic(
 
     .. math::
 
-        \mathcal{R}(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}}
-            \mathcal{R}^{(l)}(\omega)\mathcal{Q}^{(l-1)}.
+        \mathcal{R}(\omega) = \sum_{g=1}^G e^{i\omega t_{g-1}}
+            \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}.
 
     See Also
     --------
@@ -550,15 +550,15 @@ def calculate_control_matrix_from_scratch(
     Parameters
     ----------
     eigvals: array_like, shape (n_dt, d)
-        Eigenvalue vectors for each time pulse segment *l* with the
+        Eigenvalue vectors for each time pulse segment *g* with the
         first axis counting the pulse segment, i.e.
         ``eigvals == array([D_0, D_1, ...])``.
     eigvecs: array_like, shape (n_dt, d, d)
-        Eigenvector matrices for each time pulse segment *l* with the
+        Eigenvector matrices for each time pulse segment *g* with the
         first axis counting the pulse segment, i.e.
         ``eigvecs == array([V_0, V_1, ...])``.
     propagators: array_like, shape (n_dt+1, d, d)
-        The propagators :math:`Q_l = P_l P_{l-1}\cdots P_0` as a (d, d)
+        The propagators :math:`Q_g = P_g P_{g-1}\cdots P_0` as a (d, d)
         array with *d* the dimension of the Hilbert space.
     omega: array_like, shape (n_omega,)
         Frequencies at which the pulse control matrix is to be
@@ -572,8 +572,8 @@ def calculate_control_matrix_from_scratch(
         The sensitivities of the system to the noise operators given by
         *n_opers* at the given time step.
     dt: array_like, shape (n_dt)
-        Sequence duration, i.e. for the :math:`l`-th pulse
-        :math:`t_l - t_{l-1}`.
+        Sequence duration, i.e. for the :math:`g`-th pulse
+        :math:`t_g - t_{g-1}`.
     t: array_like, shape (n_dt+1), optional
         The absolute times of the different segments. Can also be
         computed from *dt*.
@@ -593,27 +593,27 @@ def calculate_control_matrix_from_scratch(
 
     .. math::
 
-        \mathcal{R}_{\alpha k}(\omega) = \sum_{l=1}^n
-            e^{i\omega t_{l-1}} s_\alpha^{(l)}\mathrm{tr}\left(
-                [\bar{B}_\alpha^{(l)}\circ I(\omega)] \bar{C}_k^{(l)}
+        \mathcal{R}_{\alpha k}(\omega) = \sum_{g=1}^G
+            e^{i\omega t_{g-1}} s_\alpha^{(g)}\mathrm{tr}\left(
+                [\bar{B}_\alpha^{(g)}\circ I(\omega)] \bar{C}_k^{(g)}
             \right)
 
     where
 
     .. math::
 
-        I^{(l)}_{nm}(\omega) &= \int_0^{t_l - t_{l-1}}\mathrm{d}t\,
+        I^{(g)}_{nm}(\omega) &= \int_0^{t_l - t_{g-1}}\mathrm{d}t\,
                                 e^{i(\omega+\omega_n-\omega_m)t} \\
                              &= \frac{e^{i(\omega+\omega_n-\omega_m)
-                                (t_l - t_{l-1})} - 1}
+                                (t_l - t_{g-1})} - 1}
                                 {i(\omega+\omega_n-\omega_m)}, \\
-        \bar{B}_\alpha^{(l)} &= V^{(l)\dagger} B_\alpha V^{(l)}, \\
-        \bar{C}_k^{(l)} &= V^{(l)\dagger} Q_{l-1} C_k Q_{l-1}^\dagger V^{(l)},
+        \bar{B}_\alpha^{(g)} &= V^{(g)\dagger} B_\alpha V^{(g)}, \\
+        \bar{C}_k^{(g)} &= V^{(g)\dagger} Q_{g-1} C_k Q_{g-1}^\dagger V^{(g)},
 
-    and :math:`V^{(l)}` is the matrix of eigenvectors that diagonalizes
-    :math:`\tilde{\mathcal{H}}_n^{(l)}`, :math:`B_\alpha` the
-    :math:`\alpha`-th noise operator :math:`s_\alpha^{(l)}` the noise
-    sensitivity during interval :math:`l`, and :math:`C_k` the
+    and :math:`V^{(g)}` is the matrix of eigenvectors that diagonalizes
+    :math:`\tilde{\mathcal{H}}_n^{(g)}`, :math:`B_\alpha` the
+    :math:`\alpha`-th noise operator :math:`s_\alpha^{(g)}` the noise
+    sensitivity during interval :math:`g`, and :math:`C_k` the
     :math:`k`-th basis element.
 
     See Also
@@ -1449,7 +1449,7 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
         \xi^2 = \sum_\alpha\left[
                     \lvert\lvert B_\alpha\rvert\rvert^2
                     \int_{-\infty}^\infty\frac{\mathrm{d}\omega}{2\pi}
-                    S_\alpha(\omega)\left(\sum_ls_\alpha^{(l)}\Delta t_l
+                    S_\alpha(\omega)\left(\sum_gs_\alpha^{(g)}\Delta t_g
                     \right)^2
                 \right].
 
