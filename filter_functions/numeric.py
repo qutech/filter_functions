@@ -625,7 +625,6 @@ def calculate_control_matrix_from_scratch(
 
     d = eigvecs.shape[-1]
     # We're lazy
-    E = omega
     n_coeffs = np.asarray(n_coeffs)
 
     # Precompute noise opers transformed to eigenbasis of each pulse segment
@@ -635,25 +634,25 @@ def calculate_control_matrix_from_scratch(
 
     # Allocate result and buffers for intermediate arrays
     if out is None:
-        out = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
+        out = np.zeros((len(n_opers), len(basis), len(omega)), dtype=complex)
 
-    exp_buf, int_buf = np.empty((2, len(E), d, d), dtype=complex)
-    sum_buf = np.empty((len(n_opers), len(basis), len(E)), dtype=complex)
+    exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
+    sum_buf = np.empty((len(n_opers), len(basis), len(omega)), dtype=complex)
     basis_transformed = np.empty(basis.shape, dtype=complex)
 
     # Optimize the contraction path dynamically since it differs for different
     # values of d
     expr = oe.contract_expression('o,jmn,omn,knm->jko',
-                                  E.shape, n_opers_transformed[:, 0].shape,
+                                  omega.shape, n_opers_transformed[:, 0].shape,
                                   int_buf.shape, basis_transformed.shape,
                                   optimize=True)
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
 
         basis_transformed = _transform_basis(basis, eigvecs_propagated[g], out=basis_transformed)
-        int_buf = _first_order_integral(E, eigvals[g], dt[g], exp_buf, int_buf)
-        sum_buf = expr(util.cexp(E*t[g]), n_opers_transformed[:, g], int_buf, basis_transformed,
-                       out=sum_buf)
+        int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
+        sum_buf = expr(util.cexp(omega*t[g]), n_opers_transformed[:, g], int_buf,
+                       basis_transformed, out=sum_buf)
 
         out += sum_buf
 
