@@ -439,7 +439,8 @@ def calculate_noise_operators_from_scratch(
 
     # Allocate memory
     exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
-    intermediate, noise_operators = np.empty((2, len(omega), len(n_opers), d, d), dtype=complex)
+    intermediate = np.empty((len(omega), len(n_opers), d, d), dtype=complex)
+    noise_operators = np.zeros((len(omega), len(n_opers), d, d), dtype=complex)
 
     # Set up reusable expressions
     expr_1 = oe.contract_expression('akl,okl->oakl',
