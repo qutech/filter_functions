@@ -98,6 +98,7 @@ def _transform_noise_operators(n_coeffs, n_opers, eigvecs):
         B_\alpha\rightarrow s_\alpha^{(g)}V^{(g)}B_\alpha V^{(g)\dagger}
 
     """
+    assert len(n_opers) == len(n_coeffs)
     n_opers_transformed = np.empty((len(n_opers), *eigvecs.shape), dtype=complex)
     for j, (n_coeff, n_oper) in enumerate(zip(n_coeffs, n_opers)):
         n_opers_transformed[j] = n_oper @ eigvecs
