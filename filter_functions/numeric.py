@@ -327,7 +327,7 @@ def calculate_noise_operators_from_atomic(phases: ndarray, noise_operators_atomi
     in an operator basis :math:`\{C_k\}_k`:
 
     .. math::
-        \tilde{\mathcal{R}}_{k\alpha}(\omega) =
+        \tilde{\mathcal{B}}_{k\alpha}(\omega) =
             \mathrm{tr}(\tilde{B}_\alpha(\omega) C_k).
 
     Due to differences in implementation (for performance reasons), the
@@ -446,7 +446,7 @@ def calculate_noise_operators_from_scratch(
     in an operator basis :math:`\{C_k\}_k`:
 
     .. math::
-        \tilde{\mathcal{R}}_{k\alpha}(\omega) =
+        \tilde{\mathcal{B}}_{k\alpha}(\omega) =
             \mathrm{tr}(\tilde{B}_\alpha(\omega) C_k).
 
     Due to differences in implementation (for performance reasons), the
@@ -533,7 +533,7 @@ def calculate_control_matrix_from_atomic(
     Returns
     -------
     control_matrix: ndarray, shape ([n_pls,] n_nops, d**2, n_omega)
-        The control matrix :math:`\mathcal{R}(\omega)`.
+        The control matrix :math:`\tilde{\mathcal{B}}(\omega)`.
 
     Notes
     -----
@@ -541,8 +541,8 @@ def calculate_control_matrix_from_atomic(
 
     .. math::
 
-        \mathcal{R}(\omega) = \sum_{g=1}^G e^{i\omega t_{g-1}}
-            \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}.
+        \tilde{\mathcal{B}}(\omega) = \sum_{g=1}^G e^{i\omega t_{g-1}}
+            \tilde{\mathcal{B}}^{(g)}(\omega)\mathcal{Q}^{(g-1)}.
 
     See Also
     --------
@@ -628,7 +628,7 @@ def calculate_control_matrix_from_scratch(
     Returns
     -------
     control_matrix: ndarray, shape (n_nops, d**2, n_omega)
-        The control matrix :math:`\mathcal{R}(\omega)`
+        The control matrix :math:`\tilde{\mathcal{B}}(\omega)`
 
     Notes
     -----
@@ -636,7 +636,7 @@ def calculate_control_matrix_from_scratch(
 
     .. math::
 
-        \mathcal{R}_{\alpha k}(\omega) = \sum_{g=1}^G
+        \tilde{\mathcal{B}}_{\alpha k}(\omega) = \sum_{g=1}^G
             e^{i\omega t_{g-1}} s_\alpha^{(g)}\mathrm{tr}\left(
                 [\bar{B}_\alpha^{(g)}\circ I(\omega)] \bar{C}_k^{(g)}
             \right)
@@ -715,8 +715,8 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     phases: ndarray, shape (n_omega,)
         The phase factors :math:`e^{i\omega T}` of the atomic pulse.
     control_matrix: ndarray, shape (n_nops, d**2, n_omega)
-        The control matrix :math:`\mathcal{R}^{(1)}(\omega)` of the
-        atomic pulse.
+        The control matrix :math:`\tilde{\mathcal{B}}^{(1)}(\omega)` of
+        the atomic pulse.
     total_propagator_liouville: ndarray, shape (d**2, d**2)
         The transfer matrix :math:`\mathcal{Q}^{(1)}` of the atomic
         pulse.
@@ -726,8 +726,8 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     Returns
     -------
     control_matrix: ndarray, shape (n_nops, d**2, n_omega)
-        The control matrix :math:`\mathcal{R}(\omega)` of the repeated
-        pulse.
+        The control matrix :math:`\tilde{\mathcal{B}}(\omega)` of the
+        repeated pulse.
 
     Notes
     -----
@@ -735,9 +735,11 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
 
     .. math::
 
-        \mathcal{R}(\omega) &= \mathcal{R}^{(1)}(\omega)\sum_{g=0}^{G-1}
+        \tilde{\mathcal{B}}(\omega)
+                            &= \tilde{\mathcal{B}}^{(1)}(\omega)
+                               \sum_{g=0}^{G-1}
                                \left(e^{i\omega T}\right)^g \\
-                            &= \mathcal{R}^{(1)}(\omega)\bigl(
+                            &= \tilde{\mathcal{B}}^{(1)}(\omega)\bigl(
                                \mathbb{I} - e^{i\omega T}
                                \mathcal{Q}^{(1)}\bigr)^{-1}\bigl(
                                \mathbb{I} - \bigl(e^{i\omega T}
@@ -786,11 +788,11 @@ def calculate_cumulant_function(
         show_progressbar: bool = False,
         memory_parsimonious: bool = False
         ) -> ndarray:
-    r"""Calculate the cumulant function :math:`K(\tau)`.
+    r"""Calculate the cumulant function :math:`\mathcal{K}(\tau)`.
 
     The error transfer matrix is obtained from the cumulant function by
     exponentiation,
-    :math:`\langle\tilde{\mathcal{U}}\rangle = \exp K(\tau)`.
+    :math:`\langle\tilde{\mathcal{U}}\rangle = \exp\mathcal{K}(\tau)`.
 
     Parameters
     ----------
@@ -888,7 +890,7 @@ def calculate_cumulant_function(
     See Also
     --------
     calculate_decay_amplitudes: Calculate the :math:`\Gamma_{\alpha\beta,kl}`
-    error_transfer_matrix: Calculate the error transfer matrix :math:`\exp K`.
+    error_transfer_matrix: Calculate the error transfer matrix :math:`\exp\mathcal{K}`.
     infidelity: Calculate only infidelity of a pulse.
     pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
     calculate_pulse_correlation_filter_function
@@ -973,8 +975,8 @@ def calculate_decay_amplitudes(
 
         .. math::
 
-            \mathcal{R}^\ast_{\alpha k}(\omega)S_{\alpha\beta}(\omega)
-            \mathcal{R}_{\beta l}(\omega)
+            \tilde{\mathcal{B}}^\ast_{\alpha k}(\omega)
+            S_{\alpha\beta}(\omega)\tilde{\mathcal{B}}_{\beta l}(\omega)
 
         can consume quite a large amount of memory if set up for all
         :math:`\alpha,\beta,k,l` at once. If ``True``, it is only set up
@@ -1001,8 +1003,8 @@ def calculate_decay_amplitudes(
     .. math::
 
         \Gamma_{\alpha\beta, kl} = \int\frac{\mathrm{d}\omega}{2\pi}
-            \mathcal{R}^\ast_{\alpha k}(\omega)
-            S_{\alpha\beta}(\omega)\mathcal{R}_{\beta l}(\omega).
+            \tilde{\mathcal{B}}^\ast_{\alpha k}(\omega)
+            S_{\alpha\beta}(\omega)\tilde{\mathcal{B}}_{\beta l}(\omega).
 
     If pulse correlations are taken into account, they are given by
 
@@ -1110,8 +1112,9 @@ def calculate_filter_function(control_matrix: ndarray, which: str = 'fidelity') 
 
     .. math::
 
-        F_{\alpha\beta,kl}(\omega) = \mathcal{R}_{\alpha k}^\ast(\omega)
-                                     \mathcal{R}_{\beta l}(\omega),
+        F_{\alpha\beta,kl}(\omega) =
+            \tilde{\mathcal{B}}_{\alpha k}^\ast(\omega)
+            \tilde{\mathcal{B}}_{\beta l}(\omega),
 
     where :math:`\alpha,\beta` are indices counting the noise operators
     :math:`B_\alpha` and :math:`k,l` indices counting the basis elements
@@ -1171,12 +1174,13 @@ def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
     .. math::
 
         F_{\alpha\beta,kl}^{(gg')}(\omega) = \bigl[
-            \mathcal{Q}^{(g'-1)\dagger}\mathcal{R}^{(g')\dagger}(\omega)
+            \mathcal{Q}^{(g'-1)\dagger}
+            \tilde{\mathcal{B}}^{(g')\dagger}(\omega)
         \bigr]_{k\alpha} \bigl[
-            \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
+            \tilde{\mathcal{B}}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
         \bigr]_{\beta l} e^{i\omega(t_{g-1} - t_{g'-1})},
 
-    with :math:`\mathcal{R}^{(g)}` the control matrix of the
+    with :math:`\tilde{\mathcal{B}}^{(g)}` the control matrix of the
     :math:`g`-th pulse. The fidelity pulse correlation function is
     obtained by tracing out the basis indices,
 
@@ -1315,9 +1319,9 @@ def error_transfer_matrix(
 
     .. math::
 
-        \tilde{\mathcal{U}} = \exp K(\tau)
+        \tilde{\mathcal{U}} = \exp\mathcal{K}(\tau)
 
-    with :math:`K(\tau)` the cumulant function (see
+    with :math:`\mathcal{K}(\tau)` the cumulant function (see
     :func:`calculate_cumulant_function`). For Gaussian noise this
     expression is exact when taking into account the decay amplitudes
     :math:`\Gamma` and frequency shifts :math:`\Delta`. As the latter
@@ -1326,7 +1330,8 @@ def error_transfer_matrix(
 
     For non-Gaussian noise the expression above is perturbative and
     includes noise up to order :math:`\xi^2` and hence
-    :math:`\tilde{\mathcal{U}} = \mathbb{1} + K(\tau) + \mathcal{O}(\xi^2)`
+    :math:`\tilde{\mathcal{U}} = \mathbb{1} + \mathcal{K}(\tau) +
+    \mathcal{O}(\xi^2)`
     (although it is evaluated as a matrix exponential in any case).
 
     Given the above expression of the error transfer matrix, the
@@ -1340,7 +1345,7 @@ def error_transfer_matrix(
 
     See Also
     --------
-    calculate_cumulant_function: Calculate the cumulant function :math:`K`
+    calculate_cumulant_function: Calculate the cumulant function :math:`\mathcal{K}`
     calculate_decay_amplitudes: Calculate the :math:`\Gamma_{\alpha\beta,kl}`
     infidelity: Calculate only infidelity of a pulse.
     """
