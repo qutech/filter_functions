@@ -323,6 +323,26 @@ def calculate_noise_operators_from_atomic(phases: ndarray, noise_operators_atomi
         \tilde{B}_\alpha(\omega) = \sum_{g=1}^G e^{i\omega t_{g-1}}
              Q_{g-1}^\dagger\tilde{B}_\alpha^{(g)}(\omega) Q_{g-1}.
 
+    The control matrix then corresponds to the coefficients of expansion
+    in an operator basis :math:`\{C_k\}_k`:
+
+    .. math::
+        \tilde{\mathcal{R}}_{k\alpha}(\omega) =
+            \mathrm{tr}(\tilde{B}_\alpha(\omega) C_k).
+
+    Due to differences in implementation (for performance reasons), the
+    axes of the result are transposed compared to the control matrix:
+
+    >>> ctrlmat = calculate_control_matrix_from_atomic(...)
+    >>> ctrlmat.shape
+    (n_nops, d**2, n_omega)
+    >>> noiseops = calculate_noise_operators_from_atomic(...)
+    >>> noiseops.shape
+    (n_omega, n_nops, d, d)
+    >>> ctrlmat_from_noiseops = ff.basis.expand(noiseops, basis)
+    >>> np.allclose(ctrlmat, ctrlmat_from_noiseops.transpose(1, 2, 0))
+    True
+
     See Also
     --------
     :func:`calculate_noise_operators_from_scratch`: Compute the operators from scratch.
@@ -422,6 +442,26 @@ def calculate_noise_operators_from_scratch(
     :math:`\alpha`-th noise operator, and  :math:`s_\alpha^{(g)}` the
     noise sensitivity during interval :math:`g`.
 
+    The control matrix then corresponds to the coefficients of expansion
+    in an operator basis :math:`\{C_k\}_k`:
+
+    .. math::
+        \tilde{\mathcal{R}}_{k\alpha}(\omega) =
+            \mathrm{tr}(\tilde{B}_\alpha(\omega) C_k).
+
+    Due to differences in implementation (for performance reasons), the
+    axes of the result are transposed compared to the control matrix:
+
+    >>> ctrlmat = calculate_control_matrix_from_scratch(...)
+    >>> ctrlmat.shape
+    (n_nops, d**2, n_omega)
+    >>> noiseops = calculate_noise_operators_from_scratch(...)
+    >>> noiseops.shape
+    (n_omega, n_nops, d, d)
+    >>> ctrlmat_from_noiseops = ff.basis.expand(noiseops, basis)
+    >>> np.allclose(ctrlmat, ctrlmat_from_noiseops.transpose(1, 2, 0))
+    True
+
     See Also
     --------
     :func:`calculate_noise_operators_from_atomic`: Compute the operators from atomic segments.
@@ -455,6 +495,7 @@ def calculate_noise_operators_from_scratch(
         int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
         intermediate = expr_1(n_opers_transformed[:, g],
                               util.cexp(omega[:, None, None]*t[g])*int_buf, out=intermediate)
+
         noise_operators += expr_2(eigvecs_propagated[g].conj(), intermediate,
                                   eigvecs_propagated[g])
 
