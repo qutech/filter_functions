@@ -148,7 +148,7 @@ def liouville_is_CP(
         basis: _b.Basis,
         return_eig: Optional[bool] = False,
         atol: Optional[float] = None
-        ) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
+) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
     r"""Test if a Liouville superoperator is completely positive (CP).
 
     Parameters
@@ -206,7 +206,7 @@ def liouville_is_cCP(
         basis: _b.Basis,
         return_eig: Optional[bool] = False,
         atol: Optional[float] = None
-        ) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
+) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
     r"""Test if a Liouville superoperator is conditional completely positive.
 
     Parameters

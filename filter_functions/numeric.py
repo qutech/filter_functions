@@ -148,7 +148,7 @@ def _get_integrand(
         which_FF: str,
         control_matrix: Optional[Union[ndarray, Sequence[ndarray]]] = None,
         filter_function: Optional[ndarray] = None
-        ) -> ndarray:
+) -> ndarray:
     """
     Private function to generate the integrand for either
     :func:`infidelity` or :func:`calculate_decay_amplitudes`.
@@ -285,7 +285,7 @@ def calculate_control_matrix_from_atomic(
         propagators_liouville: ndarray,
         show_progressbar: Optional[bool] = None,
         which: str = 'total'
-        ) -> ndarray:
+) -> ndarray:
     r"""
     Calculate the control matrix from the control matrices of atomic
     segments.
@@ -360,7 +360,7 @@ def calculate_control_matrix_from_scratch(
         dt: Coefficients,
         t: Optional[Coefficients] = None,
         show_progressbar: bool = False
-        ) -> ndarray:
+) -> ndarray:
     r"""
     Calculate the control matrix from scratch, i.e. without knowledge of
     the control matrices of more atomic pulse sequences.
@@ -557,7 +557,7 @@ def calculate_cumulant_function(
         decay_amplitudes: Optional[ndarray] = None,
         show_progressbar: bool = False,
         memory_parsimonious: bool = False
-        ) -> ndarray:
+) -> ndarray:
     r"""Calculate the cumulant function :math:`K(\tau)`.
 
     The error transfer matrix is obtained from the cumulant function by
@@ -713,7 +713,7 @@ def calculate_decay_amplitudes(
         which: str = 'total',
         show_progressbar: bool = False,
         memory_parsimonious: bool = False
-        ) -> ndarray:
+) -> ndarray:
     r"""
     Get the decay amplitudes :math:`\Gamma_{\alpha\beta, kl}` for noise
     sources :math:`\alpha,\beta` and basis elements :math:`k,l`.
@@ -1037,7 +1037,7 @@ def error_transfer_matrix(
         cumulant_function: Optional[ndarray] = None,
         show_progressbar: bool = False,
         memory_parsimonious: bool = False
-        ) -> ndarray:
+) -> ndarray:
     r"""Compute the error transfer matrix up to unitary rotations.
 
     Parameters
