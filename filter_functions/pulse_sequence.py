@@ -2165,7 +2165,7 @@ def extend(
         if add_n_opers.shape[1:] != (d, d):
             raise ValueError(f'Expected additional noise operators to have dimensions {(d, d)}, ' +
                              f'not {add_n_opers.shape[1:]}.')
-        if len(set(add_n_oper_id)) != len(add_n_oper_id):
+        if any(n_oper_id in n_oper_identifiers for n_oper_id in add_n_oper_id):
             raise ValueError('Found duplicate noise operator identifiers')
 
         n_opers.extend(add_n_opers)
