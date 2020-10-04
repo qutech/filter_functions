@@ -281,6 +281,7 @@ class PulseSequence:
         self._filter_function_gen = None
         self._filter_function_pc = None
         self._filter_function_pc_gen = None
+        self._filter_function_2 = None
         self._intermediates = None
 
     def __str__(self):
@@ -400,6 +401,7 @@ class PulseSequence:
             'pulse correlation filter function': '_filter_function_pc',
             'fidelity pulse correlation filter function': '_filter_function_pc',
             'generalized pulse correlation filter function': '_filter_function_pc_gen',
+            'second order filter function': '_filter_function_2',
             'control matrix': '_control_matrix',
             'pulse correlation control matrix': '_control_matrix_pc'
         }
@@ -418,8 +420,9 @@ class PulseSequence:
         # Only calculate if not done so before
         if not all(self.is_cached(attr) for attr in ('eigvals', 'eigvecs', 'propagators')):
             # Control Hamiltonian as a (n_dt, d, d) array
-            H = np.einsum('ijk,il->ljk', self.c_opers, self.c_coeffs)
-            self.eigvals, self.eigvecs, self.propagators = numeric.diagonalize(H, self.dt)
+            hamiltonian = np.einsum('ijk,il->ljk', self.c_opers, self.c_coeffs)
+            self.eigvals, self.eigvecs, self.propagators = numeric.diagonalize(hamiltonian,
+                                                                               self.dt)
 
         # Set the total propagator
         self.total_propagator = self.propagators[-1]
@@ -529,9 +532,9 @@ class PulseSequence:
             "True."
         )
 
-    @util.parse_which_FF_parameter
+    @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
     def get_filter_function(self, omega: Coefficients, which: str = 'fidelity',
-                            show_progressbar: bool = False,
+                            order: int = 1, show_progressbar: bool = False,
                             cache_intermediates: bool = False) -> ndarray:
         r"""Get the first-order filter function.
 
@@ -544,7 +547,10 @@ class PulseSequence:
             The frequencies at which to evaluate the filter function.
         which: str, optional
             Which filter function to return. Either 'fidelity' (default)
-            or 'generalized' (see :ref:`Notes <notes>`).
+            or 'generalized' (see :ref:`Notes <notes>`). Only if
+            ``order == 1``.
+        order: int, optional
+            First or second order filter function.
         show_progressbar: bool, optional
             Show a progress bar for the calculation of the control
             matrix.
@@ -562,7 +568,7 @@ class PulseSequence:
 
         Notes
         -----
-        The generalized filter function is given by
+        The first-order generalized filter function is given by
 
         .. math::
 
@@ -585,36 +591,48 @@ class PulseSequence:
         """
         # Only calculate if not calculated before for the same frequencies
         if np.array_equal(self.omega, omega):
-            if which == 'fidelity':
-                if self.is_cached('filter_function'):
-                    return self._filter_function
+            if order == 1:
+                if which == 'fidelity':
+                    if self.is_cached('filter function'):
+                        return self._filter_function
+                else:
+                    # which == 'generalized'
+                    if self.is_cached('filter_function_gen'):
+                        return self._filter_function_gen
             else:
-                # which == 'generalized'
-                if self.is_cached('filter_function_gen'):
-                    return self._filter_function_gen
+                # order == 2
+                if self.is_cached('filter_function_2'):
+                    return self._filter_function_2
         else:
             # Getting with different frequencies. Remove all cached attributes
             # that are frequency-dependent
             self.cleanup('frequency dependent')
 
-        control_matrix = self.get_control_matrix(omega, show_progressbar, cache_intermediates)
-        self.cache_filter_function(omega, control_matrix=control_matrix, which=which)
-
-        if which == 'fidelity':
-            return self._filter_function
+        if order == 1:
+            control_matrix = self.get_control_matrix(omega, show_progressbar, cache_intermediates)
         else:
-            # which == 'generalized'
-            return self._filter_function_gen
+            # order == 2
+            control_matrix = None
 
-    @util.parse_which_FF_parameter
-    def cache_filter_function(
-            self, omega: Coefficients,
-            control_matrix: Optional[ndarray] = None,
-            filter_function: Optional[ndarray] = None,
-            which: str = 'fidelity',
-            show_progressbar: bool = False,
-            cache_intermediates: bool = False
-    ) -> None:
+        self.cache_filter_function(omega, control_matrix=control_matrix, which=which,
+                                   order=order, show_progressbar=show_progressbar,
+                                   cache_intermediates=cache_intermediates)
+
+        if order == 1:
+            if which == 'fidelity':
+                return self._filter_function
+            else:
+                # which == 'generalized'
+                return self._filter_function_gen
+        else:
+            # order == 2
+            return self._filter_function_2
+
+    @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
+    def cache_filter_function(self, omega: Coefficients, control_matrix: Optional[ndarray] = None,
+                              filter_function: Optional[ndarray] = None, which: str = 'fidelity',
+                              order: int = 1, show_progressbar: bool = False,
+                              cache_intermediates: bool = False) -> None:
         r"""
         Cache the filter function. If control_matrix.ndim == 4, it is
         taken to be the 'pulse correlation control matrix' and summed
@@ -632,11 +650,14 @@ class PulseSequence:
             it is computed and the filter function derived from it.
         filter_function: array_like, shape (n_nops, n_nops, [d**2, d**2,] n_omega), optional
             The filter function for the frequencies *omega*. If
-            ``None``, it is computed from control_matrix.
+            ``None``, it is computed from R in the case ``order == 1``
+            and from scratch else.
         which: str, optional
             Which filter function to cache. Either 'fidelity' (default)
             or 'generalized'.
-        show_progressbar: bool
+        order: int, optional
+            First or second order filter function.
+        show_progressbar: bool, optional
             Show a progress bar for the calculation of the control
             matrix.
         cache_intermediates: bool, optional
@@ -648,31 +669,45 @@ class PulseSequence:
         PulseSequence.get_filter_function : Getter method
         """
         if filter_function is None:
-            if control_matrix is None:
-                control_matrix = self.get_control_matrix(omega, show_progressbar, cache_intermediates)
+            if order == 1:
+                if control_matrix is None:
+                    control_matrix = self.get_control_matrix(omega, show_progressbar,
+                                                             cache_intermediates)
 
-            self.cache_control_matrix(omega, control_matrix)
-            if control_matrix.ndim == 4:
-                # Calculate pulse correlation FF and derive canonical FF from it
-                F_pc = numeric.calculate_pulse_correlation_filter_function(control_matrix, which)
+                self.cache_control_matrix(omega, control_matrix)
+                if control_matrix.ndim == 4:
+                    # Calculate pulse correlation FF and derive canonical FF
+                    # from it
+                    F_pc = numeric.calculate_pulse_correlation_filter_function(control_matrix,
+                                                                               which)
 
-                if which == 'fidelity':
-                    self._filter_function_pc = F_pc
+                    if which == 'fidelity':
+                        self._filter_function_pc = F_pc
+                    else:
+                        # which == 'generalized'
+                        self._filter_function_pc_gen = F_pc
+
+                    filter_function = F_pc.sum(axis=(0, 1))
                 else:
-                    # which == 'generalized'
-                    self._filter_function_pc_gen = F_pc
-
-                filter_function = F_pc.sum(axis=(0, 1))
+                    # Regular case
+                    filter_function = numeric.calculate_filter_function(control_matrix, which)
             else:
-                # Regular case
-                filter_function = numeric.calculate_filter_function(control_matrix, which)
+                # order == 2
+                filter_function = numeric.calculate_second_order_filter_function(
+                    self.eigvals, self.eigvecs, self.propagators, omega, self.basis,
+                    self.n_opers, self.n_coeffs, self.dt, memory_parsimonious=False,
+                    show_progressbar=show_progressbar, intermediates=self._intermediates
+                )
 
         self.omega = omega
-        if which == 'fidelity':
-            self._filter_function = filter_function
+        if order == 1:
+            if which == 'fidelity':
+                self._filter_function = filter_function
+            else:
+                # which == 'generalized'
+                self._filter_function_gen = filter_function
         else:
-            # which == 'generalized'
-            self._filter_function_gen = filter_function
+            self._filter_function_2 = filter_function
 
     @util.parse_which_FF_parameter
     def get_pulse_correlation_filter_function(self, which: str = 'fidelity') -> ndarray:
@@ -906,6 +941,7 @@ class PulseSequence:
                 - _filter_function_gen
                 - _filter_function_pc
                 - _filter_function_pc_gen
+                - _filter_function_2
 
             If set to 'frequency dependent' only attributes that are
             functions of frequency are initalized to ``None``.
@@ -919,7 +955,8 @@ class PulseSequence:
         concatenation_attrs = {'_total_propagator', '_total_phases', '_total_propagator_liouville',
                                '_control_matrix', '_control_matrix_pc', '_intermediates'}
         filter_function_attrs = {'omega', '_filter_function', '_filter_function_gen',
-                                 '_filter_function_pc', '_filter_function_pc_gen'}
+                                 '_filter_function_pc', '_filter_function_pc_gen',
+                                 '_filter_function_2'}
 
         if method == 'conservative':
             attrs = default_attrs
@@ -1104,10 +1141,10 @@ def _concatenate_Hamiltonian(
         identifiers: Sequence[Sequence[str]],
         coeffs: Sequence[Sequence[Coefficients]],
         kind: str
-) -> Tuple[Sequence[Operator],
-           Sequence[str],
-           Sequence[Coefficients],
-           Dict[int, Dict[str, str]]]:
+        ) -> Tuple[Sequence[Operator],
+                   Sequence[str],
+                   Sequence[Coefficients],
+                   Dict[int, Dict[str, str]]]:
     """
     Concatenate Hamiltonians.
 
@@ -1326,7 +1363,7 @@ def _default_extend_mapping(
         identifiers: Sequence[str],
         mapping: Union[None, Mapping[str, str]],
         qubits: Union[Sequence[int], int]
-) -> Tuple[Sequence[str], Dict[str, str]]:
+        ) -> Tuple[Sequence[str], Dict[str, str]]:
     """
     Get a default identifier mapping for a pulse that was extended to
     *qubits* if *mapping* is None, else return mapping.
@@ -1350,9 +1387,9 @@ def _default_extend_mapping(
         return identifiers, mapping
 
     try:
-        mapping = {q: q + '_' + ('{}'*len(qubits)).format(*qubits) for q in identifiers}
+        mapping = {l: l + '_' + ('{}'*len(qubits)).format(*qubits) for l in identifiers}
     except TypeError:
-        mapping = {q: q + '_{}'.format(qubits) for q in identifiers}
+        mapping = {l: l + '_{}'.format(qubits) for l in identifiers}
 
     return identifiers, mapping
 
@@ -1444,7 +1481,7 @@ def concatenate(
         which: str = 'fidelity',
         omega: Optional[Coefficients] = None,
         show_progressbar: bool = False
-) -> PulseSequence:
+        ) -> PulseSequence:
     r"""
     Concatenate an arbitrary number of pulses. Note that pulses are
     concatenated left-to-right, that is,
@@ -1867,7 +1904,7 @@ def extend(
         cache_filter_function: Optional[bool] = None,
         omega: Optional[Coefficients] = None,
         show_progressbar: bool = False
-) -> PulseSequence:
+        ) -> PulseSequence:
     r"""
     Map one or more pulse sequences to different qubits.
 
