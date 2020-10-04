@@ -390,8 +390,8 @@ class ConcatenationTest(testutil.TestCase):
             n_coeffs *= np.abs(rng.standard_normal((n_opers.shape[0], 1)))
             c_coeffs = rng.standard_normal((c_opers.shape[0], n_dt))
             dt = np.abs(rng.standard_normal(n_dt))
-            n_ids = np.array([''.join(l) for l in letters[n_idx]])
-            c_ids = np.array([''.join(l) for l in letters[c_idx]])
+            n_ids = np.array([''.join(c) for c in letters[n_idx]])
+            c_ids = np.array([''.join(c) for c in letters[c_idx]])
 
             pulse_1 = ff.PulseSequence(list(zip(c_opers, c_coeffs, c_ids)),
                                        list(zip(n_opers, n_coeffs, n_ids)),
@@ -407,7 +407,7 @@ class ConcatenationTest(testutil.TestCase):
             more_n_coeffs = np.ones((more_n_opers.shape[0], n_dt))
             more_n_coeffs *= np.abs(rng.standard_normal(
                 (more_n_opers.shape[0], 1)))
-            more_n_ids = np.array([''.join(l) for l in letters[more_n_idx]])
+            more_n_ids = np.array([''.join(c) for c in letters[more_n_idx]])
             pulse_3 = ff.PulseSequence(list(zip(c_opers, c_coeffs, c_ids)),
                                        list(zip(more_n_opers, more_n_coeffs,
                                                 more_n_ids)),
@@ -679,7 +679,7 @@ class ExtensionTest(testutil.TestCase):
 
                 # Use custom mapping for identifiers and or labels
                 letters = rng.choice(list(string.ascii_letters), size=(3, 5))
-                mapped_ids = np.array([''.join(l) for l in letters])
+                mapped_ids = np.array([''.join(c) for c in letters])
                 mapping = {i: new_id for i, new_id in zip(ids, mapped_ids)}
                 ext_pulse_mapped_identifiers = ff.PulseSequence(
                     list(zip(ext_opers, coeffs, mapped_ids, ext_ids)),

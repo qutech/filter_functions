@@ -111,15 +111,26 @@ def liouville_to_choi(superoperator: ndarray, basis: _b.Basis) -> ndarray:
         \mathrm{choi}(\mathcal{S})
             &= (\mathbb{I}\otimes\mathcal{S})
                 (|\Omega\rangle\langle\Omega|) \\
-            &= \sum_{ij} E_{ij}\otimes\mathcal{S}(E_{ij})
+            &= \sum_{ij} E_{ij}\otimes\mathcal{S}(E_{ij}) \\
+            &= \sum_{ij}\mathcal{S}_{ij} C_j^T\otimes C_i
 
-    where :math:`|\Omega\rangle` is a maximally entangled state and
-    :math:`E_{ij} = |i\rangle\langle j|`.
+    where :math:`|\Omega\rangle` is a maximally entangled state,
+    :math:`E_{ij} = |i\rangle\langle j|`, and :math:`C_i` are the basis
+    elements that define the Liouville representation
+    :math:`\mathcal{S}_{ij}` [Mer13]_.
 
     Returns
     -------
     choi: ndarray, shape (..., d**2, d**2)
         The Choi matrix representation of the superoperator.
+
+    References
+    ----------
+
+    .. [Mer13]
+        Merkel, S. T. et al. Self-consistent quantum process tomography.
+        Physical Review A - Atomic, Molecular, and Optical Physics, 87,
+        062119 (2013). https://doi.org/10.1103/PhysRevA.87.062119
 
     See Also
     --------
@@ -127,21 +138,8 @@ def liouville_to_choi(superoperator: ndarray, basis: _b.Basis) -> ndarray:
     liouville_is_CP: Test if a superoperator is completely positive (CP).
     liouville_is_cCP: Test if a superoperator is conditional CP.
     """
-    d2 = superoperator.shape[-1]
-    d = int(np.sqrt(d2))
-    ij = np.eye(d2).reshape(d2, d, d, order='F')
-
-    basis = basis.view(_b.Basis) if not hasattr(basis, 'btype') else basis
-    if basis.btype == 'GGM':
-        ij_ket = _b.ggm_expand(ij).T
-    else:
-        ij_ket = _b.expand(ij, basis).T
-
-    path = ['einsum_path', (0, 2), (0, 1), (0, 1)]
-    choi = np.einsum('iab,...jk,ki,jcd->...acbd',
-                     ij, superoperator, ij_ket, basis,
-                     optimize=path).reshape(superoperator.shape)
-
+    choi = np.einsum('...ij,jba,icd->...acbd', superoperator, basis, basis,
+                     optimize=['einsum_path', (0, 1), (0, 1)]).reshape(superoperator.shape)
     return choi
 
 
@@ -150,7 +148,7 @@ def liouville_is_CP(
         basis: _b.Basis,
         return_eig: Optional[bool] = False,
         atol: Optional[float] = None
-        ) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
+) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
     r"""Test if a Liouville superoperator is completely positive (CP).
 
     Parameters
@@ -208,7 +206,7 @@ def liouville_is_cCP(
         basis: _b.Basis,
         return_eig: Optional[bool] = False,
         atol: Optional[float] = None
-        ) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
+) -> Union[bool, Tuple[bool, Tuple[ndarray, ndarray]]]:
     r"""Test if a Liouville superoperator is conditional completely positive.
 
     Parameters
@@ -254,13 +252,12 @@ def liouville_is_cCP(
     Liouville_to_choi: Convert from Liouville to Choi matrix representation.
     liouville_is_CP: Test if a superoperator is CP.
     """
-    # Maximally entangled state
     d2 = superoperator.shape[-1]
     d = int(np.sqrt(d2))
-    sqd = 1/np.sqrt(d)
 
+    # Maximally entangled state
     Omega = np.zeros(d2, dtype=float)
-    Omega[::d+1] = sqd
+    Omega[::d+1] = 1/np.sqrt(d)
     Omega = np.multiply.outer(Omega, Omega)
 
     # Projector onto complement of Omega
