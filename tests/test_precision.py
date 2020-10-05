@@ -240,7 +240,7 @@ class PrecisionTest(testutil.TestCase):
                 if rng.randint(0, 2):
                     pulse.t = None
 
-            omega = rng.random(17)
+            omega = rng.rand(17)
             B_atomic = np.array([numeric.calculate_noise_operators_from_scratch(
                 pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.n_opers,
                 pulse.n_coeffs, pulse.dt, pulse.t
