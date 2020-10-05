@@ -23,7 +23,7 @@ This module tests the concatenation functionality for PulseSequence's.
 """
 
 import string
-from copy import copy
+from copy import deepcopy
 from itertools import product
 from random import sample
 
@@ -115,7 +115,7 @@ class ConcatenationTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             # Incompatible bases
             pulse = testutil.rand_pulse_sequence(4, 1, btype='GGM')
-            cpulse = copy(pulse)
+            cpulse = deepcopy(pulse)
             cpulse.basis = ff.Basis.pauli(2)
             pulse_sequence.concatenate_without_filter_function([pulse, cpulse])
 
@@ -390,8 +390,8 @@ class ConcatenationTest(testutil.TestCase):
             n_coeffs *= np.abs(rng.standard_normal((n_opers.shape[0], 1)))
             c_coeffs = rng.standard_normal((c_opers.shape[0], n_dt))
             dt = np.abs(rng.standard_normal(n_dt))
-            n_ids = np.array([''.join(l) for l in letters[n_idx]])
-            c_ids = np.array([''.join(l) for l in letters[c_idx]])
+            n_ids = np.array([''.join(c) for c in letters[n_idx]])
+            c_ids = np.array([''.join(c) for c in letters[c_idx]])
 
             pulse_1 = ff.PulseSequence(list(zip(c_opers, c_coeffs, c_ids)),
                                        list(zip(n_opers, n_coeffs, n_ids)),
@@ -407,7 +407,7 @@ class ConcatenationTest(testutil.TestCase):
             more_n_coeffs = np.ones((more_n_opers.shape[0], n_dt))
             more_n_coeffs *= np.abs(rng.standard_normal(
                 (more_n_opers.shape[0], 1)))
-            more_n_ids = np.array([''.join(l) for l in letters[more_n_idx]])
+            more_n_ids = np.array([''.join(c) for c in letters[more_n_idx]])
             pulse_3 = ff.PulseSequence(list(zip(c_opers, c_coeffs, c_ids)),
                                        list(zip(more_n_opers, more_n_coeffs,
                                                 more_n_ids)),
@@ -679,7 +679,7 @@ class ExtensionTest(testutil.TestCase):
 
                 # Use custom mapping for identifiers and or labels
                 letters = rng.choice(list(string.ascii_letters), size=(3, 5))
-                mapped_ids = np.array([''.join(l) for l in letters])
+                mapped_ids = np.array([''.join(c) for c in letters])
                 mapping = {i: new_id for i, new_id in zip(ids, mapped_ids)}
                 ext_pulse_mapped_identifiers = ff.PulseSequence(
                     list(zip(ext_opers, coeffs, mapped_ids, ext_ids)),
@@ -767,6 +767,7 @@ class ExtensionTest(testutil.TestCase):
         """Test caching"""
         pulse_1 = testutil.rand_pulse_sequence(2, 10, btype='Pauli')
         pulse_2 = testutil.rand_pulse_sequence(2, 10, btype='Pauli')
+        pulse_3 = testutil.rand_pulse_sequence(2, 10, btype='GGM')
         pulse_2.dt = pulse_1.dt
         pulse_2.t = pulse_1.t
         omega = util.get_sample_frequencies(pulse_1, 50)
@@ -852,6 +853,19 @@ class ExtensionTest(testutil.TestCase):
         self.assertIsNone(extended_pulse._total_phases)
         self.assertIsNone(extended_pulse._control_matrix)
         self.assertIsNone(extended_pulse._filter_function)
+
+        # Cannot extend with basis other than Pauli, if caching is forced it
+        # should still work
+        extended_pulse = ff.extend([(pulse_3, 0), (pulse_3, 1)], omega=omega,
+                                   cache_diagonalization=True, cache_filter_function=True)
+        self.assertIsNotNone(extended_pulse._eigvals)
+        self.assertIsNotNone(extended_pulse._eigvecs)
+        self.assertIsNotNone(extended_pulse._propagators)
+        self.assertIsNotNone(extended_pulse._total_propagator)
+        self.assertIsNotNone(extended_pulse._total_propagator_liouville)
+        self.assertIsNotNone(extended_pulse._total_phases)
+        self.assertIsNotNone(extended_pulse._control_matrix)
+        self.assertIsNotNone(extended_pulse._filter_function)
 
     def test_accuracy(self):
         ID, X, Y, Z = util.paulis
@@ -1085,6 +1099,10 @@ class ExtensionTest(testutil.TestCase):
 
         pulse_1 = testutil.rand_pulse_sequence(2, n_dt, btype='Pauli')
         pulse_2 = testutil.rand_pulse_sequence(2, n_dt, btype='GGM')
+        pulse_3 = deepcopy(pulse_1)
+        pulse_4 = deepcopy(pulse_1)
+        pulse_3.basis.btype = 'GGM'
+        pulse_4.basis.btype = 'Custom'
 
         pulse_1.cache_filter_function(omega)
         pulse_11 = ff.extend([[pulse_1, 0], [pulse_1, 1]])
@@ -1144,6 +1162,11 @@ class ExtensionTest(testutil.TestCase):
             )
 
         with self.assertRaises(ValueError):
+            ff.extend([(pulse_1, 1)],
+                      additional_noise_Hamiltonian=[[util.tensor(X, X), np.ones(n_dt),
+                                                     pulse_1.n_oper_identifiers[0] + '_1']])
+
+        with self.assertRaises(ValueError):
             # additional_noise_Hamiltonian has wrong dimensions
             additional_noise_Hamiltonian = [[util.tensor(X, X, X),
                                              np.ones(n_dt)]]
@@ -1156,6 +1179,13 @@ class ExtensionTest(testutil.TestCase):
             # Non-pauli basis
             ff.extend([(pulse_2, 0)])
 
+        with self.assertWarns(UserWarning):
+            # Different bases
+            ff.extend([(pulse_1, 0), (pulse_3, 1)])
+
+        with self.assertWarns(UserWarning):
+            # Unknown basis
+            ff.extend([(pulse_4, 1)])
 
 class RemappingTest(testutil.TestCase):
 

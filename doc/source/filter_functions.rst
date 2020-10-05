@@ -44,6 +44,14 @@ filter\_functions.pulse\_sequence module
    :undoc-members:
    :show-inheritance:
 
+filter\_functions.superoperator module
+--------------------------------------
+
+.. automodule:: filter_functions.superoperator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 filter\_functions.types module
 ------------------------------
 
@@ -59,7 +67,6 @@ filter\_functions.util module
    :members:
    :undoc-members:
    :show-inheritance:
-
 
 Module contents
 ---------------

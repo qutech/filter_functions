@@ -1079,10 +1079,10 @@ def _concatenate_Hamiltonian(
         identifiers: Sequence[Sequence[str]],
         coeffs: Sequence[Sequence[Coefficients]],
         kind: str
-        ) -> Tuple[Sequence[Operator],
-                   Sequence[str],
-                   Sequence[Coefficients],
-                   Dict[int, Dict[str, str]]]:
+) -> Tuple[Sequence[Operator],
+           Sequence[str],
+           Sequence[Coefficients],
+           Dict[int, Dict[str, str]]]:
     """
     Concatenate Hamiltonians.
 
@@ -1301,7 +1301,7 @@ def _default_extend_mapping(
         identifiers: Sequence[str],
         mapping: Union[None, Mapping[str, str]],
         qubits: Union[Sequence[int], int]
-        ) -> Tuple[Sequence[str], Dict[str, str]]:
+) -> Tuple[Sequence[str], Dict[str, str]]:
     """
     Get a default identifier mapping for a pulse that was extended to
     *qubits* if *mapping* is None, else return mapping.
@@ -1325,9 +1325,9 @@ def _default_extend_mapping(
         return identifiers, mapping
 
     try:
-        mapping = {l: l + '_' + ('{}'*len(qubits)).format(*qubits) for l in identifiers}
+        mapping = {q: q + '_' + ('{}'*len(qubits)).format(*qubits) for q in identifiers}
     except TypeError:
-        mapping = {l: l + '_{}'.format(qubits) for l in identifiers}
+        mapping = {q: q + '_{}'.format(qubits) for q in identifiers}
 
     return identifiers, mapping
 
@@ -1419,7 +1419,7 @@ def concatenate(
         which: str = 'fidelity',
         omega: Optional[Coefficients] = None,
         show_progressbar: bool = False
-        ) -> PulseSequence:
+) -> PulseSequence:
     r"""
     Concatenate an arbitrary number of pulses. Note that pulses are
     concatenated left-to-right, that is,
@@ -1844,7 +1844,7 @@ def extend(
         cache_filter_function: Optional[bool] = None,
         omega: Optional[Coefficients] = None,
         show_progressbar: bool = False
-        ) -> PulseSequence:
+) -> PulseSequence:
     r"""
     Map one or more pulse sequences to different qubits.
 
@@ -2167,7 +2167,7 @@ def extend(
         if add_n_opers.shape[1:] != (d, d):
             raise ValueError(f'Expected additional noise operators to have dimensions {(d, d)}, ' +
                              f'not {add_n_opers.shape[1:]}.')
-        if len(set(add_n_oper_id)) != len(add_n_oper_id):
+        if any(n_oper_id in n_oper_identifiers for n_oper_id in add_n_oper_id):
             raise ValueError('Found duplicate noise operator identifiers')
 
         n_opers.extend(add_n_opers)
