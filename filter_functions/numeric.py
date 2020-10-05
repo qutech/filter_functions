@@ -584,7 +584,6 @@ def calculate_control_matrix_from_scratch(
         dt: Coefficients,
         t: Optional[Coefficients] = None,
         show_progressbar: bool = False,
-        out: ndarray = None
         ) -> ndarray:
     r"""
     Calculate the control matrix from scratch, i.e. without knowledge of
@@ -622,8 +621,6 @@ def calculate_control_matrix_from_scratch(
         computed from *dt*.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
-    out: ndarray, shape (n_nops, d**2, n_omega), optional
-        Array to place the result in.
 
     Returns
     -------
@@ -676,9 +673,7 @@ def calculate_control_matrix_from_scratch(
     n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
 
     # Allocate result and buffers for intermediate arrays
-    if out is None:
-        out = np.zeros((len(n_opers), len(basis), len(omega)), dtype=complex)
-
+    control_matrix = np.zeros((len(n_opers), len(basis), len(omega)), dtype=complex)
     exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
     sum_buf = np.empty((len(n_opers), len(basis), len(omega)), dtype=complex)
     basis_transformed = np.empty(basis.shape, dtype=complex)
@@ -697,9 +692,9 @@ def calculate_control_matrix_from_scratch(
         sum_buf = expr(util.cexp(omega*t[g]), n_opers_transformed[:, g], int_buf,
                        basis_transformed, out=sum_buf)
 
-        out += sum_buf
+        control_matrix += sum_buf
 
-    return out
+    return control_matrix
 
 
 def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
