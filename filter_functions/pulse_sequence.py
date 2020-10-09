@@ -281,7 +281,7 @@ class PulseSequence:
         self._filter_function_gen = None
         self._filter_function_pc = None
         self._filter_function_pc_gen = None
-        self._intermediates = None
+        self._intermediates = dict()
 
     def __str__(self):
         """String method."""
@@ -464,15 +464,14 @@ class PulseSequence:
         self.diagonalize()
 
         control_matrix = numeric.calculate_control_matrix_from_scratch(
-            self.eigvals, self.eigvecs, self.propagators, omega, self.basis,
-            self.n_opers, self.n_coeffs, self.dt, self.t,
-            show_progressbar=show_progressbar,
-            cache_intermediates=cache_intermediates
+            self.eigvals, self.eigvecs, self.propagators, omega, self.basis, self.n_opers,
+            self.n_coeffs, self.dt, self.t, intermediates=self._intermediates,
+            show_progressbar=show_progressbar, cache_intermediates=cache_intermediates,
         )
 
         if cache_intermediates:
             control_matrix, intermediates = control_matrix
-            self._intermediates = intermediates
+            self._intermediates.update(**intermediates)
 
         self.cache_control_matrix(omega, control_matrix)
 
@@ -906,6 +905,7 @@ class PulseSequence:
                 - _filter_function_gen
                 - _filter_function_pc
                 - _filter_function_pc_gen
+                - _intermediates['control_matrix_step']
 
             If set to 'frequency dependent' only attributes that are
             functions of frequency are initalized to ``None``.
@@ -929,11 +929,17 @@ class PulseSequence:
             attrs = filter_function_attrs.union({'_control_matrix',
                                                  '_control_matrix_pc',
                                                  '_total_phases'})
+            # Remove frequency dependent control_matrix_step from intermediates
+            self._intermediates.pop('control_matrix_step', None)
         else:
+            # method == all
             attrs = filter_function_attrs.union(default_attrs, concatenation_attrs)
 
         for attr in attrs:
-            setattr(self, attr, None)
+            if attr != '_intermediates':
+                setattr(self, attr, None)
+            else:
+                setattr(self, attr, dict())
 
     def propagator_at_arb_t(self, t: Coefficients) -> ndarray:
         """
@@ -1598,10 +1604,9 @@ def concatenate(
             # calculate the control matrix for the noise operators that are
             # not present in pulse
             control_matrix_atomic[i, ~idx] = numeric.calculate_control_matrix_from_scratch(
-                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega,
-                pulse.basis, newpulse.n_opers[~idx],
-                newpulse.n_coeffs[~idx, seg_idx[i]:seg_idx[i+1]],
-                pulse.dt, pulse.t, show_progressbar
+                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis,
+                newpulse.n_opers[~idx], newpulse.n_coeffs[~idx, seg_idx[i]:seg_idx[i+1]],
+                pulse.dt, t=pulse.t, show_progressbar=show_progressbar, cache_intermediates=False
             )
 
     # Set the total propagator for possible future concatenations (if not done
@@ -2339,10 +2344,10 @@ def extend(
                 newpulse, n_oper_identifiers[n_ops_counter:], 'noise'
             )
             control_matrix[n_ops_counter:] = numeric.calculate_control_matrix_from_scratch(
-                newpulse.eigvals, newpulse.eigvecs, newpulse.propagators,
-                omega, newpulse.basis, newpulse.n_opers[newpulse_n_oper_inds],
-                newpulse.n_coeffs[newpulse_n_oper_inds], newpulse.dt,
-                newpulse.t, show_progressbar=show_progressbar
+                newpulse.eigvals, newpulse.eigvecs, newpulse.propagators, omega, newpulse.basis,
+                newpulse.n_opers[newpulse_n_oper_inds], newpulse.n_coeffs[newpulse_n_oper_inds],
+                newpulse.dt, t=newpulse.t, show_progressbar=show_progressbar,
+                cache_intermediates=False
             )
 
             filter_function[n_ops_counter:, n_ops_counter:] = numeric.calculate_filter_function(
