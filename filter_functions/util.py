@@ -72,14 +72,13 @@ Exceptions
 """
 import functools
 import inspect
-import io
 import json
 import operator
 import os
 import re
 import string
 from itertools import zip_longest
-from typing import Callable, Generator, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Iterable, List, Sequence, Tuple, Union
 
 import numpy as np
 from numpy import linalg as nla
@@ -90,50 +89,51 @@ from .types import Operator, State
 try:
     import jupyter_client
     import requests
-    from jupyter_core.paths import jupyter_runtime_dir
-    from notebook.utils import check_pid
+    from notebook.notebookapp import list_running_servers
     from requests.compat import urljoin
-
-    def _list_running_servers(runtime_dir: str = None) -> Generator:
-        """Iterate over the server info files of running notebook servers.
-
-        Given a runtime directory, find nbserver-* files in the security
-        directory, and yield dicts of their information, each one pertaining to
-        a currently running notebook server instance.
-
-        Copied from notebook.notebookapp.list_running_servers() (version 5.7.8)
-        since the highest version compatible with Python 3.5 (version 5.6.0)
-        has a bug.
-        """
-        if runtime_dir is None:
-            runtime_dir = jupyter_runtime_dir()
-
-        # The runtime dir might not exist
-        if not os.path.isdir(runtime_dir):
-            return
-
-        for file_name in os.listdir(runtime_dir):
-            if re.match('nbserver-(.+).json', file_name):
-                with io.open(os.path.join(runtime_dir, file_name), encoding='utf-8') as f:
-                    info = json.load(f)
-
-                # Simple check whether that process is really still running
-                # Also remove leftover files from IPython 2.x without a pid
-                # field
-                if ('pid' in info) and check_pid(info['pid']):
-                    yield info
-                else:
-                    # If the process has died, try to delete its info file
-                    try:
-                        os.unlink(os.path.join(runtime_dir, file_name))
-                    except OSError:
-                        pass  # TODO: This should warn or log or something
 
     def _get_notebook_name() -> str:
         """
         Return the full path of the jupyter notebook.
 
         See https://github.com/jupyter/notebook/issues/1000
+
+        Jupyter notebook is licensed as follows:
+
+        This project is licensed under the terms of the Modified BSD License
+        (also known as New or Revised or 3-Clause BSD), as follows:
+
+        - Copyright (c) 2001-2015, IPython Development Team
+        - Copyright (c) 2015-, Jupyter Development Team
+
+        All rights reserved.
+
+        Redistribution and use in source and binary forms, with or without
+        modification, are permitted provided that the following conditions are
+        met:
+
+        Redistributions of source code must retain the above copyright notice,
+        this list of conditions and the following disclaimer.
+
+        Redistributions in binary form must reproduce the above copyright
+        notice, this list of conditions and the following disclaimer in the
+        documentation and/or other materials provided with the distribution.
+
+        Neither the name of the Jupyter Development Team nor the names of its
+        contributors may be used to endorse or promote products derived from
+        this software without specific prior written permission.
+
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+        IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+        TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+        PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+        OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+        SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+        LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+        DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+        THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+        OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         """
         try:
             connection_file = jupyter_client.find_connection_file()
@@ -141,17 +141,20 @@ try:
             return ''
 
         kernel_id = re.search('kernel-(.*).json', connection_file).group(1)
-        servers = _list_running_servers()
+        servers = list_running_servers()
         for ss in servers:
             response = requests.get(urljoin(ss['url'], 'api/sessions'),
                                     params={'token': ss.get('token', '')})
             for nn in json.loads(response.text):
-                if nn['kernel']['id'] == kernel_id:
-                    try:
-                        relative_path = nn['notebook']['path']
-                        return os.path.join(ss['notebook_dir'], relative_path)
-                    except KeyError:
-                        return ''
+                try:
+                    if nn['kernel']['id'] == kernel_id:
+                        try:
+                            relative_path = nn['notebook']['path']
+                            return os.path.join(ss['notebook_dir'], relative_path)
+                        except KeyError:
+                            return ''
+                except TypeError:
+                    return ''
 
         return ''
 
@@ -165,10 +168,9 @@ else:
     # Either not running notebook or not able to determine
     from tqdm import tqdm as _tqdm
 
-__all__ = ['paulis', 'abs2', 'all_array_equal', 'dot_HS',
-           'get_sample_frequencies', 'hash_array_along_axis', 'mdot',
-           'oper_equiv', 'progressbar', 'remove_float_errors', 'tensor',
-           'tensor_insert', 'tensor_merge', 'tensor_transpose']
+__all__ = ['paulis', 'abs2', 'all_array_equal', 'dot_HS', 'get_sample_frequencies',
+           'hash_array_along_axis', 'mdot', 'oper_equiv', 'progressbar', 'remove_float_errors',
+           'tensor', 'tensor_insert', 'tensor_merge', 'tensor_transpose']
 
 # Pauli matrices
 paulis = np.array([
