@@ -359,7 +359,6 @@ def calculate_control_matrix_from_scratch(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         t: Optional[Coefficients] = None,
-        intermediates: Dict[str, ndarray] = None,
         show_progressbar: bool = False,
         cache_intermediates: bool = False
 ) -> ndarray:
@@ -397,10 +396,6 @@ def calculate_control_matrix_from_scratch(
     t: array_like, shape (n_dt+1), optional
         The absolute times of the different segments. Can also be
         computed from *dt*.
-    intermediates: dict[str, ndarray], optional
-        Intermediate terms of the calculation of the control matrix that
-        can be reused here. If None (default), they are computed from
-        scratch.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
     cache_intermediates: bool, optional
@@ -455,33 +450,21 @@ def calculate_control_matrix_from_scratch(
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
 
-    if intermediates is None:
-        intermediates = dict()
-
-    basis_transformed_cache = intermediates.get('basis_transformed')
-    sum_cache = intermediates.get('control_matrix_step')
-    eigvecs_propagated = intermediates.get('eigvecs_propagated')
-    n_opers_transformed = intermediates.get('n_opers_transformed')
+    # Precompute noise opers transformed to eigenbasis of each pulse segment
+    # and Q^\dagger @ V
+    eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
+    n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
 
     # Allocate result and buffers for intermediate arrays
     control_matrix = np.zeros((len(n_opers), len(basis), len(omega)), dtype=complex)
     exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
 
     if cache_intermediates:
-        if basis_transformed_cache is None:
-            basis_transformed_cache = np.empty((len(dt), *basis.shape), dtype=complex)
-        if sum_cache is None:
-            sum_cache = np.empty((len(dt), len(n_opers), len(basis), len(omega)), dtype=complex)
+        basis_transformed_cache = np.empty((len(dt), *basis.shape), dtype=complex)
+        sum_cache = np.empty((len(dt), len(n_opers), len(basis), len(omega)), dtype=complex)
     else:
         basis_transformed = np.empty(basis.shape, dtype=complex)
         sum_buf = np.empty((len(n_opers), len(basis), len(omega)), dtype=complex)
-
-    # Precompute noise opers transformed to eigenbasis of each pulse segment
-    # and Q^\dagger @ V
-    if eigvecs_propagated is None:
-        eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
-    if n_opers_transformed is None:
-        n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
 
     # Optimize the contraction path dynamically since it differs for different
     # values of d
@@ -491,32 +474,24 @@ def calculate_control_matrix_from_scratch(
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
 
-        # Assign references to the locations in the cache for the quantities
-        # that should be stored
-        if sum_cache is not None:
-            sum_buf = sum_cache[g]
-        if basis_transformed_cache is not None:
+        if cache_intermediates:
+            # Assign references to the locations in the cache for the quantities
+            # that should be stored
             basis_transformed = basis_transformed_cache[g]
+            sum_buf = sum_cache[g]
 
-        if intermediates.get('basis_transformed') is None:
-            # No previous cache exists, have to compute
-            basis_transformed = _transform_basis(basis, eigvecs_propagated[g],
-                                                 out=basis_transformed)
-
+        basis_transformed = _transform_basis(basis, eigvecs_propagated[g],
+                                             out=basis_transformed)
         int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
-        # sum_buf is always overwritten, irrespective of whether a cache
-        # exists or not, as it depends on omega
         sum_buf = expr(util.cexp(omega*t[g]), n_opers_transformed[:, g], int_buf,
                        basis_transformed, out=sum_buf)
 
         control_matrix += sum_buf
 
     if cache_intermediates:
-        intermediates.update(basis_transformed=basis_transformed_cache,
-                             control_matrix_step=sum_cache,
-                             eigvecs_propagated=eigvecs_propagated,
-                             n_opers_transformed=n_opers_transformed)
-
+        intermediates = dict(n_opers_transformed=n_opers_transformed,
+                             basis_transformed=basis_transformed_cache,
+                             control_matrix_step=sum_cache)
         return control_matrix, intermediates
 
     return control_matrix

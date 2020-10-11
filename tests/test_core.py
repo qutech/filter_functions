@@ -560,7 +560,6 @@ class CoreTest(testutil.TestCase):
                                                                        pulse.n_opers,
                                                                        pulse.eigvecs))
         eigvecs_prop = numeric._propagate_eigenvectors(pulse.propagators[:-1], pulse.eigvecs)
-        self.assertArrayAlmostEqual(pulse._intermediates['eigvecs_propagated'], eigvecs_prop)
         basis_transformed = np.einsum('gba,kbc,gcd->gkad',
                                       eigvecs_prop.conj(), pulse.basis, eigvecs_prop)
         self.assertArrayAlmostEqual(pulse._intermediates['basis_transformed'], basis_transformed,

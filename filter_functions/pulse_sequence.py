@@ -465,8 +465,8 @@ class PulseSequence:
 
         control_matrix = numeric.calculate_control_matrix_from_scratch(
             self.eigvals, self.eigvecs, self.propagators, omega, self.basis, self.n_opers,
-            self.n_coeffs, self.dt, self.t, intermediates=self._intermediates,
-            show_progressbar=show_progressbar, cache_intermediates=cache_intermediates,
+            self.n_coeffs, self.dt, self.t, show_progressbar=show_progressbar,
+            cache_intermediates=cache_intermediates
         )
 
         if cache_intermediates:
