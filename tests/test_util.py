@@ -453,11 +453,13 @@ class UtilTest(testutil.TestCase):
 
     def test_oper_equiv(self):
         with self.assertRaises(ValueError):
-            util.oper_equiv(*[np.ones((1, 2, 3))]*2)
+            util.oper_equiv(rng.standard_normal((2, 2)),
+                            rng.standard_normal((3, 3)))
 
         for d in rng.randint(2, 10, (5,)):
             psi = rng.standard_normal((d, 1)) + 1j*rng.standard_normal((d, 1))
-            U = testutil.rand_herm(d).squeeze()
+            # Also test broadcasting
+            U = testutil.rand_herm(d, rng.randint(1, 11)).squeeze()
             phase = rng.standard_normal()
 
             result = util.oper_equiv(psi, psi*np.exp(1j*phase))
@@ -473,27 +475,31 @@ class UtilTest(testutil.TestCase):
             result = util.oper_equiv(psi, psi*np.exp(1j*phase),
                                      normalized=True, eps=1e-13)
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase, places=5)
+            self.assertArrayAlmostEqual(result[1], phase, atol=1e-5)
 
             result = util.oper_equiv(psi, psi+1)
             self.assertFalse(result[0])
 
             result = util.oper_equiv(U, U*np.exp(1j*phase))
-            self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase, places=5)
+            self.assertTrue(np.all(result[0]))
+            self.assertArrayAlmostEqual(result[1], phase, atol=1e-5)
 
             result = util.oper_equiv(U*np.exp(1j*phase), U)
-            self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], -phase, places=5)
+            self.assertTrue(np.all(result[0]))
+            self.assertArrayAlmostEqual(result[1], -phase, atol=1e-5)
 
-            U /= np.sqrt(util.dot_HS(U, U))
+            norm = np.sqrt(util.dot_HS(U, U))
+            norm = norm[:, None, None] if U.ndim == 3 else norm
+            U /= norm
+            # TIP: In numpy 1.18 we could just do:
+            # U /= np.expand_dims(np.sqrt(util.dot_HS(U, U)), axis=(-1, -2))
             result = util.oper_equiv(U, U*np.exp(1j*phase), normalized=True,
                                      eps=1e-10)
-            self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase)
+            self.assertTrue(np.all(result[0]))
+            self.assertArrayAlmostEqual(result[1], phase)
 
             result = util.oper_equiv(U, U+1)
-            self.assertFalse(result[0])
+            self.assertFalse(np.all(result[0]))
 
     def test_dot_HS(self):
         U, V = rng.randint(0, 100, (2, 2, 2))
@@ -563,9 +569,9 @@ class UtilTest(testutil.TestCase):
 
         self.assertEqual(ii, list(range(523, 123, -32)))
 
-    def test_parse_optional_parameter(self):
+    def test_parse_optional_parameters(self):
 
-        @util.parse_optional_parameter('foo', [1, 'bar', (2, 3)])
+        @util.parse_optional_parameters({'foo': [1, 'bar', (2, 3)]})
         def foobar(a, b, foo=None, x=2):
             pass
 

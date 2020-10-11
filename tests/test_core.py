@@ -375,8 +375,8 @@ class CoreTest(testutil.TestCase):
                    'fidelity filter function': '_filter_function',
                    'generalized filter function': '_filter_function_gen',
                    'pulse correlation filter function': '_filter_function_pc',
-                   'fidelity pulse correlation filter function': '_filter_function_pc',  # noqa
-                   'generalized pulse correlation filter function': '_filter_function_pc_gen',  # noqa
+                   'fidelity pulse correlation filter function': '_filter_function_pc',
+                   'generalized pulse correlation filter function': '_filter_function_pc_gen',
                    'control matrix': '_control_matrix',
                    'pulse correlation control matrix': '_control_matrix_pc'}
 
@@ -534,8 +534,8 @@ class CoreTest(testutil.TestCase):
         # Test custom identifiers
         letters = rng.choice(list(string.ascii_letters), size=(6, 5),
                              replace=False)
-        ids = [''.join(l) for l in letters[:3]]
-        labels = [''.join(l) for l in letters[3:]]
+        ids = [''.join(c) for c in letters[:3]]
+        labels = [''.join(c) for c in letters[3:]]
         pulse = ff.PulseSequence(
             list(zip([X, Y, Z], rng.standard_normal((3, 2)), ids, labels)),
             list(zip([X, Y, Z], rng.standard_normal((3, 2)), ids, labels)),
@@ -544,6 +544,26 @@ class CoreTest(testutil.TestCase):
 
         self.assertArrayEqual(pulse.c_oper_identifiers, sorted(ids))
         self.assertArrayEqual(pulse.n_oper_identifiers, sorted(ids))
+
+    def test_cache_intermediates(self):
+        """Test caching of intermediate elements"""
+        pulse = testutil.rand_pulse_sequence(3, 4, 2, 3)
+        omega = util.get_sample_frequencies(pulse, 33, spacing='linear')
+        ctrlmat = pulse.get_control_matrix(omega, cache_intermediates=True)
+        filtfun = pulse.get_filter_function(omega, cache_intermediates=True)
+
+        self.assertIsNotNone(pulse._intermediates)
+        self.assertArrayAlmostEqual(pulse._intermediates['control_matrix_step'].sum(0), ctrlmat)
+        self.assertArrayAlmostEqual(numeric.calculate_filter_function(ctrlmat), filtfun)
+        self.assertArrayAlmostEqual(pulse._intermediates['n_opers_transformed'],
+                                    numeric._transform_noise_operators(pulse.n_coeffs,
+                                                                       pulse.n_opers,
+                                                                       pulse.eigvecs))
+        eigvecs_prop = numeric._propagate_eigenvectors(pulse.propagators[:-1], pulse.eigvecs)
+        basis_transformed = np.einsum('gba,kbc,gcd->gkad',
+                                      eigvecs_prop.conj(), pulse.basis, eigvecs_prop)
+        self.assertArrayAlmostEqual(pulse._intermediates['basis_transformed'], basis_transformed,
+                                    atol=1e-14)
 
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
@@ -575,33 +595,29 @@ class CoreTest(testutil.TestCase):
 
             phases = np.empty((n_dt, len(omega)), dtype=complex)
             L = np.empty((n_dt, d**2, d**2))
-            control_matrix_l = np.empty((n_dt, 6, d**2, len(omega)),
+            control_matrix_g = np.empty((n_dt, 6, d**2, len(omega)),
                                         dtype=complex)
-            for l, pulse in enumerate(pulses):
-                phases[l] = np.exp(1j*total_pulse.t[l]*omega)
-                L[l] = numeric.liouville_representation(
-                    total_pulse.propagators[l], total_pulse.basis)
-                control_matrix_l[l] = pulse.get_control_matrix(omega)
+            for g, pulse in enumerate(pulses):
+                phases[g] = np.exp(1j*total_pulse.t[g]*omega)
+                L[g] = ff.superoperator.liouville_representation(total_pulse.propagators[g],
+                                                                 total_pulse.basis)
+                control_matrix_g[g] = pulse.get_control_matrix(omega)
 
             # Check that both methods of calculating the control are the same
-            control_matrix_from_atomic = \
-                numeric.calculate_control_matrix_from_atomic(
-                    phases, control_matrix_l, L
-                )
-            control_matrix_from_scratch = \
-                numeric.calculate_control_matrix_from_scratch(
-                    eigvals=total_eigvals,
-                    eigvecs=total_eigvecs,
-                    propagators=total_pulse.propagators,
-                    omega=omega,
-                    basis=total_pulse.basis,
-                    n_opers=n_opers,
-                    n_coeffs=n_coeffs,
-                    dt=total_pulse.dt,
-                    t=total_pulse.t
-                )
-            self.assertArrayAlmostEqual(control_matrix,
-                                        control_matrix_from_scratch)
+            control_matrix_from_atomic = numeric.calculate_control_matrix_from_atomic(
+                phases, control_matrix_g, L
+            )
+            control_matrix_from_scratch = numeric.calculate_control_matrix_from_scratch(
+                eigvals=total_eigvals,
+                eigvecs=total_eigvecs,
+                propagators=total_pulse.propagators,
+                omega=omega,
+                basis=total_pulse.basis,
+                n_opers=n_opers,
+                n_coeffs=n_coeffs,
+                dt=total_pulse.dt
+            )
+            self.assertArrayAlmostEqual(control_matrix, control_matrix_from_scratch)
             # first column (identity element) always zero but susceptible to
             # floating point error, increase atol
             self.assertArrayAlmostEqual(control_matrix_from_scratch,
@@ -811,8 +827,8 @@ class CoreTest(testutil.TestCase):
         self.assertAlmostEqual(infid_1.sum(), infid_2.sum())
         self.assertArrayAlmostEqual(infid_1, infid_2.sum(axis=(0, 1)))
 
-    def test_calculate_error_vector_correlation_functions(self):
-        """Test raises of numeric.error_transfer_matrix"""
+    def test_calculate_decay_amplitudes(self):
+        """Test raises of numeric.calculate_decay_amplitudes"""
         pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
 
         omega = rng.standard_normal(43)
@@ -820,9 +836,36 @@ class CoreTest(testutil.TestCase):
         spectrum = rng.standard_normal(78)
         for i in range(4):
             with self.assertRaises(ValueError):
-                numeric.calculate_error_vector_correlation_functions(
-                    pulse, np.tile(spectrum, [1]*i), omega
-                )
+                numeric.calculate_decay_amplitudes(pulse, np.tile(spectrum, [1]*i), omega)
+
+    def test_calculate_cumulant_function(self):
+        """Test numeric.calculate_cumulant_function"""
+        pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
+
+        omega = rng.standard_normal(43)
+        # single spectrum
+        spectrum = rng.standard_normal(43)
+        Gamma = numeric.calculate_decay_amplitudes(pulse, spectrum, omega)
+        K_1 = numeric.calculate_cumulant_function(pulse, spectrum, omega)
+        K_2 = numeric.calculate_cumulant_function(pulse, decay_amplitudes=Gamma)
+        self.assertArrayAlmostEqual(K_1, K_2)
+
+        with self.assertRaises(ValueError):
+            numeric.calculate_cumulant_function(pulse, None, None, None)
+
+    def test_error_transfer_matrix(self):
+        """Test raises of numeric.error_transfer_matrix."""
+        pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
+        omega = testutil.rng.randn(43)
+        spectrum = np.ones_like(omega)
+        with self.assertRaises(ValueError):
+            ff.error_transfer_matrix(pulse, spectrum)
+
+        with self.assertRaises(TypeError):
+            ff.error_transfer_matrix(cumulant_function=[1, 2, 3])
+
+        with self.assertRaises(ValueError):
+            ff.error_transfer_matrix(cumulant_function=testutil.rng.randn(2, 3, 4))
 
     def test_infidelity_convergence(self):
         omega = {
