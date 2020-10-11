@@ -586,7 +586,8 @@ def calculate_control_matrix_from_scratch(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         t: Optional[Coefficients] = None,
-        show_progressbar: bool = False
+        show_progressbar: bool = False,
+        cache_intermediates: bool = False
 ) -> ndarray:
     r"""
     Calculate the control matrix from scratch, i.e. without knowledge of
@@ -624,11 +625,19 @@ def calculate_control_matrix_from_scratch(
         computed from *dt*.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
+    cache_intermediates: bool, optional
+        Keep and return intermediate terms
+        :math:`\mathcal{G}^{(g)}(\omega)` of the sum so that
+        :math:`\mathcal{R}(\omega)=\sum_g\mathcal{G}^{(g)}(\omega)`.
+        Otherwise the sum is performed in-place.
 
     Returns
     -------
     control_matrix: ndarray, shape (n_nops, d**2, n_omega)
         The control matrix :math:`\tilde{\mathcal{B}}(\omega)`
+    intermediates: dict[str, ndarray]
+        Intermediate results of the calculation. Only if
+        cache_intermediates is True.
 
     Notes
     -----
@@ -663,32 +672,40 @@ def calculate_control_matrix_from_scratch(
     --------
     calculate_control_matrix_from_atomic: Control matrix from concatenation.
     """
+    d = eigvecs.shape[-1]
+
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
 
-    d = eigvecs.shape[-1]
-    # We're lazy
-    n_coeffs = np.asarray(n_coeffs)
-
     # Precompute noise opers transformed to eigenbasis of each pulse segment
-    # and Q^\dagger @ HV
+    # and Q^\dagger @ V
     eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
     n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
 
     # Allocate result and buffers for intermediate arrays
     control_matrix = np.zeros((len(n_opers), len(basis), len(omega)), dtype=complex)
     exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
-    sum_buf = np.empty((len(n_opers), len(basis), len(omega)), dtype=complex)
-    basis_transformed = np.empty(basis.shape, dtype=complex)
+
+    if cache_intermediates:
+        basis_transformed_cache = np.empty((len(dt), *basis.shape), dtype=complex)
+        sum_cache = np.empty((len(dt), len(n_opers), len(basis), len(omega)), dtype=complex)
+    else:
+        basis_transformed = np.empty(basis.shape, dtype=complex)
+        sum_buf = np.empty((len(n_opers), len(basis), len(omega)), dtype=complex)
 
     # Optimize the contraction path dynamically since it differs for different
     # values of d
     expr = oe.contract_expression('o,jmn,omn,knm->jko',
                                   omega.shape, n_opers_transformed[:, 0].shape,
-                                  int_buf.shape, basis_transformed.shape,
-                                  optimize=True)
+                                  int_buf.shape, basis.shape, optimize=True)
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
+
+        if cache_intermediates:
+            # Assign references to the locations in the cache for the quantities
+            # that should be stored
+            basis_transformed = basis_transformed_cache[g]
+            sum_buf = sum_cache[g]
 
         basis_transformed = _transform_basis(basis, eigvecs_propagated[g], out=basis_transformed)
         int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
@@ -696,6 +713,12 @@ def calculate_control_matrix_from_scratch(
                        basis_transformed, out=sum_buf)
 
         control_matrix += sum_buf
+
+    if cache_intermediates:
+        intermediates = dict(n_opers_transformed=n_opers_transformed,
+                             basis_transformed=basis_transformed_cache,
+                             control_matrix_step=sum_cache)
+        return control_matrix, intermediates
 
     return control_matrix
 

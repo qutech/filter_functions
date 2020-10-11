@@ -545,6 +545,26 @@ class CoreTest(testutil.TestCase):
         self.assertArrayEqual(pulse.c_oper_identifiers, sorted(ids))
         self.assertArrayEqual(pulse.n_oper_identifiers, sorted(ids))
 
+    def test_cache_intermediates(self):
+        """Test caching of intermediate elements"""
+        pulse = testutil.rand_pulse_sequence(3, 4, 2, 3)
+        omega = util.get_sample_frequencies(pulse, 33, spacing='linear')
+        ctrlmat = pulse.get_control_matrix(omega, cache_intermediates=True)
+        filtfun = pulse.get_filter_function(omega, cache_intermediates=True)
+
+        self.assertIsNotNone(pulse._intermediates)
+        self.assertArrayAlmostEqual(pulse._intermediates['control_matrix_step'].sum(0), ctrlmat)
+        self.assertArrayAlmostEqual(numeric.calculate_filter_function(ctrlmat), filtfun)
+        self.assertArrayAlmostEqual(pulse._intermediates['n_opers_transformed'],
+                                    numeric._transform_noise_operators(pulse.n_coeffs,
+                                                                       pulse.n_opers,
+                                                                       pulse.eigvecs))
+        eigvecs_prop = numeric._propagate_eigenvectors(pulse.propagators[:-1], pulse.eigvecs)
+        basis_transformed = np.einsum('gba,kbc,gcd->gkad',
+                                      eigvecs_prop.conj(), pulse.basis, eigvecs_prop)
+        self.assertArrayAlmostEqual(pulse._intermediates['basis_transformed'], basis_transformed,
+                                    atol=1e-14)
+
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
         for d, n_dt in zip(rng.randint(2, 10, (3,)),

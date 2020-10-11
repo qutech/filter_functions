@@ -281,6 +281,7 @@ class PulseSequence:
         self._filter_function_gen = None
         self._filter_function_pc = None
         self._filter_function_pc_gen = None
+        self._intermediates = dict()
 
     def __str__(self):
         """String method."""
@@ -423,7 +424,8 @@ class PulseSequence:
         # Set the total propagator
         self.total_propagator = self.propagators[-1]
 
-    def get_control_matrix(self, omega: Coefficients, show_progressbar: bool = False) -> ndarray:
+    def get_control_matrix(self, omega: Coefficients, show_progressbar: bool = False,
+                           cache_intermediates: bool = False) -> ndarray:
         r"""
         Get the control matrix for the frequencies *omega*. If it has
         been cached for the same frequencies, the cached version is
@@ -436,6 +438,9 @@ class PulseSequence:
         show_progressbar: bool
             Show a progress bar for the calculation of the control
             matrix.
+        cache_intermediates: bool, optional
+            Keep intermediate terms of the calculation that are also
+            required by other computations.
 
         Returns
         -------
@@ -459,18 +464,23 @@ class PulseSequence:
         self.diagonalize()
 
         control_matrix = numeric.calculate_control_matrix_from_scratch(
-            self.eigvals, self.eigvecs, self.propagators, omega, self.basis,
-            self.n_opers, self.n_coeffs, self.dt, self.t,
-            show_progressbar=show_progressbar
+            self.eigvals, self.eigvecs, self.propagators, omega, self.basis, self.n_opers,
+            self.n_coeffs, self.dt, self.t, show_progressbar=show_progressbar,
+            cache_intermediates=cache_intermediates
         )
 
-        # Cache the result
+        if cache_intermediates:
+            control_matrix, intermediates = control_matrix
+            self._intermediates.update(**intermediates)
+
         self.cache_control_matrix(omega, control_matrix)
 
         return self._control_matrix
 
-    def cache_control_matrix(self, omega: Coefficients, control_matrix: Optional[ndarray] = None,
-                             show_progressbar: bool = False) -> None:
+    def cache_control_matrix(self, omega: Coefficients,
+                             control_matrix: Optional[ndarray] = None,
+                             show_progressbar: bool = False,
+                             cache_intermediates: bool = False) -> None:
         r"""
         Cache the control matrix and the frequencies it was calculated
         for.
@@ -485,9 +495,13 @@ class PulseSequence:
         show_progressbar: bool
             Show a progress bar for the calculation of the control
             matrix.
+        cache_intermediates: bool, optional
+            Keep intermediate terms of the calculation that are also
+            required by other computations. Only applies if
+            control_matrix is not supplied.
         """
         if control_matrix is None:
-            control_matrix = self.get_control_matrix(omega, show_progressbar)
+            control_matrix = self.get_control_matrix(omega, show_progressbar, cache_intermediates)
 
         self.omega = omega
         if control_matrix.ndim == 4:
@@ -516,7 +530,8 @@ class PulseSequence:
 
     @util.parse_which_FF_parameter
     def get_filter_function(self, omega: Coefficients, which: str = 'fidelity',
-                            show_progressbar: bool = False) -> ndarray:
+                            show_progressbar: bool = False,
+                            cache_intermediates: bool = False) -> ndarray:
         r"""Get the first-order filter function.
 
         The filter function is cached so it doesn't need to be
@@ -532,6 +547,9 @@ class PulseSequence:
         show_progressbar: bool, optional
             Show a progress bar for the calculation of the control
             matrix.
+        cache_intermediates: bool, optional
+            Keep intermediate terms of the calculation that are also
+            required by other computations.
 
         Returns
         -------
@@ -578,9 +596,8 @@ class PulseSequence:
             # that are frequency-dependent
             self.cleanup('frequency dependent')
 
-        self.cache_filter_function(omega,
-                                   control_matrix=self.get_control_matrix(omega, show_progressbar),
-                                   which=which)
+        control_matrix = self.get_control_matrix(omega, show_progressbar, cache_intermediates)
+        self.cache_filter_function(omega, control_matrix=control_matrix, which=which)
 
         if which == 'fidelity':
             return self._filter_function
@@ -589,9 +606,14 @@ class PulseSequence:
             return self._filter_function_gen
 
     @util.parse_which_FF_parameter
-    def cache_filter_function(self, omega: Coefficients, control_matrix: Optional[ndarray] = None,
-                              filter_function: Optional[ndarray] = None, which: str = 'fidelity',
-                              show_progressbar: bool = False) -> None:
+    def cache_filter_function(
+            self, omega: Coefficients,
+            control_matrix: Optional[ndarray] = None,
+            filter_function: Optional[ndarray] = None,
+            which: str = 'fidelity',
+            show_progressbar: bool = False,
+            cache_intermediates: bool = False
+    ) -> None:
         r"""
         Cache the filter function. If control_matrix.ndim == 4, it is
         taken to be the 'pulse correlation control matrix' and summed
@@ -616,6 +638,9 @@ class PulseSequence:
         show_progressbar: bool
             Show a progress bar for the calculation of the control
             matrix.
+        cache_intermediates: bool, optional
+            Keep intermediate terms of the calculation that are also
+            required by other computations.
 
         See Also
         --------
@@ -623,7 +648,7 @@ class PulseSequence:
         """
         if filter_function is None:
             if control_matrix is None:
-                control_matrix = self.get_control_matrix(omega, show_progressbar)
+                control_matrix = self.get_control_matrix(omega, show_progressbar, cache_intermediates)
 
             self.cache_control_matrix(omega, control_matrix)
             if control_matrix.ndim == 4:
@@ -870,6 +895,7 @@ class PulseSequence:
                 - _total_phases
                 - _control_matrix
                 - _control_matrix_pc
+                - _intermediates
 
             If set to 'all', all of the above as well as the following
             attributes are deleted:
@@ -879,6 +905,7 @@ class PulseSequence:
                 - _filter_function_gen
                 - _filter_function_pc
                 - _filter_function_pc_gen
+                - _intermediates['control_matrix_step']
 
             If set to 'frequency dependent' only attributes that are
             functions of frequency are initalized to ``None``.
@@ -889,12 +916,10 @@ class PulseSequence:
             concatenation.
         """
         default_attrs = {'_eigvals', '_eigvecs', '_propagators'}
-        concatenation_attrs = {'_total_propagator', '_total_phases',
-                               '_total_propagator_liouville',
-                               '_control_matrix', '_control_matrix_pc'}
-        filter_function_attrs = {'omega', '_filter_function',
-                                 '_filter_function_gen', '_filter_function_pc',
-                                 '_filter_function_pc_gen'}
+        concatenation_attrs = {'_total_propagator', '_total_phases', '_total_propagator_liouville',
+                               '_control_matrix', '_control_matrix_pc', '_intermediates'}
+        filter_function_attrs = {'omega', '_filter_function', '_filter_function_gen',
+                                 '_filter_function_pc', '_filter_function_pc_gen'}
 
         if method == 'conservative':
             attrs = default_attrs
@@ -904,11 +929,17 @@ class PulseSequence:
             attrs = filter_function_attrs.union({'_control_matrix',
                                                  '_control_matrix_pc',
                                                  '_total_phases'})
+            # Remove frequency dependent control_matrix_step from intermediates
+            self._intermediates.pop('control_matrix_step', None)
         else:
+            # method == all
             attrs = filter_function_attrs.union(default_attrs, concatenation_attrs)
 
         for attr in attrs:
-            setattr(self, attr, None)
+            if attr != '_intermediates':
+                setattr(self, attr, None)
+            else:
+                setattr(self, attr, dict())
 
     def propagator_at_arb_t(self, t: Coefficients) -> ndarray:
         """
@@ -1573,10 +1604,9 @@ def concatenate(
             # calculate the control matrix for the noise operators that are
             # not present in pulse
             control_matrix_atomic[i, ~idx] = numeric.calculate_control_matrix_from_scratch(
-                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega,
-                pulse.basis, newpulse.n_opers[~idx],
-                newpulse.n_coeffs[~idx, seg_idx[i]:seg_idx[i+1]],
-                pulse.dt, pulse.t, show_progressbar
+                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis,
+                newpulse.n_opers[~idx], newpulse.n_coeffs[~idx, seg_idx[i]:seg_idx[i+1]],
+                pulse.dt, t=pulse.t, show_progressbar=show_progressbar, cache_intermediates=False
             )
 
     # Set the total propagator for possible future concatenations (if not done
@@ -2316,10 +2346,10 @@ def extend(
                 newpulse, n_oper_identifiers[n_ops_counter:], 'noise'
             )
             control_matrix[n_ops_counter:] = numeric.calculate_control_matrix_from_scratch(
-                newpulse.eigvals, newpulse.eigvecs, newpulse.propagators,
-                omega, newpulse.basis, newpulse.n_opers[newpulse_n_oper_inds],
-                newpulse.n_coeffs[newpulse_n_oper_inds], newpulse.dt,
-                newpulse.t, show_progressbar=show_progressbar
+                newpulse.eigvals, newpulse.eigvecs, newpulse.propagators, omega, newpulse.basis,
+                newpulse.n_opers[newpulse_n_oper_inds], newpulse.n_coeffs[newpulse_n_oper_inds],
+                newpulse.dt, t=newpulse.t, show_progressbar=show_progressbar,
+                cache_intermediates=False
             )
 
             filter_function[n_ops_counter:, n_ops_counter:] = numeric.calculate_filter_function(
