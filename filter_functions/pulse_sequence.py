@@ -566,8 +566,8 @@ class PulseSequence:
         .. math::
 
             F_{\alpha\beta,kl}(\omega) =
-                \mathcal{R}_{\alpha k}^\ast(\omega)
-                \mathcal{R}_{\beta l}(\omega),
+                \tilde{\mathcal{B}}_{\alpha k}^\ast(\omega)
+                \tilde{\mathcal{B}}_{\beta l}(\omega),
 
         where :math:`\alpha,\beta` are indices counting the noise
         operators :math:`B_\alpha` and :math:`k,l` indices counting the
@@ -682,9 +682,9 @@ class PulseSequence:
 
             F_{\alpha\beta}^{(gg')}(\omega) =
                 e^{i\omega(t_{g-1} - t_{g'-1})}
-                \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
+                \tilde{\mathcal{B}}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
                 \mathcal{Q}^{(g'-1)\dagger}
-                \mathcal{R}^{(g')\dagger}(\omega),
+                \tilde{\mathcal{B}}^{(g')\dagger}(\omega),
 
         where :math:`g,g'` index the pulse in the sequence and
         :math:`\alpha,\beta` index the noise operators, if it was
@@ -1659,9 +1659,11 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     .. math::
 
-        \mathcal{R}(\omega) &= \mathcal{R}^{(1)}(\omega)\sum_{g=0}^{G-1}
+        \tilde{\mathcal{B}}(\omega)
+                            &= \tilde{\mathcal{B}}^{(1)}(\omega)
+                               \sum_{g=0}^{G-1}
                                \left(e^{i\omega T}\right)^g \\
-                            &= \mathcal{R}^{(1)}(\omega)\bigl(
+                            &= \tilde{\mathcal{B}}^{(1)}(\omega)\bigl(
                                \mathbb{I} - e^{i\omega T}
                                \mathcal{Q}^{(1)}\bigr)^{-1}\bigl(
                                \mathbb{I} - \bigl(e^{i\omega T}
@@ -2195,7 +2197,7 @@ def extend(
         if add_n_opers.shape[1:] != (d, d):
             raise ValueError(f'Expected additional noise operators to have dimensions {(d, d)}, ' +
                              f'not {add_n_opers.shape[1:]}.')
-        if len(set(add_n_oper_id)) != len(add_n_oper_id):
+        if any(n_oper_id in n_oper_identifiers for n_oper_id in add_n_oper_id):
             raise ValueError('Found duplicate noise operator identifiers')
 
         n_opers.extend(add_n_opers)

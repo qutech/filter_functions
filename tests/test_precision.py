@@ -228,6 +228,49 @@ class PrecisionTest(testutil.TestCase):
             self.assertLessEqual(np.abs(1 - (infid_P.sum()/MC)), 0.10)
             self.assertLessEqual(infid.sum(), xi**2/4)
 
+    def test_calculation_with_unitaries(self):
+        for d, G in zip(rng.randint(2, 9, (11,)), rng.randint(2, 11, (11,))):
+            pulses = [testutil.rand_pulse_sequence(d, rng.randint(1, 11), 2, 4)
+                      for g in range(G)]
+
+            for pulse in pulses:
+                # All pulses should have same n_opers for xxx_from_atomic
+                pulse.n_opers = pulses[0].n_opers
+                pulse.n_oper_identifiers = pulses[0].n_oper_identifiers
+                if rng.randint(0, 2):
+                    pulse.t = None
+
+            omega = rng.rand(17)
+            B_atomic = np.array([numeric.calculate_noise_operators_from_scratch(
+                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.n_opers,
+                pulse.n_coeffs, pulse.dt, pulse.t
+            ) for pulse in pulses])
+
+            R_atomic = np.array([numeric.calculate_control_matrix_from_scratch(
+                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis,
+                pulse.n_opers, pulse.n_coeffs, pulse.dt, pulse.t
+            ) for pulse in pulses])
+
+            self.assertArrayAlmostEqual(ff.basis.expand(B_atomic, pulse.basis),
+                                        R_atomic.transpose(0, 3, 1, 2),
+                                        atol=1e-14)
+
+            B = numeric.calculate_noise_operators_from_atomic(
+                np.array([pulse.get_total_phases(omega) for pulse in pulses]),
+                B_atomic,
+                np.array([pulse.total_propagator for pulse in pulses])
+            )
+
+            R = numeric.calculate_control_matrix_from_atomic(
+                np.array([pulse.get_total_phases(omega) for pulse in pulses]),
+                R_atomic,
+                np.array([pulse.total_propagator_liouville for pulse in pulses])
+            )
+
+            self.assertArrayAlmostEqual(ff.basis.expand(B, pulse.basis),
+                                        R.transpose(2, 0, 1),
+                                        atol=1e-14)
+
     def test_integration(self):
         """Test the private function used to set up the integrand."""
         pulses = [testutil.rand_pulse_sequence(3, 1, 2, 3),
