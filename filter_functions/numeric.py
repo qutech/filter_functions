@@ -30,6 +30,14 @@ Functions
     Calculate the control matrix from scratch
 :func:`calculate_control_matrix_periodic`
     Calculate the control matrix for a periodic Hamiltonian
+:func:`calculate_noise_operators_from_atomic`
+    Calculate the interaction picture noise operators from atomic segments.
+    Same calculation as :func:`calculate_control_matrix_from_atomic`
+    except in Hilbert space.
+:func:`calculate_noise_operators_from_scratch`
+    Calculate the interaction picture noise operators from scratch. Same
+    calculation as :func:`calculate_control_matrix_from_scratch` except
+    in Hilbert space.
 :func:`calculate_cumulant_function`
     Calculate the cumulant function for a given ``PulseSequence`` object.
 :func:`calculate_decay_amplitudes`
@@ -68,9 +76,11 @@ from .basis import Basis
 from .types import Coefficients, Operator
 
 __all__ = ['calculate_control_matrix_from_atomic', 'calculate_control_matrix_from_scratch',
-           'calculate_cumulant_function', 'calculate_decay_amplitudes',
-           'calculate_filter_function', 'calculate_pulse_correlation_filter_function',
-           'diagonalize', 'error_transfer_matrix', 'infidelity']
+           'calculate_control_matrix_periodic', 'calculate_noise_operators_from_atomic',
+           'calculate_noise_operators_from_scratch', 'calculate_cumulant_function',
+           'calculate_decay_amplitudes', 'calculate_filter_function',
+           'calculate_pulse_correlation_filter_function', 'diagonalize', 'error_transfer_matrix',
+           'infidelity']
 
 
 def _propagate_eigenvectors(propagators, eigvecs):
@@ -88,6 +98,7 @@ def _transform_noise_operators(n_coeffs, n_opers, eigvecs):
         B_\alpha\rightarrow s_\alpha^{(g)}V^{(g)}B_\alpha V^{(g)\dagger}
 
     """
+    assert len(n_opers) == len(n_coeffs)
     n_opers_transformed = np.empty((len(n_opers), *eigvecs.shape), dtype=complex)
     for j, (n_coeff, n_oper) in enumerate(zip(n_coeffs, n_opers)):
         n_opers_transformed[j] = n_oper @ eigvecs
@@ -278,12 +289,228 @@ def _get_integrand(
     return integrand
 
 
+def calculate_noise_operators_from_atomic(
+        phases: ndarray,
+        noise_operators_atomic: ndarray,
+        propagators: ndarray,
+        show_progressbar: bool = False
+) -> ndarray:
+    r"""
+    Calculate the interaction picutre noise operators from atomic segments.
+
+    Parameters
+    ----------
+    phases: array_like, shape (n_dt, n_omega)
+        The phase factors for :math:`g\in\{0, 1, \dots, G-1\}`.
+    noise_operators_atomic: array_like, shape (n_dt, n_nops, d, d, n_omega)
+        The noise operators in the interaction picture of the g-th
+        pulse, i.e. for :math:`g\in\{1, 2, \dots, G\}`.
+    propagators: array_like, shape (n_dt, d, d)
+        The cumulative propagators of the pulses
+        :math:`g\in\{0, 1, \dots, G-1\}`.
+    show_progressbar: bool, optional
+        Show a progress bar for the calculation.
+
+    Returns
+    -------
+    noise_operators: ndarray, shape (n_omega, n_nops, d, d)
+        The interaction picture noise operators
+        :math:`\tilde{B}_\alpha(\omega)`.
+
+    Notes
+    -----
+    The noise operators are calculated by evaluating the sum
+
+    .. math::
+
+        \tilde{B}_\alpha(\omega) = \sum_{g=1}^G e^{i\omega t_{g-1}}
+             Q_{g-1}^\dagger\tilde{B}_\alpha^{(g)}(\omega) Q_{g-1}.
+
+    The control matrix then corresponds to the coefficients of expansion
+    in an operator basis :math:`\{C_k\}_k`:
+
+    .. math::
+        \tilde{\mathcal{B}}_{k\alpha}(\omega) =
+            \mathrm{tr}(\tilde{B}_\alpha(\omega) C_k).
+
+    Due to differences in implementation (for performance reasons), the
+    axes of the result are transposed compared to the control matrix:
+
+    >>> ctrlmat = calculate_control_matrix_from_atomic(...)
+    >>> ctrlmat.shape
+    (n_nops, d**2, n_omega)
+    >>> noiseops = calculate_noise_operators_from_atomic(...)
+    >>> noiseops.shape
+    (n_omega, n_nops, d, d)
+    >>> ctrlmat_from_noiseops = ff.basis.expand(noiseops, basis)
+    >>> np.allclose(ctrlmat, ctrlmat_from_noiseops.transpose(1, 2, 0))
+    True
+
+    See Also
+    --------
+    :func:`calculate_noise_operators_from_scratch`: Compute the operators from scratch.
+    :func:`calculate_control_matrix_from_atomic`: Same calculation in Liouville space.
+    """
+    n = len(noise_operators_atomic)
+    # Allocate memory
+    noise_operators = np.zeros(noise_operators_atomic.shape[1:], dtype=complex)
+
+    expr = oe.contract_expression('ji,...jk,kl->...il',
+                                  propagators.shape[1:], noise_operators_atomic.shape[1:],
+                                  propagators.shape[1:], optimize=[(0, 1), (0, 1)])
+
+    for g in util.progressbar_range(n, show_progressbar=show_progressbar,
+                                    desc='Calculating noise operators'):
+        noise_operators += expr(propagators[g].conj(),
+                                noise_operators_atomic[g]*phases[g, :, None, None, None],
+                                propagators[g])
+
+    return noise_operators
+
+
+def calculate_noise_operators_from_scratch(
+        eigvals: ndarray,
+        eigvecs: ndarray,
+        propagators: ndarray,
+        omega: Coefficients,
+        n_opers: Sequence[Operator],
+        n_coeffs: Sequence[Coefficients],
+        dt: Coefficients,
+        t: Optional[Coefficients] = None,
+        show_progressbar: bool = False
+) -> ndarray:
+    r"""
+    Calculate the noise operators in interaction picture from scratch.
+
+    Parameters
+    ----------
+    eigvals: array_like, shape (n_dt, d)
+        Eigenvalue vectors for each time pulse segment *g* with the first
+        axis counting the pulse segment, i.e.
+        ``eigvals == array([D_0, D_1, ...])``.
+    eigvecs: array_like, shape (n_dt, d, d)
+        Eigenvector matrices for each time pulse segment *g* with the first
+        axis counting the pulse segment, i.e.
+        ``eigvecs == array([V_0, V_1, ...])``.
+    propagators: array_like, shape (n_dt+1, d, d)
+        The propagators :math:`Q_g = P_g P_{g-1}\cdots P_0` as a (d, d) array
+        with *d* the dimension of the Hilbert space.
+    omega: array_like, shape (n_omega,)
+        Frequencies at which the pulse control matrix is to be evaluated.
+    n_opers: array_like, shape (n_nops, d, d)
+        Noise operators :math:`B_\alpha`.
+    n_coeffs: array_like, shape (n_nops, n_dt)
+        The sensitivities of the system to the noise operators given by
+        *n_opers* at the given time step.
+    dt: array_like, shape (n_dt)
+        Sequence duration, i.e. for the :math:`g`-th pulse
+        :math:`t_g - t_{g-1}`.
+    t: array_like, shape (n_dt+1), optional
+        The absolute times of the different segments. Can also be
+        computed from *dt*.
+    show_progressbar: bool, optional
+        Show a progress bar for the calculation.
+
+    Returns
+    -------
+    noise_operators: ndarray, shape (n_omega, n_nops, d, d)
+        The interaction picture noise operators
+        :math:`\tilde{B}_\alpha(\omega)`.
+
+    Notes
+    -----
+    The interaction picture noise operators are calculated according to
+
+    .. math::
+
+        \tilde{B}_\alpha(\omega) = \sum_{g=1}^G e^{i\omega t_{g-1}}
+            s_\alpha^{(g)} P^{(g)\dagger}\left[
+                \bar{B}^{(g)}_\alpha \circ I^{(g)}(\omega)
+            \right] P^{(g)}
+
+    where
+
+    .. math::
+
+        I^{(g)}_{nm}(\omega) &= \int_0^{t_g - t_{g-1}}\mathrm{d}t\,
+                                e^{i(\omega+\omega_n-\omega_m)t} \\
+                             &= \frac{e^{i(\omega+\omega_n-\omega_m)
+                                (t_g - t_{g-1})} - 1}
+                                {i(\omega+\omega_n-\omega_m)}, \\
+        \bar{B}_\alpha^{(g)} &= V^{(g)\dagger} B_\alpha V^{(g)}, \\
+        P^{(g)} &= V^{(g)\dagger} Q_{g-1},
+
+    and :math:`V^{(g)}` is the matrix of eigenvectors that diagonalizes
+    :math:`\tilde{\mathcal{H}}_n^{(g)}`, :math:`B_\alpha` the
+    :math:`\alpha`-th noise operator, and  :math:`s_\alpha^{(g)}` the
+    noise sensitivity during interval :math:`g`.
+
+    The control matrix then corresponds to the coefficients of expansion
+    in an operator basis :math:`\{C_k\}_k`:
+
+    .. math::
+        \tilde{\mathcal{B}}_{k\alpha}(\omega) =
+            \mathrm{tr}(\tilde{B}_\alpha(\omega) C_k).
+
+    Due to differences in implementation (for performance reasons), the
+    axes of the result are transposed compared to the control matrix:
+
+    >>> ctrlmat = calculate_control_matrix_from_scratch(...)
+    >>> ctrlmat.shape
+    (n_nops, d**2, n_omega)
+    >>> noiseops = calculate_noise_operators_from_scratch(...)
+    >>> noiseops.shape
+    (n_omega, n_nops, d, d)
+    >>> ctrlmat_from_noiseops = ff.basis.expand(noiseops, basis)
+    >>> np.allclose(ctrlmat, ctrlmat_from_noiseops.transpose(1, 2, 0))
+    True
+
+    See Also
+    --------
+    :func:`calculate_noise_operators_from_atomic`: Compute the operators from atomic segments.
+    :func:`calculate_control_matrix_from_scratch`: Same calculation in Liouville space.
+    """
+    if t is None:
+        t = np.concatenate(([0], np.asarray(dt).cumsum()))
+
+    d = eigvecs.shape[-1]
+    n_coeffs = np.asarray(n_coeffs)
+
+    # Precompute noise opers transformed to eigenbasis of each pulse
+    # segment and Q^\dagger @ V
+    eigvecs_propagated = _propagate_eigenvectors(eigvecs, propagators[:-1])
+    n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
+
+    # Allocate memory
+    exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
+    intermediate = np.empty((len(omega), len(n_opers), d, d), dtype=complex)
+    noise_operators = np.zeros((len(omega), len(n_opers), d, d), dtype=complex)
+
+    # Set up reusable expressions
+    expr_1 = oe.contract_expression('akl,okl->oakl',
+                                    n_opers_transformed[:, 0].shape, int_buf.shape)
+    expr_2 = oe.contract_expression('ji,...jk,kl',
+                                    eigvecs_propagated[0].shape, intermediate.shape,
+                                    eigvecs_propagated[0].shape, optimize=[(0, 1), (0, 1)])
+
+    for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
+                                    desc='Calculating noise operators'):
+        int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
+        intermediate = expr_1(n_opers_transformed[:, g],
+                              util.cexp(omega[:, None, None]*t[g])*int_buf, out=intermediate)
+
+        noise_operators += expr_2(eigvecs_propagated[g].conj(), intermediate,
+                                  eigvecs_propagated[g])
+
+    return noise_operators
+
+
 @util.parse_optional_parameters({'which': ('total', 'correlations')})
 def calculate_control_matrix_from_atomic(
         phases: ndarray,
         control_matrix_atomic: ndarray,
         propagators_liouville: ndarray,
-        show_progressbar: Optional[bool] = None,
+        show_progressbar: bool = False,
         which: str = 'total'
 ) -> ndarray:
     r"""
@@ -293,12 +520,12 @@ def calculate_control_matrix_from_atomic(
     Parameters
     ----------
     phases: array_like, shape (n_dt, n_omega)
-        The phase factors for :math:`l\in\{0, 1, \dots, n-1\}`.
+        The phase factors for :math:`g\in\{0, 1, \dots, G-1\}`.
     control_matrix_atomic: array_like, shape (n_dt, n_nops, d**2, n_omega)
-        The pulse control matrices for :math:`l\in\{1, 2, \dots, n\}`.
+        The pulse control matrices for :math:`g\in\{1, 2, \dots, G\}`.
     propagators_liouville: array_like, shape (n_dt, n_nops, d**2, d**2)
         The transfer matrices of the cumulative propagators for
-        :math:`l\in\{0, 1, \dots, n-1\}`.
+        :math:`g\in\{0, 1, \dots, G-1\}`.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
     which: str, ('total', 'correlations')
@@ -309,7 +536,7 @@ def calculate_control_matrix_from_atomic(
     Returns
     -------
     control_matrix: ndarray, shape ([n_pls,] n_nops, d**2, n_omega)
-        The control matrix :math:`\mathcal{R}(\omega)`.
+        The control matrix :math:`\tilde{\mathcal{B}}(\omega)`.
 
     Notes
     -----
@@ -317,8 +544,8 @@ def calculate_control_matrix_from_atomic(
 
     .. math::
 
-        \mathcal{R}(\omega) = \sum_{l=1}^n e^{i\omega t_{l-1}}
-            \mathcal{R}^{(l)}(\omega)\mathcal{Q}^{(l-1)}.
+        \tilde{\mathcal{B}}(\omega) = \sum_{g=1}^G e^{i\omega t_{g-1}}
+            \tilde{\mathcal{B}}^{(g)}(\omega)\mathcal{Q}^{(g-1)}.
 
     See Also
     --------
@@ -368,15 +595,15 @@ def calculate_control_matrix_from_scratch(
     Parameters
     ----------
     eigvals: array_like, shape (n_dt, d)
-        Eigenvalue vectors for each time pulse segment *l* with the
+        Eigenvalue vectors for each time pulse segment *g* with the
         first axis counting the pulse segment, i.e.
         ``eigvals == array([D_0, D_1, ...])``.
     eigvecs: array_like, shape (n_dt, d, d)
-        Eigenvector matrices for each time pulse segment *l* with the
+        Eigenvector matrices for each time pulse segment *g* with the
         first axis counting the pulse segment, i.e.
         ``eigvecs == array([V_0, V_1, ...])``.
     propagators: array_like, shape (n_dt+1, d, d)
-        The propagators :math:`Q_l = P_l P_{l-1}\cdots P_0` as a (d, d)
+        The propagators :math:`Q_g = P_g P_{g-1}\cdots P_0` as a (d, d)
         array with *d* the dimension of the Hilbert space.
     omega: array_like, shape (n_omega,)
         Frequencies at which the pulse control matrix is to be
@@ -390,8 +617,8 @@ def calculate_control_matrix_from_scratch(
         The sensitivities of the system to the noise operators given by
         *n_opers* at the given time step.
     dt: array_like, shape (n_dt)
-        Sequence duration, i.e. for the :math:`l`-th pulse
-        :math:`t_l - t_{l-1}`.
+        Sequence duration, i.e. for the :math:`g`-th pulse
+        :math:`t_g - t_{g-1}`.
     t: array_like, shape (n_dt+1), optional
         The absolute times of the different segments. Can also be
         computed from *dt*.
@@ -401,7 +628,7 @@ def calculate_control_matrix_from_scratch(
     Returns
     -------
     control_matrix: ndarray, shape (n_nops, d**2, n_omega)
-        The control matrix :math:`\mathcal{R}(\omega)`
+        The control matrix :math:`\tilde{\mathcal{B}}(\omega)`
 
     Notes
     -----
@@ -409,27 +636,27 @@ def calculate_control_matrix_from_scratch(
 
     .. math::
 
-        \mathcal{R}_{\alpha k}(\omega) = \sum_{l=1}^n
-            e^{i\omega t_{l-1}} s_\alpha^{(l)}\mathrm{tr}\left(
-                [\bar{B}_\alpha^{(l)}\circ I(\omega)] \bar{C}_k^{(l)}
+        \tilde{\mathcal{B}}_{\alpha k}(\omega) = \sum_{g=1}^G
+            e^{i\omega t_{g-1}} s_\alpha^{(g)}\mathrm{tr}\left(
+                [\bar{B}_\alpha^{(g)}\circ I(\omega)] \bar{C}_k^{(g)}
             \right)
 
     where
 
     .. math::
 
-        I^{(l)}_{nm}(\omega) &= \int_0^{t_l - t_{l-1}}\mathrm{d}t\,
+        I^{(g)}_{nm}(\omega) &= \int_0^{t_l - t_{g-1}}\mathrm{d}t\,
                                 e^{i(\omega+\omega_n-\omega_m)t} \\
                              &= \frac{e^{i(\omega+\omega_n-\omega_m)
-                                (t_l - t_{l-1})} - 1}
+                                (t_l - t_{g-1})} - 1}
                                 {i(\omega+\omega_n-\omega_m)}, \\
-        \bar{B}_\alpha^{(l)} &= V^{(l)\dagger} B_\alpha V^{(l)}, \\
-        \bar{C}_k^{(l)} &= V^{(l)\dagger} Q_{l-1} C_k Q_{l-1}^\dagger V^{(l)},
+        \bar{B}_\alpha^{(g)} &= V^{(g)\dagger} B_\alpha V^{(g)}, \\
+        \bar{C}_k^{(g)} &= V^{(g)\dagger} Q_{g-1} C_k Q_{g-1}^\dagger V^{(g)},
 
-    and :math:`V^{(l)}` is the matrix of eigenvectors that diagonalizes
-    :math:`\tilde{\mathcal{H}}_n^{(l)}`, :math:`B_\alpha` the
-    :math:`\alpha`-th noise operator :math:`s_\alpha^{(l)}` the noise
-    sensitivity during interval :math:`l`, and :math:`C_k` the
+    and :math:`V^{(g)}` is the matrix of eigenvectors that diagonalizes
+    :math:`\tilde{\mathcal{H}}_n^{(g)}`, :math:`B_\alpha` the
+    :math:`\alpha`-th noise operator :math:`s_\alpha^{(g)}` the noise
+    sensitivity during interval :math:`g`, and :math:`C_k` the
     :math:`k`-th basis element.
 
     See Also
@@ -441,7 +668,6 @@ def calculate_control_matrix_from_scratch(
 
     d = eigvecs.shape[-1]
     # We're lazy
-    E = omega
     n_coeffs = np.asarray(n_coeffs)
 
     # Precompute noise opers transformed to eigenbasis of each pulse segment
@@ -450,24 +676,24 @@ def calculate_control_matrix_from_scratch(
     n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
 
     # Allocate result and buffers for intermediate arrays
-    control_matrix = np.zeros((len(n_opers), len(basis), len(E)), dtype=complex)
-    exp_buf, int_buf = np.empty((2, len(E), d, d), dtype=complex)
-    sum_buf = np.empty((len(n_opers), len(basis), len(E)), dtype=complex)
+    control_matrix = np.zeros((len(n_opers), len(basis), len(omega)), dtype=complex)
+    exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
+    sum_buf = np.empty((len(n_opers), len(basis), len(omega)), dtype=complex)
     basis_transformed = np.empty(basis.shape, dtype=complex)
 
     # Optimize the contraction path dynamically since it differs for different
     # values of d
     expr = oe.contract_expression('o,jmn,omn,knm->jko',
-                                  E.shape, n_opers_transformed[:, 0].shape,
+                                  omega.shape, n_opers_transformed[:, 0].shape,
                                   int_buf.shape, basis_transformed.shape,
                                   optimize=True)
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
 
         basis_transformed = _transform_basis(basis, eigvecs_propagated[g], out=basis_transformed)
-        int_buf = _first_order_integral(E, eigvals[g], dt[g], exp_buf, int_buf)
-        sum_buf = expr(util.cexp(E*t[g]), n_opers_transformed[:, g], int_buf, basis_transformed,
-                       out=sum_buf)
+        int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
+        sum_buf = expr(util.cexp(omega*t[g]), n_opers_transformed[:, g], int_buf,
+                       basis_transformed, out=sum_buf)
 
         control_matrix += sum_buf
 
@@ -487,8 +713,8 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     phases: ndarray, shape (n_omega,)
         The phase factors :math:`e^{i\omega T}` of the atomic pulse.
     control_matrix: ndarray, shape (n_nops, d**2, n_omega)
-        The control matrix :math:`\mathcal{R}^{(1)}(\omega)` of the
-        atomic pulse.
+        The control matrix :math:`\tilde{\mathcal{B}}^{(1)}(\omega)` of
+        the atomic pulse.
     total_propagator_liouville: ndarray, shape (d**2, d**2)
         The transfer matrix :math:`\mathcal{Q}^{(1)}` of the atomic
         pulse.
@@ -498,8 +724,8 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     Returns
     -------
     control_matrix: ndarray, shape (n_nops, d**2, n_omega)
-        The control matrix :math:`\mathcal{R}(\omega)` of the repeated
-        pulse.
+        The control matrix :math:`\tilde{\mathcal{B}}(\omega)` of the
+        repeated pulse.
 
     Notes
     -----
@@ -507,9 +733,11 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
 
     .. math::
 
-        \mathcal{R}(\omega) &= \mathcal{R}^{(1)}(\omega)\sum_{g=0}^{G-1}
+        \tilde{\mathcal{B}}(\omega)
+                            &= \tilde{\mathcal{B}}^{(1)}(\omega)
+                               \sum_{g=0}^{G-1}
                                \left(e^{i\omega T}\right)^g \\
-                            &= \mathcal{R}^{(1)}(\omega)\bigl(
+                            &= \tilde{\mathcal{B}}^{(1)}(\omega)\bigl(
                                \mathbb{I} - e^{i\omega T}
                                \mathcal{Q}^{(1)}\bigr)^{-1}\bigl(
                                \mathbb{I} - \bigl(e^{i\omega T}
@@ -558,11 +786,11 @@ def calculate_cumulant_function(
         show_progressbar: bool = False,
         memory_parsimonious: bool = False
 ) -> ndarray:
-    r"""Calculate the cumulant function :math:`K(\tau)`.
+    r"""Calculate the cumulant function :math:`\mathcal{K}(\tau)`.
 
     The error transfer matrix is obtained from the cumulant function by
     exponentiation,
-    :math:`\langle\tilde{\mathcal{U}}\rangle = \exp K(\tau)`.
+    :math:`\langle\tilde{\mathcal{U}}\rangle = \exp\mathcal{K}(\tau)`.
 
     Parameters
     ----------
@@ -660,7 +888,7 @@ def calculate_cumulant_function(
     See Also
     --------
     calculate_decay_amplitudes: Calculate the :math:`\Gamma_{\alpha\beta,kl}`
-    error_transfer_matrix: Calculate the error transfer matrix :math:`\exp K`.
+    error_transfer_matrix: Calculate the error transfer matrix :math:`\exp\mathcal{K}`.
     infidelity: Calculate only infidelity of a pulse.
     pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
     calculate_pulse_correlation_filter_function
@@ -745,8 +973,8 @@ def calculate_decay_amplitudes(
 
         .. math::
 
-            \mathcal{R}^\ast_{\alpha k}(\omega)S_{\alpha\beta}(\omega)
-            \mathcal{R}_{\beta l}(\omega)
+            \tilde{\mathcal{B}}^\ast_{\alpha k}(\omega)
+            S_{\alpha\beta}(\omega)\tilde{\mathcal{B}}_{\beta l}(\omega)
 
         can consume quite a large amount of memory if set up for all
         :math:`\alpha,\beta,k,l` at once. If ``True``, it is only set up
@@ -773,8 +1001,8 @@ def calculate_decay_amplitudes(
     .. math::
 
         \Gamma_{\alpha\beta, kl} = \int\frac{\mathrm{d}\omega}{2\pi}
-            \mathcal{R}^\ast_{\alpha k}(\omega)
-            S_{\alpha\beta}(\omega)\mathcal{R}_{\beta l}(\omega).
+            \tilde{\mathcal{B}}^\ast_{\alpha k}(\omega)
+            S_{\alpha\beta}(\omega)\tilde{\mathcal{B}}_{\beta l}(\omega).
 
     If pulse correlations are taken into account, they are given by
 
@@ -882,8 +1110,9 @@ def calculate_filter_function(control_matrix: ndarray, which: str = 'fidelity') 
 
     .. math::
 
-        F_{\alpha\beta,kl}(\omega) = \mathcal{R}_{\alpha k}^\ast(\omega)
-                                     \mathcal{R}_{\beta l}(\omega),
+        F_{\alpha\beta,kl}(\omega) =
+            \tilde{\mathcal{B}}_{\alpha k}^\ast(\omega)
+            \tilde{\mathcal{B}}_{\beta l}(\omega),
 
     where :math:`\alpha,\beta` are indices counting the noise operators
     :math:`B_\alpha` and :math:`k,l` indices counting the basis elements
@@ -943,12 +1172,13 @@ def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
     .. math::
 
         F_{\alpha\beta,kl}^{(gg')}(\omega) = \bigl[
-            \mathcal{Q}^{(g'-1)\dagger}\mathcal{R}^{(g')\dagger}(\omega)
+            \mathcal{Q}^{(g'-1)\dagger}
+            \tilde{\mathcal{B}}^{(g')\dagger}(\omega)
         \bigr]_{k\alpha} \bigl[
-            \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
+            \tilde{\mathcal{B}}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
         \bigr]_{\beta l} e^{i\omega(t_{g-1} - t_{g'-1})},
 
-    with :math:`\mathcal{R}^{(g)}` the control matrix of the
+    with :math:`\tilde{\mathcal{B}}^{(g)}` the control matrix of the
     :math:`g`-th pulse. The fidelity pulse correlation function is
     obtained by tracing out the basis indices,
 
@@ -1087,9 +1317,9 @@ def error_transfer_matrix(
 
     .. math::
 
-        \tilde{\mathcal{U}} = \exp K(\tau)
+        \tilde{\mathcal{U}} = \exp\mathcal{K}(\tau)
 
-    with :math:`K(\tau)` the cumulant function (see
+    with :math:`\mathcal{K}(\tau)` the cumulant function (see
     :func:`calculate_cumulant_function`). For Gaussian noise this
     expression is exact when taking into account the decay amplitudes
     :math:`\Gamma` and frequency shifts :math:`\Delta`. As the latter
@@ -1098,7 +1328,8 @@ def error_transfer_matrix(
 
     For non-Gaussian noise the expression above is perturbative and
     includes noise up to order :math:`\xi^2` and hence
-    :math:`\tilde{\mathcal{U}} = \mathbb{1} + K(\tau) + \mathcal{O}(\xi^2)`
+    :math:`\tilde{\mathcal{U}} = \mathbb{1} + \mathcal{K}(\tau) +
+    \mathcal{O}(\xi^2)`
     (although it is evaluated as a matrix exponential in any case).
 
     Given the above expression of the error transfer matrix, the
@@ -1112,7 +1343,7 @@ def error_transfer_matrix(
 
     See Also
     --------
-    calculate_cumulant_function: Calculate the cumulant function :math:`K`
+    calculate_cumulant_function: Calculate the cumulant function :math:`\mathcal{K}`
     calculate_decay_amplitudes: Calculate the :math:`\Gamma_{\alpha\beta,kl}`
     infidelity: Calculate only infidelity of a pulse.
     """
@@ -1264,7 +1495,7 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
         \xi^2 = \sum_\alpha\left[
                     \lvert\lvert B_\alpha\rvert\rvert^2
                     \int_{-\infty}^\infty\frac{\mathrm{d}\omega}{2\pi}
-                    S_\alpha(\omega)\left(\sum_ls_\alpha^{(l)}\Delta t_l
+                    S_\alpha(\omega)\left(\sum_gs_\alpha^{(g)}\Delta t_g
                     \right)^2
                 \right].
 
