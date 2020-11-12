@@ -615,7 +615,7 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
                     {\mathrm{tr}\big(C_j^\dagger C_j\big)}.
 
     """
-    coefficients = np.einsum('...ij,bji->...b', np.asarray(M), basis)
+    coefficients = np.tensordot(M, basis, axes=[(-2, -1), (-1, -2)])
 
     if not normalized:
         coefficients /= np.einsum('bij,bji->b', basis, basis).real
@@ -698,8 +698,7 @@ def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False) -> ndarray:
     return coeffs.squeeze() if square else coeffs
 
 
-def equivalent_pauli_basis_elements(idx: Union[Sequence[int], int],
-                                    N: int) -> ndarray:
+def equivalent_pauli_basis_elements(idx: Union[Sequence[int], int], N: int) -> ndarray:
     """
     Get the indices of the equivalent (up to identities tensored to it)
     basis elements of Pauli bases of qubits at position idx in the total

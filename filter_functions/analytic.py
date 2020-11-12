@@ -78,9 +78,9 @@ def CPMG(z, n):
         return 8*np.sin(z/4/n)**4*np.cos(z/2)**2/np.cos(z/2/n)**2
 
 
-def CDD(z, l):
-    return 2**(2*l + 1)*np.sin(z/2**(l + 1))**2 *\
-        np.product([np.sin(z/2**(k + 1))**2 for k in range(1, l+1)], axis=0)
+def CDD(z, g):
+    return 2**(2*g + 1)*np.sin(z/2**(g + 1))**2 *\
+        np.product([np.sin(z/2**(k + 1))**2 for k in range(1, g+1)], axis=0)
 
 
 def UDD(z, n):

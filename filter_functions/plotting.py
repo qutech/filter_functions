@@ -37,8 +37,8 @@ Functions
     ``PulseSequence``
 :func:`plot_pulse_train`
     Plot the pulse train of a given ``PulseSequence``
-:func:`plot_error_transfer_matrix`
-    Plot the error transfer matrix of a ``PulseSequence`` for a given
+:func:`plot_cumulant_function`
+    Plot the cumulant function of a ``PulseSequence`` for a given
     spectrum as an image.
 
 """
@@ -57,7 +57,7 @@ from . import numeric, util
 from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes,
                     FigureAxesLegend, FigureGrid, Grid, Operator, State)
 
-__all__ = ['plot_error_transfer_matrix', 'plot_filter_function', 'plot_infidelity_convergence',
+__all__ = ['plot_cumulant_function', 'plot_infidelity_convergence', 'plot_filter_function',
            'plot_pulse_correlation_filter_function', 'plot_pulse_train']
 
 try:
@@ -105,9 +105,8 @@ def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
     return b
 
 
-@util.parse_optional_parameter('prop', ['total', 'piecewise'])
-def get_states_from_prop(U: Sequence[Operator],
-                         psi0: Optional[State] = None,
+@util.parse_optional_parameters({'prop': ['total', 'piecewise']})
+def get_states_from_prop(U: Sequence[Operator], psi0: Optional[State] = None,
                          prop: str = 'total') -> ndarray:
     r"""
     Get the the quantum state at time t from the propagator and the
@@ -151,7 +150,8 @@ def plot_bloch_vector_evolution(
         n_samples: Optional[int] = None,
         cmap: Optional[Colormap] = None,
         show: bool = True, return_Bloch: bool = False,
-        **bloch_kwargs) -> Union[None, qt.Bloch]:
+        **bloch_kwargs
+) -> Union[None, qt.Bloch]:
     r"""
     Plot the evolution of the Bloch vector under the given pulse
     sequence.
@@ -252,7 +252,8 @@ def plot_pulse_train(
         plot_kw: Optional[dict] = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
-        **figure_kw) -> FigureAxesLegend:
+        **figure_kw
+) -> FigureAxesLegend:
     """
     Plot the pulsetrain of the ``PulseSequence`` *pulse*.
 
@@ -334,7 +335,8 @@ def plot_filter_function(
         plot_kw: dict = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
-        **figure_kw) -> FigureAxesLegend:
+        **figure_kw
+) -> FigureAxesLegend:
     r"""
     Plot the fidelity filter function(s) of the given PulseSequence for
     positive frequencies. As of now only the diagonal elements of
@@ -455,7 +457,8 @@ def plot_pulse_correlation_filter_function(
         plot_kw: dict = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
-        **figure_kw) -> FigureAxesLegend:
+        **figure_kw
+) -> FigureAxesLegend:
     r"""
     Plot the fidelity pulse correlation filter functions of the given
     PulseSequence if they were computed during concatenation for
@@ -582,8 +585,7 @@ def plot_pulse_correlation_filter_function(
     return fig, axes, legend
 
 
-def plot_infidelity_convergence(n_samples: Sequence[int],
-                                infids: Sequence[float]) -> FigureAxes:
+def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float]) -> FigureAxes:
     """
     Plot the convergence of the infidelity integral. The function
     arguments are those returned by
@@ -621,17 +623,17 @@ def plot_infidelity_convergence(n_samples: Sequence[int],
     return fig, ax
 
 
-@util.parse_optional_parameter('colorscale', ['linear', 'log'])
-def plot_error_transfer_matrix(
+@util.parse_optional_parameters({'colorscale': ['linear', 'log']})
+def plot_cumulant_function(
         pulse: Optional['PulseSequence'] = None,
         spectrum: Optional[ndarray] = None,
         omega: Optional[Coefficients] = None,
-        error_transfer_matrix: Optional[ndarray] = None,
+        cumulant_function: Optional[ndarray] = None,
         n_oper_identifiers: Optional[Sequence[int]] = None,
         basis_labels: Optional[Sequence[str]] = None,
         colorscale: str = 'linear',
         linthresh: Optional[float] = None,
-        cbar_label: str = 'Error transfer matrix',
+        cbar_label: str = 'Cumulant Function',
         basis_labelsize: Optional[int] = None,
         fig: Optional[Figure] = None,
         grid: Optional[Grid] = None,
@@ -639,15 +641,18 @@ def plot_error_transfer_matrix(
         grid_kw: Optional[dict] = None,
         cbar_kw: Optional[dict] = None,
         imshow_kw: Optional[dict] = None,
-        **figure_kw) -> FigureGrid:
-    """
-    Plot the error transfer matrix for a given noise spectrum as an
-    image.
+        **figure_kw
+) -> FigureGrid:
+    r"""Plot the cumulant function for a given noise spectrum as an image.
+
+    The cumulant function generates the error transfer matrix
+    :math:`\tilde{\mathcal{U}}` exactly for Gaussian noise and to second
+    order for non-Gaussian noise.
 
     The function may be called with either a ``PulseSequence``, a
-    spectrum, and a list of frequencies in which case the error transfer
-    matrix is calculated for those parameters, or with a precomputed
-    error transfer matrix.
+    spectrum, and a list of frequencies in which case the cumulant
+    function is calculated for those parameters, or with a precomputed
+    cumulant function.
 
     As of now, only auto-correlated spectra are implemented.
 
@@ -659,17 +664,15 @@ def plot_error_transfer_matrix(
         The two-sided noise spectrum.
     omega: array_like
         The frequencies for which to evaluate the error transfer matrix.
-        Note that they should be symmetric around zero, that is, include
-        negative frequencies.
-    error_transfer_matrix: ndarray, shape
-        A precomputed error transfer matrix. If given, *pulse*,
-        *spectrum*, *omega* are not required.
+    cumulant_function: ndarray, shape (n_nops, d**2, d**2)
+        A precomputed cumulant function. If given, *pulse*, *spectrum*,
+        *omega* are not required.
     n_oper_identifiers: array_like, optional
-        The identifiers of the noise operators for which the error
-        transfer matrix should be plotted. All identifiers can be
-        accessed via ``pulse.n_oper_identifiers``. Defaults to all.
+        The identifiers of the noise operators for which the cumulant
+        function should be plotted. All identifiers can be accessed via
+        ``pulse.n_oper_identifiers``. Defaults to all.
     basis_labels: array_like (str), optional
-        Labels for the elements of the error transfer matrix (the basis
+        Labels for the elements of the cumulant function (the basis
         elements).
     colorscale: str, optional
         The scale of the color code ('linear' or 'log' (default))
@@ -677,7 +680,7 @@ def plot_error_transfer_matrix(
         The threshold below which the colorscale will be linear (only
         for 'log') colorscale
     cbar_label: str, optional
-        The label for the colorbar. Default: 'Error transfer matrix'.
+        The label for the colorbar. Default: 'Cumulant Function'.
     basis_labelsize: int, optional
         The size in points for the basis labels.
     fig: matplotlib figure, optional
@@ -706,44 +709,49 @@ def plot_error_transfer_matrix(
     grid: matplotlib ImageGrid
         The ImageGrid instance used for plotting.
     """
-    U = error_transfer_matrix
-    if U is not None:
-        if U.ndim == 2:
-            U = np.array([U])
+    K = cumulant_function
+    if K is not None:
+        if K.ndim == 2:
+            K = np.array([K])
 
-        n_oper_inds = np.arange(len(U))
+        n_oper_inds = np.arange(len(K))
         if n_oper_identifiers is None:
-            if pulse is not None and len(pulse.n_oper_identifiers) == len(U):
+            if pulse is not None and len(pulse.n_oper_identifiers) == len(K):
                 n_oper_identifiers = pulse.n_oper_identifiers
             else:
                 n_oper_identifiers = [f'$B_{{{i}}}$' for i in range(len(n_oper_inds))]
+        else:
+            if len(n_oper_identifiers) != len(K):
+                raise ValueError('Both precomputed cumulant function and n_oper_identifiers ' +
+                                 f'given but not same len: {len(K)} != {len(n_oper_identifiers)}')
 
     else:
         if pulse is None or spectrum is None or omega is None:
-            raise ValueError('Require either precomputed error transfer ' +
-                             'matrix or pulse, spectrum, and omega as args.')
+            raise ValueError('Require either precomputed cumulant function ' +
+                             'or pulse, spectrum, and omega as arguments.')
 
         n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
         n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
-        # Get the error transfer matrix
-        U = numeric.error_transfer_matrix(pulse, spectrum, omega, n_oper_identifiers)
-        if U.ndim == 4:
+        K = numeric.calculate_cumulant_function(pulse, spectrum, omega,
+                                                n_oper_identifiers=n_oper_identifiers,
+                                                which='total')
+        if K.ndim == 4:
             # Only autocorrelated noise supported
-            U = U[range(len(n_oper_inds)), range(len(n_oper_inds))]
+            K = K[tuple(n_oper_inds), tuple(n_oper_inds)]
 
     # Only autocorrelated noise implemented for now, ie U is real
-    U = U.real
+    K = K.real
 
     if basis_labels is None:
         btype = pulse.basis.btype if pulse is not None else ''
         if btype == 'Pauli':
-            n_qubits = int(np.log(U.shape[-1])/np.log(4))
+            n_qubits = int(np.log(K.shape[-1])/np.log(4))
             basis_labels = [''.join(tup) for tup in
                             product(['I', 'X', 'Y', 'Z'], repeat=n_qubits)]
         else:
-            basis_labels = [f'$C_{{{i}}}$' for i in range(U.shape[-1])]
+            basis_labels = [f'$C_{{{i}}}$' for i in range(K.shape[-1])]
     else:
-        if len(basis_labels) != U.shape[-1]:
+        if len(basis_labels) != K.shape[-1]:
             raise ValueError('Invalid number of basis_labels given')
 
     if grid is None:
@@ -755,7 +763,6 @@ def plot_error_transfer_matrix(
         grid_kw.setdefault('nrows_ncols', (n_rows, n_cols))
         grid_kw.setdefault('axes_pad', 0.3)
         grid_kw.setdefault('label_mode', 'L')
-        grid_kw.setdefault('add_all', True)
         grid_kw.setdefault('share_all', True)
         grid_kw.setdefault('direction', 'row')
         grid_kw.setdefault('cbar_mode', 'single')
@@ -778,14 +785,14 @@ def plot_error_transfer_matrix(
     else:
         cmap = plt.get_cmap('RdBu')
 
-    Umax = U.max()
-    Umin = -Umax
+    Kmax = np.abs(K).max()
+    Kmin = -Kmax
     if colorscale == 'log':
-        linthresh = linthresh or np.abs(U).mean()/10
-        norm = colors.SymLogNorm(linthresh=linthresh, vmin=Umin, vmax=Umax)
+        linthresh = np.abs(K).mean()/10 if linthresh is None else linthresh
+        norm = colors.SymLogNorm(linthresh=linthresh, vmin=Kmin, vmax=Kmax)
     else:
         # colorscale == 'linear'
-        norm = colors.Normalize(vmin=Umin, vmax=Umax)
+        norm = colors.Normalize(vmin=Kmin, vmax=Kmax)
 
     imshow_kw = imshow_kw or {}
     imshow_kw.setdefault('origin', 'upper')
@@ -798,10 +805,10 @@ def plot_error_transfer_matrix(
     # Draw the images
     for i, n_oper_identifier in enumerate(n_oper_identifiers):
         ax = grid[i]
-        im = ax.imshow(U[i], **imshow_kw)
+        im = ax.imshow(K[i], **imshow_kw)
         ax.set_title(n_oper_identifier)
-        ax.set_xticks(np.arange(U.shape[-1]))
-        ax.set_yticks(np.arange(U.shape[-1]))
+        ax.set_xticks(np.arange(K.shape[-1]))
+        ax.set_yticks(np.arange(K.shape[-1]))
         ax.set_xticklabels(basis_labels, fontsize=basis_labelsize, rotation='vertical')
         ax.set_yticklabels(basis_labels, fontsize=basis_labelsize)
         ax.spines['left'].set_visible(False)

@@ -52,9 +52,6 @@ Functions
 :func:`get_sample_frequencies`
     Get frequencies with typical infrared and ultraviolet cutoffs for a
     ``PulseSequence``
-:func:`symmetrize_spectrum`
-    Symmetrize a one-sided power spectrum as well as the frequencies
-    associated with it to get a two-sided spectrum.
 :func:`progressbar`
     A progress bar for loops. Uses tqdm if available and a simple custom
     one if not.
@@ -72,14 +69,13 @@ Exceptions
 """
 import functools
 import inspect
-import io
 import json
 import operator
 import os
 import re
 import string
 from itertools import zip_longest
-from typing import Callable, Generator, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from numpy import linalg as nla
@@ -90,50 +86,51 @@ from .types import Operator, State
 try:
     import jupyter_client
     import requests
-    from jupyter_core.paths import jupyter_runtime_dir
-    from notebook.utils import check_pid
+    from notebook.notebookapp import list_running_servers
     from requests.compat import urljoin
-
-    def _list_running_servers(runtime_dir: str = None) -> Generator:
-        """Iterate over the server info files of running notebook servers.
-
-        Given a runtime directory, find nbserver-* files in the security
-        directory, and yield dicts of their information, each one pertaining to
-        a currently running notebook server instance.
-
-        Copied from notebook.notebookapp.list_running_servers() (version 5.7.8)
-        since the highest version compatible with Python 3.5 (version 5.6.0)
-        has a bug.
-        """
-        if runtime_dir is None:
-            runtime_dir = jupyter_runtime_dir()
-
-        # The runtime dir might not exist
-        if not os.path.isdir(runtime_dir):
-            return
-
-        for file_name in os.listdir(runtime_dir):
-            if re.match('nbserver-(.+).json', file_name):
-                with io.open(os.path.join(runtime_dir, file_name), encoding='utf-8') as f:
-                    info = json.load(f)
-
-                # Simple check whether that process is really still running
-                # Also remove leftover files from IPython 2.x without a pid
-                # field
-                if ('pid' in info) and check_pid(info['pid']):
-                    yield info
-                else:
-                    # If the process has died, try to delete its info file
-                    try:
-                        os.unlink(os.path.join(runtime_dir, file_name))
-                    except OSError:
-                        pass  # TODO: This should warn or log or something
 
     def _get_notebook_name() -> str:
         """
         Return the full path of the jupyter notebook.
 
         See https://github.com/jupyter/notebook/issues/1000
+
+        Jupyter notebook is licensed as follows:
+
+        This project is licensed under the terms of the Modified BSD License
+        (also known as New or Revised or 3-Clause BSD), as follows:
+
+        - Copyright (c) 2001-2015, IPython Development Team
+        - Copyright (c) 2015-, Jupyter Development Team
+
+        All rights reserved.
+
+        Redistribution and use in source and binary forms, with or without
+        modification, are permitted provided that the following conditions are
+        met:
+
+        Redistributions of source code must retain the above copyright notice,
+        this list of conditions and the following disclaimer.
+
+        Redistributions in binary form must reproduce the above copyright
+        notice, this list of conditions and the following disclaimer in the
+        documentation and/or other materials provided with the distribution.
+
+        Neither the name of the Jupyter Development Team nor the names of its
+        contributors may be used to endorse or promote products derived from
+        this software without specific prior written permission.
+
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+        IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+        TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+        PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+        OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+        SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+        LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+        DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+        THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+        OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         """
         try:
             connection_file = jupyter_client.find_connection_file()
@@ -141,17 +138,20 @@ try:
             return ''
 
         kernel_id = re.search('kernel-(.*).json', connection_file).group(1)
-        servers = _list_running_servers()
+        servers = list_running_servers()
         for ss in servers:
             response = requests.get(urljoin(ss['url'], 'api/sessions'),
                                     params={'token': ss.get('token', '')})
             for nn in json.loads(response.text):
-                if nn['kernel']['id'] == kernel_id:
-                    try:
-                        relative_path = nn['notebook']['path']
-                        return os.path.join(ss['notebook_dir'], relative_path)
-                    except KeyError:
-                        return ''
+                try:
+                    if nn['kernel']['id'] == kernel_id:
+                        try:
+                            relative_path = nn['notebook']['path']
+                            return os.path.join(ss['notebook_dir'], relative_path)
+                        except KeyError:
+                            return ''
+                except TypeError:
+                    return ''
 
         return ''
 
@@ -165,10 +165,9 @@ else:
     # Either not running notebook or not able to determine
     from tqdm import tqdm as _tqdm
 
-__all__ = ['paulis', 'abs2', 'all_array_equal', 'dot_HS',
-           'get_sample_frequencies', 'hash_array_along_axis', 'mdot',
-           'oper_equiv', 'progressbar', 'remove_float_errors', 'tensor',
-           'tensor_insert', 'tensor_merge', 'tensor_transpose']
+__all__ = ['paulis', 'abs2', 'all_array_equal', 'dot_HS', 'get_sample_frequencies',
+           'hash_array_along_axis', 'mdot', 'oper_equiv', 'progressbar', 'remove_float_errors',
+           'tensor', 'tensor_insert', 'tensor_merge', 'tensor_transpose']
 
 # Pauli matrices
 paulis = np.array([
@@ -198,7 +197,7 @@ def abs2(x: ndarray) -> ndarray:
     return x.real**2 + x.imag**2
 
 
-def cexp(x: ndarray) -> ndarray:
+def cexp(x: ndarray, out=None, where=True) -> ndarray:
     r"""Fast complex exponential.
 
     Parameters
@@ -215,37 +214,40 @@ def cexp(x: ndarray) -> ndarray:
     ----------
     https://software.intel.com/en-us/forums/intel-distribution-for-python/topic/758148
     """
-    df_exp = np.empty(x.shape, dtype=np.complex128)
-    df_exp.real = np.cos(x, out=df_exp.real)
-    df_exp.imag = np.sin(x, out=df_exp.imag)
-    return df_exp
+    out = np.empty(x.shape, dtype=np.complex128) if out is None else out
+    out.real = np.cos(x, out=out.real, where=where)
+    out.imag = np.sin(x, out=out.imag, where=where)
+    return out
 
 
-def parse_optional_parameter(name: str, allowed: Sequence) -> Callable:
+def parse_optional_parameters(params_dict: Dict[str, Sequence]) -> Callable:
     """Decorator factory to parse optional parameter with certain legal values.
 
-    If the parameter value corresponding to ``name`` (either in args or
-    kwargs) is not contained in ``allowed`` a ``ValueError`` is raised.
+    For ``params_dict = {name: allowed, ...}``: If the parameter value
+    corresponding to ``name`` (either in args or kwargs of the decorated
+    function) is not contained in ``allowed`` a ``ValueError`` is raised.
     """
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             parameters = inspect.signature(func).parameters
-            idx = tuple(parameters).index(name)
-            try:
-                value = args[idx]
-            except IndexError:
-                value = kwargs.get(name, parameters[name].default)
+            for name, allowed in params_dict.items():
+                idx = tuple(parameters).index(name)
+                try:
+                    value = args[idx]
+                except IndexError:
+                    value = kwargs.get(name, parameters[name].default)
 
-            if value not in allowed:
-                raise ValueError(f"Invalid value for {name}: {value}. Should be one of {allowed}.")
+                if value not in allowed:
+                    raise ValueError(f"Invalid value for {name}: {value}. " +
+                                     f"Should be one of {allowed}.")
 
             return func(*args, **kwargs)
         return wrapper
     return decorator
 
 
-parse_which_FF_parameter = parse_optional_parameter('which', ('fidelity', 'generalized'))
+parse_which_FF_parameter = parse_optional_parameters({'which': ('fidelity', 'generalized')})
 
 
 def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int], rank: int):
@@ -276,8 +278,7 @@ def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int], rank: 
     return broadcast_shape + tensor_shape
 
 
-def _parse_dims_arg(name: str, dims: Sequence[Sequence[int]],
-                    rank: int) -> None:
+def _parse_dims_arg(name: str, dims: Sequence[Sequence[int]], rank: int) -> None:
     """Check if dimension arg for a tensor_* function is correct format"""
     if not len(dims) == rank:
         raise ValueError(f'{name}_dims should be of length rank = {rank}, not {len(dims)}')
@@ -287,6 +288,7 @@ def _parse_dims_arg(name: str, dims: Sequence[Sequence[int]],
         raise ValueError(f'Require all lists in {name}_dims to be of same length!')
 
 
+@parse_optional_parameters({'kind': ('noise', 'control')})
 def get_indices_from_identifiers(pulse: 'PulseSequence',
                                  identifiers: Union[None, str, Sequence[str]],
                                  kind: str) -> Tuple[Sequence[int],
@@ -304,7 +306,8 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
     """
     if kind == 'noise':
         pulse_identifiers = pulse.n_oper_identifiers
-    elif kind == 'control':
+    else:
+        # kind == 'control'
         pulse_identifiers = pulse.c_oper_identifiers
 
     identifier_to_index_table = {identifier: index for index, identifier
@@ -325,8 +328,7 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
     return inds
 
 
-def tensor(*args, rank: int = 2,
-           optimize: Union[bool, str] = False) -> ndarray:
+def tensor(*args, rank: int = 2, optimize: Union[bool, str] = False) -> ndarray:
     """
     Fast, flexible tensor product using einsum. The product is taken
     over the last *rank* axes and broadcast over the remaining axes
@@ -606,8 +608,7 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
 
 
 def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
-                 arr_dims: Sequence[Sequence[int]],
-                 ins_dims: Sequence[Sequence[int]],
+                 arr_dims: Sequence[Sequence[int]], ins_dims: Sequence[Sequence[int]],
                  rank: int = 2, optimize: Union[bool, str] = False) -> ndarray:
     r"""
     For two tensor products *arr* and *ins*, merge *ins* into the
@@ -749,8 +750,7 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
     return result
 
 
-def tensor_transpose(arr: ndarray, order: Sequence[int],
-                     arr_dims: Sequence[Sequence[int]],
+def tensor_transpose(arr: ndarray, order: Sequence[int], arr_dims: Sequence[Sequence[int]],
                      rank: int = 2) -> ndarray:
     r"""
     Transpose the order of a tensor product chain.
@@ -835,7 +835,7 @@ def mdot(arr: Sequence, axis: int = 0) -> ndarray:
     return functools.reduce(np.matmul, np.swapaxes(arr, 0, axis))
 
 
-def remove_float_errors(arr: ndarray, eps_scale: float = None):
+def remove_float_errors(arr: ndarray, eps_scale: Optional[float] = None):
     """
     Clean up arr by removing floating point numbers smaller than the
     dtype's precision multiplied by eps_scale. Treats real and imaginary
@@ -858,10 +858,8 @@ def remove_float_errors(arr: ndarray, eps_scale: float = None):
     return arr
 
 
-def oper_equiv(psi: Union[Operator, State],
-               phi: Union[Operator, State],
-               eps: float = None,
-               normalized: bool = False) -> Tuple[bool, float]:
+def oper_equiv(psi: Union[Operator, State], phi: Union[Operator, State],
+               eps: Optional[float] = None, normalized: bool = False) -> Tuple[bool, float]:
     r"""
     Checks whether psi and phi are equal up to a global phase, i.e.
 
@@ -895,6 +893,8 @@ def oper_equiv(psi: Union[Operator, State],
     # Convert qutip.Qobj's to numpy arrays
     psi, phi = [obj.full() if hasattr(obj, 'full') else obj for obj in (psi, phi)]
 
+    psi, phi = np.atleast_2d(psi, phi)
+
     if eps is None:
         # Tolerance the floating point eps times the # of flops for the matrix
         # multiplication, i.e. for psi and phi n x m matrices 2*n**2*m
@@ -902,13 +902,17 @@ def oper_equiv(psi: Union[Operator, State],
                np.prod(psi.shape)*phi.shape[-1]*2)
         if not normalized:
             # normalization introduces more floating point error
-            eps *= (np.prod(psi.shape)*phi.shape[-1]*2)**2
+            eps *= (np.prod(psi.shape[-2:])*phi.shape[-1]*2)**2
 
-    inner_product = (psi.T.conj() @ phi).trace()
+    try:
+        inner_product = (psi.swapaxes(-1, -2).conj() @ phi).trace(0, -1, -2)
+    except ValueError as err:
+        raise ValueError('psi and phi have incompatible dimensions!') from err
+
     if normalized:
         norm = 1
     else:
-        norm = nla.norm(psi)*nla.norm(phi)
+        norm = nla.norm(psi, axis=(-1, -2))*nla.norm(phi, axis=(-1, -2))
 
     phase = np.angle(inner_product)
     modulus = abs(inner_product)
@@ -916,7 +920,7 @@ def oper_equiv(psi: Union[Operator, State],
     return abs(norm - modulus) <= eps, phase
 
 
-def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
+def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> float:
     r"""Return the Hilbert-Schmidt inner product of U and V,
 
     .. math::
@@ -964,13 +968,11 @@ def dot_HS(U: Operator, V: Operator, eps: float = None) -> float:
     return res if res.imag.any() else res.real
 
 
-@parse_optional_parameter('spacing', ('log', 'linear'))
+@parse_optional_parameters({'spacing': ('log', 'linear')})
 def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
                            spacing: str = 'log',
-                           symmetric: bool = True) -> ndarray:
-    """
-    Get *n_samples* sample frequencies spaced either 'linear' or 'log'
-    symmetrically around zero.
+                           include_quasistatic: bool = False) -> ndarray:
+    """Get *n_samples* sample frequencies spaced 'linear' or 'log'.
 
     The ultraviolet cutoff is taken to be two orders of magnitude larger
     than the timescale of the pulse tau. In the case of log spacing, the
@@ -986,64 +988,27 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
     spacing: str, optional
         The spacing of the frequencies. Either 'log' or 'linear',
         default is 'log'.
-    symmetric: bool, optional
-        Whether the frequencies should be symmetric around zero or
-        positive only. Default is True.
+    include_quasistatic: bool, optional
+        Include zero frequency. Default is False.
 
     Returns
     -------
     omega: ndarray
         The frequencies.
     """
-    tau = pulse.tau
     if spacing == 'linear':
-        if symmetric:
-            freqs = np.linspace(-1e2/tau, 1e2/tau, n_samples)*2*np.pi
-        else:
-            freqs = np.linspace(0, 1e2/tau, n_samples)*2*np.pi
+        xspace = np.linspace
     else:
         # spacing == 'log'
-        if symmetric:
-            freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples//2)*2*np.pi
-            freqs = np.concatenate([-freqs[::-1], freqs])
-        else:
-            freqs = np.geomspace(1e-2/tau, 1e2/tau, n_samples)*2*np.pi
+        xspace = np.geomspace
 
-    return freqs
-
-
-def symmetrize_spectrum(S: ndarray, omega: ndarray) -> Tuple[ndarray, ndarray]:
-    r"""
-    Symmetrize a one-sided power spectrum around zero frequency.
-
-    Parameters
-    ----------
-    S: ndarray, shape (..., n_omega)
-        The one-sided power spectrum.
-    omega: ndarray, shape (n_omega,)
-        The positive and strictly increasing frequencies.
-
-    Returns
-    -------
-    S: ndarray, shape (..., 2*n_omega)
-        The two-sided power spectrum.
-    omega: ndarray, shape (2*n_omega,)
-        The frequencies mirrored about zero.
-
-    Notes
-    -----
-    The two-sided power spectral density is in the symmetric case given
-    by :math:`S^{(1)}(\omega) = 2S^{(2)}(\omega)`.
-    """
-    # Catch zero frequency component
-    if omega[0] == 0:
-        ix = 1
+    if include_quasistatic:
+        freqs = xspace(1e-2/pulse.tau, 1e2/pulse.tau, n_samples - 1)
+        freqs = np.insert(freqs, 0, 0)
     else:
-        ix = 0
+        freqs = xspace(1e-2/pulse.tau, 1e2/pulse.tau, n_samples)
 
-    omega = np.concatenate((-omega[::-1], omega[ix:]))
-    S = np.concatenate((S[..., ::-1], S[ix:]), axis=-1)/2
-    return S, omega
+    return 2*np.pi*freqs
 
 
 def hash_array_along_axis(arr: ndarray, axis: int = 0) -> List[int]:

@@ -453,11 +453,13 @@ class UtilTest(testutil.TestCase):
 
     def test_oper_equiv(self):
         with self.assertRaises(ValueError):
-            util.oper_equiv(*[np.ones((1, 2, 3))]*2)
+            util.oper_equiv(rng.standard_normal((2, 2)),
+                            rng.standard_normal((3, 3)))
 
         for d in rng.randint(2, 10, (5,)):
             psi = rng.standard_normal((d, 1)) + 1j*rng.standard_normal((d, 1))
-            U = testutil.rand_herm(d).squeeze()
+            # Also test broadcasting
+            U = testutil.rand_herm(d, rng.randint(1, 11)).squeeze()
             phase = rng.standard_normal()
 
             result = util.oper_equiv(psi, psi*np.exp(1j*phase))
@@ -473,27 +475,31 @@ class UtilTest(testutil.TestCase):
             result = util.oper_equiv(psi, psi*np.exp(1j*phase),
                                      normalized=True, eps=1e-13)
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase, places=5)
+            self.assertArrayAlmostEqual(result[1], phase, atol=1e-5)
 
             result = util.oper_equiv(psi, psi+1)
             self.assertFalse(result[0])
 
             result = util.oper_equiv(U, U*np.exp(1j*phase))
-            self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase, places=5)
+            self.assertTrue(np.all(result[0]))
+            self.assertArrayAlmostEqual(result[1], phase, atol=1e-5)
 
             result = util.oper_equiv(U*np.exp(1j*phase), U)
-            self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], -phase, places=5)
+            self.assertTrue(np.all(result[0]))
+            self.assertArrayAlmostEqual(result[1], -phase, atol=1e-5)
 
-            U /= np.sqrt(util.dot_HS(U, U))
+            norm = np.sqrt(util.dot_HS(U, U))
+            norm = norm[:, None, None] if U.ndim == 3 else norm
+            U /= norm
+            # TIP: In numpy 1.18 we could just do:
+            # U /= np.expand_dims(np.sqrt(util.dot_HS(U, U)), axis=(-1, -2))
             result = util.oper_equiv(U, U*np.exp(1j*phase), normalized=True,
                                      eps=1e-10)
-            self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase)
+            self.assertTrue(np.all(result[0]))
+            self.assertArrayAlmostEqual(result[1], phase)
 
             result = util.oper_equiv(U, U+1)
-            self.assertFalse(result[0])
+            self.assertFalse(np.all(result[0]))
 
     def test_dot_HS(self):
         U, V = rng.randint(0, 100, (2, 2, 2))
@@ -530,48 +536,24 @@ class UtilTest(testutil.TestCase):
         )
         # Default args
         omega = util.get_sample_frequencies(pulse)
-        self.assertAlmostEqual(omega[0], -2e2*np.pi/pulse.tau)
+        self.assertAlmostEqual(omega[0], 2e-2*np.pi/pulse.tau)
         self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.tau)
         self.assertEqual(len(omega), 300)
-        self.assertTrue((omega[:150] <= 0).all())
+        self.assertTrue((omega >= 0).all())
         self.assertLessEqual(np.var(np.diff(np.log(omega[150:]))), 1e-16)
 
         # custom args
         omega = util.get_sample_frequencies(pulse, spacing='linear',
-                                            n_samples=50, symmetric=False)
+                                            n_samples=50, include_quasistatic=True)
         self.assertAlmostEqual(omega[0], 0)
         self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.tau)
         self.assertEqual(len(omega), 50)
         self.assertTrue((omega >= 0).all())
-        self.assertLessEqual(np.var(np.diff(omega)), 1e-16)
+        self.assertLessEqual(np.var(np.diff(omega[1:])), 1e-16)
 
         # Exceptions
         with self.assertRaises(ValueError):
             omega = util.get_sample_frequencies(pulse, spacing='foo')
-
-    def test_symmetrize_spectrum(self):
-        pulse = PulseSequence(
-            [[util.paulis[1], [np.pi/2]]],
-            [[util.paulis[1], [1]]],
-            [abs(rng.standard_normal())]
-        )
-
-        asym_omega = util.get_sample_frequencies(pulse, symmetric=False,
-                                                 n_samples=100)
-        sym_omega = util.get_sample_frequencies(pulse, symmetric=True,
-                                                n_samples=200)
-
-        S_symmetrized, omega_symmetrized = util.symmetrize_spectrum(
-            1/asym_omega**0.7, asym_omega)
-        self.assertArrayEqual(omega_symmetrized, sym_omega)
-        self.assertArrayEqual(S_symmetrized[99::-1], S_symmetrized[100:])
-        self.assertArrayEqual(S_symmetrized[100:]*2, 1/asym_omega**0.7)
-
-        # zero frequency not doubled
-        omega = np.arange(10)
-        S_sym, omega_sym = util.symmetrize_spectrum(omega, omega)
-        self.assertArrayEqual(S_sym, np.abs(np.arange(-9, 10)/2))
-        self.assertArrayEqual(omega_sym, np.arange(-9, 10))
 
     def test_progressbar_range(self):
         ii = []
@@ -587,9 +569,9 @@ class UtilTest(testutil.TestCase):
 
         self.assertEqual(ii, list(range(523, 123, -32)))
 
-    def test_parse_optional_parameter(self):
+    def test_parse_optional_parameters(self):
 
-        @util.parse_optional_parameter('foo', [1, 'bar', (2, 3)])
+        @util.parse_optional_parameters({'foo': [1, 'bar', (2, 3)]})
         def foobar(a, b, foo=None, x=2):
             pass
 

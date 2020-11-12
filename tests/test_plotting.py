@@ -28,15 +28,14 @@ import numpy as np
 import pytest
 
 import filter_functions as ff
+from filter_functions import numeric
 from tests import testutil
 from tests.testutil import rng
 
 from . import qutip
 
-plotting = pytest.importorskip(
-    'filter_functions.plotting',
-    reason='Skipping plotting tests for build without matplotlib',
-)
+plotting = pytest.importorskip('filter_functions.plotting',
+                               reason='Skipping plotting tests for build without matplotlib')
 if plotting is not None:
     import matplotlib.pyplot as plt
 
@@ -208,82 +207,76 @@ class PlottingTest(testutil.TestCase):
 
     # Ignore deprecation warning caused by qutip
     @pytest.mark.filterwarnings('ignore::PendingDeprecationWarning')
-    def test_plot_error_transfer_matrix(self):
+    def test_plot_cumulant_function(self):
         omega = ff.util.get_sample_frequencies(simple_pulse)
         spectrum = 1e-4*np.sin(omega)/omega
 
         # Test calling with pulse, spectrum, omega
-        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, spectrum,
-                                                        omega,
-                                                        colorscale='linear')
-        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, spectrum,
-                                                        omega, fig=fig)
-        fig, grid = plotting.plot_error_transfer_matrix(simple_pulse, spectrum,
-                                                        omega, grid=grid)
+        fig, grid = plotting.plot_cumulant_function(simple_pulse, spectrum, omega,
+                                                    colorscale='linear')
+        fig, grid = plotting.plot_cumulant_function(simple_pulse, spectrum, omega, fig=fig)
+        fig, grid = plotting.plot_cumulant_function(simple_pulse, spectrum, omega, grid=grid)
 
         # Test calling with precomputed transfer matrix
-        U = ff.error_transfer_matrix(simple_pulse, spectrum, omega)
-        fig, grid = plotting.plot_error_transfer_matrix(
-            error_transfer_matrix=U)
+        K = numeric.calculate_cumulant_function(simple_pulse, spectrum, omega)
+        fig, grid = plotting.plot_cumulant_function(cumulant_function=K)
 
         # Test calling with precomputed transfer matrix and pulse
-        U = ff.error_transfer_matrix(simple_pulse, spectrum, omega)
-        fig, grid = plotting.plot_error_transfer_matrix(
-            simple_pulse, error_transfer_matrix=U)
+        K = numeric.calculate_cumulant_function(simple_pulse, spectrum, omega)
+        fig, grid = plotting.plot_cumulant_function(simple_pulse, cumulant_function=K)
 
         # Test calling with precomputed transfer matrix of ndim == 2
-        U = ff.error_transfer_matrix(simple_pulse, spectrum, omega)
-        fig, grid = plotting.plot_error_transfer_matrix(
-            error_transfer_matrix=U[0])
+        K = numeric.calculate_cumulant_function(simple_pulse, spectrum, omega)
+        fig, grid = plotting.plot_cumulant_function(cumulant_function=K[0])
 
         # Log colorscale
-        fig, grid = plotting.plot_error_transfer_matrix(
-            error_transfer_matrix=U, colorscale='log')
+        fig, grid = plotting.plot_cumulant_function(cumulant_function=K, colorscale='log')
 
         # Non-default args
-        n_oper_inds = sample(range(len(complicated_pulse.n_opers)),
-                             rng.randint(2, 4))
+        n_oper_inds = sample(range(len(complicated_pulse.n_opers)), rng.randint(2, 4))
         n_oper_identifiers = complicated_pulse.n_oper_identifiers[n_oper_inds]
 
         basis_labels = []
         for i in range(4):
             basis_labels.append(string.ascii_uppercase[rng.randint(0, 26)])
 
-        omega = ff.util.get_sample_frequencies(complicated_pulse, n_samples=50,
-                                               spacing='log')
+        omega = ff.util.get_sample_frequencies(complicated_pulse, n_samples=50, spacing='log')
         spectrum = np.exp(-omega**2)
-        U = ff.error_transfer_matrix(complicated_pulse, spectrum, omega)
-        fig, grid = plotting.plot_error_transfer_matrix(
+        K = numeric.calculate_cumulant_function(complicated_pulse, spectrum, omega)
+        fig, grid = plotting.plot_cumulant_function(
             complicated_pulse, spectrum=spectrum, omega=omega,
             n_oper_identifiers=n_oper_identifiers, basis_labels=basis_labels,
             basis_labelsize=4, linthresh=1e-4, cmap=plt.cm.jet
         )
-        fig, grid = plotting.plot_error_transfer_matrix(
-            error_transfer_matrix=U[n_oper_inds],
-            n_oper_identifiers=n_oper_identifiers, basis_labels=basis_labels,
-            basis_labelsize=4, linthresh=1e-4, cmap=plt.cm.jet
+        fig, grid = plotting.plot_cumulant_function(
+            cumulant_function=K[n_oper_inds], n_oper_identifiers=n_oper_identifiers,
+            basis_labels=basis_labels, basis_labelsize=4, linthresh=1e-4,
+            cmap=plt.cm.jet
         )
 
-        # neither U nor all of pulse, spectrum, omega given
+        # neither K nor all of pulse, spectrum, omega given
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, spectrum)
+            plotting.plot_cumulant_function(complicated_pulse, spectrum)
 
         # invalid identifiers
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, spectrum,
-                                                omega,
-                                                n_oper_identifiers=['foo'])
+            plotting.plot_cumulant_function(complicated_pulse, spectrum, omega,
+                                            n_oper_identifiers=['foo'])
+
+        # K and identifiers given but unequal length
+        with self.assertRaises(ValueError):
+            plotting.plot_cumulant_function(cumulant_function=K,
+                                            n_oper_identifiers=n_oper_identifiers[0])
 
         # number of basis_labels not correct
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, spectrum,
-                                                omega,
-                                                basis_labels=basis_labels[:2])
+            plotting.plot_cumulant_function(complicated_pulse, spectrum, omega,
+                                            basis_labels=basis_labels[:2])
 
         # grid too small
         with self.assertRaises(ValueError):
-            plotting.plot_error_transfer_matrix(complicated_pulse, spectrum,
-                                                omega, grid=grid[:1])
+            plotting.plot_cumulant_function(complicated_pulse, spectrum, omega,
+                                            grid=grid[:1])
 
         # Test various keyword args for matplotlib for the two-qubit pulse
         spectrum = np.tile(spectrum, (6, 6, 1))
@@ -291,12 +284,9 @@ class PlottingTest(testutil.TestCase):
         cbar_kw = {'orientation': 'horizontal'}
         imshow_kw = {'interpolation': 'bilinear'}
         figure_kw = {'num': 1}
-        fig, ax = plotting.plot_error_transfer_matrix(two_qubit_pulse,
-                                                      spectrum, omega,
-                                                      imshow_kw=imshow_kw,
-                                                      grid_kw=grid_kw,
-                                                      cbar_kw=cbar_kw,
-                                                      **figure_kw)
+        fig, ax = plotting.plot_cumulant_function(two_qubit_pulse, spectrum, omega,
+                                                  imshow_kw=imshow_kw, grid_kw=grid_kw,
+                                                  cbar_kw=cbar_kw, **figure_kw)
 
         plt.close('all')
 
