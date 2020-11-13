@@ -285,10 +285,6 @@ class PulseSequence:
         self._filter_function_pc_gen = None
         self._intermediates = dict()
 
-        self._deriv_filter_function = None
-        self._control_identifier = None
-        self._s_derivs = None
-
     def __str__(self):
         """String method."""
         return f'{repr(self)} with total duration {self.tau}'
@@ -780,11 +776,6 @@ class PulseSequence:
             control contribution.
 
         """
-        if np.array_equiv(self._control_identifier, contorl_identifier):
-            if np.array_equiv(self._s_derivs, s_derivs):
-                if np.array_equiv(self.omega, omega):
-                    if self.is_cached('deriv_filter_function'):
-                        return self._deriv_filter_function
 
         R = self.get_control_matrix(omega)
         eigvals, eigvecs, propagators, all_id = (
@@ -801,46 +792,9 @@ class PulseSequence:
             c_opers=c_opers, all_identifiers=all_id, control_identifiers=contorl_identifier,
             s_derivs=s_derivs)
 
-        # Cache the result
-        self.cache_filter_function_derivative(
-            omega=omega,
-            deriv_filter_function=
-            gradient.calculate_canonical_filter_function_derivative(
-                R, deriv_R),
-            control_identifier=contorl_identifier, s_derivs=s_derivs)
-
-        return self._deriv_filter_function
-
-    def cache_filter_function_derivative(
-            self, omega: Coefficients,
-            deriv_filter_function: Optional[ndarray] = None,
-            control_identifier: Optional[Sequence[str]] = None,
-            s_derivs: Optional[Sequence[Coefficients]] = None) -> None:
-        """
-        Cache the filter function derivative.
-
-        Parameters
-        ----------
-        omega : array_like, shape (n_omega,)
-            Frequencies at which the pulse control matrix is to be evaluated.
-        deriv_filter_function : array_like, shape (n_nops, n_t, n_ctrl, n_omega)
-            , optional
-            The filter function derivative. The default is None.
-        control_identifier : Sequence[str]
-            Sequence of strings with the control identifiern to distinguish
-            between control and drift Hamiltonian. The default is None.
-        s_derivs : array_like, shape (n_nops, n_ctrl, n_dt)
-            The derivatives of the noise susceptibilities by the control
-            amplitudes. Defaults to None.
-
-        """
-        if deriv_filter_function is None:
-            deriv_filter_function = self.get_filter_function_derivative(
-                omega=omega, contorl_identifier=control_identifier,
-                s_derivs=s_derivs)
-        self._control_identifier = control_identifier
-        self._s_derivs = s_derivs
-        self._deriv_filter_function = deriv_filter_function
+        return gradient.calculate_canonical_filter_function_derivative(
+            R, deriv_R
+        )
 
     def get_total_phases(self, omega: Coefficients) -> ndarray:
         """Get the (cached) total phase factors for this pulse and omega."""
