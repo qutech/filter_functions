@@ -785,7 +785,7 @@ class PulseSequence:
         n_coeffs, c_coeffs = self.n_coeffs, self.c_coeffs
         c_opers, n_opers = self.c_opers, self.n_opers
 
-        Q_Liou = numeric.liouville_representation(propagators, basis)
+        Q_Liou = liouville_representation(propagators, basis)
         deriv_R = gradient.calculate_derivative_of_control_matrix_from_scratch(
             omega=omega, propagators=propagators, Q_Liou=Q_Liou, eigvals=eigvals, eigvecs=eigvecs,
             basis=basis, t=t, dt=dt, n_opers=n_opers, n_coeffs=n_coeffs,

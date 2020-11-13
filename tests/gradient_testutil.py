@@ -71,7 +71,7 @@ def finite_diff_infid(u_ctrl_central, u_drift, pulse_sequence_builder,
     if c_id is None:
         c_id = all_id[:len(u_ctrl_central)]
     omega = ff.util.get_sample_frequencies(
-        pulse=pulse, n_samples=n_freq_samples, spacing='log', symmetric=False)
+        pulse=pulse, n_samples=n_freq_samples, spacing='log')
     S = spectral_noise_density(omega)
 
     gradient = np.empty((len(pulse.n_coeffs), len(pulse.dt), len(c_id)))
@@ -117,7 +117,7 @@ def analytic_gradient(u_ctrl, u_drift, pulse_sequence_builder,
 
     pulse = pulse_sequence_builder(u_ctrl, u_drift)
     omega = ff.util.get_sample_frequencies(
-        pulse=pulse, n_samples=n_freq_samples, spacing='log', symmetric=False)
+        pulse=pulse, n_samples=n_freq_samples, spacing='log')
     S = spectral_noise_density(omega)
     gradient = ff.gradient.infidelity_derivative(
         pulse=pulse, S=S, omega=omega, control_identifiers=c_id,
