@@ -47,14 +47,14 @@ Y2.cache_filter_function(omega)
 X.cache_filter_function(omega)
 
 hadamard = Y2 @ X           # equivalent: ff.concatenate((Y2, X))
-hadamard.is_cached('F')
+hadamard.is_cached('filter function')
 # True  (filter function cached during concatenation)
 ```
 
 To compute, for example, the infidelity of the gate in the presence of an arbitrary classical noise spectrum, we can simply call `infidelity()`:
 
 ```python
-spectrum = 1e-2/abs(omega)  # omega is symmetric about zero
+spectrum = 1e-2/abs(omega)
 infidelity = ff.infidelity(hadamard, spectrum, omega)
 # array([0.006037])  (one contribution per noise operator)
 ```
