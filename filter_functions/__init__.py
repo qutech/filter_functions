@@ -33,6 +33,6 @@ __all__ = ['Basis', 'PulseSequence', 'analytic', 'basis', 'concatenate', 'concat
            'pulse_sequence', 'remap', 'util', 'superoperator', 'infidelity_derivative']
 
 
-__version__ = '0.3.0'
+__version__ = '0.4.0'
 __license__ = 'GNU GPLv3+'
 __author__ = 'Quantum Technology Group, RWTH Aachen University'
