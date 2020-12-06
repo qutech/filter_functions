@@ -49,7 +49,7 @@ import numpy as np
 from numpy import linalg as nla
 from numpy import ndarray
 
-from . import numeric, util
+from . import numeric, util, gradient
 from .basis import Basis, equivalent_pauli_basis_elements, remap_pauli_basis_elements
 from .superoperator import liouville_representation
 from .types import Coefficients, Hamiltonian, Operator, PulseMapping
@@ -223,6 +223,8 @@ class PulseSequence:
         computed during concatenation)
     propagator_at_arb_t(t)
         Calculate the propagator at arbitrary times
+    get_filter_function_derivative
+        Calculate the filter function derivative for frequencies omega
 
     Notes
     -----
@@ -282,7 +284,7 @@ class PulseSequence:
         self._filter_function_pc = None
         self._filter_function_pc_gen = None
         self._filter_function_2 = None
-        self._intermediates = None
+        self._intermediates = dict()
 
     def __str__(self):
         """String method."""
@@ -467,15 +469,14 @@ class PulseSequence:
         self.diagonalize()
 
         control_matrix = numeric.calculate_control_matrix_from_scratch(
-            self.eigvals, self.eigvecs, self.propagators, omega, self.basis,
-            self.n_opers, self.n_coeffs, self.dt, self.t,
-            show_progressbar=show_progressbar,
+            self.eigvals, self.eigvecs, self.propagators, omega, self.basis, self.n_opers,
+            self.n_coeffs, self.dt, self.t, show_progressbar=show_progressbar,
             cache_intermediates=cache_intermediates
         )
 
         if cache_intermediates:
             control_matrix, intermediates = control_matrix
-            self._intermediates = intermediates
+            self._intermediates.update(**intermediates)
 
         self.cache_control_matrix(omega, control_matrix)
 
@@ -533,10 +534,14 @@ class PulseSequence:
         )
 
     @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
-    def get_filter_function(self, omega: Coefficients, which: str = 'fidelity',
-                            order: int = 1, show_progressbar: bool = False,
-                            cache_intermediates: bool = False) -> ndarray:
-        r"""Get the first-order filter function.
+    def get_filter_function(
+            self, omega: Coefficients,
+            which: str = 'fidelity',
+            order: int = 1,
+            show_progressbar: bool = False,
+            cache_intermediates: bool = False
+    ) -> ndarray:
+        r"""Get the first or second order filter function.
 
         The filter function is cached so it doesn't need to be
         calculated twice for the same frequencies.
@@ -573,8 +578,8 @@ class PulseSequence:
         .. math::
 
             F_{\alpha\beta,kl}(\omega) =
-                \mathcal{R}_{\alpha k}^\ast(\omega)
-                \mathcal{R}_{\beta l}(\omega),
+                \tilde{\mathcal{B}}_{\alpha k}^\ast(\omega)
+                \tilde{\mathcal{B}}_{\beta l}(\omega),
 
         where :math:`\alpha,\beta` are indices counting the noise
         operators :math:`B_\alpha` and :math:`k,l` indices counting the
@@ -629,10 +634,15 @@ class PulseSequence:
             return self._filter_function_2
 
     @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
-    def cache_filter_function(self, omega: Coefficients, control_matrix: Optional[ndarray] = None,
-                              filter_function: Optional[ndarray] = None, which: str = 'fidelity',
-                              order: int = 1, show_progressbar: bool = False,
-                              cache_intermediates: bool = False) -> None:
+    def cache_filter_function(
+            self, omega: Coefficients,
+            control_matrix: Optional[ndarray] = None,
+            filter_function: Optional[ndarray] = None,
+            which: str = 'fidelity',
+            order: int = 1,
+            show_progressbar: bool = False,
+            cache_intermediates: bool = False
+    ) -> None:
         r"""
         Cache the filter function. If control_matrix.ndim == 4, it is
         taken to be the 'pulse correlation control matrix' and summed
@@ -707,6 +717,7 @@ class PulseSequence:
                 # which == 'generalized'
                 self._filter_function_gen = filter_function
         else:
+            # order == 2
             self._filter_function_2 = filter_function
 
     @util.parse_which_FF_parameter
@@ -718,9 +729,9 @@ class PulseSequence:
 
             F_{\alpha\beta}^{(gg')}(\omega) =
                 e^{i\omega(t_{g-1} - t_{g'-1})}
-                \mathcal{R}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
+                \tilde{\mathcal{B}}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
                 \mathcal{Q}^{(g'-1)\dagger}
-                \mathcal{R}^{(g')\dagger}(\omega),
+                \tilde{\mathcal{B}}^{(g')\dagger}(\omega),
 
         where :math:`g,g'` index the pulse in the sequence and
         :math:`\alpha,\beta` index the noise operators, if it was
@@ -778,6 +789,56 @@ class PulseSequence:
             "Could not get the pulse correlation filter function since it " +
             "was not computed during concatenation. Please run the " +
             "concatenation again with 'calc_pulse_correlation_FF' set to True."
+        )
+
+    def get_filter_function_derivative(
+            self,
+            omega: Coefficients,
+            contorl_identifier: Optional[Sequence[str]] = None,
+            s_derivs: Optional[Sequence[Coefficients]] = None
+    ) -> ndarray:
+        r"""
+        Calculate the filter function derivative of the pulse sequence.
+
+        The filter function derivative is cached so it doesn't need to be
+        calculated twice for the same frequencies.
+
+        Parameters
+        ----------
+        omega : array_like, shape (n_omega,)
+            Frequencies at which the pulse control matrix is to be evaluated.
+        contorl_identifier : Sequence[str]
+            Sequence of strings with the control identifiern to distinguish
+            between control and drift Hamiltonian. The default is None.
+        s_derivs : array_like, shape (n_nops, n_ctrl, n_dt)
+            The derivatives of the noise susceptibilities by the control
+            amplitudes. Defaults to None.
+
+        Returns
+        -------
+        deriv_filter_function : ndarray, shape (n_nops, n_t, n_ctrl, n_omega)
+            The regular filter functions' derivatives for variation in each
+            control contribution.
+
+        """
+
+        R = self.get_control_matrix(omega)
+        eigvals, eigvecs, propagators, all_id = (
+            self.eigvals, self.eigvecs, self._propagators,
+            self.c_oper_identifiers)
+        basis, dt, t = self.basis, self.dt, self.t
+        n_coeffs, c_coeffs = self.n_coeffs, self.c_coeffs
+        c_opers, n_opers = self.c_opers, self.n_opers
+
+        Q_Liou = liouville_representation(propagators, basis)
+        deriv_R = gradient.calculate_derivative_of_control_matrix_from_scratch(
+            omega=omega, propagators=propagators, Q_Liou=Q_Liou, eigvals=eigvals, eigvecs=eigvecs,
+            basis=basis, t=t, dt=dt, n_opers=n_opers, n_coeffs=n_coeffs,
+            c_opers=c_opers, all_identifiers=all_id, control_identifiers=contorl_identifier,
+            s_derivs=s_derivs)
+
+        return gradient.calculate_canonical_filter_function_derivative(
+            R, deriv_R
         )
 
     def get_total_phases(self, omega: Coefficients) -> ndarray:
@@ -931,7 +992,6 @@ class PulseSequence:
                 - _total_phases
                 - _control_matrix
                 - _control_matrix_pc
-                - _intermediates
 
             If set to 'all', all of the above as well as the following
             attributes are deleted:
@@ -942,6 +1002,7 @@ class PulseSequence:
                 - _filter_function_pc
                 - _filter_function_pc_gen
                 - _filter_function_2
+                - _intermediates['control_matrix_step']
 
             If set to 'frequency dependent' only attributes that are
             functions of frequency are initalized to ``None``.
@@ -954,23 +1015,27 @@ class PulseSequence:
         default_attrs = {'_eigvals', '_eigvecs', '_propagators'}
         concatenation_attrs = {'_total_propagator', '_total_phases', '_total_propagator_liouville',
                                '_control_matrix', '_control_matrix_pc', '_intermediates'}
-        filter_function_attrs = {'omega', '_filter_function', '_filter_function_gen',
-                                 '_filter_function_pc', '_filter_function_pc_gen',
-                                 '_filter_function_2'}
+        filter_function_attrs = {'_filter_function', '_filter_function_2', '_filter_function_gen',
+                                 '_filter_function_pc', '_filter_function_pc_gen', 'omega'}
 
         if method == 'conservative':
             attrs = default_attrs
         elif method == 'greedy':
             attrs = default_attrs.union(concatenation_attrs)
         elif method == 'frequency dependent':
-            attrs = filter_function_attrs.union({'_control_matrix',
-                                                 '_control_matrix_pc',
+            attrs = filter_function_attrs.union({'_control_matrix', '_control_matrix_pc',
                                                  '_total_phases'})
+            # Remove frequency dependent control_matrix_step from intermediates
+            self._intermediates.pop('control_matrix_step', None)
         else:
+            # method == all
             attrs = filter_function_attrs.union(default_attrs, concatenation_attrs)
 
         for attr in attrs:
-            setattr(self, attr, None)
+            if attr != '_intermediates':
+                setattr(self, attr, None)
+            else:
+                setattr(self, attr, dict())
 
     def propagator_at_arb_t(self, t: Coefficients) -> ndarray:
         """
@@ -1141,10 +1206,10 @@ def _concatenate_Hamiltonian(
         identifiers: Sequence[Sequence[str]],
         coeffs: Sequence[Sequence[Coefficients]],
         kind: str
-        ) -> Tuple[Sequence[Operator],
-                   Sequence[str],
-                   Sequence[Coefficients],
-                   Dict[int, Dict[str, str]]]:
+) -> Tuple[Sequence[Operator],
+           Sequence[str],
+           Sequence[Coefficients],
+           Dict[int, Dict[str, str]]]:
     """
     Concatenate Hamiltonians.
 
@@ -1363,7 +1428,7 @@ def _default_extend_mapping(
         identifiers: Sequence[str],
         mapping: Union[None, Mapping[str, str]],
         qubits: Union[Sequence[int], int]
-        ) -> Tuple[Sequence[str], Dict[str, str]]:
+) -> Tuple[Sequence[str], Dict[str, str]]:
     """
     Get a default identifier mapping for a pulse that was extended to
     *qubits* if *mapping* is None, else return mapping.
@@ -1387,9 +1452,9 @@ def _default_extend_mapping(
         return identifiers, mapping
 
     try:
-        mapping = {l: l + '_' + ('{}'*len(qubits)).format(*qubits) for l in identifiers}
+        mapping = {q: q + '_' + ('{}'*len(qubits)).format(*qubits) for q in identifiers}
     except TypeError:
-        mapping = {l: l + '_{}'.format(qubits) for l in identifiers}
+        mapping = {q: q + '_{}'.format(qubits) for q in identifiers}
 
     return identifiers, mapping
 
@@ -1481,7 +1546,7 @@ def concatenate(
         which: str = 'fidelity',
         omega: Optional[Coefficients] = None,
         show_progressbar: bool = False
-        ) -> PulseSequence:
+) -> PulseSequence:
     r"""
     Concatenate an arbitrary number of pulses. Note that pulses are
     concatenated left-to-right, that is,
@@ -1635,10 +1700,9 @@ def concatenate(
             # calculate the control matrix for the noise operators that are
             # not present in pulse
             control_matrix_atomic[i, ~idx] = numeric.calculate_control_matrix_from_scratch(
-                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega,
-                pulse.basis, newpulse.n_opers[~idx],
-                newpulse.n_coeffs[~idx, seg_idx[i]:seg_idx[i+1]],
-                pulse.dt, pulse.t, show_progressbar
+                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis,
+                newpulse.n_opers[~idx], newpulse.n_coeffs[~idx, seg_idx[i]:seg_idx[i+1]],
+                pulse.dt, t=pulse.t, show_progressbar=show_progressbar, cache_intermediates=False
             )
 
     # Set the total propagator for possible future concatenations (if not done
@@ -1691,9 +1755,11 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     .. math::
 
-        \mathcal{R}(\omega) &= \mathcal{R}^{(1)}(\omega)\sum_{g=0}^{G-1}
+        \tilde{\mathcal{B}}(\omega)
+                            &= \tilde{\mathcal{B}}^{(1)}(\omega)
+                               \sum_{g=0}^{G-1}
                                \left(e^{i\omega T}\right)^g \\
-                            &= \mathcal{R}^{(1)}(\omega)\bigl(
+                            &= \tilde{\mathcal{B}}^{(1)}(\omega)\bigl(
                                \mathbb{I} - e^{i\omega T}
                                \mathcal{Q}^{(1)}\bigr)^{-1}\bigl(
                                \mathbb{I} - \bigl(e^{i\omega T}
@@ -1904,7 +1970,7 @@ def extend(
         cache_filter_function: Optional[bool] = None,
         omega: Optional[Coefficients] = None,
         show_progressbar: bool = False
-        ) -> PulseSequence:
+) -> PulseSequence:
     r"""
     Map one or more pulse sequences to different qubits.
 
@@ -2227,7 +2293,7 @@ def extend(
         if add_n_opers.shape[1:] != (d, d):
             raise ValueError(f'Expected additional noise operators to have dimensions {(d, d)}, ' +
                              f'not {add_n_opers.shape[1:]}.')
-        if len(set(add_n_oper_id)) != len(add_n_oper_id):
+        if any(n_oper_id in n_oper_identifiers for n_oper_id in add_n_oper_id):
             raise ValueError('Found duplicate noise operator identifiers')
 
         n_opers.extend(add_n_opers)
@@ -2376,10 +2442,10 @@ def extend(
                 newpulse, n_oper_identifiers[n_ops_counter:], 'noise'
             )
             control_matrix[n_ops_counter:] = numeric.calculate_control_matrix_from_scratch(
-                newpulse.eigvals, newpulse.eigvecs, newpulse.propagators,
-                omega, newpulse.basis, newpulse.n_opers[newpulse_n_oper_inds],
-                newpulse.n_coeffs[newpulse_n_oper_inds], newpulse.dt,
-                newpulse.t, show_progressbar=show_progressbar
+                newpulse.eigvals, newpulse.eigvecs, newpulse.propagators, omega, newpulse.basis,
+                newpulse.n_opers[newpulse_n_oper_inds], newpulse.n_coeffs[newpulse_n_oper_inds],
+                newpulse.dt, t=newpulse.t, show_progressbar=show_progressbar,
+                cache_intermediates=False
             )
 
             filter_function[n_ops_counter:, n_ops_counter:] = numeric.calculate_filter_function(

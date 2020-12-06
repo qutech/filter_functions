@@ -7,13 +7,11 @@ from setuptools import setup
 
 
 def read(*args):
-    return open(os.path.join(os.path.dirname(__file__), *args),
-                encoding='utf8').read()
+    return open(os.path.join(os.path.dirname(__file__), *args), encoding='utf8').read()
 
 
 def extract_version(version_file):
-    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]",
-                              version_file, re.M)
+    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:
         return version_match.group(1)
 
@@ -21,19 +19,16 @@ def extract_version(version_file):
 
 
 if sys.version_info < (3, 6):
-    sys.stderr.write('ERROR: You need Python 3.6 or later '
-                     'to install this package.\n')
+    sys.stderr.write('ERROR: You need Python 3.6 or later to install this package.\n')
     exit(1)
 
 extras_require = {'plotting': ['matplotlib'],
                   'bloch_sphere_visualization': ['qutip', 'matplotlib'],
                   'fancy_progressbar': ['requests'],
-                  'doc': ['jupyter', 'nbsphinx', 'numpydoc', 'sphinx',
-                          'sphinx_rtd_theme'],
+                  'doc': ['jupyter', 'nbsphinx', 'numpydoc', 'sphinx', 'sphinx_rtd_theme'],
                   'tests': ['pytest>=4.6', 'pytest-cov', 'codecov']}
 
-extras_require['all'] = [dep for deps in extras_require.values()
-                         for dep in deps]
+extras_require['all'] = [dep for deps in extras_require.values() for dep in deps]
 
 setup(name='filter_functions',
       version=extract_version(read('filter_functions', '__init__.py')),

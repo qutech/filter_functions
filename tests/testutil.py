@@ -86,23 +86,23 @@ def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg', pulse_type='
     *pulse_type* toggles between a primitive NOT-pulse and a dynamically
     corrected gate.
     """
-    def cdd_odd(l, t):
-        return np.array([*cdd_even(l-1, t/2), t/2, *cdd_even(l-1, t/2) + t/2])
+    def cdd_odd(g, t):
+        return np.array([*cdd_even(g-1, t/2), t/2, *cdd_even(g-1, t/2) + t/2])
 
-    def cdd_even(l, t):
-        if l == 0:
+    def cdd_even(g, t):
+        if g == 0:
             return np.array([])
 
-        return np.array([*cdd_odd(l-1, t/2), *cdd_odd(l-1, t/2) + t/2])
+        return np.array([*cdd_odd(g-1, t/2), *cdd_odd(g-1, t/2) + t/2])
 
     if dd_type == 'cpmg':
-        delta = np.array([0] + [(l - 0.5)/n for l in range(1, n+1)])
+        delta = np.array([0] + [(g - 0.5)/n for g in range(1, n+1)])
     elif dd_type == 'udd':
         delta = np.array(
-            [0] + [np.sin(np.pi*l/(2*n + 2))**2 for l in range(1, n+1)]
+            [0] + [np.sin(np.pi*g/(2*n + 2))**2 for g in range(1, n+1)]
         )
     elif dd_type == 'pdd':
-        delta = np.array([0] + [l/(n + 1) for l in range(1, n+1)])
+        delta = np.array([0] + [g/(n + 1) for g in range(1, n+1)])
     elif dd_type == 'cdd':
         delta = cdd_odd(n, 1) if n % 2 else cdd_even(n, 1)
         delta = np.insert(delta, 0, 0)

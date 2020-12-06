@@ -534,8 +534,8 @@ class CoreTest(testutil.TestCase):
         # Test custom identifiers
         letters = rng.choice(list(string.ascii_letters), size=(6, 5),
                              replace=False)
-        ids = [''.join(l) for l in letters[:3]]
-        labels = [''.join(l) for l in letters[3:]]
+        ids = [''.join(c) for c in letters[:3]]
+        labels = [''.join(c) for c in letters[3:]]
         pulse = ff.PulseSequence(
             list(zip([X, Y, Z], rng.standard_normal((3, 2)), ids, labels)),
             list(zip([X, Y, Z], rng.standard_normal((3, 2)), ids, labels)),
@@ -544,6 +544,26 @@ class CoreTest(testutil.TestCase):
 
         self.assertArrayEqual(pulse.c_oper_identifiers, sorted(ids))
         self.assertArrayEqual(pulse.n_oper_identifiers, sorted(ids))
+
+    def test_cache_intermediates(self):
+        """Test caching of intermediate elements"""
+        pulse = testutil.rand_pulse_sequence(3, 4, 2, 3)
+        omega = util.get_sample_frequencies(pulse, 33, spacing='linear')
+        ctrlmat = pulse.get_control_matrix(omega, cache_intermediates=True)
+        filtfun = pulse.get_filter_function(omega, cache_intermediates=True)
+
+        self.assertIsNotNone(pulse._intermediates)
+        self.assertArrayAlmostEqual(pulse._intermediates['control_matrix_step'].sum(0), ctrlmat)
+        self.assertArrayAlmostEqual(numeric.calculate_filter_function(ctrlmat), filtfun)
+        self.assertArrayAlmostEqual(pulse._intermediates['n_opers_transformed'],
+                                    numeric._transform_noise_operators(pulse.n_coeffs,
+                                                                       pulse.n_opers,
+                                                                       pulse.eigvecs))
+        eigvecs_prop = numeric._propagate_eigenvectors(pulse.propagators[:-1], pulse.eigvecs)
+        basis_transformed = np.einsum('gba,kbc,gcd->gkad',
+                                      eigvecs_prop.conj(), pulse.basis, eigvecs_prop)
+        self.assertArrayAlmostEqual(pulse._intermediates['basis_transformed'], basis_transformed,
+                                    atol=1e-14)
 
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
@@ -575,17 +595,17 @@ class CoreTest(testutil.TestCase):
 
             phases = np.empty((n_dt, len(omega)), dtype=complex)
             L = np.empty((n_dt, d**2, d**2))
-            control_matrix_l = np.empty((n_dt, 6, d**2, len(omega)),
+            control_matrix_g = np.empty((n_dt, 6, d**2, len(omega)),
                                         dtype=complex)
-            for l, pulse in enumerate(pulses):
-                phases[l] = np.exp(1j*total_pulse.t[l]*omega)
-                L[l] = ff.superoperator.liouville_representation(total_pulse.propagators[l],
+            for g, pulse in enumerate(pulses):
+                phases[g] = np.exp(1j*total_pulse.t[g]*omega)
+                L[g] = ff.superoperator.liouville_representation(total_pulse.propagators[g],
                                                                  total_pulse.basis)
-                control_matrix_l[l] = pulse.get_control_matrix(omega)
+                control_matrix_g[g] = pulse.get_control_matrix(omega)
 
             # Check that both methods of calculating the control are the same
             control_matrix_from_atomic = numeric.calculate_control_matrix_from_atomic(
-                phases, control_matrix_l, L
+                phases, control_matrix_g, L
             )
             control_matrix_from_scratch = numeric.calculate_control_matrix_from_scratch(
                 eigvals=total_eigvals,

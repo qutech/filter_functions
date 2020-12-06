@@ -151,7 +151,7 @@ def plot_bloch_vector_evolution(
         cmap: Optional[Colormap] = None,
         show: bool = True, return_Bloch: bool = False,
         **bloch_kwargs
-        ) -> Union[None, qt.Bloch]:
+) -> Union[None, qt.Bloch]:
     r"""
     Plot the evolution of the Bloch vector under the given pulse
     sequence.
@@ -253,7 +253,7 @@ def plot_pulse_train(
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
         **figure_kw
-        ) -> FigureAxesLegend:
+) -> FigureAxesLegend:
     """
     Plot the pulsetrain of the ``PulseSequence`` *pulse*.
 
@@ -336,7 +336,7 @@ def plot_filter_function(
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
         **figure_kw
-        ) -> FigureAxesLegend:
+) -> FigureAxesLegend:
     r"""
     Plot the fidelity filter function(s) of the given PulseSequence for
     positive frequencies. As of now only the diagonal elements of
@@ -458,7 +458,7 @@ def plot_pulse_correlation_filter_function(
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
         **figure_kw
-        ) -> FigureAxesLegend:
+) -> FigureAxesLegend:
     r"""
     Plot the fidelity pulse correlation filter functions of the given
     PulseSequence if they were computed during concatenation for
@@ -643,7 +643,7 @@ def plot_cumulant_function(
         cbar_kw: Optional[dict] = None,
         imshow_kw: Optional[dict] = None,
         **figure_kw
-        ) -> FigureGrid:
+) -> FigureGrid:
     r"""Plot the cumulant function for a given noise spectrum as an image.
 
     The cumulant function generates the error transfer matrix

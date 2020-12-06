@@ -297,7 +297,6 @@ class BasisTest(testutil.TestCase):
 
     def test_control_matrix(self):
         """Test control matrix for traceless and non-traceless bases"""
-
         n_opers = testutil.rand_herm(3, 4)
         n_opers_traceless = testutil.rand_herm_traceless(3, 4)
 
