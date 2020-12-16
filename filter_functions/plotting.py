@@ -100,6 +100,11 @@ def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
 
     bloch_kwargs.setdefault('view', [-150, 30])
     b = qt.Bloch(**bloch_kwargs)
+
+    # https://github.com/qutip/qutip/issues/1385
+    if hasattr(b.axes, 'set_box_aspect'):
+        b.axes.set_box_aspect([1, 1, 1])
+
     b.xlabel = [r'$|+\rangle$', '']
     b.ylabel = [r'$|+_i\rangle$', '']
     return b
