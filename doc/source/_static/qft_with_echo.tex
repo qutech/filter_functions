@@ -1,0 +1,19 @@
+\documentclass[varwidth=false, border=10pt]{standalone}
+% compile with pdflatex -interaction batchmode .\qft_with_echo.tex
+% convert with magick convert -density 300 .\qft_with_echo.pdf .\qft_with_echo.png
+\usepackage{qcircuit}
+
+\begin{document}
+
+\Qcircuit @C=1em @R=1em {
+    \lstick{3}  & \qw       & \gate{X}    & \qw           & \gate{X}   & \qw           & \ctrl{1}   & \qswap        & \qw       & \gate{X}   & \qw           & \gate{X}   & \qw           & \qw       & \qw        & \qw           & \qw       & \qwa    & \rstick{0} \\
+    \lstick{2}  & \qw       & \qw         & \qw           & \ctrl{1}   & \qswap        & \gate{R_4} & \qswap\qwx    & \qw       & \qw        & \qw           & \ctrl{1}   & \qswap        & \qw       & \qw        & \qw           & \qw       & \qwa    & \rstick{1} \\
+    \lstick{1}  & \qw       & \ctrl{1}    & \qswap        & \gate{R_3} & \qswap\qwx    & \qw        & \qw           & \qw       & \ctrl{1}   & \qswap        & \gate{R_3} & \qswap\qwx    & \qw       & \ctrl{1}   & \qswap        & \qw       & \qwa    & \rstick{2} \\
+    \lstick{0}  & \gate{H}  & \gate{R_2}  & \qswap\qwx    & \qw        & \qw           & \qw        & \qw           & \gate{H}  & \gate{R_2} & \qswap\qwx    & \qw        & \qw           & \gate{H}  & \gate{R_2} & \qswap\qwx    & \gate{H}  & \qwa    & \rstick{3}
+    \gategroup{1}{3}{1}{3}{1em}{--}
+    \gategroup{1}{5}{1}{5}{1em}{--}
+    \gategroup{1}{10}{1}{10}{1em}{--}
+    \gategroup{1}{12}{1}{12}{1em}{--}
+}
+
+\end{document}
