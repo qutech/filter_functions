@@ -26,14 +26,13 @@ import pathlib
 import time
 from typing import Dict, Sequence
 
+import filter_functions as ff
+import matplotlib.pyplot as plt
 import numpy as np
 import qutip as qt
-import matplotlib.pyplot as plt
 from numpy import ndarray
 from numpy.random import permutation
 from scipy import io, optimize
-
-import filter_functions as ff
 
 # %%
 
