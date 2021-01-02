@@ -249,6 +249,7 @@ def plot_pulse_train(
         c_oper_identifiers: Optional[Sequence[int]] = None,
         fig: Optional[Figure] = None,
         axes: Optional[Axes] = None,
+        cycler: Optional['cycler.Cycler'] = None,
         plot_kw: Optional[dict] = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -269,6 +270,9 @@ def plot_pulse_train(
         A matplotlib figure instance to plot in
     axes: matplotlib axes, optional
         A matplotlib axes instance to use for plotting.
+    cycler: cycler.Cycler, optional
+        A Cycler instance used to set the style cycle if multiple lines
+        are to be drawn
     plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
     subplot_kw: dict, optional
@@ -309,6 +313,9 @@ def plot_pulse_train(
     elif fig is None and axes is not None:
         fig = axes.figure
 
+    if cycler is not None:
+        axes.set_prop_cycle(cycler)
+
     handles = []
     for i, c_coeffs in enumerate(pulse.c_coeffs[tuple(c_oper_inds), ...]):
         coeffs = np.insert(c_coeffs, 0, c_coeffs[0])
@@ -332,6 +339,7 @@ def plot_filter_function(
         xscale: str = 'log',
         yscale: str = 'linear',
         omega_in_units_of_tau: bool = True,
+        cycler: Optional['cycler.Cycler'] = None,
         plot_kw: dict = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -365,6 +373,9 @@ def plot_filter_function(
         y-axis scaling. One of ('linear', 'log').
     omega_in_units_of_tau: bool, optional
         Plot :math:`\omega\tau` or just :math:`\omega` on x-axis.
+    cycler: cycler.Cycler, optional
+        A Cycler instance used to set the style cycle if multiple lines
+        are to be drawn
     plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
     subplot_kw: dict, optional
@@ -411,6 +422,9 @@ def plot_filter_function(
     elif fig is None and axes is not None:
         fig = axes.figure
 
+    if cycler is not None:
+        axes.set_prop_cycle(cycler)
+
     if omega_in_units_of_tau:
         tau = np.ptp(pulse.t)
         z = omega*tau
@@ -454,6 +468,7 @@ def plot_pulse_correlation_filter_function(
         xscale: str = 'log',
         yscale: str = 'linear',
         omega_in_units_of_tau: bool = True,
+        cycler: Optional['cycler.Cycler'] = None,
         plot_kw: dict = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -485,6 +500,9 @@ def plot_pulse_correlation_filter_function(
         y-axis scaling. One of ('linear', 'log').
     omega_in_units_of_tau: bool, optional
         Plot :math:`\omega\tau` or just :math:`\omega` on x-axis.
+    cycler: cycler.Cycler, optional
+        A Cycler instance used to set the style cycle if multiple lines
+        are to be drawn in one subplot. Used for all subplots.
     plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
     subplot_kw: dict, optional
@@ -548,6 +566,9 @@ def plot_pulse_correlation_filter_function(
     dashed_line = lines.Line2D([], [], color='gray', linestyle='--')
     for i in range(n):
         for j in range(n):
+            if cycler is not None:
+                axes[i, j].set_prop_cycle(cycler)
+
             handles = []
             for k, ind in enumerate(n_oper_inds):
                 handles += axes[i, j].plot(z, F_pc[i, j, ind].real,
