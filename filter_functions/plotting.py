@@ -651,11 +651,12 @@ def plot_cumulant_function(
         omega: Optional[Coefficients] = None,
         cumulant_function: Optional[ndarray] = None,
         n_oper_identifiers: Optional[Sequence[int]] = None,
-        basis_labels: Optional[Sequence[str]] = None,
         colorscale: str = 'linear',
         linthresh: Optional[float] = None,
-        cbar_label: str = 'Cumulant Function',
+        basis_labels: Optional[Sequence[str]] = None,
         basis_labelsize: Optional[int] = None,
+        cbar_label: str = 'Cumulant Function',
+        cbar_labelsize: Optional[int] = None,
         fig: Optional[Figure] = None,
         grid: Optional[Grid] = None,
         cmap: Optional[Colormap] = None,
@@ -692,18 +693,20 @@ def plot_cumulant_function(
         The identifiers of the noise operators for which the cumulant
         function should be plotted. All identifiers can be accessed via
         ``pulse.n_oper_identifiers``. Defaults to all.
-    basis_labels: array_like (str), optional
-        Labels for the elements of the cumulant function (the basis
-        elements).
     colorscale: str, optional
         The scale of the color code ('linear' or 'log' (default))
     linthresh: float, optional
         The threshold below which the colorscale will be linear (only
         for 'log') colorscale
-    cbar_label: str, optional
-        The label for the colorbar. Default: 'Cumulant Function'.
+    basis_labels: array_like (str), optional
+        Labels for the elements of the cumulant function (the basis
+        elements).
     basis_labelsize: int, optional
         The size in points for the basis labels.
+    cbar_label: str, optional
+        The label for the colorbar. Default: 'Cumulant Function'.
+    cbar_labelsize: int, optional
+        The size in points for the colorbar label.
     fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
     grid: matplotlib ImageGrid, optional
@@ -822,6 +825,7 @@ def plot_cumulant_function(
     imshow_kw.setdefault('norm', norm)
 
     basis_labelsize = basis_labelsize or 8
+    cbar_labelsize = cbar_labelsize or plt.rcParams['axes.labelsize']
 
     # Draw the images
     for i, n_oper_identifier in enumerate(n_oper_identifiers):
@@ -841,6 +845,6 @@ def plot_cumulant_function(
     cbar_kw = cbar_kw or {}
     cbar_kw.setdefault('orientation', 'vertical')
     cbar = fig.colorbar(im, cax=grid.cbar_axes[0], **cbar_kw)
-    cbar.set_label(cbar_label)
+    cbar.set_label(cbar_label, fontsize=cbar_labelsize)
 
     return fig, grid
