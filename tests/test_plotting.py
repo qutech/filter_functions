@@ -299,6 +299,13 @@ class PlottingTest(testutil.TestCase):
         fig, ax = plotting.plot_infidelity_convergence(n, infids)
 
 
+class LaTeXRenderingTest(testutil.TestCase):
+
+    def test_plot_filter_function(self):
+        with plt.rc_context(rc={'text.usetex': True}):
+            _ = plotting.plot_filter_function(simple_pulse)
+
+
 @pytest.mark.skipif(
     qutip is None,
     reason='Skipping bloch sphere visualization tests for build without qutip')
