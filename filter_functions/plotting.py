@@ -68,6 +68,24 @@ except ImportError:
     qt = mock.Mock()
 
 
+def _make_str_tex_compatible(s: str) -> str:
+    """Escape incompatible characters in strings passed to TeX."""
+    if not plt.rcParams['text.usetex']:
+        return s
+
+    s = str(s)
+    incompatible = ('_',)
+    for char in incompatible:
+        locs = [i for i, c in enumerate(s) if c == char]
+        # Loop backwards so as not to change locs when modifying s
+        for loc in locs[::-1]:
+            # Check if math environment, if not add escape character
+            if not s.count('$', loc) % 2:
+                s = s[:loc] + '\\' + s[loc:]
+
+    return s
+
+
 def get_bloch_vector(states: Sequence[State]) -> ndarray:
     r"""
     Get the Bloch vector from quantum states.
@@ -319,7 +337,8 @@ def plot_pulse_train(
     handles = []
     for i, c_coeffs in enumerate(pulse.c_coeffs[tuple(c_oper_inds), ...]):
         coeffs = np.insert(c_coeffs, 0, c_coeffs[0])
-        handles += axes.step(pulse.t, coeffs, label=c_oper_identifiers[i], **plot_kw)
+        handles += axes.step(pulse.t, coeffs,
+                             label=_make_str_tex_compatible(c_oper_identifiers[i]), **plot_kw)
 
     axes.set_xlim(pulse.t[0], pulse.tau)
     axes.set_xlabel(r'$t$ / a.u.')
@@ -439,7 +458,8 @@ def plot_filter_function(
     handles = []
     for i, ind in enumerate(n_oper_inds):
         handles += axes.plot(z, filter_function[ind],
-                             label=n_oper_identifiers[i], **plot_kw)
+                             label=_make_str_tex_compatible(n_oper_identifiers[i]),
+                             **plot_kw)
 
     # Set the axis scales
     axes.set_xscale(xscale)
@@ -572,7 +592,7 @@ def plot_pulse_correlation_filter_function(
             handles = []
             for k, ind in enumerate(n_oper_inds):
                 handles += axes[i, j].plot(z, F_pc[i, j, ind].real,
-                                           label=n_oper_identifiers[k],
+                                           label=_make_str_tex_compatible(n_oper_identifiers[k]),
                                            **plot_kw)
                 if i != j:
                     axes[i, j].plot(z, F_pc[i, j, ind].imag, linestyle='--',
@@ -589,7 +609,8 @@ def plot_pulse_correlation_filter_function(
 
             if i == 0 and j == n-1:
                 handles += [transparent_line, solid_line, dashed_line]
-                labels = n_oper_identifiers.tolist() + ['', r'$Re$', r'$Im$']
+                labels = ([_make_str_tex_compatible(n) for n in n_oper_identifiers]
+                          + ['', r'$Re$', r'$Im$'])
                 legend = axes[i, j].legend(handles=handles, labels=labels,
                                            bbox_to_anchor=(1.05, 1), loc=2,
                                            borderaxespad=0., frameon=False)
@@ -778,6 +799,8 @@ def plot_cumulant_function(
         if len(basis_labels) != K.shape[-1]:
             raise ValueError('Invalid number of basis_labels given')
 
+        basis_labels = [_make_str_tex_compatible(bl) for bl in basis_labels]
+
     if grid is None:
         aspect_ratio = 2/3
         n_rows = int(np.round(np.sqrt(aspect_ratio*len(n_oper_inds))))
@@ -845,6 +868,6 @@ def plot_cumulant_function(
     cbar_kw = cbar_kw or {}
     cbar_kw.setdefault('orientation', 'vertical')
     cbar = fig.colorbar(im, cax=grid.cbar_axes[0], **cbar_kw)
-    cbar.set_label(cbar_label, fontsize=cbar_labelsize)
+    cbar.set_label(_make_str_tex_compatible(cbar_label), fontsize=cbar_labelsize)
 
     return fig, grid
