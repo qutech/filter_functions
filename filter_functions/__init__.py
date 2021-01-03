@@ -22,14 +22,17 @@
 
 from . import analytic, basis, numeric, pulse_sequence, superoperator, util
 from .basis import Basis
+
 from .numeric import error_transfer_matrix, infidelity
 from .pulse_sequence import PulseSequence, concatenate, concatenate_periodic, extend, remap
 from .superoperator import liouville_representation
+from .gradient import infidelity_derivative
 
 __all__ = ['Basis', 'PulseSequence', 'analytic', 'basis', 'concatenate', 'concatenate_periodic',
            'error_transfer_matrix', 'extend', 'infidelity', 'liouville_representation', 'numeric',
-           'pulse_sequence', 'remap', 'util', 'superoperator']
+           'pulse_sequence', 'remap', 'util', 'superoperator', 'infidelity_derivative']
 
-__version__ = '0.3.0'
+
+__version__ = '0.4.0'
 __license__ = 'GNU GPLv3+'
 __author__ = 'Quantum Technology Group, RWTH Aachen University'

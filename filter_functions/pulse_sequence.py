@@ -49,7 +49,7 @@ import numpy as np
 from numpy import linalg as nla
 from numpy import ndarray
 
-from . import numeric, util
+from . import numeric, util, gradient
 from .basis import Basis, equivalent_pauli_basis_elements, remap_pauli_basis_elements
 from .superoperator import liouville_representation
 from .types import Coefficients, Hamiltonian, Operator, PulseMapping
@@ -223,6 +223,8 @@ class PulseSequence:
         computed during concatenation)
     propagator_at_arb_t(t)
         Calculate the propagator at arbitrary times
+    get_filter_function_derivative
+        Calculate the filter function derivative for frequencies omega
 
     Notes
     -----
@@ -742,6 +744,56 @@ class PulseSequence:
             "Could not get the pulse correlation filter function since it " +
             "was not computed during concatenation. Please run the " +
             "concatenation again with 'calc_pulse_correlation_FF' set to True."
+        )
+
+    def get_filter_function_derivative(
+            self,
+            omega: Coefficients,
+            contorl_identifier: Optional[Sequence[str]] = None,
+            s_derivs: Optional[Sequence[Coefficients]] = None
+    ) -> ndarray:
+        r"""
+        Calculate the filter function derivative of the pulse sequence.
+
+        The filter function derivative is cached so it doesn't need to be
+        calculated twice for the same frequencies.
+
+        Parameters
+        ----------
+        omega : array_like, shape (n_omega,)
+            Frequencies at which the pulse control matrix is to be evaluated.
+        contorl_identifier : Sequence[str]
+            Sequence of strings with the control identifiern to distinguish
+            between control and drift Hamiltonian. The default is None.
+        s_derivs : array_like, shape (n_nops, n_ctrl, n_dt)
+            The derivatives of the noise susceptibilities by the control
+            amplitudes. Defaults to None.
+
+        Returns
+        -------
+        deriv_filter_function : ndarray, shape (n_nops, n_t, n_ctrl, n_omega)
+            The regular filter functions' derivatives for variation in each
+            control contribution.
+
+        """
+
+        R = self.get_control_matrix(omega)
+        eigvals, eigvecs, propagators, all_id = (
+            self.eigvals, self.eigvecs, self._propagators,
+            self.c_oper_identifiers)
+        basis, dt, t = self.basis, self.dt, self.t
+        n_coeffs, c_coeffs = self.n_coeffs, self.c_coeffs
+        c_opers, n_opers = self.c_opers, self.n_opers
+
+        Q_Liou = liouville_representation(propagators, basis)
+        deriv_R = gradient.calculate_derivative_of_control_matrix_from_scratch(
+            omega=omega, propagators=propagators, Q_Liou=Q_Liou, eigvals=eigvals, eigvecs=eigvecs,
+            basis=basis, t=t, dt=dt, n_opers=n_opers, n_coeffs=n_coeffs,
+            c_opers=c_opers, all_identifiers=all_id, control_identifiers=contorl_identifier,
+            s_derivs=s_derivs)
+
+        return gradient.calculate_canonical_filter_function_derivative(
+            R, deriv_R
         )
 
     def get_total_phases(self, omega: Coefficients) -> ndarray:
