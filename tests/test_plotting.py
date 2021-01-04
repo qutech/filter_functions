@@ -21,9 +21,11 @@
 """
 This module tests the plotting functionality of the package.
 """
+from copy import copy
 import string
 from random import sample
 
+from matplotlib import cycler
 import numpy as np
 import pytest
 
@@ -66,6 +68,10 @@ class PlottingTest(testutil.TestCase):
         fig, ax, leg = plotting.plot_pulse_train(complicated_pulse,
                                                  c_oper_identifiers,
                                                  fig=fig, axes=ax)
+
+        # Test cycler arg
+        cycle = cycler(color=['r', 'g', 'b'])
+        fig, ax, leg = plotting.plot_pulse_train(simple_pulse, cycler=cycle)
 
         # invalid identifier
         with self.assertRaises(ValueError):
@@ -112,6 +118,10 @@ class PlottingTest(testutil.TestCase):
             n_oper_identifiers=n_oper_identifiers,
             fig=fig, axes=ax, omega_in_units_of_tau=False
         )
+
+        # Test cycler arg
+        cycle = cycler(color=['r', 'g', 'b'])
+        fig, ax, leg = plotting.plot_filter_function(simple_pulse, cycler=cycle)
 
         # invalid identifier
         with self.assertRaises(ValueError):
@@ -176,6 +186,11 @@ class PlottingTest(testutil.TestCase):
             n_oper_identifiers=n_oper_identifiers, fig=fig,
             omega_in_units_of_tau=False
         )
+
+        # Test cycler arg
+        cycle = cycler(color=['r', 'g', 'b'])
+        fig, ax, leg = plotting.plot_pulse_correlation_filter_function(concatenated_simple_pulse,
+                                                                       cycler=cycle)
 
         # invalid identifiers
         with self.assertRaises(ValueError):
