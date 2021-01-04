@@ -100,6 +100,11 @@ def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
 
     bloch_kwargs.setdefault('view', [-150, 30])
     b = qt.Bloch(**bloch_kwargs)
+
+    # https://github.com/qutip/qutip/issues/1385
+    if hasattr(b.axes, 'set_box_aspect'):
+        b.axes.set_box_aspect([1, 1, 1])
+
     b.xlabel = [r'$|+\rangle$', '']
     b.ylabel = [r'$|+_i\rangle$', '']
     return b
@@ -212,13 +217,6 @@ def plot_bloch_vector_evolution(
         n_samples = min([5000, 5*int(pulse.tau/np.diff(pulse.t).min())])
 
     times = np.linspace(pulse.t[0], pulse.tau, n_samples)
-    n_cops = len(pulse.c_opers)
-    coeffs = np.zeros((n_cops, len(times)))
-    for i in range(n_cops):
-        for j, coeff in enumerate(pulse.c_coeffs[i]):
-            if coeff != 0:
-                coeffs[i] += coeff*(pulse.t[j] <= times)*(times <= pulse.t[j+1])
-
     propagators = pulse.propagator_at_arb_t(times)
     points = get_bloch_vector(get_states_from_prop(propagators, psi0))
     b.add_points(points, meth='l')

@@ -342,3 +342,9 @@ class BlochSphereVisualizationTest(testutil.TestCase):
             plotting.plot_bloch_vector_evolution(two_qubit_pulse)
 
         plt.close('all')
+
+    def test_box_aspect(self):
+        """Fix https://github.com/qutech/filter_functions/issues/41"""
+        b = plotting.plot_bloch_vector_evolution(simple_pulse, return_Bloch=True)
+        aspect = b.axes.get_box_aspect()
+        self.assertAlmostEqual(aspect.std(), 0)
