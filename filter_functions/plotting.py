@@ -54,8 +54,8 @@ from mpl_toolkits import axes_grid1, mplot3d
 from numpy import ndarray
 
 from . import numeric, util
-from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes,
-                    FigureAxesLegend, FigureGrid, Grid, Operator, State)
+from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes, FigureAxesLegend, FigureGrid,
+                    Grid, Operator, State)
 
 __all__ = ['plot_cumulant_function', 'plot_infidelity_convergence', 'plot_filter_function',
            'plot_pulse_correlation_filter_function', 'plot_pulse_train']

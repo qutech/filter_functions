@@ -21,11 +21,10 @@
 """
 This module tests the plotting functionality of the package.
 """
-from copy import copy
 import string
+from copy import copy
 from random import sample
 
-from matplotlib import cycler
 import numpy as np
 import pytest
 
@@ -40,6 +39,7 @@ plotting = pytest.importorskip('filter_functions.plotting',
                                reason='Skipping plotting tests for build without matplotlib')
 if plotting is not None:
     import matplotlib.pyplot as plt
+    from matplotlib import cycler
 
 simple_pulse = testutil.rand_pulse_sequence(2, 1, 1, 1, btype='Pauli')
 complicated_pulse = testutil.rand_pulse_sequence(2, 100, 3, 3)

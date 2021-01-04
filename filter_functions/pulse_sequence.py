@@ -49,7 +49,7 @@ import numpy as np
 from numpy import linalg as nla
 from numpy import ndarray
 
-from . import numeric, util, gradient
+from . import gradient, numeric, util
 from .basis import Basis, equivalent_pauli_basis_elements, remap_pauli_basis_elements
 from .superoperator import liouville_representation
 from .types import Coefficients, Hamiltonian, Operator, PulseMapping
