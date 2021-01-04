@@ -317,8 +317,12 @@ class PlottingTest(testutil.TestCase):
 class LaTeXRenderingTest(testutil.TestCase):
 
     def test_plot_filter_function(self):
+        pulse = copy(simple_pulse)
+        pulse.c_oper_identifiers = np.array([f'B_{i}' for i in range(len(pulse.c_opers))])
+        pulse.n_oper_identifiers = np.array([f'B_{i}' for i in range(len(pulse.n_opers))])
         with plt.rc_context(rc={'text.usetex': True}):
-            _ = plotting.plot_filter_function(simple_pulse)
+            _ = plotting.plot_pulse_train(pulse)
+            _ = plotting.plot_filter_function(pulse)
 
 
 @pytest.mark.skipif(
