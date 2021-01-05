@@ -40,8 +40,9 @@ class MissingExtrasTest(testutil.TestCase):
         'fancy_progressbar' in os.environ.get('INSTALL_EXTRAS', all_extras),
         reason='Skipping tests for missing fancy progressbar extra in build with requests')  # noqa
     def test_fancy_progressbar_not_available(self):
-        from filter_functions import util
         from tqdm import tqdm
+
+        from filter_functions import util
         self.assertEqual(util._NOTEBOOK_NAME, '')
         self.assertIs(tqdm, util._tqdm)
 

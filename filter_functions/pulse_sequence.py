@@ -49,7 +49,7 @@ import numpy as np
 from numpy import linalg as nla
 from numpy import ndarray
 
-from . import numeric, util, gradient
+from . import gradient, numeric, util
 from .basis import Basis, equivalent_pauli_basis_elements, remap_pauli_basis_elements
 from .superoperator import liouville_representation
 from .types import Coefficients, Hamiltonian, Operator, PulseMapping
@@ -2250,7 +2250,8 @@ def extend(
             raise ValueError(f'Expected additional noise operators to have dimensions {(d, d)}, ' +
                              f'not {add_n_opers.shape[1:]}.')
         if any(n_oper_id in n_oper_identifiers for n_oper_id in add_n_oper_id):
-            raise ValueError('Found duplicate noise operator identifiers')
+            identifiers = set(n_oper_identifiers).intersection(add_n_oper_id)
+            raise ValueError(f'Found duplicate noise operator identifiers: {identifiers}')
 
         n_opers.extend(add_n_opers)
         n_coeffs.extend(add_n_coeffs)
