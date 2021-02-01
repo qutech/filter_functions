@@ -856,16 +856,17 @@ class ExtensionTest(testutil.TestCase):
 
         # Cannot extend with basis other than Pauli, if caching is forced it
         # should still work
-        extended_pulse = ff.extend([(pulse_3, 0), (pulse_3, 1)], omega=omega,
-                                   cache_diagonalization=True, cache_filter_function=True)
-        self.assertIsNotNone(extended_pulse._eigvals)
-        self.assertIsNotNone(extended_pulse._eigvecs)
-        self.assertIsNotNone(extended_pulse._propagators)
-        self.assertIsNotNone(extended_pulse._total_propagator)
-        self.assertIsNotNone(extended_pulse._total_propagator_liouville)
-        self.assertIsNotNone(extended_pulse._total_phases)
-        self.assertIsNotNone(extended_pulse._control_matrix)
-        self.assertIsNotNone(extended_pulse._filter_function)
+        with self.assertWarns(UserWarning):
+            extended_pulse = ff.extend([(pulse_3, 0), (pulse_3, 1)], omega=omega,
+                                       cache_diagonalization=True, cache_filter_function=True)
+            self.assertIsNotNone(extended_pulse._eigvals)
+            self.assertIsNotNone(extended_pulse._eigvecs)
+            self.assertIsNotNone(extended_pulse._propagators)
+            self.assertIsNotNone(extended_pulse._total_propagator)
+            self.assertIsNotNone(extended_pulse._total_propagator_liouville)
+            self.assertIsNotNone(extended_pulse._total_phases)
+            self.assertIsNotNone(extended_pulse._control_matrix)
+            self.assertIsNotNone(extended_pulse._filter_function)
 
     def test_accuracy(self):
         ID, X, Y, Z = util.paulis
