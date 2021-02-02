@@ -1188,6 +1188,7 @@ class ExtensionTest(testutil.TestCase):
             # Unknown basis
             ff.extend([(pulse_4, 1)])
 
+
 class RemappingTest(testutil.TestCase):
 
     def test_caching(self):
