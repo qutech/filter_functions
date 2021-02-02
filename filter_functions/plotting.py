@@ -852,7 +852,7 @@ def plot_cumulant_function(
     for i, n_oper_identifier in enumerate(n_oper_identifiers):
         ax = grid[i]
         im = ax.imshow(K[i], **imshow_kw)
-        ax.set_title(n_oper_identifier)
+        ax.set_title(n_oper_identifier, loc='left')
         ax.set_xticks(np.arange(K.shape[-1]))
         ax.set_yticks(np.arange(K.shape[-1]))
         ax.set_xticklabels(basis_labels, fontsize=basis_labelsize, rotation='vertical')
