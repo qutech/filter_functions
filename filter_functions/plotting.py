@@ -79,8 +79,8 @@ def _make_str_tex_compatible(s: str) -> str:
         locs = [i for i, c in enumerate(s) if c == char]
         # Loop backwards so as not to change locs when modifying s
         for loc in locs[::-1]:
-            # Check if math environment, if not add escape character
-            if not s.count('$', loc) % 2:
+            # Check if already escaped or math environment, if not add escape character
+            if not s[loc-1:].startswith('\\') and not s.count('$', loc) % 2:
                 s = s[:loc] + '\\' + s[loc:]
 
     return s
