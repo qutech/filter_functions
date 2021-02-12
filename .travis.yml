@@ -8,12 +8,20 @@ python:
   - 3.6
   - 3.7
   - 3.8
+env:
+  - INSTALL_DEPS="numpy scipy opt_einsum sparse tqdm"
+  - INSTALL_EXTRAS="pytest>=4.6 pytest-cov codecov"
+  - INSTALL_EXTRAS="pytest>=4.6 pytest-cov codecov requests matplotlib"
+  - INSTALL_EXTRAS="pytest>=4.6 pytest-cov codecov requests matplotlib qutip"
 
 #these directories are persistent
 cache: pip
 
 #https://github.com/conda/conda/blob/master/docs/source/user-guide/tasks/use-conda-with-travis-ci.rst
 before_install:
+  - echo $TRAVIS_PYTHON_VERSION
+  - echo $INSTALL_DEPS
+  - echo $INSTALL_EXTRAS
   - sudo apt-get update
   # We do this conditionally because it saves us some downloading if the
   # version is the same.
@@ -27,25 +35,14 @@ before_install:
   # Useful for debugging any issues with conda
   - conda info -a
 
-  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION numpy scipy opt_einsum sparse tqdm
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $INSTALL_DEPS $INSTALL_EXTRAS
   - source activate test-environment
+  
+install:
+  - pip install .
 
-jobs:
-  include:
-    - name: "Bare"
-      install:
-        - conda install -q pytest>=4.6 pytest-cov codecov
-        - pip install .
-    - name: "Plotting & fancy progressbar"
-      install:
-        - conda install -q pytest>=4.6 pytest-cov codecov requests matplotlib
-        - pip install .
-    - name: "Complete"
-      install:
-        - conda install -q pytest>=4.6 pytest-cov codecov requests matplotlib qutip jupyter nbsphinx numpydoc sphinx sphinx_rtd_theme
-        - pip install .
-
-script: pytest
+script:
+  - pytest
 
 after_success:
   - codecov
