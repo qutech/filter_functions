@@ -25,7 +25,7 @@ cache: pip
 
 before_install:
   # Resolve INSTALL_EXTRAS into required packages for use with conda. HACKY
-  INSTALL_EXTRAS_PACKAGES=$(eval echo ${${${INSTALL_EXTRAS//,/ $}//\[/$}%]})
+  # INSTALL_EXTRAS_PACKAGES=$(eval echo ${${${INSTALL_EXTRAS//,/ $}//\[/$}%]})
   
   # Useful info for debugging
   - echo $TRAVIS_PYTHON_VERSION
