@@ -8,17 +8,24 @@ env:
   global:
     - INSTALL_DEPS="numpy scipy opt_einsum sparse tqdm"
     - INSTALL_TEST_DEPS="pytest>=4.6 pytest-cov codecov"
+    - doc="jupyter"
     - plotting="matplotlib"
     - fancy_progressbar="requests"
     - bloch_sphere_visualization="matplotlib qutip"
   jobs:
     - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,fancy_progressbar]
     - INSTALL_EXTRAS=[plotting,fancy_progressbar]
-    - INSTALL_EXTRAS=[]
+    - INSTALL_EXTRAS=[none]
     
-#these directories are persistent
-cache: pip
+before_cache:
+  - rm -rf $HOME/miniconda/locks $HOME/miniconda/var $HOME/miniconda/conda-meta/history $HOME/miniconda/envs/test-environment/conda-meta/history
 
+#these directories are persistent
+cache:
+  - directories:
+    - $HOME/miniconda
+    - $HOME/.cache/pip
+    
 before_install:
   # Resolve INSTALL_EXTRAS into required packages for use with conda. HACKY
   - TMP=${INSTALL_EXTRAS//,/ $}
