@@ -13,7 +13,7 @@ python:
 cache: pip
 
 #https://github.com/conda/conda/blob/master/docs/source/user-guide/tasks/use-conda-with-travis-ci.rst
-install:
+before_install:
   - sudo apt-get update
   # We do this conditionally because it saves us some downloading if the
   # version is the same.
@@ -33,25 +33,20 @@ install:
 jobs:
   include:
     - name: "Bare"
-      install:
+      before_install:
         - conda install -q pytest>=4.6 pytest-cov codecov
-        - pip install .
-      script:
-        - pytest tests
         
     - name: "Plotting & fancy progressbar"
-      install:
+      before_install:
         - conda install -q pytest>=4.6 pytest-cov codecov requests matplotlib
-        - pip install .
-      script:
-        - pytest tests
         
     - name: "Complete"
-      install:
+      before_install:
         - conda install -q pytest>=4.6 pytest-cov codecov requests matplotlib qutip jupyter nbsphinx numpydoc sphinx sphinx_rtd_theme 
-        - pip install .
-      script:
-        - pytest tests
+
+install: pip install .
+
+script: pytest
 
 after_success:
   - codecov
