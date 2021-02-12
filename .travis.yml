@@ -1,7 +1,3 @@
-os: linux
-
-dist: xenial
-
 language: python
 
 python:
@@ -25,7 +21,8 @@ cache: pip
 
 before_install:
   # Resolve INSTALL_EXTRAS into required packages for use with conda. HACKY
-  INSTALL_EXTRAS_PACKAGES=$(eval echo ${${${INSTALL_EXTRAS//,/ $}//\[/$}%]})
+  # travis doesn't allow eval :(
+  INSTALL_EXTRAS_PACKAGES=${${${${${${INSTALL_EXTRAS//,/ $}//\[/$}%]}//\$plotting/$plotting}//\$fancy_progressbar/$fancy_progressbar}//\$boch_sphere_visualization/$boch_sphere_visualization}
   
   # Useful info for debugging
   - echo $TRAVIS_PYTHON_VERSION
