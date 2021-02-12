@@ -1,3 +1,7 @@
+os: linux
+
+dist: xenial
+
 language: python
 
 python:
@@ -16,16 +20,7 @@ env:
     - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,fancy_progressbar]
     - INSTALL_EXTRAS=[plotting,fancy_progressbar]
     - INSTALL_EXTRAS=[none]
-    
-before_cache:
-  - rm -rf $HOME/miniconda/locks $HOME/miniconda/var $HOME/miniconda/conda-meta/history $HOME/miniconda/envs/test-environment/conda-meta/history
-
-#these directories are persistent
-cache:
-  - directories:
-    - $HOME/miniconda
-    - $HOME/.cache/pip
-    
+       
 before_install:
   # Resolve INSTALL_EXTRAS into required packages for use with conda. HACKY
   - TMP=${INSTALL_EXTRAS//,/ $}
