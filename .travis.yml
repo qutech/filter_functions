@@ -8,24 +8,46 @@ python:
   - 3.6
   - 3.7
   - 3.8
-env:
-  - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,fancy_progressbar,doc,tests]
-  - INSTALL_EXTRAS=[plotting,fancy_progressbar,tests]
-  - INSTALL_EXTRAS=[tests]
 
 #these directories are persistent
 cache: pip
 
-#manually install these dependencies so that qutip can be installed via pip
-before_install:
-  - pip install --upgrade pip
-  - pip install numpy scipy cython
-
+#https://github.com/conda/conda/blob/master/docs/source/user-guide/tasks/use-conda-with-travis-ci.rst
 install:
-  - pip install .$INSTALL_EXTRAS
+  - sudo apt-get update
+  # We do this conditionally because it saves us some downloading if the
+  # version is the same.
+  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  # Useful for debugging any issues with conda
+  - conda info -a
+
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION numpy scipy opt_einsum sparse tqdm
+  - source activate test-environment
 
 script:
   - pytest tests
+
+jobs:
+  include:
+    - name: "Bare"
+      install:
+        - conda install -q pytest>=4.6 pytest-cov codecov
+        - pip install .
+        
+    - name: "Plotting & fancy progressbar"
+      install:
+        - conda install -q pytest>=4.6 pytest-cov codecov requests matplotlib
+        - pip install .
+        
+    - name: "Complete"
+      install:
+        - conda install -q pytest>=4.6 pytest-cov codecov requests matplotlib qutip jupyter nbsphinx numpydoc sphinx sphinx_rtd_theme 
+        - pip install .
 
 after_success:
   - codecov
