@@ -33,18 +33,17 @@ before_install:
 jobs:
   include:
     - name: "Bare"
-      before_install:
+      install:
         - conda install -q pytest>=4.6 pytest-cov codecov
-        
+        - pip install .
     - name: "Plotting & fancy progressbar"
-      before_install:
+      install:
         - conda install -q pytest>=4.6 pytest-cov codecov requests matplotlib
-        
+        - pip install .
     - name: "Complete"
-      before_install:
-        - conda install -q pytest>=4.6 pytest-cov codecov requests matplotlib qutip jupyter nbsphinx numpydoc sphinx sphinx_rtd_theme 
-
-install: pip install .
+      install:
+        - conda install -q pytest>=4.6 pytest-cov codecov requests matplotlib qutip jupyter nbsphinx numpydoc sphinx sphinx_rtd_theme
+        - pip install .
 
 script: pytest
 
