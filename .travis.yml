@@ -11,20 +11,30 @@ python:
 env:
   global:
     - INSTALL_DEPS="numpy scipy opt_einsum sparse tqdm"
+    - INSTALL_TEST_DEPS="pytest>=4.6 pytest-cov codecov"
+    - plotting="matplotlib"
+    - fancy_progressbar="requests"
+    - boch_sphere_visualization="matplotlib qutip"
   jobs:
-    - INSTALL_EXTRAS="pytest>=4.6 pytest-cov codecov"
-    - INSTALL_EXTRAS="pytest>=4.6 pytest-cov codecov requests matplotlib"
-    - INSTALL_EXTRAS="pytest>=4.6 pytest-cov codecov requests matplotlib qutip"
-
+    - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,fancy_progressbar]
+    - INSTALL_EXTRAS=[plotting,fancy_progressbar]
+    - INSTALL_EXTRAS=[]
+    
 #these directories are persistent
 cache: pip
 
-#https://github.com/conda/conda/blob/master/docs/source/user-guide/tasks/use-conda-with-travis-ci.rst
 before_install:
+  # Resolve INSTALL_EXTRAS into required packages for use with conda. HACKY
+  INSTALL_EXTRAS_PACKAGES=$(eval echo ${${${INSTALL_EXTRAS//,/ $}//\[/$}%]})
+  
+  # Useful info for debugging
   - echo $TRAVIS_PYTHON_VERSION
   - echo $INSTALL_DEPS
+  - echo $INSTALL_TEST_DEPS
   - echo $INSTALL_EXTRAS
-  - sudo apt-get update
+  - echo $INSTALL_EXTRAS_PACKAGES
+
+  # https://github.com/conda/conda/blob/master/docs/source/user-guide/tasks/use-conda-with-travis-ci.rst
   # We do this conditionally because it saves us some downloading if the
   # version is the same.
   - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
@@ -37,7 +47,7 @@ before_install:
   # Useful for debugging any issues with conda
   - conda info -a
 
-  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $INSTALL_DEPS $INSTALL_EXTRAS
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $INSTALL_DEPS $INSTALL_TEST_DEPS $INSTALL_EXTRAS_PACKAGES
   - source activate test-environment
   
 install:
