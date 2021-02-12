@@ -10,7 +10,7 @@ env:
     - INSTALL_TEST_DEPS="pytest>=4.6 pytest-cov codecov"
     - plotting="matplotlib"
     - fancy_progressbar="requests"
-    - boch_sphere_visualization="matplotlib qutip"
+    - bloch_sphere_visualization="matplotlib qutip"
   jobs:
     - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,fancy_progressbar]
     - INSTALL_EXTRAS=[plotting,fancy_progressbar]
@@ -21,7 +21,9 @@ cache: pip
 
 before_install:
   # Resolve INSTALL_EXTRAS into required packages for use with conda. HACKY
-  - INSTALL_EXTRAS_PACKAGES=$(eval echo ${${${INSTALL_EXTRAS//,/ $}//\[/$}%]})
+  - TMP=${INSTALL_EXTRAS//,/ $}
+  - TMP=${TMP/[/$}
+  - INSTALL_EXTRAS_PACKAGES=$(eval echo ${TMP%]})
   
   # Useful info for debugging
   - echo $TRAVIS_PYTHON_VERSION
