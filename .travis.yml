@@ -30,25 +30,28 @@ install:
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION numpy scipy opt_einsum sparse tqdm
   - source activate test-environment
 
-script:
-  - pytest tests
-
 jobs:
   include:
     - name: "Bare"
       install:
         - conda install -q pytest>=4.6 pytest-cov codecov
         - pip install .
+      script:
+        - pytest tests
         
     - name: "Plotting & fancy progressbar"
       install:
         - conda install -q pytest>=4.6 pytest-cov codecov requests matplotlib
         - pip install .
+      script:
+        - pytest tests
         
     - name: "Complete"
       install:
         - conda install -q pytest>=4.6 pytest-cov codecov requests matplotlib qutip jupyter nbsphinx numpydoc sphinx sphinx_rtd_theme 
         - pip install .
+      script:
+        - pytest tests
 
 after_success:
   - codecov
