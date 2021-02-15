@@ -879,7 +879,6 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     M_inv = nla.inv(M)
     good_inverse = np.isclose(M_inv @ M, eye, atol=1e-10, rtol=0).all((1, 2))
 
-    # Allocate memory
     S = np.empty((*phases.shape, *total_propagator_liouville.shape), dtype=complex)
     # Evaluate the sum for invertible frequencies
     S[good_inverse] = M_inv[good_inverse] @ (eye - nla.matrix_power(T[good_inverse], repeats))
@@ -891,7 +890,6 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     if (~good_inverse).any():
         S[~good_inverse] = eye + sum(accumulate(repeat(T[~good_inverse], repeats-1), np.matmul))
 
-    # Multiply with control_matrix_at to get the final control matrix
     control_matrix_tot = (control_matrix.transpose(2, 0, 1) @ S).transpose(1, 2, 0)
     return control_matrix_tot
 
@@ -1037,7 +1035,9 @@ def calculate_cumulant_function(
 
     if decay_amplitudes is None:
         decay_amplitudes = calculate_decay_amplitudes(pulse, spectrum, omega, n_oper_identifiers,
-                                                      which, show_progressbar, memory_parsimonious)
+                                                      which, show_progressbar,
+                                                      cache_intermediates=second_order,
+                                                      memory_parsimonious=memory_parsimonious)
 
     if second_order:
         if frequency_shifts is None:
@@ -1096,6 +1096,7 @@ def calculate_decay_amplitudes(
         n_oper_identifiers: Optional[Sequence[str]] = None,
         which: str = 'total',
         show_progressbar: bool = False,
+        cache_intermediates: bool = False,
         memory_parsimonious: bool = False
 ) -> ndarray:
     r"""
@@ -1124,6 +1125,9 @@ def calculate_decay_amplitudes(
         :ref:`Notes <notes>`.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
+    cache_intermediates: bool, optional
+        Keep and return intermediate terms of the calculation that are
+        useful in other places (if control matrix not already cached).
     memory_parsimonious: bool, optional
         For large dimensions, the integrand
 
@@ -1184,7 +1188,7 @@ def calculate_decay_amplitudes(
             control_matrix = None
             filter_function = pulse.get_filter_function(omega, which='generalized')
         else:
-            control_matrix = pulse.get_control_matrix(omega, show_progressbar)
+            control_matrix = pulse.get_control_matrix(omega, show_progressbar, cache_intermediates)
             filter_function = None
     else:
         # which == 'correlations'
@@ -1411,7 +1415,7 @@ def calculate_second_order_filter_function(
         n_opers: Sequence[Operator],
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
-        intermediates: Optional[Sequence[ndarray]] = None,
+        intermediates: Optional[Dict[str, ndarray]] = None,
         memory_parsimonious: bool = False,
         show_progressbar: bool = False
 ) -> ndarray:

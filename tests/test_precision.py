@@ -431,7 +431,7 @@ class PrecisionTest(testutil.TestCase):
         d = 3
         pulse = testutil.rand_pulse_sequence(d, 5)
         # including zero
-        E = util.get_sample_frequencies(pulse, 51)
+        E = util.get_sample_frequencies(pulse, 51, include_quasistatic=True)
 
         for i, (eigval, dt, t) in enumerate(zip(pulse.eigvals, pulse.dt, pulse.t)):
             integral, integral_numeric = _get_integrals_first_order(d, E, eigval, dt, t)
