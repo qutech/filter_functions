@@ -1,0 +1,16 @@
+\documentclass[varwidth=false, border=10pt]{standalone}
+% compile with pdflatex -interaction batchmode .\qft.tex
+% convert with magick convert -density 300 .\qft.pdf .\qft.png
+\usepackage{qcircuit}
+\usepackage{physics}
+
+\begin{document}
+
+\Qcircuit @C=1em @R=1em {
+    \lstick{3}  & \qw       & \qw         & \qw           & \qw        & \qw           & \ctrl{1}   & \qswap        & \qw       & \qw        & \qw           & \qw        & \qw           & \qw       & \qw        & \qw           & \qw       & \qwa    & \rstick{0} \\
+    \lstick{2}  & \qw       & \qw         & \qw           & \ctrl{1}   & \qswap        & \gate{R_4} & \qswap\qwx    & \qw       & \qw        & \qw           & \ctrl{1}   & \qswap        & \qw       & \qw        & \qw           & \qw       & \qwa    & \rstick{1} \\
+    \lstick{1}  & \qw       & \ctrl{1}    & \qswap        & \gate{R_3} & \qswap\qwx    & \qw        & \qw           & \qw       & \ctrl{1}   & \qswap        & \gate{R_3} & \qswap\qwx    & \qw       & \ctrl{1}   & \qswap        & \qw       & \qwa    & \rstick{2} \\
+    \lstick{0}  & \gate{H}  & \gate{R_2}  & \qswap\qwx    & \qw        & \qw           & \qw        & \qw           & \gate{H}  & \gate{R_2} & \qswap\qwx    & \qw        & \qw           & \gate{H}  & \gate{R_2} & \qswap\qwx    & \gate{H}  & \qwa    & \rstick{3}
+}
+
+\end{document}

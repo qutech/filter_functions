@@ -26,7 +26,6 @@ import numpy as np
 import tests.gradient_testutil as grad_util
 from tests import testutil
 
-
 np.random.seed(0)
 initial_pulse = np.random.rand(grad_util.n_time_steps)
 initial_pulse = np.expand_dims(initial_pulse, 0)

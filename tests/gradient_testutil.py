@@ -1,4 +1,5 @@
 import numpy as np
+
 import filter_functions as ff
 
 sigma_x = np.asarray([[0, 1], [1, 0]]) / 2
