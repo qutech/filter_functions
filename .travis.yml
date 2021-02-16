@@ -9,23 +9,51 @@ python:
   - 3.7
   - 3.8
 env:
-  - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,fancy_progressbar,doc,tests]
-  - INSTALL_EXTRAS=[plotting,fancy_progressbar,tests]
-  - INSTALL_EXTRAS=[tests]
-
-#these directories are persistent
-cache: pip
-
-#manually install these dependencies so that qutip can be installed via pip
+  global:
+    - INSTALL_DEPS="numpy scipy opt_einsum sparse tqdm"
+    - INSTALL_TEST_DEPS="pytest>=4.6 pytest-cov codecov"
+    - plotting="matplotlib"
+    - fancy_progressbar="jupyter requests"
+    - bloch_sphere_visualization="matplotlib qutip"
+  jobs:
+    - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,fancy_progressbar]
+    - INSTALL_EXTRAS=[plotting,fancy_progressbar]
+    - INSTALL_EXTRAS=[none]
+       
 before_install:
-  - pip install --upgrade pip
-  - pip install numpy scipy cython
+  # Resolve INSTALL_EXTRAS into required packages for use with conda. HACKY
+  - TMP=${INSTALL_EXTRAS//,/ $}
+  - TMP=${TMP/[/$}
+  - INSTALL_EXTRAS_PACKAGES=$(eval echo ${TMP%]})
+  
+  # Useful info for debugging
+  - echo $TRAVIS_PYTHON_VERSION
+  - echo $INSTALL_DEPS
+  - echo $INSTALL_TEST_DEPS
+  - echo $INSTALL_EXTRAS
+  - echo $INSTALL_EXTRAS_PACKAGES
 
+  # https://github.com/conda/conda/blob/master/docs/source/user-guide/tasks/use-conda-with-travis-ci.rst
+  # We do this conditionally because it saves us some downloading if the
+  # version is the same.
+  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  - bash miniconda.sh -b -u -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda config --append channels conda-forge
+  - conda update -q conda
+  # Useful for debugging any issues with conda
+  - conda info -a
+
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $INSTALL_DEPS $INSTALL_TEST_DEPS $INSTALL_EXTRAS_PACKAGES
+  - source activate test-environment
+  
 install:
-  - pip install .$INSTALL_EXTRAS
+  - pip install .
 
 script:
-  - pytest tests
+  - pytest
 
 after_success:
   - codecov
