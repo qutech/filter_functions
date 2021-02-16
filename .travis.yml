@@ -13,7 +13,7 @@ env:
     - INSTALL_DEPS="numpy scipy opt_einsum sparse tqdm"
     - INSTALL_TEST_DEPS="pytest>=4.6 pytest-cov codecov"
     - plotting="matplotlib"
-    - fancy_progressbar="jupyter requests"
+    - fancy_progressbar="ipynbname jupyter"
     - bloch_sphere_visualization="matplotlib qutip"
   jobs:
     - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,fancy_progressbar]
