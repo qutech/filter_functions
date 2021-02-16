@@ -83,7 +83,7 @@ from .types import Operator, State
 try:
     import ipynbname
     _NOTEBOOK_NAME = ipynbname.name()
-except (ImportError, FileNotFoundError):
+except (ImportError, IndexError, FileNotFoundError):
     _NOTEBOOK_NAME = ''
 
 if _NOTEBOOK_NAME:
