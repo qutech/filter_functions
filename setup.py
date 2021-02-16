@@ -24,7 +24,7 @@ if sys.version_info < (3, 6):
 
 extras_require = {'plotting': ['matplotlib'],
                   'bloch_sphere_visualization': ['qutip', 'matplotlib'],
-                  'fancy_progressbar': ['requests'],
+                  'fancy_progressbar': ['ipynbname', 'jupyter'],
                   'doc': ['jupyter', 'nbsphinx', 'numpydoc', 'sphinx', 'sphinx_rtd_theme'],
                   'tests': ['pytest>=4.6', 'pytest-cov', 'codecov']}
 
