@@ -1,4 +1,4 @@
-# `filter_functions`: A package for efficient numerical calculation of generalized filter functions
+# `filter_functions`: A package for efficient numerical calculation of generalized filter functions to describe the effect of noise on quantum gate operations
 [![codecov](https://codecov.io/gh/qutech/filter_functions/branch/master/graph/badge.svg)](https://codecov.io/gh/qutech/filter_functions)
 [![Build Status](https://travis-ci.org/qutech/filter_functions.svg?branch=master)](https://travis-ci.org/qutech/filter_functions)
 [![Documentation Status](https://readthedocs.org/projects/filter-functions/badge/?version=latest)](https://filter-functions.readthedocs.io/en/latest/?badge=latest)
@@ -7,7 +7,7 @@
 ## Introduction
 Simply put, filter functions characterize a quantum system's susceptibility to noise at a given frequency during a control operation and can thus be used to gain insight into its decoherence. The formalism allows for efficient calculation of several quantities of interest such as average gate fidelity and even the entire quantum process up to a unitary rotation. Moreover, the filter function of a composite pulse can be easily derived from those of the constituent pulses, allowing for efficient assembly and characterization of pulse sequences.
 
-Previously, filter functions have only been computed analytically for select pulses such as dynamical decoupling sequences [1, 2]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms.
+Initially, filter functions have been introduced to model dynamical decoupling sequences [1, 2]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms. These filter functions can be used to compute process descriptions, fidelities and other quantities of interest from arbitrary classical noise spectral densities. For the efficient and convenient treatment of gate sequences, concatenation rules that allow the filter function of a sequence to be computed from those of its constituents are implemented.
 
 The `filter_functions` package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, and comes with extensive documentation and a test suite. Note that the project is still in pre-release and thus liable to breaking API changes.
 
