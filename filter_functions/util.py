@@ -69,10 +69,7 @@ Exceptions
 """
 import functools
 import inspect
-import json
 import operator
-import os
-import re
 import string
 from itertools import zip_longest
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
@@ -84,79 +81,9 @@ from numpy import ndarray
 from .types import Operator, State
 
 try:
-    import jupyter_client
-    import requests
-    from notebook.notebookapp import list_running_servers
-    from requests.compat import urljoin
-
-    def _get_notebook_name() -> str:
-        """
-        Return the full path of the jupyter notebook.
-
-        See https://github.com/jupyter/notebook/issues/1000
-
-        Jupyter notebook is licensed as follows:
-
-        This project is licensed under the terms of the Modified BSD License
-        (also known as New or Revised or 3-Clause BSD), as follows:
-
-        - Copyright (c) 2001-2015, IPython Development Team
-        - Copyright (c) 2015-, Jupyter Development Team
-
-        All rights reserved.
-
-        Redistribution and use in source and binary forms, with or without
-        modification, are permitted provided that the following conditions are
-        met:
-
-        Redistributions of source code must retain the above copyright notice,
-        this list of conditions and the following disclaimer.
-
-        Redistributions in binary form must reproduce the above copyright
-        notice, this list of conditions and the following disclaimer in the
-        documentation and/or other materials provided with the distribution.
-
-        Neither the name of the Jupyter Development Team nor the names of its
-        contributors may be used to endorse or promote products derived from
-        this software without specific prior written permission.
-
-        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-        IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-        TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-        PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-        OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-        SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-        LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-        DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-        THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-        OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-        """
-        try:
-            connection_file = jupyter_client.find_connection_file()
-        except OSError:
-            return ''
-
-        kernel_id = re.search('kernel-(.*).json', connection_file).group(1)
-        servers = list_running_servers()
-        for ss in servers:
-            response = requests.get(urljoin(ss['url'], 'api/sessions'),
-                                    params={'token': ss.get('token', '')})
-            for nn in json.loads(response.text):
-                try:
-                    if nn['kernel']['id'] == kernel_id:
-                        try:
-                            relative_path = nn['notebook']['path']
-                            return os.path.join(ss['notebook_dir'], relative_path)
-                        except KeyError:
-                            return ''
-                except TypeError:
-                    return ''
-
-        return ''
-
-    _NOTEBOOK_NAME = _get_notebook_name()
-except ImportError:
+    import ipynbname
+    _NOTEBOOK_NAME = ipynbname.name()
+except (ImportError, IndexError, FileNotFoundError):
     _NOTEBOOK_NAME = ''
 
 if _NOTEBOOK_NAME:
