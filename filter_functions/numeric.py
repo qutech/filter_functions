@@ -212,7 +212,10 @@ def _get_integrand(
     Returns
     -------
     integrand: ndarray, shape (..., n_omega)
-        The integrand.
+        The integrand. For one-sided spectra (only positive frequencies)
+        it might be complex. However, mathematically it is guaranteed
+        to be strictly real for the correct two-sided spectrum. Thus,
+        only the real part is returned in all cases.
 
     """
     if control_matrix is not None:
@@ -816,16 +819,16 @@ def calculate_cumulant_function(
         The ``PulseSequence`` instance for which to compute the cumulant
         function.
     spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega), optional
-        The two-sided noise power spectral density in units of inverse
-        frequencies as an array of shape (n_omega,), (n_nops, n_omega),
-        or (n_nops, n_nops, n_omega). In the first case, the same
-        spectrum is taken for all noise operators, in the second, it is
-        assumed that there are no correlations between different noise
-        sources and thus there is one spectrum for each noise operator.
-        In the third and most general case, there may be a spectrum for
-        each pair of noise operators corresponding to the correlations
-        between them. n_nops is the number of noise operators considered
-        and should be equal to ``len(n_oper_identifiers)``.
+        The noise power spectral density in units of inverse frequencies
+        as an array of shape (n_omega,), (n_nops, n_omega), or (n_nops,
+        n_nops, n_omega). In the first case, the same spectrum is taken
+        for all noise operators, in the second, it is assumed that there
+        are no correlations between different noise sources and thus
+        there is one spectrum for each noise operator. In the third and
+        most general case, there may be a spectrum for each pair of
+        noise operators corresponding to the correlations between them.
+        n_nops is the number of noise operators considered and should be
+        equal to ``len(n_oper_identifiers)``.
     omega: array_like, shape (n_omega,), optional
         The frequencies at which to evaluate the filter functions.
     n_oper_identifiers: array_like, optional
@@ -923,7 +926,7 @@ def calculate_cumulant_function(
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
-        cumulant_function = np.zeros(decay_amplitudes.shape)
+        cumulant_function = np.zeros(decay_amplitudes.shape, decay_amplitudes.dtype)
         diag_mask = np.eye(N, dtype=bool)
 
         # Offdiagonal terms
@@ -934,11 +937,12 @@ def calculate_cumulant_function(
         # start at K_11.
         diag_idx = deque((True, False, True, True))
         for i in range(1, N):
-            cumulant_function[..., i, i] = - decay_amplitudes[..., diag_idx, diag_idx].sum(axis=-1)
+            cumulant_function[..., i, i] = -decay_amplitudes[..., diag_idx, diag_idx].sum(axis=-1)
             # shift the item not summed over by one
             diag_idx.rotate()
     else:
-        # Multi qubit case. Use general expression.
+        # Multi qubit case. Use general expression. Drop imaginary part since
+        # result is guaranteed to be real (if we didn't do anything wrong)
         traces = pulse.basis.four_element_traces
         cumulant_function = - (
             oe.contract('...kl,klji->...ij', decay_amplitudes, traces, backend='sparse') -
@@ -970,10 +974,10 @@ def calculate_decay_amplitudes(
         The ``PulseSequence`` instance for which to compute the decay
         amplitudes.
     spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega)
-        The two-sided noise power spectral density. If 1-d, the same
-        spectrum is used for all noise operators. If 2-d, one (self-)
-        spectrum for each noise operator is expected. If 3-d, should be
-        a matrix of cross-spectra such that
+        The noise power spectral density. If 1-d, the same spectrum is
+        used for all noise operators. If 2-d, one (self-) spectrum for
+        each noise operator is expected. If 3-d, should be a matrix of
+        cross-spectra such that
         ``spectrum[i, j] == spectrum[j, i].conj()``.
     omega: array_like,
         The frequencies at which to calculate the filter functions.
