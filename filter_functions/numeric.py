@@ -68,7 +68,6 @@ import opt_einsum as oe
 import sparse
 from numpy import linalg as nla
 from numpy import ndarray
-from scipy import integrate
 from scipy import linalg as sla
 
 from . import util
@@ -1070,7 +1069,6 @@ def calculate_decay_amplitudes(
         integrand = _get_integrand(spectrum, omega, idx, which, 'generalized',
                                    control_matrix=control_matrix,
                                    filter_function=filter_function)
-        decay_amplitudes = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
         return decay_amplitudes.real
 
     # Conserve memory by looping. Let _get_integrand determine the shape
@@ -1087,6 +1085,7 @@ def calculate_decay_amplitudes(
 
     decay_amplitudes = np.zeros(integrand.shape[:-3] + (n_kl,)*2, dtype=integrand.dtype)
     decay_amplitudes[..., 0:1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
+        decay_amplitudes = util.integrate(integrand, omega)/(2*np.pi)
 
     for k in util.progressbar_range(1, n_kl, show_progressbar=show_progressbar,
                                     desc='Integrating'):
@@ -1101,7 +1100,7 @@ def calculate_decay_amplitudes(
                                        control_matrix=control_matrix,
                                        filter_function=filter_function[..., k:k+1, :, :])
 
-        decay_amplitudes[..., k:k+1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
+        decay_amplitudes[..., k:k+1, :] = util.integrate(integrand, omega)/(2*np.pi)
 
     return decay_amplitudes.real
 
@@ -1631,14 +1630,14 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
 
     integrand = _get_integrand(spectrum, omega, idx, which, 'fidelity',
                                filter_function=filter_function)
-    infid = integrate.trapz(integrand, omega).real/(2*np.pi*pulse.d)
+    infid = util.integrate(integrand, omega)/(2*np.pi*pulse.d)
 
     if return_smallness:
         if spectrum.ndim > 2:
             raise NotImplementedError('Smallness parameter only implemented ' +
                                       'for uncorrelated noise sources')
 
-        T1 = integrate.trapz(spectrum, omega)/(2*np.pi)
+        T1 = util.integrate(spectrum, omega)/(2*np.pi)
         T2 = (pulse.dt*pulse.n_coeffs[idx]).sum(axis=-1)**2
         T3 = util.abs2(pulse.n_opers[idx]).sum(axis=(1, 2))
         xi = np.sqrt((T1*T2*T3).sum())
