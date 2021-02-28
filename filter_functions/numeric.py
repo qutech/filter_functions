@@ -150,6 +150,24 @@ def _first_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     return int_buf
 
 
+def _parse_spectrum(spectrum: Sequence, omega: Sequence, idx: Sequence) -> ndarray:
+    spectrum = np.asanyarray(spectrum)
+    error = 'Spectrum should be of shape {}, not {}.'
+    shape = (len(idx),)*(spectrum.ndim - 1) + (len(omega),)
+    if spectrum.shape != shape:
+        raise ValueError(error.format(shape, spectrum.shape))
+
+    if spectrum.ndim == 1:
+        # As we broadcast over the noise operators
+        spectrum = spectrum[None, ...]
+    if spectrum.ndim == 3 and not np.allclose(spectrum, spectrum.conj().swapaxes(0, 1)):
+        raise ValueError('Cross-spectra given but not Hermitian along first two axes')
+    elif spectrum.ndim > 3:
+        raise ValueError(f'Expected spectrum to have < 4 dimensions, not {spectrum.ndim}')
+
+    return spectrum
+
+
 def _get_integrand(
         spectrum: ndarray,
         omega: ndarray,
@@ -210,25 +228,10 @@ def _get_integrand(
             # Everything simpler if noise operators always on 2nd-to-last axes
             filter_function = np.moveaxis(filter_function, source=[-5, -4], destination=[-3, -2])
 
-    spectrum = np.asarray(spectrum)
-    S_err_str = 'spectrum should be of shape {}, not {}.'
-    if spectrum.ndim == 1 or spectrum.ndim == 2:
-        if spectrum.ndim == 1:
-            # Only single spectrum
-            shape = (len(omega),)
-            if spectrum.shape != shape:
-                raise ValueError(S_err_str.format(shape, spectrum.shape))
-
-            spectrum = np.expand_dims(spectrum, 0)
-        else:
-            # spectrum.ndim == 2, spectrum is diagonal (no correlation between noise sources)
-            shape = (len(idx), len(omega))
-            if spectrum.shape != shape:
-                raise ValueError(S_err_str.format(shape, spectrum.shape))
-
-        # spectrum is real, integrand therefore also
+    spectrum = _parse_spectrum(spectrum, omega, idx)
+    if spectrum.ndim in (1, 2):
         if filter_function is not None:
-            integrand = (filter_function[..., tuple(idx), tuple(idx), :]*spectrum).real
+            integrand = (filter_function[..., tuple(idx), tuple(idx), :]*spectrum)
             if which_FF == 'generalized':
                 # move axes back to expected position, ie (pulses, noise opers,
                 # basis elements, frequencies)
@@ -250,19 +253,13 @@ def _get_integrand(
                     einsum_str = 'ako,ao,alo->aklo'
 
             integrand = np.einsum(einsum_str,
-                                  ctrl_left[..., idx, :, :], spectrum,
-                                  ctrl_right[..., idx, :, :]).real
+                                  ctrl_left[..., idx, :, :], spectrum, ctrl_right[..., idx, :, :])
     elif spectrum.ndim == 3:
         # General case where spectrum is a matrix with correlation spectra on off-diag
-        shape = (len(idx), len(idx), len(omega))
-        if spectrum.shape != shape:
-            raise ValueError(S_err_str.format(shape, spectrum.shape))
-
         if filter_function is not None:
             integrand = filter_function[..., idx[:, None], idx, :]*spectrum
             if which_FF == 'generalized':
-                integrand = np.moveaxis(integrand, source=[-3, -2],
-                                        destination=[-5, -4])
+                integrand = np.moveaxis(integrand, source=[-3, -2], destination=[-5, -4])
         else:
             # R is not None
             if which_pulse == 'correlations':
@@ -280,12 +277,11 @@ def _get_integrand(
                     einsum_str = 'ako,abo,blo->abklo'
 
             integrand = np.einsum(einsum_str,
-                                  ctrl_left[..., idx, :, :], spectrum,
-                                  ctrl_right[..., idx, :, :])
+                                  ctrl_left[..., idx, :, :], spectrum, ctrl_right[..., idx, :, :])
     else:
         raise ValueError('Expected spectrum to be array_like with < 4 dimensions')
 
-    return integrand
+    return integrand.real
 
 
 def calculate_noise_operators_from_atomic(
