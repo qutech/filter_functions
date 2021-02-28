@@ -1069,26 +1069,11 @@ def calculate_decay_amplitudes(
         integrand = _get_integrand(spectrum, omega, idx, which, 'generalized',
                                    control_matrix=control_matrix,
                                    filter_function=filter_function)
-        return decay_amplitudes.real
-
-    # Conserve memory by looping. Let _get_integrand determine the shape
-    if control_matrix is not None:
-        n_kl = control_matrix.shape[-2]
-        integrand = _get_integrand(spectrum, omega, idx, which, 'generalized',
-                                   control_matrix=[control_matrix[..., 0:1, :], control_matrix],
-                                   filter_function=filter_function)
-    else:
-        n_kl = filter_function.shape[-2]
-        integrand = _get_integrand(spectrum, omega, idx, which, 'generalized',
-                                   control_matrix=control_matrix,
-                                   filter_function=filter_function[..., 0:1, :, :])
-
-    decay_amplitudes = np.zeros(integrand.shape[:-3] + (n_kl,)*2, dtype=integrand.dtype)
-    decay_amplitudes[..., 0:1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
         decay_amplitudes = util.integrate(integrand, omega)/(2*np.pi)
+        return decay_amplitudes
 
-    for k in util.progressbar_range(1, n_kl, show_progressbar=show_progressbar,
-                                    desc='Integrating'):
+    n_kl = len(pulse.basis)
+    for k in util.progressbar_range(n_kl, show_progressbar=show_progressbar, desc='Integrating'):
         if control_matrix is not None:
             integrand = _get_integrand(
                 spectrum, omega, idx, which, 'generalized',
@@ -1096,13 +1081,18 @@ def calculate_decay_amplitudes(
                 filter_function=filter_function
             )
         else:
-            integrand = _get_integrand(spectrum, omega, idx, which, 'generalized',
-                                       control_matrix=control_matrix,
-                                       filter_function=filter_function[..., k:k+1, :, :])
+            integrand = _get_integrand(
+                spectrum, omega, idx, which, 'generalized',
+                control_matrix=control_matrix,
+                filter_function=filter_function[..., k:k+1, :, :]
+            )
+
+        if k == 0:
+            decay_amplitudes = np.empty(integrand.shape[:-3] + (n_kl,)*2)
 
         decay_amplitudes[..., k:k+1, :] = util.integrate(integrand, omega)/(2*np.pi)
 
-    return decay_amplitudes.real
+    return decay_amplitudes
 
 
 @util.parse_which_FF_parameter
