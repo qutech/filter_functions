@@ -664,7 +664,7 @@ class CoreTest(testutil.TestCase):
                                         F_generalized.trace(axis1=2, axis2=3))
 
     def test_second_order_filter_function(self):
-        for d, n_nops in zip(rng.randint(2, 7, 5), rng.randint(1, 5, 5)):
+        for d, n_nops in zip(rng.integers(2, 7, 5), rng.integers(1, 5, 5)):
             pulse = testutil.rand_pulse_sequence(d, 3, 2, n_nops)
             omega = util.get_sample_frequencies(pulse, n_samples=42)
 
@@ -895,7 +895,7 @@ class CoreTest(testutil.TestCase):
             numeric.calculate_cumulant_function(pulse, spectrum, omega, second_order=True,
                                                 decay_amplitudes=Gamma[1:])
 
-        for d in [2, *rng.randint(2, 7, 5)]:
+        for d in [2, *rng.integers(2, 7, 5)]:
             pulse = testutil.rand_pulse_sequence(d, 3, 2, 2)
             omega = util.get_sample_frequencies(pulse, n_samples=42)
             spectrum = 4e-3/abs(omega)
@@ -923,7 +923,7 @@ class CoreTest(testutil.TestCase):
                                         atol=1e-16)
             self.assertEqual(cumulant_function_first_order.shape,
                              cumulant_function_second_order.shape)
-            self.assertLessEqual(rel, 50)
+            self.assertLessEqual(rel, 100)
             self.assertGreaterEqual(rel, 1)
 
     def test_error_transfer_matrix(self):

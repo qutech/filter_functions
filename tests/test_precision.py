@@ -425,7 +425,7 @@ class PrecisionTest(testutil.TestCase):
             self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
 
         # excluding (most likely) zero
-        E = testutil.rng.randn(51)
+        E = testutil.rng.standard_normal(51)
 
         for i, (eigval, dt, t) in enumerate(zip(pulse.eigvals, pulse.dt, pulse.t)):
             integral, integral_numeric = _get_integrals_first_order(d, E, eigval, dt, t)
