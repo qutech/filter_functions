@@ -462,7 +462,8 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
     if len(args) == 0:
         raise ValueError('Require nonzero number of args!')
 
-    if isinstance(pos, int):
+    if np.issubdtype(type(pos), np.integer):
+        # super awkward type check, thanks numpy!
         pos = (pos,)
         if len(args) > 1:
             # Inserting all args at same position, perform their tensor product
