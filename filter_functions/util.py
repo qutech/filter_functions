@@ -762,6 +762,36 @@ def mdot(arr: Sequence, axis: int = 0) -> ndarray:
     return functools.reduce(np.matmul, np.swapaxes(arr, 0, axis))
 
 
+def integrate(f: ndarray, x: Optional[ndarray] = None, dx: float = 1.0) -> Union[ndarray, float,
+                                                                                 complex]:
+    """Fast trapezoidal integration with small memory footprint.
+
+    Parameters
+    ----------
+    f: ndarray
+        Function to be integrated.
+    x: ndarray, optional
+        Optional integration domain if the values are not evenly spaced.
+    dx: float, optional
+        Spacing. The default is 1.0.
+
+    Returns
+    -------
+    result: ndarray
+        Integral over the last axis of *f*.
+
+    See Also
+    --------
+    numpy.trapz
+
+    """
+    dx = np.diff(x) if x is not None else dx
+    ret = f[..., 1:].copy()
+    ret += f[..., :-1]
+    ret *= dx
+    return ret.sum(axis=-1)/2
+
+
 def remove_float_errors(arr: ndarray, eps_scale: Optional[float] = None) -> ndarray:
     """
     Clean up arr by removing floating point numbers smaller than the

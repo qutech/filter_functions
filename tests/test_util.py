@@ -440,6 +440,20 @@ class UtilTest(testutil.TestCase):
         self.assertArrayEqual(util.mdot(arr, 0), arr[0] @ arr[1] @ arr[2])
         self.assertArrayEqual(util.mdot(arr, 1), arr[:, 0] @ arr[:, 1])
 
+    def test_integrate(self):
+        f = rng.standard_normal(32)
+        x = rng.random(32)
+        self.assertEqual(util.integrate(f, x), np.trapz(f, x))
+
+        f = rng.standard_normal((2, 32)).astype(complex)
+        x = rng.random(32)
+        self.assertArrayEqual(util.integrate(f, x), np.trapz(f, x))
+
+        f = rng.standard_normal(32)
+        x = np.linspace(0, 1, 32)
+        dx = 1/31
+        self.assertAlmostEqual(util.integrate(f, x), util.integrate(f, dx=dx))
+
     def test_remove_float_errors(self):
         for eps_scale in (None, 2):
             scale = eps_scale or 1
