@@ -445,9 +445,13 @@ class UtilTest(testutil.TestCase):
             scale = eps_scale or 1
             for dtype in (float, complex):
                 arr = np.zeros((10, 10), dtype=dtype)
-                arr += scale*np.finfo(arr.dtype).eps *\
-                    rng.random_sample(arr.shape)
-                arr[rng.randint(0, 2, arr.shape, dtype=bool)] *= -1
+                arr += scale*np.finfo(arr.dtype).eps * rng.random(arr.shape)
+                arr[rng.integers(0, 2, arr.shape, dtype=bool)] *= -1
+                arr = util.remove_float_errors(arr, eps_scale)
+                self.assertArrayEqual(arr, np.zeros(arr.shape, dtype=dtype))
+
+                arr = np.array(0, dtype=dtype)
+                arr += scale*np.finfo(arr.dtype).eps * rng.random()
                 arr = util.remove_float_errors(arr, eps_scale)
                 self.assertArrayEqual(arr, np.zeros(arr.shape, dtype=dtype))
 
