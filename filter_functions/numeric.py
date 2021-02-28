@@ -154,7 +154,7 @@ def _parse_spectrum(spectrum: Sequence, omega: Sequence, idx: Sequence) -> ndarr
     spectrum = np.asanyarray(spectrum)
     error = 'Spectrum should be of shape {}, not {}.'
     shape = (len(idx),)*(spectrum.ndim - 1) + (len(omega),)
-    if spectrum.shape != shape:
+    if spectrum.shape != shape and spectrum.ndim <= 3:
         raise ValueError(error.format(shape, spectrum.shape))
 
     if spectrum.ndim == 1:
