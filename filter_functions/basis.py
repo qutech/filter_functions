@@ -62,20 +62,22 @@ class Basis(ndarray):
     Basis object:
 
         - by just calling this constructor with a (possibly incomplete)
-          array of basis matrices. In this case, it is attempted to
-          construct from the input a complete basis with the following
-          properties that retains all original (input) elements:
+          array of basis matrices. No checks regarding orthonormality or
+          hermiticity are performed.
+
+        - by calling one of the classes alternative constructors
+          (classmethods):
+
+              - :meth:`pauli`: Pauli operator basis
+              - :meth:`ggm`: Generalized Gell-Mann basis
+              - :meth:`from_partial` Generate an complete basis from
+                partial elements
+
+          These bases guarantee the following properties:
 
               - hermitian
               - orthonormal
               - [traceless] (can be controlled by a flag)
-
-        - by calling one of the classes alternative constructors
-          (classmethods) for predefined bases:
-
-              - :meth:`pauli`: Pauli operator basis
-              - :meth:`ggm`: Generalized Gell-Mann basis
-              - :meth:`partial` (not implemented)
 
     Since Basis is a subclass of NumPy's ``ndarray``, it inherits all of
     its attributes, e.g. ``shape``. The following attributes behave
@@ -104,9 +106,6 @@ class Basis(ndarray):
     btype: str, optional (default: ``'custom'``)
         A string describing the basis type. For example, a basis created
         by the factory method :meth:`pauli` has *btype* 'pauli'.
-    skip_check: bool, optional (default: ``False``)
-        Skip the internal routine for checking ``basis_array``'s
-        orthonormality and completeness. Use with caution.
     labels: sequence of str, optional
         A list of labels for the individual basis elements. Defaults to
         'C_0', 'C_1', ...
@@ -159,44 +158,35 @@ class Basis(ndarray):
     """
 
     def __new__(cls, basis_array: Sequence, traceless: Optional[bool] = None,
-                btype: Optional[str] = None, skip_check: bool = False,
-                labels: Optional[Sequence[str]] = None) -> 'Basis':
+                btype: Optional[str] = None, labels: Optional[Sequence[str]] = None) -> 'Basis':
         """Constructor."""
-        if not skip_check:
-            if not hasattr(basis_array, '__getitem__'):
-                raise TypeError('Invalid data type. Must be array_like')
+        if not hasattr(basis_array, '__getitem__'):
+            raise TypeError('Invalid data type. Must be array_like')
 
-            if isinstance(basis_array, cls):
-                basis = basis_array
-            else:
-                try:
-                    # Allow single 2d element
-                    if len(basis_array.shape) == 2:
-                        basis_array = [basis_array]
-                except AttributeError:
-                    pass
+        if isinstance(basis_array, cls):
+            basis = basis_array
+        else:
+            try:
+                # Allow single 2d element
+                if len(basis_array.shape) == 2:
+                    basis_array = [basis_array]
+            except AttributeError:
+                pass
 
-                basis = np.empty((len(basis_array), *basis_array[0].shape), dtype=complex)
-                for i, elem in enumerate(basis_array):
-                    if isinstance(elem, ndarray):   # numpy array
-                        basis[i] = elem
-                    elif hasattr(elem, 'full'):     # qutip.Qobj
-                        basis[i] = elem.full()
-                    elif hasattr(elem, 'todense'):  # sparse array
-                        basis[i] = elem.todense()
-                    else:
-                        raise TypeError('At least one element invalid type!')
-
-            d = basis.shape[-1]
-
-            if len(basis) > d**2:
+            basis = np.empty((len(basis_array), *basis_array[0].shape), dtype=complex)
+            if basis.shape[0] > np.product(basis.shape[1:]):
                 raise ValueError('Given overcomplete set of basis matrices. '
                                  'Not linearly independent.')
 
-            basis = _full_from_partial(basis, traceless)
-        else:
-            basis = np.asanyarray(basis_array)
-            d = basis.shape[-1]
+            for i, elem in enumerate(basis_array):
+                if isinstance(elem, ndarray):   # numpy array
+                    basis[i] = elem
+                elif hasattr(elem, 'full'):     # qutip.Qobj
+                    basis[i] = elem.full()
+                elif hasattr(elem, 'todense'):  # sparse array
+                    basis[i] = elem.todense()
+                else:
+                    raise TypeError('At least one element invalid type!')
 
         basis = basis.view(cls)
         basis.btype = btype or 'Custom'
@@ -207,6 +197,7 @@ class Basis(ndarray):
             basis.labels = labels
         else:
             basis.labels = [f'$C_{{{i}}}$' for i in range(len(basis))]
+
         return basis
 
     def __array_finalize__(self, basis: 'Basis') -> None:
@@ -215,6 +206,7 @@ class Basis(ndarray):
             return
 
         self.btype = getattr(basis, 'btype', 'Custom')
+        self.labels = getattr(basis, 'labels', [f'$C_{{{i}}}$' for i in range(len(basis))])
         self.d = getattr(basis, 'd', basis.shape[-1])
         self._sparse = None
         self._four_element_traces = None
@@ -241,6 +233,7 @@ class Basis(ndarray):
     def __contains__(self, item: ndarray) -> bool:
         """Implement 'in' operator."""
         return any(np.isclose(item.view(ndarray), self.view(ndarray),
+                              rtol=self._rtol, atol=self._atol).all(axis=(1, 2)))
 
     def __array_wrap__(self, out_arr, context=None):
         """
@@ -272,7 +265,7 @@ class Basis(ndarray):
             # All the basis is orthonormal iff the matrix consisting of all
             # d**2 elements written as d**2-dimensional column vectors is
             # unitary.
-            if self.ndim == 2:
+            if self.ndim == 2 or len(self) == 1:
                 # Only one basis element
                 self._isorthonorm = True
             else:
@@ -301,7 +294,7 @@ class Basis(ndarray):
             elif nonzero[0].size == 1:
                 # Single element has nonzero trace, check if (proportional to)
                 # identity
-                elem = self[nonzero][0].view(ndarray)
+                elem = self[nonzero][0].view(ndarray) if self.ndim == 3 else self.view(ndarray)
                 offdiag_nonzero = elem[~np.eye(self.d, dtype=bool)].nonzero()
                 diag_equal = np.diag(elem) == elem[0, 0]
                 if diag_equal.all() and not offdiag_nonzero[0].any():
@@ -397,10 +390,6 @@ class Basis(ndarray):
         self.imag[np.abs(self.imag) <= atol] = 0
 
     @classmethod
-    def partial(cls, basis_array, subspace_inds):
-        raise NotImplementedError
-
-    @classmethod
     def pauli(cls, n: int) -> 'Basis':
         r"""
         Returns a Pauli basis for :math:`n` qubits, i.e. the basis spans
@@ -433,6 +422,7 @@ class Basis(ndarray):
         sigma = util.tensor(*util.paulis[combinations], rank=2)
         sigma /= normalization
         return cls(sigma, btype='Pauli',
+                   labels=[''.join(tup) for tup in product(['I', 'X', 'Y', 'Z'], repeat=n)])
 
     @classmethod
     def ggm(cls, d: int) -> 'Basis':
@@ -495,19 +485,73 @@ class Basis(ndarray):
             np.sqrt(diag_rng*(diag_rng + 1))[:, None], (1, d)
         )
 
+        return cls(Lambda, btype='GGM', labels=[rf'$\Lambda_{{{i}}}$' for i in range(len(Lambda))])
+
+    @classmethod
+    def from_partial(cls, partial_basis_array: Sequence,
+                     traceless: Optional[bool] = None,
+                     btype: Optional[str] = None,
+                     labels: Optional[Sequence[str]] = None) -> 'Basis':
+        r"""Generate complete and orthonormal basis from a partial set.
+
+        The basis is completed using singular value decomposition to
+        determine the null space of the expansion coefficients of the
+        partial basis with respect to another complete basis.
+
+        Parameters
+        ----------
+        partial_basis_array: array_like
+            A sequence of basis elements.
+        traceless: bool, optional
+            If a traceless basis should be generated (i.e. the first
+            element is the identity and all the others have trace zero).
+        btype: str, optional
+            A custom identifier.
+        labels: Sequence[str], optional
+            A list of custom labels for each element. If
+            `len(labels) == len(partial_basis_array)`, the newly created
+            elements get labels 'C_i'.
+
+        Returns
+        -------
+        basis: Basis, shape (d**2, d, d)
+            The orthonormal basis.
+
+        Raises
+        ------
+        ValueError
+            If the given elements are not orthonormal.
+        ValueError
+            If the given elements are not traceless but
+            `traceless==True`.
+        ValueError
+            If not len(partial_basis_array) or d**2 labels were given.
+
+        """
+        if btype is None:
+            btype = 'From partial'
+
+        if (labels is None
+                and hasattr(partial_basis_array, 'labels')
+                and len(partial_basis_array.labels) == len(partial_basis_array)):
+            # Need to check if labels and array are same length as indexing
+            # is unaware of our custom attributes
+            labels = partial_basis_array.labels
+
+        basis, labels = _full_from_partial(partial_basis_array, traceless, labels)
+        return cls(basis, btype=btype, labels=labels)
 
 
-def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
+def _full_from_partial(elems: Sequence, traceless: bool, labels: Sequence[str]) -> Basis:
     """
     Internal function to parse the basis elements *elems*. By default,
     checks are performed for orthogonality and linear independence. If
     either fails an exception is raised. Returns a full hermitian and
     orthonormal basis.
     """
-    elems = np.asanyarray(elems)
-    if not isinstance(elems, Basis):
-        # Convert elems to basis to have access to its handy attributes
-        elems = normalize(elems.view(Basis))
+    # Convert elems to basis to have access to its handy attributes
+    elems = Basis(elems)
+    elems.normalize(copy=False)
 
     if not elems.isherm:
         warn("(Some) elems not hermitian! The resulting basis also won't be.")
@@ -523,6 +567,7 @@ def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
                              "but a traceless basis was requested!")
 
     if labels is not None and len(labels) not in (len(elems), elems.d**2):
+        raise ValueError(f'Got {len(labels)} labels but expected {len(elems)} or {elems.d**2}')
 
     # Get a Generalized Gell-Mann basis to expand in (fulfills the desired
     # properties hermiticity and orthonormality, and therefore also linear
@@ -534,10 +579,9 @@ def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
         ggm = Basis.ggm(elems.d)
 
     coeffs = expand(elems, ggm, tidyup=True)
-
     # Throw out coefficient vectors that are all zero (should only happen for
     # the identity)
-    coeffs = coeffs[(coeffs != 0).any(axis=1)]
+    coeffs = coeffs[(coeffs != 0).any(axis=-1)]
     if coeffs.size != 0:
         # Get d**2 - len(coeffs) vectors spanning the nullspace of coeffs.
         # Those together with coeffs span the whole space, and therefore also
@@ -572,6 +616,7 @@ def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
 
         labels.extend('$C_{{{}}}$'.format(i) for i in range(len(labels), len(basis)))
 
+    return basis, labels
 
 
 def _norm(b: Sequence) -> ndarray:
