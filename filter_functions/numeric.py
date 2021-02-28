@@ -257,8 +257,9 @@ def _get_integrand(
 
             integrand = np.einsum(einsum_str,
                                   ctrl_left[..., idx, :, :], spectrum, ctrl_right[..., idx, :, :])
-    elif spectrum.ndim == 3:
-        # General case where spectrum is a matrix with correlation spectra on off-diag
+    else:
+        # spectrum.ndim == 3, general case where spectrum is a matrix with
+        # correlation spectra on off-diag
         if filter_function is not None:
             integrand = filter_function[..., idx[:, None], idx, :]*spectrum
             if which_FF == 'generalized':
@@ -281,8 +282,6 @@ def _get_integrand(
 
             integrand = np.einsum(einsum_str,
                                   ctrl_left[..., idx, :, :], spectrum, ctrl_right[..., idx, :, :])
-    else:
-        raise ValueError('Expected spectrum to be array_like with < 4 dimensions')
 
     return integrand.real
 
