@@ -1605,15 +1605,6 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
 
         filter_function = pulse.get_pulse_correlation_filter_function()
 
-    spectrum = np.asarray(spectrum)
-    slices = [slice(None)]*filter_function.ndim
-    if spectrum.ndim == 3:
-        slices[-3] = idx[:, None]
-        slices[-2] = idx[None, :]
-    else:
-        slices[-3] = idx
-        slices[-2] = idx
-
     integrand = _get_integrand(spectrum, omega, idx, which, 'fidelity',
                                filter_function=filter_function)
     infid = util.integrate(integrand, omega)/(2*np.pi*pulse.d)
