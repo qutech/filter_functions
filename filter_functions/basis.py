@@ -143,8 +143,8 @@ class Basis(ndarray):
     instance has the following methods:
 
     normalize(b)
-        Normalizes the basis in-place (used internally when creating a
-        basis from elements)
+        Normalizes the basis (used internally when creating a basis from
+        elements)
     tidyup(eps_scale=None)
         Cleans up floating point errors in-place to make zeros actual
         zeros. ``eps_scale`` is an optional argument multiplied to the
@@ -368,13 +368,12 @@ class Basis(ndarray):
     def four_element_traces(self, traces):
         self._four_element_traces = traces
 
-    def normalize(self) -> None:
-        """Normalize the basis in-place"""
-        if self.ndim == 2:
-            self /= nla.norm(self)
-        elif self.ndim == 3:
-            np.einsum('ijk,i->ijk', self, 1/nla.norm(self, axis=(1, 2)),
-                      out=self)
+    def normalize(self, copy: bool = False) -> Union[None, 'Basis']:
+        """Normalize the basis."""
+        if copy:
+            return normalize(self)
+
+        self /= _norm(self)
 
     def tidyup(self, eps_scale: Optional[float] = None) -> None:
         """Wraps util.remove_float_errors."""
@@ -552,7 +551,14 @@ def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
     return basis
 
 
-def normalize(b: Sequence) -> Basis:
+def _norm(b: Sequence) -> ndarray:
+    """Frobenius norm with two singleton dimensions inserted at the end."""
+    b = np.asanyarray(b)
+    norm = nla.norm(b, axis=(-1, -2))
+    return norm[..., None, None]
+
+
+def normalize(b: Basis) -> Basis:
     r"""
     Return a copy of the basis *b* normalized with respect to the
     Frobenius norm [Gol85]_:
@@ -569,13 +575,7 @@ def normalize(b: Sequence) -> Basis:
         Baltimore, MD, Johns Hopkins University Press, 1985, pg. 15
 
     """
-    b = np.asanyarray(b)
-    if b.ndim == 2:
-        return (b/nla.norm(b)).view(Basis)
-    if b.ndim == 3:
-        return np.einsum('ijk,i->ijk', b, 1/nla.norm(b, axis=(1, 2))).view(Basis)
-
-    raise ValueError(f'Expected b.ndim to be either 2 or 3, not {b.ndim}.')
+    return (b/_norm(b)).squeeze().view(Basis)
 
 
 def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
