@@ -461,6 +461,15 @@ class PrecisionTest(testutil.TestCase):
             # S wrong dimensions
             ff.infidelity(pulse, rng.standard_normal((2, 3, 4, len(omega))), omega)
 
+        with self.assertRaises(ValueError):
+            # S cross-correlated but not hermitian
+            ff.infidelity(testutil.rand_pulse_sequence(2, 3, n_nops=2),
+                          rng.standard_normal((2, 2, len(omega))), omega)
+
+        with self.assertRaises(ValueError):
+            # S 'cross-correlated' but not hermitian
+            ff.infidelity(pulse, (1 + 1j)*rng.standard_normal((1, 1, len(omega))), omega)
+
         with self.assertRaises(NotImplementedError):
             # smallness parameter for correlated noise source
             ff.infidelity(pulse, spectra[4](S0, omega), omega, n_oper_identifiers=['B_0', 'B_2'],
