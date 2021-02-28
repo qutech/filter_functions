@@ -68,7 +68,6 @@ import opt_einsum as oe
 import sparse
 from numpy import linalg as nla
 from numpy import ndarray
-from scipy import integrate
 from scipy import linalg as sla
 
 from . import util
@@ -151,6 +150,24 @@ def _first_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     return int_buf
 
 
+def _parse_spectrum(spectrum: Sequence, omega: Sequence, idx: Sequence) -> ndarray:
+    spectrum = np.asanyarray(spectrum)
+    error = 'Spectrum should be of shape {}, not {}.'
+    shape = (len(idx),)*(spectrum.ndim - 1) + (len(omega),)
+    if spectrum.shape != shape:
+        raise ValueError(error.format(shape, spectrum.shape))
+
+    if spectrum.ndim == 1:
+        # As we broadcast over the noise operators
+        spectrum = spectrum[None, ...]
+    if spectrum.ndim == 3 and not np.allclose(spectrum, spectrum.conj().swapaxes(0, 1)):
+        raise ValueError('Cross-spectra given but not Hermitian along first two axes')
+    elif spectrum.ndim > 3:
+        raise ValueError(f'Expected spectrum to have < 4 dimensions, not {spectrum.ndim}')
+
+    return spectrum
+
+
 def _get_integrand(
         spectrum: ndarray,
         omega: ndarray,
@@ -195,7 +212,10 @@ def _get_integrand(
     Returns
     -------
     integrand: ndarray, shape (..., n_omega)
-        The integrand.
+        The integrand. For one-sided spectra (only positive frequencies)
+        it might be complex. However, mathematically it is guaranteed
+        to be strictly real for the correct two-sided spectrum. Thus,
+        only the real part is returned in all cases.
 
     """
     if control_matrix is not None:
@@ -211,25 +231,10 @@ def _get_integrand(
             # Everything simpler if noise operators always on 2nd-to-last axes
             filter_function = np.moveaxis(filter_function, source=[-5, -4], destination=[-3, -2])
 
-    spectrum = np.asarray(spectrum)
-    S_err_str = 'spectrum should be of shape {}, not {}.'
-    if spectrum.ndim == 1 or spectrum.ndim == 2:
-        if spectrum.ndim == 1:
-            # Only single spectrum
-            shape = (len(omega),)
-            if spectrum.shape != shape:
-                raise ValueError(S_err_str.format(shape, spectrum.shape))
-
-            spectrum = np.expand_dims(spectrum, 0)
-        else:
-            # spectrum.ndim == 2, spectrum is diagonal (no correlation between noise sources)
-            shape = (len(idx), len(omega))
-            if spectrum.shape != shape:
-                raise ValueError(S_err_str.format(shape, spectrum.shape))
-
-        # spectrum is real, integrand therefore also
+    spectrum = _parse_spectrum(spectrum, omega, idx)
+    if spectrum.ndim in (1, 2):
         if filter_function is not None:
-            integrand = (filter_function[..., tuple(idx), tuple(idx), :]*spectrum).real
+            integrand = (filter_function[..., tuple(idx), tuple(idx), :]*spectrum)
             if which_FF == 'generalized':
                 # move axes back to expected position, ie (pulses, noise opers,
                 # basis elements, frequencies)
@@ -251,19 +256,14 @@ def _get_integrand(
                     einsum_str = 'ako,ao,alo->aklo'
 
             integrand = np.einsum(einsum_str,
-                                  ctrl_left[..., idx, :, :], spectrum,
-                                  ctrl_right[..., idx, :, :]).real
-    elif spectrum.ndim == 3:
-        # General case where spectrum is a matrix with correlation spectra on off-diag
-        shape = (len(idx), len(idx), len(omega))
-        if spectrum.shape != shape:
-            raise ValueError(S_err_str.format(shape, spectrum.shape))
-
+                                  ctrl_left[..., idx, :, :], spectrum, ctrl_right[..., idx, :, :])
+    else:
+        # spectrum.ndim == 3, general case where spectrum is a matrix with
+        # correlation spectra on off-diag
         if filter_function is not None:
             integrand = filter_function[..., idx[:, None], idx, :]*spectrum
             if which_FF == 'generalized':
-                integrand = np.moveaxis(integrand, source=[-3, -2],
-                                        destination=[-5, -4])
+                integrand = np.moveaxis(integrand, source=[-3, -2], destination=[-5, -4])
         else:
             # R is not None
             if which_pulse == 'correlations':
@@ -281,12 +281,9 @@ def _get_integrand(
                     einsum_str = 'ako,abo,blo->abklo'
 
             integrand = np.einsum(einsum_str,
-                                  ctrl_left[..., idx, :, :], spectrum,
-                                  ctrl_right[..., idx, :, :])
-    else:
-        raise ValueError('Expected spectrum to be array_like with < 4 dimensions')
+                                  ctrl_left[..., idx, :, :], spectrum, ctrl_right[..., idx, :, :])
 
-    return integrand
+    return integrand.real
 
 
 def calculate_noise_operators_from_atomic(
@@ -821,16 +818,16 @@ def calculate_cumulant_function(
         The ``PulseSequence`` instance for which to compute the cumulant
         function.
     spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega), optional
-        The two-sided noise power spectral density in units of inverse
-        frequencies as an array of shape (n_omega,), (n_nops, n_omega),
-        or (n_nops, n_nops, n_omega). In the first case, the same
-        spectrum is taken for all noise operators, in the second, it is
-        assumed that there are no correlations between different noise
-        sources and thus there is one spectrum for each noise operator.
-        In the third and most general case, there may be a spectrum for
-        each pair of noise operators corresponding to the correlations
-        between them. n_nops is the number of noise operators considered
-        and should be equal to ``len(n_oper_identifiers)``.
+        The noise power spectral density in units of inverse frequencies
+        as an array of shape (n_omega,), (n_nops, n_omega), or (n_nops,
+        n_nops, n_omega). In the first case, the same spectrum is taken
+        for all noise operators, in the second, it is assumed that there
+        are no correlations between different noise sources and thus
+        there is one spectrum for each noise operator. In the third and
+        most general case, there may be a spectrum for each pair of
+        noise operators corresponding to the correlations between them.
+        n_nops is the number of noise operators considered and should be
+        equal to ``len(n_oper_identifiers)``.
     omega: array_like, shape (n_omega,), optional
         The frequencies at which to evaluate the filter functions.
     n_oper_identifiers: array_like, optional
@@ -928,7 +925,7 @@ def calculate_cumulant_function(
 
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
-        cumulant_function = np.zeros(decay_amplitudes.shape)
+        cumulant_function = np.zeros(decay_amplitudes.shape, decay_amplitudes.dtype)
         diag_mask = np.eye(N, dtype=bool)
 
         # Offdiagonal terms
@@ -939,11 +936,12 @@ def calculate_cumulant_function(
         # start at K_11.
         diag_idx = deque((True, False, True, True))
         for i in range(1, N):
-            cumulant_function[..., i, i] = - decay_amplitudes[..., diag_idx, diag_idx].sum(axis=-1)
+            cumulant_function[..., i, i] = -decay_amplitudes[..., diag_idx, diag_idx].sum(axis=-1)
             # shift the item not summed over by one
             diag_idx.rotate()
     else:
-        # Multi qubit case. Use general expression.
+        # Multi qubit case. Use general expression. Drop imaginary part since
+        # result is guaranteed to be real (if we didn't do anything wrong)
         traces = pulse.basis.four_element_traces
         cumulant_function = - (
             oe.contract('...kl,klji->...ij', decay_amplitudes, traces, backend='sparse') -
@@ -975,10 +973,10 @@ def calculate_decay_amplitudes(
         The ``PulseSequence`` instance for which to compute the decay
         amplitudes.
     spectrum: array_like, shape ([[n_nops,] n_nops,] n_omega)
-        The two-sided noise power spectral density. If 1-d, the same
-        spectrum is used for all noise operators. If 2-d, one (self-)
-        spectrum for each noise operator is expected. If 3-d, should be
-        a matrix of cross-spectra such that
+        The noise power spectral density. If 1-d, the same spectrum is
+        used for all noise operators. If 2-d, one (self-) spectrum for
+        each noise operator is expected. If 3-d, should be a matrix of
+        cross-spectra such that
         ``spectrum[i, j] == spectrum[j, i].conj()``.
     omega: array_like,
         The frequencies at which to calculate the filter functions.
@@ -1070,26 +1068,11 @@ def calculate_decay_amplitudes(
         integrand = _get_integrand(spectrum, omega, idx, which, 'generalized',
                                    control_matrix=control_matrix,
                                    filter_function=filter_function)
-        decay_amplitudes = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
-        return decay_amplitudes.real
+        decay_amplitudes = util.integrate(integrand, omega)/(2*np.pi)
+        return decay_amplitudes
 
-    # Conserve memory by looping. Let _get_integrand determine the shape
-    if control_matrix is not None:
-        n_kl = control_matrix.shape[-2]
-        integrand = _get_integrand(spectrum, omega, idx, which, 'generalized',
-                                   control_matrix=[control_matrix[..., 0:1, :], control_matrix],
-                                   filter_function=filter_function)
-    else:
-        n_kl = filter_function.shape[-2]
-        integrand = _get_integrand(spectrum, omega, idx, which, 'generalized',
-                                   control_matrix=control_matrix,
-                                   filter_function=filter_function[..., 0:1, :, :])
-
-    decay_amplitudes = np.zeros(integrand.shape[:-3] + (n_kl,)*2, dtype=integrand.dtype)
-    decay_amplitudes[..., 0:1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
-
-    for k in util.progressbar_range(1, n_kl, show_progressbar=show_progressbar,
-                                    desc='Integrating'):
+    n_kl = len(pulse.basis)
+    for k in util.progressbar_range(n_kl, show_progressbar=show_progressbar, desc='Integrating'):
         if control_matrix is not None:
             integrand = _get_integrand(
                 spectrum, omega, idx, which, 'generalized',
@@ -1097,13 +1080,18 @@ def calculate_decay_amplitudes(
                 filter_function=filter_function
             )
         else:
-            integrand = _get_integrand(spectrum, omega, idx, which, 'generalized',
-                                       control_matrix=control_matrix,
-                                       filter_function=filter_function[..., k:k+1, :, :])
+            integrand = _get_integrand(
+                spectrum, omega, idx, which, 'generalized',
+                control_matrix=control_matrix,
+                filter_function=filter_function[..., k:k+1, :, :]
+            )
 
-        decay_amplitudes[..., k:k+1, :] = integrate.trapz(integrand, omega, axis=-1)/(2*np.pi)
+        if k == 0:
+            decay_amplitudes = np.empty(integrand.shape[:-3] + (n_kl,)*2)
 
-    return decay_amplitudes.real
+        decay_amplitudes[..., k:k+1, :] = util.integrate(integrand, omega)/(2*np.pi)
+
+    return decay_amplitudes
 
 
 @util.parse_which_FF_parameter
@@ -1620,25 +1608,16 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
 
         filter_function = pulse.get_pulse_correlation_filter_function()
 
-    spectrum = np.asarray(spectrum)
-    slices = [slice(None)]*filter_function.ndim
-    if spectrum.ndim == 3:
-        slices[-3] = idx[:, None]
-        slices[-2] = idx[None, :]
-    else:
-        slices[-3] = idx
-        slices[-2] = idx
-
     integrand = _get_integrand(spectrum, omega, idx, which, 'fidelity',
                                filter_function=filter_function)
-    infid = integrate.trapz(integrand, omega).real/(2*np.pi*pulse.d)
+    infid = util.integrate(integrand, omega)/(2*np.pi*pulse.d)
 
     if return_smallness:
         if spectrum.ndim > 2:
             raise NotImplementedError('Smallness parameter only implemented ' +
                                       'for uncorrelated noise sources')
 
-        T1 = integrate.trapz(spectrum, omega)/(2*np.pi)
+        T1 = util.integrate(spectrum, omega)/(2*np.pi)
         T2 = (pulse.dt*pulse.n_coeffs[idx]).sum(axis=-1)**2
         T3 = util.abs2(pulse.n_opers[idx]).sum(axis=(1, 2))
         xi = np.sqrt((T1*T2*T3).sum())

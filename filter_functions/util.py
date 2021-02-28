@@ -462,7 +462,8 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
     if len(args) == 0:
         raise ValueError('Require nonzero number of args!')
 
-    if isinstance(pos, int):
+    if np.issubdtype(type(pos), np.integer):
+        # super awkward type check, thanks numpy!
         pos = (pos,)
         if len(args) > 1:
             # Inserting all args at same position, perform their tensor product
@@ -762,25 +763,64 @@ def mdot(arr: Sequence, axis: int = 0) -> ndarray:
     return functools.reduce(np.matmul, np.swapaxes(arr, 0, axis))
 
 
-def remove_float_errors(arr: ndarray, eps_scale: Optional[float] = None):
+def integrate(f: ndarray, x: Optional[ndarray] = None, dx: float = 1.0) -> Union[ndarray, float,
+                                                                                 complex]:
+    """Fast trapezoidal integration with small memory footprint.
+
+    Parameters
+    ----------
+    f: ndarray
+        Function to be integrated.
+    x: ndarray, optional
+        Optional integration domain if the values are not evenly spaced.
+    dx: float, optional
+        Spacing. The default is 1.0.
+
+    Returns
+    -------
+    result: ndarray
+        Integral over the last axis of *f*.
+
+    See Also
+    --------
+    numpy.trapz
+
+    """
+    dx = np.diff(x) if x is not None else dx
+    ret = f[..., 1:].copy()
+    ret += f[..., :-1]
+    ret *= dx
+    return ret.sum(axis=-1)/2
+
+
+def remove_float_errors(arr: ndarray, eps_scale: Optional[float] = None) -> ndarray:
     """
     Clean up arr by removing floating point numbers smaller than the
     dtype's precision multiplied by eps_scale. Treats real and imaginary
     parts separately.
+
+    Obviously only works for arrays with norm ~1.
     """
+    arr = np.asanyarray(arr)
     if eps_scale is None:
-        atol = np.finfo(arr.dtype).eps*arr.shape[-1]
+        atol = np.finfo(arr.dtype).eps
+        if arr.ndim:
+            atol *= arr.shape[-1]
     else:
         atol = np.finfo(arr.dtype).eps*eps_scale
 
-    # Hack around arr.imag sometimes not being writable
-    if arr.dtype == complex:
-        arr = arr.real + 1j*arr.imag
-        arr.real[np.abs(arr.real) <= atol] = 0
-        arr.imag[np.abs(arr.imag) <= atol] = 0
+    if arr.ndim:
+        if arr.dtype == float:
+            arr[np.abs(arr) <= atol] = 0
+        else:
+            arr.real[np.abs(arr.real) <= atol] = 0
+            arr.imag[np.abs(arr.imag) <= atol] = 0
     else:
-        arr = arr.real
-        arr.real[np.abs(arr.real) <= atol] = 0
+        if arr.dtype == float:
+            arr.real = 0 if np.abs(arr) <= atol else arr
+        else:
+            arr.real = 0 if np.abs(arr.real) <= atol else arr.real
+            arr.imag = 0 if np.abs(arr.imag) <= atol else arr.imag
 
     return arr
 
