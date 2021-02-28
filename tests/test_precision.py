@@ -503,7 +503,7 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), atol=1e-14)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
             self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
@@ -523,7 +523,7 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), atol=1e-14)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
             self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
@@ -545,7 +545,7 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), atol=1e-14)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
             self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
@@ -556,45 +556,37 @@ class PrecisionTest(testutil.TestCase):
         for d, n_dt in zip(rng.integers(3, 9, 10), rng.integers(1, 11, 10)):
             f, n = np.modf(np.log2(d))
             btype = 'Pauli' if f == 0.0 else 'GGM'
-            pulse = testutil.rand_pulse_sequence(d, n_dt, n_cops, n_nops,
-                                                 btype)
+            pulse = testutil.rand_pulse_sequence(d, n_dt, n_cops, n_nops, btype)
             omega = util.get_sample_frequencies(pulse, n_samples=51)
 
             # Assert fidelity is same as computed by infidelity()
             S = 1e-8/omega**2
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop
-            Up = ff.error_transfer_matrix(pulse, S, omega,
-                                          memory_parsimonious=True)
+            Up = ff.error_transfer_matrix(pulse, S, omega, memory_parsimonious=True)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
-                                        atol=1e-4)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), atol=1e-4)
 
             S = np.outer(1e-7*(np.arange(n_nops) + 1),
                          400/(omega**2 + 400))
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop
-            Up = ff.error_transfer_matrix(pulse, S, omega,
-                                          memory_parsimonious=True)
+            Up = ff.error_transfer_matrix(pulse, S, omega, memory_parsimonious=True)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
-                                        atol=1e-4)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), atol=1e-4)
 
-            S = np.tile(1e-8/abs(omega)**2, (n_nops, n_nops, 1)).astype(
-                complex)
+            S = np.tile(1e-8/abs(omega)**2, (n_nops, n_nops, 1)).astype(complex)
             S[np.triu_indices(n_nops, 1)].imag = 1e-10*omega
-            S[np.tril_indices(n_nops, -1)].imag = \
-                - S[np.triu_indices(n_nops, 1)].imag
+            S[np.tril_indices(n_nops, -1)].imag = -S[np.triu_indices(n_nops, 1)].imag
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop
-            Up = ff.error_transfer_matrix(pulse, S, omega,
-                                          memory_parsimonious=True)
+            Up = ff.error_transfer_matrix(pulse, S, omega, memory_parsimonious=True)
             I_fidelity = ff.infidelity(pulse, S, omega)
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
-                                        atol=1e-4)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), atol=1e-4)
+
