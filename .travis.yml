@@ -13,29 +13,32 @@ env:
     - INSTALL_DEPS="numpy scipy opt_einsum sparse tqdm"
     - INSTALL_TEST_DEPS="pytest>=4.6 pytest-cov codecov"
     - plotting="matplotlib"
-    - fancy_progressbar="jupyter requests"
+    - fancy_progressbar="ipynbname jupyter"
     - bloch_sphere_visualization="matplotlib qutip"
   jobs:
     - INSTALL_EXTRAS=[plotting,bloch_sphere_visualization,fancy_progressbar]
     - INSTALL_EXTRAS=[plotting,fancy_progressbar]
     - INSTALL_EXTRAS=[none]
-       
+
 before_install:
   # Resolve INSTALL_EXTRAS into required packages for use with conda. HACKY
+  # Split by comma and replace by parameter designator ($)
   - TMP=${INSTALL_EXTRAS//,/ $}
+  # Take care of opening bracket separately
   - TMP=${TMP/[/$}
-  - INSTALL_EXTRAS_PACKAGES=$(eval echo ${TMP%]})
-  
+  # Replace the abstract extra names by the packages they require
+  - TMP=$(eval echo ${TMP%]})
+  # Remove ipynbname from conda packages (pip only)
+  - INSTALL_EXTRAS_CONDA=${TMP// ipynbname/}
+
   # Useful info for debugging
   - echo $TRAVIS_PYTHON_VERSION
   - echo $INSTALL_DEPS
   - echo $INSTALL_TEST_DEPS
   - echo $INSTALL_EXTRAS
-  - echo $INSTALL_EXTRAS_PACKAGES
+  - echo $INSTALL_EXTRAS_CONDA
 
   # https://github.com/conda/conda/blob/master/docs/source/user-guide/tasks/use-conda-with-travis-ci.rst
-  # We do this conditionally because it saves us some downloading if the
-  # version is the same.
   - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
   - bash miniconda.sh -b -u -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
@@ -46,11 +49,12 @@ before_install:
   # Useful for debugging any issues with conda
   - conda info -a
 
-  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $INSTALL_DEPS $INSTALL_TEST_DEPS $INSTALL_EXTRAS_PACKAGES
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $INSTALL_DEPS $INSTALL_TEST_DEPS $INSTALL_EXTRAS_CONDA
   - source activate test-environment
-  
+
 install:
-  - pip install .
+  # Everything from INSTALL_EXTRAS should already be installed via conda, except for ipynbname
+  - pip install .$INSTALL_EXTRAS
 
 script:
   - pytest

@@ -38,7 +38,7 @@ class MissingExtrasTest(testutil.TestCase):
 
     @pytest.mark.skipif(
         'fancy_progressbar' in os.environ.get('INSTALL_EXTRAS', all_extras),
-        reason='Skipping tests for missing fancy progressbar extra in build with requests')  # noqa
+        reason='Skipping tests for missing fancy progressbar extra in build with ipynbname')
     def test_fancy_progressbar_not_available(self):
         from tqdm import tqdm
 
@@ -49,15 +49,15 @@ class MissingExtrasTest(testutil.TestCase):
     @pytest.mark.skipif(
         any(extra in os.environ.get('INSTALL_EXTRAS', all_extras)
             for extra in ['plotting', 'bloch_sphere_visualization']),
-        reason='Skipping tests for missing plotting extra in build with matplotlib')  # noqa
+        reason='Skipping tests for missing plotting extra in build with matplotlib')
     def test_plotting_not_available(self):
         with self.assertRaises(ModuleNotFoundError):
             from filter_functions import plotting
 
     @pytest.mark.skipif(
-        ('bloch_sphere_visualization' in os.environ.get('INSTALL_EXTRAS', all_extras)  # noqa
+        ('bloch_sphere_visualization' in os.environ.get('INSTALL_EXTRAS', all_extras)
          or matplotlib is None),
-        reason='Skipping tests for missing bloch sphere visualization tests in build with qutip')  # noqa
+        reason='Skipping tests for missing bloch sphere visualization tests in build with qutip')
     def test_bloch_sphere_visualization_not_available(self):
 
         if matplotlib is not None:

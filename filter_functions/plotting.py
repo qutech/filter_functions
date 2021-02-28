@@ -42,7 +42,6 @@ Functions
     spectrum as an image.
 
 """
-from itertools import product
 from typing import Optional, Sequence, Union
 from unittest import mock
 from warnings import warn
@@ -79,8 +78,8 @@ def _make_str_tex_compatible(s: str) -> str:
         locs = [i for i, c in enumerate(s) if c == char]
         # Loop backwards so as not to change locs when modifying s
         for loc in locs[::-1]:
-            # Check if math environment, if not add escape character
-            if not s.count('$', loc) % 2:
+            # Check if already escaped or math environment, if not add escape character
+            if not s[loc-1:].startswith('\\') and not s.count('$', loc) % 2:
                 s = s[:loc] + '\\' + s[loc:]
 
     return s
@@ -723,8 +722,8 @@ def plot_cumulant_function(
         The threshold below which the colorscale will be linear (only
         for 'log') colorscale
     basis_labels: array_like (str), optional
-        Labels for the elements of the cumulant function (the basis
-        elements).
+        Custom labels for the elements of the cumulant function (the
+        basis elements). Grabbed from the basis by default.
     basis_labelsize: int, optional
         The size in points for the basis labels.
     cbar_label: str, optional
@@ -786,19 +785,16 @@ def plot_cumulant_function(
             # Only autocorrelated noise supported
             K = K[tuple(n_oper_inds), tuple(n_oper_inds)]
 
-    # Only autocorrelated noise implemented for now, ie U is real
+    # Only autocorrelated noise implemented for now, ie K is real
     K = K.real
 
     if basis_labels is None:
-        btype = pulse.basis.btype if pulse is not None else ''
-        if btype == 'Pauli':
-            n_qubits = int(np.log(K.shape[-1])/np.log(4))
-            basis_labels = [''.join(tup) for tup in
-                            product(['I', 'X', 'Y', 'Z'], repeat=n_qubits)]
+        if pulse is not None:
+            basis_labels = pulse.basis.labels
         else:
             basis_labels = [f'$C_{{{i}}}$' for i in range(K.shape[-1])]
     else:
-        if len(basis_labels) != K.shape[-1]:
+        if basis_labels and len(basis_labels) != K.shape[-1]:
             raise ValueError('Invalid number of basis_labels given')
 
         basis_labels = [_make_str_tex_compatible(bl) for bl in basis_labels]
@@ -856,7 +852,7 @@ def plot_cumulant_function(
     for i, n_oper_identifier in enumerate(n_oper_identifiers):
         ax = grid[i]
         im = ax.imshow(K[i], **imshow_kw)
-        ax.set_title(n_oper_identifier)
+        ax.set_title(n_oper_identifier, loc='left')
         ax.set_xticks(np.arange(K.shape[-1]))
         ax.set_yticks(np.arange(K.shape[-1]))
         ax.set_xticklabels(basis_labels, fontsize=basis_labelsize, rotation='vertical')

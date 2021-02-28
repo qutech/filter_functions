@@ -29,6 +29,7 @@ import pytest
 from sparse import COO
 
 import filter_functions as ff
+from filter_functions import util
 from tests import testutil
 from tests.testutil import rng
 
@@ -39,14 +40,12 @@ class BasisTest(testutil.TestCase):
 
     def test_basis_constructor(self):
         """Test the constructor for several failure modes"""
-
         # Constructing from given elements should check for __getitem__
         with self.assertRaises(TypeError):
             _ = ff.Basis(1)
 
         # All elements should be either sparse, Qobj, or ndarray
-        elems = [ff.util.paulis[1], COO.from_numpy(ff.util.paulis[3]),
-                 [[0, 1], [1, 0]]]
+        elems = [util.paulis[1], COO.from_numpy(util.paulis[3]), [[0, 1], [1, 0]]]
         with self.assertRaises(TypeError):
             _ = ff.Basis(elems)
 
@@ -54,32 +53,63 @@ class BasisTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             _ = ff.Basis(rng.standard_normal((5, 2, 2)))
 
-        # Properly normalized
-        self.assertEqual(ff.Basis.pauli(1), ff.Basis(ff.util.paulis))
-
         # Non traceless elems but traceless basis requested
         with self.assertRaises(ValueError):
-            _ = ff.Basis(np.ones((2, 2)), traceless=True)
+            _ = ff.Basis.from_partial(np.ones((2, 2)), traceless=True)
 
-        # Calling with only the identity should work with traceless true or
-        # false
-        self.assertEqual(ff.Basis(np.eye(2), traceless=False),
-                         ff.Basis(np.eye(2), traceless=True))
+        # Incorrect number of labels for default constructor
+        with self.assertRaises(ValueError):
+            _ = ff.Basis(util.paulis, labels=['a', 'b', 'c'])
+
+        # Incorrect number of labels for from_partial constructor
+        with self.assertRaises(ValueError):
+            _ = ff.Basis.from_partial(util.paulis[:2], labels=['a', 'b', 'c'])
+
+        # from_partial constructor should move identity label to the front
+        basis = ff.Basis.from_partial([util.paulis[1], util.paulis[0]], labels=['x', 'i'])
+        self.assertEqual(basis.labels[:2], ['i', 'x'])
+        self.assertEqual(basis.labels[2:], ['$C_{2}$', '$C_{3}$'])
+
+        # from_partial constructor should copy labels if it can
+        partial_basis = ff.Basis.pauli(1)[[1, 3]]
+        partial_basis.labels = [partial_basis.labels[1], partial_basis.labels[3]]
+        basis = ff.Basis.from_partial(partial_basis)
+        self.assertEqual(basis.labels[:2], partial_basis.labels)
+        self.assertEqual(basis.labels[2:], ['$C_{2}$', '$C_{3}$'])
+
+        # Default constructor should return 3d array also for single 2d element
+        basis = ff.Basis(rng.standard_normal((2, 2)))
+        self.assertEqual(basis.shape, (1, 2, 2))
+
+        # from_partial constructor should return same basis for 2d or 3d input
+        elems = testutil.rand_herm(3)
+        basis1 = ff.Basis.from_partial(elems, labels=['weif'])
+        basis2 = ff.Basis.from_partial(elems.squeeze(), labels=['weif'])
+        self.assertEqual(basis1, basis2)
+
+        # Calling with only the identity should work with traceless true or false
+        self.assertEqual(ff.Basis(np.eye(2), traceless=False), ff.Basis(np.eye(2), traceless=True))
 
         # Constructing a basis from a basis should work
         _ = ff.Basis(ff.Basis.ggm(2)[1:])
 
+        # Constructing should not change the elements
+        elems = rng.standard_normal((6, 3, 3))
+        basis = ff.Basis(elems)
+        self.assertArrayEqual(elems, basis)
+
     def test_basis_properties(self):
         """Basis orthonormal and of correct dimensions"""
-        d = rng.randint(2, 17)
-        n = rng.randint(1, 5)
+        d = rng.integers(2, 17)
+        n = rng.integers(1, 5)
 
         ggm_basis = ff.Basis.ggm(d)
         pauli_basis = ff.Basis.pauli(n)
-        custom_basis = ff.Basis(testutil.rand_herm(d), traceless=False)
+        from_partial_basis = ff.Basis.from_partial(testutil.rand_herm(d), traceless=False)
+        custom_basis = ff.Basis(testutil.rand_herm_traceless(d))
 
-        btypes = ('Pauli', 'GGM', 'Custom')
-        bases = (pauli_basis, ggm_basis, custom_basis)
+        btypes = ('Pauli', 'GGM', 'From partial', 'Custom')
+        bases = (pauli_basis, ggm_basis, from_partial_basis, custom_basis)
         for btype, base in zip(btypes, bases):
             base.tidyup(eps_scale=0)
             self.assertTrue(base == base)
@@ -88,24 +118,23 @@ class BasisTest(testutil.TestCase):
             if not btype == 'Pauli':
                 self.assertEqual(d, base.d)
                 # Check if __contains__ works as expected
-                self.assertTrue(base[rng.randint(0, d**2)] in base)
+                self.assertTrue(base[rng.integers(0, len(base))] in base)
             else:
                 self.assertEqual(2**n, base.d)
                 # Check if __contains__ works as expected
-                self.assertTrue(base[rng.randint(0, (2**n)**2)]
-                                in base)
+                self.assertTrue(base[rng.integers(0, len(base))] in base)
             # Check if all elements of each basis are orthonormal and hermitian
-            self.assertArrayEqual(base.T,
-                                  base.view(np.ndarray).swapaxes(-1, -2))
+            self.assertArrayEqual(base.T, base.view(np.ndarray).swapaxes(-1, -2))
             self.assertTrue(base.isorthonorm)
             self.assertTrue(base.isherm)
             # Check if basis spans the whole space and all elems are traceless
-            if not btype == 'Custom':
+            if not btype == 'From partial':
                 self.assertTrue(base.istraceless)
             else:
                 self.assertFalse(base.istraceless)
 
-            self.assertTrue(base.iscomplete)
+            if not btype == 'Custom':
+                self.assertTrue(base.iscomplete)
             # Check sparse representation
             self.assertArrayEqual(base.sparse.todense(), base)
             # Test sparse cache
@@ -114,8 +143,7 @@ class BasisTest(testutil.TestCase):
             if base.d < 8:
                 # Test very resource intense
                 ref = np.einsum('iab,jbc,kcd,lda', *(base,)*4)
-                self.assertArrayAlmostEqual(base.four_element_traces.todense(),
-                                            ref, atol=1e-16)
+                self.assertArrayAlmostEqual(base.four_element_traces.todense(), ref, atol=1e-16)
 
                 # Test setter
                 base._four_element_traces = None
@@ -124,36 +152,29 @@ class BasisTest(testutil.TestCase):
 
             base._print_checks()
 
-        basis = ff.util.paulis[1].view(ff.Basis)
+        basis = util.paulis[1].view(ff.Basis)
         self.assertTrue(basis.isorthonorm)
         self.assertArrayEqual(basis.T, basis.view(np.ndarray).T)
 
     def test_basis_expansion_and_normalization(self):
         """Correct expansion of operators and normalization of bases"""
         for _ in range(10):
-            d = rng.randint(2, 16)
+            d = rng.integers(2, 16)
             ggm_basis = ff.Basis.ggm(d)
-            basis = ff.Basis(
-                np.einsum('i,ijk->ijk', rng.standard_normal(d**2), ggm_basis),
-                skip_check=True
-            )
+            basis = ff.Basis(np.einsum('i,ijk->ijk', rng.standard_normal(d**2), ggm_basis))
             M = rng.standard_normal((d, d)) + 1j*rng.standard_normal((d, d))
             M -= np.trace(M)/d
             coeffs = ff.basis.expand(M, basis, normalized=False)
             self.assertArrayAlmostEqual(M, np.einsum('i,ijk', coeffs, basis))
             self.assertArrayAlmostEqual(ff.basis.expand(M, ggm_basis),
-                                        ff.basis.ggm_expand(M),
-                                        atol=1e-14)
+                                        ff.basis.ggm_expand(M), atol=1e-14)
             self.assertArrayAlmostEqual(ff.basis.ggm_expand(M),
-                                        ff.basis.ggm_expand(M, traceless=True),
-                                        atol=1e-14)
+                                        ff.basis.ggm_expand(M, traceless=True), atol=1e-14)
 
-            n = rng.randint(1, 50)
-            M = (rng.standard_normal((n, d, d)) +
-                 1j*rng.standard_normal((n, d, d)))
+            n = rng.integers(1, 50)
+            M = rng.standard_normal((n, d, d)) + 1j*rng.standard_normal((n, d, d))
             coeffs = ff.basis.expand(M, basis, normalized=False)
-            self.assertArrayAlmostEqual(M, np.einsum('li,ijk->ljk', coeffs,
-                                                     basis))
+            self.assertArrayAlmostEqual(M, np.einsum('li,ijk->ljk', coeffs, basis))
             self.assertArrayAlmostEqual(ff.basis.expand(M, ggm_basis),
                                         ff.basis.ggm_expand(M), atol=1e-14)
 
@@ -178,18 +199,26 @@ class BasisTest(testutil.TestCase):
             with self.assertRaises(ValueError):
                 ff.basis.normalize(basis[0, 0])
 
+            # Test copy
+            arr = rng.standard_normal((3, 2, 2))
+            basis = ff.Basis(arr)
+            normalized = basis.normalize(copy=True)
+            self.assertIsNot(normalized, basis)
+            self.assertFalse(np.array_equal(normalized, basis))
+            basis.normalize()
+            self.assertArrayEqual(normalized, basis)
+
     def test_basis_generation_from_partial_ggm(self):
         """"Generate complete basis from partial elements of a GGM basis"""
-        # Do 100 test runs with random elements from a GGM basis in (2 ... 8)
+        # Do test runs with random elements from a GGM basis in (2 ... 8)
         # dimensions
         for _ in range(50):
-            d = rng.randint(2, 9)
+            d = rng.integers(2, 9)
             b = ff.Basis.ggm(d)
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(rng.randint(0, len(inds)))
-                        for _ in range(rng.randint(1, d**2)))
+            tup = tuple(inds.pop(rng.integers(0, len(inds))) for _ in range(rng.integers(1, d**2)))
             elems = b[tup, ...]
-            basis = ff.Basis(elems)
+            basis = ff.Basis.from_partial(elems)
             self.assertTrue(basis.isorthonorm)
             self.assertTrue(basis.isherm)
             self.assertTrue(basis.istraceless)
@@ -198,17 +227,16 @@ class BasisTest(testutil.TestCase):
 
     def test_basis_generation_from_partial_pauli(self):
         """"Generate complete basis from partial elements of a Pauli basis"""
-        # Do 100 test runs with random elements from a Pauli basis in (2 ... 8)
+        # Do test runs with random elements from a Pauli basis in (2 ... 8)
         # dimensions
         for _ in range(50):
-            n = rng.randint(1, 4)
+            n = rng.integers(1, 4)
             d = 2**n
             b = ff.Basis.pauli(n)
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(rng.randint(0, len(inds)))
-                        for _ in range(rng.randint(1, d**2)))
+            tup = tuple(inds.pop(rng.integers(0, len(inds))) for _ in range(rng.integers(1, d**2)))
             elems = b[tup, ...]
-            basis = ff.Basis(elems)
+            basis = ff.Basis.from_partial(elems)
             self.assertTrue(basis.isorthonorm)
             self.assertTrue(basis.isherm)
             self.assertTrue(basis.istraceless)
@@ -216,23 +244,21 @@ class BasisTest(testutil.TestCase):
             self.assertTrue(all(elem in basis for elem in elems))
 
             with self.assertWarns(UserWarning):
-                b = [basis[0], 1j*basis[1]]
-                ff.Basis(b)
+                ff.Basis.from_partial([basis[0], 1j*basis[1]])
 
             with self.assertRaises(ValueError):
-                b = [basis[0], basis[0] + basis[1]]
-                ff.Basis(b)
+                ff.Basis.from_partial([basis[0], basis[0] + basis[1]])
 
     def test_basis_generation_from_partial_random(self):
         """"Generate complete basis from partial elements of a random basis"""
         # Do 25 test runs with random elements from a random basis in
         # (2 ... 8) dimensions
         for _ in range(25):
-            d = rng.randint(2, 7)
+            d = rng.integers(2, 7)
             # Get a random traceless hermitian operator
             oper = testutil.rand_herm_traceless(d)
             # ... and build a basis from it
-            b = ff.Basis(oper)
+            b = ff.Basis.from_partial(oper)
             self.assertTrue(b.isorthonorm)
             self.assertTrue(b.isherm)
             self.assertTrue(b.istraceless)
@@ -240,10 +266,9 @@ class BasisTest(testutil.TestCase):
             # Choose random elements from that basis and generate a new basis
             # from it
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(rng.randint(0, len(inds)))
-                        for _ in range(rng.randint(1, d**2)))
+            tup = tuple(inds.pop(rng.integers(0, len(inds))) for _ in range(rng.integers(1, d**2)))
             elems = b[tup, ...]
-            basis = ff.Basis(elems)
+            basis = ff.Basis.from_partial(elems)
             self.assertTrue(basis.isorthonorm)
             self.assertTrue(basis.isherm)
             self.assertTrue(basis.istraceless)
@@ -252,11 +277,11 @@ class BasisTest(testutil.TestCase):
 
         # Test runs with non-traceless opers
         for _ in range(25):
-            d = rng.randint(2, 7)
+            d = rng.integers(2, 7)
             # Get a random hermitian operator
             oper = testutil.rand_herm(d)
             # ... and build a basis from it
-            b = ff.Basis(oper)
+            b = ff.Basis.from_partial(oper)
             self.assertTrue(b.isorthonorm)
             self.assertTrue(b.isherm)
             self.assertFalse(b.istraceless)
@@ -264,10 +289,9 @@ class BasisTest(testutil.TestCase):
             # Choose random elements from that basis and generate a new basis
             # from it
             inds = [i for i in range(d**2)]
-            tup = tuple(inds.pop(rng.randint(0, len(inds)))
-                        for _ in range(rng.randint(1, d**2)))
+            tup = tuple(inds.pop(rng.integers(0, len(inds))) for _ in range(rng.integers(1, d**2)))
             elems = b[tup, ...]
-            basis = ff.Basis(elems)
+            basis = ff.Basis.from_partial(elems)
             self.assertTrue(basis.isorthonorm)
             self.assertTrue(basis.isherm)
             self.assertFalse(basis.istraceless)
@@ -278,11 +302,11 @@ class BasisTest(testutil.TestCase):
         """Filter functions equal for different bases"""
         # Set up random Hamiltonian
         base_pulse = testutil.rand_pulse_sequence(4, 3, 1, 1)
-        omega = ff.util.get_sample_frequencies(base_pulse, n_samples=200)
+        omega = util.get_sample_frequencies(base_pulse, n_samples=200)
 
         pauli_basis = ff.Basis.pauli(2)
         ggm_basis = ff.Basis.ggm(4)
-        from_random_basis = ff.Basis(base_pulse.n_opers)
+        from_random_basis = ff.Basis.from_partial(base_pulse.n_opers)
         bases = (pauli_basis, ggm_basis, from_random_basis)
 
         # Get Pulses with different bases
@@ -300,12 +324,10 @@ class BasisTest(testutil.TestCase):
         n_opers = testutil.rand_herm(3, 4)
         n_opers_traceless = testutil.rand_herm_traceless(3, 4)
 
-        basis = ff.Basis(testutil.rand_herm(3), traceless=False)
-        basis_traceless = ff.Basis(testutil.rand_herm_traceless(3),
-                                   traceless=True)
+        basis = ff.Basis.from_partial(testutil.rand_herm(3), traceless=False)
+        basis_traceless = ff.Basis.from_partial(testutil.rand_herm_traceless(3), traceless=True)
 
         base_pulse = testutil.rand_pulse_sequence(3, 10, 4, 4)
-
         omega = np.logspace(-1, 1, 51)
 
         for i, base in enumerate((basis, basis_traceless)):
@@ -313,21 +335,20 @@ class BasisTest(testutil.TestCase):
                 pulse = copy(base_pulse)
                 pulse.n_opers = n_ops
                 pulse.basis = base
-
-                R = pulse.get_control_matrix(omega)
+                B = pulse.get_control_matrix(omega)
 
                 if i == 0 and j == 0:
                     # base not traceless, nopers not traceless
-                    self.assertTrue((R[:, 0] != 0).all())
+                    self.assertTrue((B[:, 0] != 0).all())
                 elif i == 0 and j == 1:
                     # base not traceless, nopers traceless
-                    self.assertTrue((R[:, 0] != 0).all())
+                    self.assertTrue((B[:, 0] != 0).all())
                 elif i == 1 and j == 0:
                     # base traceless, nopers not traceless
-                    self.assertTrue((R[:, 0] != 0).all())
+                    self.assertTrue((B[:, 0] != 0).all())
                 elif i == 1 and j == 1:
                     # base traceless, nopers traceless
-                    self.assertTrue(np.allclose(R[:, 0], 0))
+                    self.assertTrue(np.allclose(B[:, 0], 0))
 
 
 @pytest.mark.skipif(
