@@ -255,7 +255,7 @@ class PrecisionTest(testutil.TestCase):
                                         R.transpose(2, 0, 1),
                                         atol=1e-14)
 
-    def test_integration(self):
+    def test_integrals_against_numeric(self):
         """Test the private function used to set up the integrand."""
         pulses = [testutil.rand_pulse_sequence(3, 1, 2, 3),
                   testutil.rand_pulse_sequence(3, 1, 2, 3)]
@@ -508,7 +508,7 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), atol=1e-14)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4, atol=1e-10)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
             self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
@@ -528,7 +528,7 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), atol=1e-14)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4, atol=1e-10)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
             self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
@@ -550,7 +550,7 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), atol=1e-14)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4, atol=1e-10)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
             self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
