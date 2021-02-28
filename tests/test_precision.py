@@ -52,9 +52,7 @@ class PrecisionTest(testutil.TestCase):
         tau_pi = 1e-8
         n = 1
 
-        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
-                                                   dd_type='cpmg')
-
+        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi, dd_type='cpmg')
         H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         SE_pulse = ff.PulseSequence(H_c, H_n, dt)
@@ -81,9 +79,7 @@ class PrecisionTest(testutil.TestCase):
         tau_pi = 1e-9
         n = 6
 
-        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
-                                                   dd_type='cpmg')
-
+        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi, dd_type='cpmg')
         H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         CPMG_pulse = ff.PulseSequence(H_c, H_n, dt)
@@ -101,9 +97,7 @@ class PrecisionTest(testutil.TestCase):
         omega = np.concatenate([-omega[::-1], omega])
         n = 6
 
-        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
-                                                   dd_type='udd')
-
+        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi, dd_type='udd')
         H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         UDD_pulse = ff.PulseSequence(H_c, H_n, dt)
@@ -120,9 +114,7 @@ class PrecisionTest(testutil.TestCase):
         omega = np.concatenate([-omega[::-1], omega])
         n = 6
 
-        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
-                                                   dd_type='pdd')
-
+        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi, dd_type='pdd')
         H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         PDD_pulse = ff.PulseSequence(H_c, H_n, dt)
@@ -139,9 +131,7 @@ class PrecisionTest(testutil.TestCase):
         omega = np.concatenate([-omega[::-1], omega])
         n = 3
 
-        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi,
-                                                   dd_type='cdd')
-
+        H_c, dt = testutil.generate_dd_hamiltonian(n, tau=tau, tau_pi=tau_pi, dd_type='cdd')
         H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         CDD_pulse = ff.PulseSequence(H_c, H_n, dt)
@@ -194,13 +184,10 @@ class PrecisionTest(testutil.TestCase):
         A = testutil.A
 
         # Basis for qubit subspace
-        qubit_subspace_basis = ff.Basis(
-            [np.pad(b, 1, 'constant') for b in ff.Basis.pauli(2)[1:]],
-            skip_check=True,
-            btype='Pauli'
-        )
-        complete_basis = ff.Basis(qubit_subspace_basis, traceless=False,
-                                  btype='Pauli')
+        qubit_subspace_basis = ff.Basis([np.pad(b, 1, 'constant') for b in ff.Basis.pauli(2)[1:]],
+                                        btype='Pauli')
+        complete_basis = ff.Basis.from_partial(qubit_subspace_basis, traceless=False,
+                                               btype='Pauli')
 
         identifiers = ['eps_12', 'eps_23', 'eps_34', 'b_12', 'b_23', 'b_34']
         H_c = list(zip(c_opers, c_coeffs, identifiers))
@@ -217,11 +204,9 @@ class PrecisionTest(testutil.TestCase):
         for A, alpha, MC in zip(A, (0.0, 0.7), infid_MC):
             S = A/omega**alpha
 
-            infid, xi = ff.infidelity(cnot, S, omega, identifiers[:3],
-                                      return_smallness=True)
+            infid, xi = ff.infidelity(cnot, S, omega, identifiers[:3], return_smallness=True)
 
-            K = numeric.calculate_cumulant_function(cnot_full, S, omega,
-                                                    identifiers[:3])
+            K = numeric.calculate_cumulant_function(cnot_full, S, omega, identifiers[:3])
             infid_P = - np.trace(K[:, :16, :16], axis1=1, axis2=2).real/4**2
 
             self.assertLessEqual(np.abs(1 - (infid.sum()/MC)), 0.10)
@@ -229,18 +214,17 @@ class PrecisionTest(testutil.TestCase):
             self.assertLessEqual(infid.sum(), xi**2/4)
 
     def test_calculation_with_unitaries(self):
-        for d, G in zip(rng.randint(2, 9, (11,)), rng.randint(2, 11, (11,))):
-            pulses = [testutil.rand_pulse_sequence(d, rng.randint(1, 11), 2, 4)
-                      for g in range(G)]
+        for d, G in zip(rng.integers(2, 9, (11,)), rng.integers(2, 11, (11,))):
+            pulses = [testutil.rand_pulse_sequence(d, rng.integers(1, 11), 2, 4) for g in range(G)]
 
             for pulse in pulses:
                 # All pulses should have same n_opers for xxx_from_atomic
                 pulse.n_opers = pulses[0].n_opers
                 pulse.n_oper_identifiers = pulses[0].n_oper_identifiers
-                if rng.randint(0, 2):
+                if rng.integers(0, 2):
                     pulse.t = None
 
-            omega = rng.rand(17)
+            omega = rng.random(17)
             B_atomic = np.array([numeric.calculate_noise_operators_from_scratch(
                 pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.n_opers,
                 pulse.n_coeffs, pulse.dt, pulse.t
@@ -291,7 +275,7 @@ class PrecisionTest(testutil.TestCase):
         pulse = ff.concatenate(pulses, omega=omega,
                                calc_pulse_correlation_FF=True)
 
-        idx = testutil.rng.choice(np.arange(2), testutil.rng.randint(1, 3),
+        idx = testutil.rng.choice(np.arange(2), testutil.rng.integers(1, 3),
                                   replace=False)
 
         R = pulse.get_control_matrix(omega)
@@ -387,7 +371,7 @@ class PrecisionTest(testutil.TestCase):
 
     def test_infidelity(self):
         """Benchmark infidelity results against previous version's results"""
-        rng.seed(123456789)
+        rng = np.random.default_rng(seed=123456789)
 
         spectra = [
             lambda S0, omega: S0*abs(omega)**0,
@@ -396,56 +380,48 @@ class PrecisionTest(testutil.TestCase):
             # different spectra for different n_opers
             lambda S0, omega: np.array([S0*abs(omega)**0, S0/abs(omega)**0.7]),
             # cross-correlated spectra
-            lambda S0, omega: np.array(
-                [[S0/abs(omega)**0.7, S0/(1 + omega**2) + 1j*S0*omega],
-                 [S0/(1 + omega**2) - 1j*S0*omega, S0/abs(omega)**0.7]]
-            )
+            lambda S0, omega: np.array([[S0/abs(omega)**0.7, S0/(1 + omega**2) + 1j*S0*omega],
+                                        [S0/(1 + omega**2) - 1j*S0*omega, S0/abs(omega)**0.7]])
         ]
 
         ref_infids = (
-            [[0.415494970094, 0.89587362496],
-             [0.493004378474, 0.812378971328],
-             [0.133466914361, 0.197411969384],
-             [0.415494970094, 0.812378971328],
-             [[0.493004378474, 0.435140425045],
-              [0.435140425045, 0.812378971328]],
-             [3.62995021962, 2.938710386281],
-             [2.302617869945, 2.6187737025],
-             [0.506821680978, 0.695495602872],
-             [3.62995021962, 2.6187737025],
-             [[2.302617869945, 0.58515469294],
-              [0.58515469294, 2.6187737025]],
-             [2.822636459567, 1.205901937127],
-             [1.63758822101, 1.236844976323],
-             [0.324175447082, 0.329789052239],
-             [2.822636459567, 1.236844976323],
-             [[1.63758822101, 0.72007826813],
-              [0.72007826813, 1.236844976323]]]
+            [[2.1571674053883583, 2.1235628100639845],
+             [1.7951695420688032, 2.919850951578396],
+             [0.4327173760925169, 0.817672660809546],
+             [2.1571674053883583, 2.919850951578396],
+             [[1.7951695420688032, -1.1595479985471822],
+              [-1.1595479985471822, 2.919850951578396]],
+             [0.8247284959004152, 2.495561429509174],
+             [0.854760904366362, 3.781670732974073],
+             [0.24181791977082442, 1.122626106375816],
+             [0.8247284959004152, 3.781670732974073],
+             [[0.854760904366362, -0.16574972846239408],
+              [-0.16574972846239408, 3.781670732974073]],
+             [2.9464977186365267, 0.8622319594213088],
+             [2.8391133843027525, 0.678843575761492],
+             [0.813728718501677, 0.16950739577216872],
+             [2.9464977186365267, 0.678843575761492],
+             [[2.8391133843027525, 0.2725782717379744],
+              [0.2725782717379744, 0.678843575761492]]]
         )
 
         count = 0
         for d in (2, 3, 4):
-            pulse = testutil.rand_pulse_sequence(d, 10, 2, 3)
+            pulse = testutil.rand_pulse_sequence(d, 10, 2, 3, local_rng=rng)
             pulse.n_oper_identifiers = np.array(['B_0', 'B_2'])
 
             omega = np.geomspace(0.1, 10, 51)
             S0 = np.abs(rng.standard_normal())
             for spec in spectra:
                 S = spec(S0, omega)
-                infids = ff.infidelity(pulse, S, omega,
-                                       n_oper_identifiers=['B_0', 'B_2'])
-                self.assertArrayAlmostEqual(infids, ref_infids[count],
-                                            atol=1e-12)
+                infids = ff.infidelity(pulse, S, omega, n_oper_identifiers=['B_0', 'B_2'])
+                self.assertArrayAlmostEqual(infids, ref_infids[count], atol=1e-12)
                 if S.ndim == 3:
                     # Diagonal of the infidelity matrix should correspond to
                     # uncorrelated terms
-                    uncorrelated_infids = ff.infidelity(
-                        pulse, S[range(2), range(2)], omega,
-                        n_oper_identifiers=['B_0', 'B_2']
-                    )
-                    self.assertArrayAlmostEqual(np.diag(infids),
-                                                uncorrelated_infids)
-
+                    uncorrelated_infids = ff.infidelity(pulse, S[range(2), range(2)], omega,
+                                                        n_oper_identifiers=['B_0', 'B_2'])
+                    self.assertArrayAlmostEqual(np.diag(infids), uncorrelated_infids)
                     # Infidelity matrix should be hermitian
                     self.assertArrayEqual(infids, infids.conj().T)
 
@@ -462,8 +438,7 @@ class PrecisionTest(testutil.TestCase):
 
         with self.assertRaises(ValueError):
             # omega['spacing'] not in ('linear', 'log')
-            ff.infidelity(pulse, lambda x: x, {'spacing': 2},
-                          test_convergence=True)
+            ff.infidelity(pulse, lambda x: x, {'spacing': 2}, test_convergence=True)
 
         with self.assertRaises(ValueError):
             # which not total or correlation
@@ -480,24 +455,21 @@ class PrecisionTest(testutil.TestCase):
 
         with self.assertRaises(ValueError):
             # S wrong dimensions
-            ff.infidelity(pulse, spectra[4](S0, omega)[:, [0]], omega,
-                          n_oper_identifiers=['B_0'])
+            ff.infidelity(pulse, spectra[4](S0, omega)[:, [0]], omega, n_oper_identifiers=['B_0'])
 
         with self.assertRaises(ValueError):
             # S wrong dimensions
-            ff.infidelity(pulse, rng.standard_normal((2, 3, 4, len(omega))),
-                          omega)
+            ff.infidelity(pulse, rng.standard_normal((2, 3, 4, len(omega))), omega)
 
         with self.assertRaises(NotImplementedError):
             # smallness parameter for correlated noise source
-            ff.infidelity(pulse, spectra[4](S0, omega), omega,
-                          n_oper_identifiers=['B_0', 'B_2'],
+            ff.infidelity(pulse, spectra[4](S0, omega), omega, n_oper_identifiers=['B_0', 'B_2'],
                           return_smallness=True)
 
     def test_single_qubit_error_transfer_matrix(self):
         """Test the calculation of the single-qubit transfer matrix"""
         d = 2
-        for n_dt in rng.randint(1, 11, 10):
+        for n_dt in rng.integers(1, 11, 10):
             pulse = testutil.rand_pulse_sequence(d, n_dt, 3, 2, btype='Pauli')
             omega = util.get_sample_frequencies(pulse, n_samples=51)
             n_oper_identifiers = pulse.n_oper_identifiers
@@ -508,11 +480,9 @@ class PrecisionTest(testutil.TestCase):
             S = 1e-8/omega**2
             U = ff.error_transfer_matrix(pulse, S, omega)
             # Calculate U in loop
-            Up = ff.error_transfer_matrix(pulse, S, omega,
-                                          memory_parsimonious=True)
+            Up = ff.error_transfer_matrix(pulse, S, omega, memory_parsimonious=True)
             # Calculate on foot (multi-qubit way)
-            Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega,
-                                                       n_oper_identifiers)
+            Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega, n_oper_identifiers)
             K = -(np.einsum('...kl,klji->...ij', Gamma, traces) -
                   np.einsum('...kl,kjli->...ij', Gamma, traces) -
                   np.einsum('...kl,kilj->...ij', Gamma, traces) +
@@ -524,18 +494,15 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
-                                        rtol=1e-4)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
             self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
             # Different spectra for each noise oper
             S = np.outer(1e-6*np.arange(1, 3), 400/(omega**2 + 400))
             U = ff.error_transfer_matrix(pulse, S, omega)
-            Up = ff.error_transfer_matrix(pulse, S, omega,
-                                          memory_parsimonious=True)
-            Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega,
-                                                       n_oper_identifiers)
+            Up = ff.error_transfer_matrix(pulse, S, omega, memory_parsimonious=True)
+            Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega, n_oper_identifiers)
             K = -(np.einsum('...kl,klji->...ij', Gamma, traces) -
                   np.einsum('...kl,kjli->...ij', Gamma, traces) -
                   np.einsum('...kl,kilj->...ij', Gamma, traces) +
@@ -547,8 +514,7 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
-                                        rtol=1e-4)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
             self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
@@ -557,10 +523,8 @@ class PrecisionTest(testutil.TestCase):
             S = np.array([[1e-6/abs(omega), 1e-8/abs(omega) + 1j*1e-8/omega],
                           [1e-8/abs(omega) - 1j*1e-8/omega, 2e-6/abs(omega)]])
             U = ff.error_transfer_matrix(pulse, S, omega)
-            Up = ff.error_transfer_matrix(pulse, S, omega,
-                                          memory_parsimonious=True)
-            Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega,
-                                                       n_oper_identifiers)
+            Up = ff.error_transfer_matrix(pulse, S, omega, memory_parsimonious=True)
+            Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega, n_oper_identifiers)
             K = -(np.einsum('...kl,klji->...ij', Gamma, traces) -
                   np.einsum('...kl,kjli->...ij', Gamma, traces) -
                   np.einsum('...kl,kilj->...ij', Gamma, traces) +
@@ -572,8 +536,7 @@ class PrecisionTest(testutil.TestCase):
             I_transfer = 1 - np.einsum('...ii', U)/d**2
             self.assertArrayAlmostEqual(Up, U)
             self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
-            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(),
-                                        rtol=1e-4)
+            self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4)
             self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
             self.assertArrayAlmostEqual(U_from_K, U_onfoot)
 
@@ -581,7 +544,7 @@ class PrecisionTest(testutil.TestCase):
         """Test the calculation of the multi-qubit transfer matrix"""
         n_cops = 4
         n_nops = 2
-        for d, n_dt in zip(rng.randint(3, 9, 10), rng.randint(1, 11, 10)):
+        for d, n_dt in zip(rng.integers(3, 9, 10), rng.integers(1, 11, 10)):
             f, n = np.modf(np.log2(d))
             btype = 'Pauli' if f == 0.0 else 'GGM'
             pulse = testutil.rand_pulse_sequence(d, n_dt, n_cops, n_nops,

@@ -60,7 +60,7 @@ class CoreTest(testutil.TestCase):
             # dt not a sequence
             ff.PulseSequence(H_c, H_n, dt[0])
 
-        idx = rng.randint(0, 5)
+        idx = rng.integers(0, 5)
         with self.assertRaises(ValueError):
             # negative dt
             dt[idx] *= -1
@@ -99,7 +99,7 @@ class CoreTest(testutil.TestCase):
             # Element of noise Hamiltonian not list or tuple
             ff.PulseSequence(H_c, [np.array(H_n[0], dtype=object)], dt)
 
-        idx = rng.randint(0, 3)
+        idx = rng.integers(0, 3)
         with self.assertRaises(TypeError):
             # Control Hamiltonian element not list or tuple
             H_c[idx] = dict(H_c[idx])
@@ -143,7 +143,7 @@ class CoreTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             # Control operators not 2d
             for hc in H_c:
-                hc[0] = np.tile(hc[0], (rng.randint(2, 11), 1, 1))
+                hc[0] = np.tile(hc[0], (rng.integers(2, 11), 1, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hc in H_c:
@@ -151,7 +151,7 @@ class CoreTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             # Noise operators not 2d
             for hn in H_n:
-                hn[0] = np.tile(hn[0], (rng.randint(2, 11), 1, 1))
+                hn[0] = np.tile(hn[0], (rng.integers(2, 11), 1, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hn in H_n:
@@ -234,7 +234,7 @@ class CoreTest(testutil.TestCase):
     def test_pulse_sequence_attributes(self):
         """Test attributes of single instance"""
         X, Y, Z = util.paulis[1:]
-        n_dt = rng.randint(1, 10)
+        n_dt = rng.integers(1, 10)
 
         # trivial case
         A = ff.PulseSequence([[X, rng.standard_normal(n_dt), 'X']],
@@ -343,7 +343,7 @@ class CoreTest(testutil.TestCase):
                     _ = A.is_cached(attr)
             else:
                 # set mock attribute at random
-                if rng.randint(0, 2):
+                if rng.integers(0, 2):
                     setattr(A, attr, 'foo')
                     assertion = self.assertTrue
                 else:
@@ -382,7 +382,7 @@ class CoreTest(testutil.TestCase):
 
         for alias, attr in aliases.items():
             # set mock attribute at random
-            if rng.randint(0, 2):
+            if rng.integers(0, 2):
                 setattr(A, attr, 'foo')
                 assertion = self.assertTrue
             else:
@@ -451,11 +451,11 @@ class CoreTest(testutil.TestCase):
     def test_pulse_sequence_attributes_concat(self):
         """Test attributes of concatenated sequence."""
         X, Y, Z = util.paulis[1:]
-        n_dt_1 = rng.randint(5, 11)
+        n_dt_1 = rng.integers(5, 11)
         x_coeff_1 = rng.standard_normal(n_dt_1)
         z_coeff_1 = rng.standard_normal(n_dt_1)
         dt_1 = np.abs(rng.standard_normal(n_dt_1))
-        n_dt_2 = rng.randint(5, 11)
+        n_dt_2 = rng.integers(5, 11)
         y_coeff_2 = rng.standard_normal(n_dt_2)
         z_coeff_2 = rng.standard_normal(n_dt_2)
         dt_2 = np.abs(rng.standard_normal(n_dt_2))
@@ -567,8 +567,8 @@ class CoreTest(testutil.TestCase):
 
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
-        for d, n_dt in zip(rng.randint(2, 10, (3,)),
-                           rng.randint(10, 200, (3,))):
+        for d, n_dt in zip(rng.integers(2, 10, (3,)),
+                           rng.integers(10, 200, (3,))):
             total_pulse = testutil.rand_pulse_sequence(d, n_dt, 4, 6)
             c_opers, c_coeffs = total_pulse.c_opers, total_pulse.c_coeffs
             n_opers, n_coeffs = total_pulse.n_opers, total_pulse.n_coeffs
@@ -692,8 +692,7 @@ class CoreTest(testutil.TestCase):
                 pulses[key] = ff.PulseSequence(H_c[key], H_n[key], dt[key])
                 pulses[key].cache_filter_function(omega + i)
 
-            ff.concatenate([pulses['X'], pulses['Y']],
-                           calc_pulse_correlation_FF=True)
+            ff.concatenate([pulses['X'], pulses['Y']], calc_pulse_correlation_FF=True)
 
         # Get filter functions at same frequencies
         [pulse.cache_filter_function(omega) for pulse in pulses.values()]
@@ -720,18 +719,14 @@ class CoreTest(testutil.TestCase):
         self.assertEqual(pulse_1, pulse_2)
         self.assertEqual(pulse_2.get_pulse_correlation_filter_function().shape,
                          (2, 2, n_nops, n_nops, len(omega)))
-        self.assertArrayAlmostEqual(
-            pulse_1.get_filter_function(omega),
-            pulse_2.get_pulse_correlation_filter_function().sum((0, 1))
-        )
         self.assertArrayAlmostEqual(pulse_1.get_filter_function(omega),
-                                    pulse_2._filter_function)
+                                    pulse_2.get_pulse_correlation_filter_function().sum((0, 1)))
+        self.assertArrayAlmostEqual(pulse_1.get_filter_function(omega), pulse_2._filter_function)
 
         # Test the behavior of the pulse correlation control matrix
         with self.assertRaises(ValueError):
             # R wrong dimension
-            numeric.calculate_pulse_correlation_filter_function(
-                pulse_1._control_matrix)
+            numeric.calculate_pulse_correlation_filter_function(pulse_1._control_matrix)
 
         with self.assertRaises(util.CalculationError):
             # not calculated
@@ -746,8 +741,7 @@ class CoreTest(testutil.TestCase):
         )
 
         control_matrix_pc = pulse_3.get_pulse_correlation_control_matrix()
-        filter_function = \
-            pulse_3.get_pulse_correlation_filter_function(which='fidelity')
+        filter_function = pulse_3.get_pulse_correlation_filter_function(which='fidelity')
         self.assertArrayEqual(
             filter_function,
             numeric.calculate_pulse_correlation_filter_function(
@@ -755,8 +749,7 @@ class CoreTest(testutil.TestCase):
             )
         )
 
-        filter_function = \
-            pulse_3.get_pulse_correlation_filter_function(which='generalized')
+        filter_function = pulse_3.get_pulse_correlation_filter_function(which='generalized')
         self.assertArrayEqual(
             filter_function,
             numeric.calculate_pulse_correlation_filter_function(
@@ -770,8 +763,7 @@ class CoreTest(testutil.TestCase):
         pulse_3._filter_function_pc_gen = None
 
         control_matrix_pc = pulse_3.get_pulse_correlation_control_matrix()
-        filter_function = \
-            pulse_3.get_pulse_correlation_filter_function(which='fidelity')
+        filter_function = pulse_3.get_pulse_correlation_filter_function(which='fidelity')
         self.assertArrayEqual(
             filter_function,
             numeric.calculate_pulse_correlation_filter_function(
@@ -779,8 +771,7 @@ class CoreTest(testutil.TestCase):
             )
         )
 
-        filter_function = \
-            pulse_3.get_pulse_correlation_filter_function(which='generalized')
+        filter_function = pulse_3.get_pulse_correlation_filter_function(which='generalized')
         self.assertArrayEqual(
             filter_function,
             numeric.calculate_pulse_correlation_filter_function(
@@ -790,14 +781,13 @@ class CoreTest(testutil.TestCase):
 
         spectrum = omega**0*1e-2
         with self.assertRaises(util.CalculationError):
-            infid_1 = ff.infidelity(pulse_1, spectrum, omega,
-                                    which='correlations')
+            infid_1 = ff.infidelity(pulse_1, spectrum, omega, which='correlations')
 
         with self.assertRaises(ValueError):
             infid_1 = ff.infidelity(pulse_1, spectrum, omega, which='foobar')
 
         for _ in range(10):
-            n_nops = rng.randint(1, 4)
+            n_nops = rng.integers(1, 4)
             identifiers = sample(['B_0', 'B_1', 'B_2'], n_nops)
 
             infid_X = ff.infidelity(pulses['X'], spectrum, omega,
@@ -856,7 +846,7 @@ class CoreTest(testutil.TestCase):
     def test_error_transfer_matrix(self):
         """Test raises of numeric.error_transfer_matrix."""
         pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
-        omega = testutil.rng.randn(43)
+        omega = testutil.rng.standard_normal(43)
         spectrum = np.ones_like(omega)
         with self.assertRaises(ValueError):
             ff.error_transfer_matrix(pulse, spectrum)
@@ -865,7 +855,7 @@ class CoreTest(testutil.TestCase):
             ff.error_transfer_matrix(cumulant_function=[1, 2, 3])
 
         with self.assertRaises(ValueError):
-            ff.error_transfer_matrix(cumulant_function=testutil.rng.randn(2, 3, 4))
+            ff.error_transfer_matrix(cumulant_function=testutil.rng.standard_normal((2, 3, 4)))
 
     def test_infidelity_convergence(self):
         omega = {
@@ -903,7 +893,7 @@ class CoreTest(testutil.TestCase):
 
         # Test with non-default args
         identifiers = rng.choice(complicated_pulse.n_oper_identifiers,
-                                 rng.randint(1, 4))
+                                 rng.integers(1, 4))
 
         n, infids = ff.infidelity(complicated_pulse, spectrum, omega,
                                   test_convergence=True,

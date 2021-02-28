@@ -61,7 +61,7 @@ class PlottingTest(testutil.TestCase):
 
         # Call with custom args
         c_oper_identifiers = sample(
-            complicated_pulse.c_oper_identifiers.tolist(), rng.randint(2, 4)
+            complicated_pulse.c_oper_identifiers.tolist(), rng.integers(2, 4)
         )
 
         fig, ax = plt.subplots()
@@ -107,7 +107,7 @@ class PlottingTest(testutil.TestCase):
 
         # Non-default args
         n_oper_identifiers = sample(
-            complicated_pulse.n_oper_identifiers.tolist(), rng.randint(2, 4)
+            complicated_pulse.n_oper_identifiers.tolist(), rng.integers(2, 4)
         )
 
         fig, ax = plt.subplots()
@@ -176,7 +176,7 @@ class PlottingTest(testutil.TestCase):
 
         # Non-default args
         n_oper_identifiers = sample(
-            complicated_pulse.n_oper_identifiers.tolist(), rng.randint(2, 4)
+            complicated_pulse.n_oper_identifiers.tolist(), rng.integers(2, 4)
         )
 
         fig, ax = plt.subplots()
@@ -248,12 +248,12 @@ class PlottingTest(testutil.TestCase):
         fig, grid = plotting.plot_cumulant_function(cumulant_function=K, colorscale='log')
 
         # Non-default args
-        n_oper_inds = sample(range(len(complicated_pulse.n_opers)), rng.randint(2, 4))
+        n_oper_inds = sample(range(len(complicated_pulse.n_opers)), rng.integers(2, 4))
         n_oper_identifiers = complicated_pulse.n_oper_identifiers[n_oper_inds]
 
         basis_labels = []
         for i in range(4):
-            basis_labels.append(string.ascii_uppercase[rng.randint(0, 26)])
+            basis_labels.append(string.ascii_uppercase[rng.integers(0, 26)])
 
         omega = ff.util.get_sample_frequencies(complicated_pulse, n_samples=50, spacing='log')
         spectrum = np.exp(-omega**2)

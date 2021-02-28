@@ -278,7 +278,7 @@ class ConcatenationTest(testutil.TestCase):
         H_n_CPMG = [[util.paulis[3], np.ones_like(dt_CPMG)]]
         CPMG = ff.PulseSequence(H_c_CPMG, H_n_CPMG, dt_CPMG)
 
-        SE[rng.randint(0, len(SE)-1)].cache_filter_function(omega)
+        SE[rng.integers(0, len(SE)-1)].cache_filter_function(omega)
         CPMG.cache_filter_function(omega)
 
         CPMG_concat_1 = ff.concatenate(SE)
@@ -286,7 +286,7 @@ class ConcatenationTest(testutil.TestCase):
         for se in SE:
             se.cleanup('all')
 
-        SE[rng.randint(0, len(SE)-1)].cache_filter_function(omega)
+        SE[rng.integers(0, len(SE)-1)].cache_filter_function(omega)
         CPMG_concat_2 = SE[0] @ SE[1] @ SE[2] @ SE[3]
 
         self.assertEqual(CPMG, CPMG_concat_1)
@@ -378,12 +378,12 @@ class ConcatenationTest(testutil.TestCase):
 
     def test_different_n_opers(self):
         """Test behavior when concatenating with different n_opers."""
-        for d, n_dt in zip(rng.randint(2, 5, 20),
-                           rng.randint(1, 11, 20)):
+        for d, n_dt in zip(rng.integers(2, 5, 20),
+                           rng.integers(1, 11, 20)):
             opers = testutil.rand_herm_traceless(d, 10)
             letters = np.array(sample(list(string.ascii_letters), 10))
-            n_idx = sample(range(10), rng.randint(2, 5))
-            c_idx = sample(range(10), rng.randint(2, 5))
+            n_idx = sample(range(10), rng.integers(2, 5))
+            c_idx = sample(range(10), rng.integers(2, 5))
             n_opers = opers[n_idx]
             c_opers = opers[c_idx]
             n_coeffs = np.ones((n_opers.shape[0], n_dt))
@@ -402,7 +402,7 @@ class ConcatenationTest(testutil.TestCase):
                                                 n_coeffs[permutation],
                                                 n_ids[permutation])),
                                        dt)
-            more_n_idx = sample(range(10), rng.randint(2, 5))
+            more_n_idx = sample(range(10), rng.integers(2, 5))
             more_n_opers = opers[more_n_idx]
             more_n_coeffs = np.ones((more_n_opers.shape[0], n_dt))
             more_n_coeffs *= np.abs(rng.standard_normal(
@@ -531,10 +531,10 @@ class ConcatenationTest(testutil.TestCase):
 
     def test_pulse_correlations(self):
         """Test calculating pulse correlation quantities."""
-        for d, n_dt in zip(testutil.rng.randint(2, 7, 11),
-                           testutil.rng.randint(1, 5, 11)):
+        for d, n_dt in zip(testutil.rng.integers(2, 7, 11),
+                           testutil.rng.integers(1, 5, 11)):
             pulses = [testutil.rand_pulse_sequence(d, n_dt, 1, 2)
-                      for _ in range(testutil.rng.randint(2, 7))]
+                      for _ in range(testutil.rng.integers(2, 7))]
             for pulse in pulses[1:]:
                 # Otherwise cannot concatenate
                 pulse.n_opers = pulses[0].n_opers
@@ -553,7 +553,7 @@ class ConcatenationTest(testutil.TestCase):
                            1e-6/abs(omega)**0.7]])
             ]
 
-            idx = testutil.rng.choice(np.arange(2), testutil.rng.randint(1, 3),
+            idx = testutil.rng.choice(np.arange(2), testutil.rng.integers(1, 3),
                                       replace=False)
             identifiers = pulse.n_oper_identifiers[idx]
 
@@ -662,8 +662,8 @@ class ExtensionTest(testutil.TestCase):
         )
 
         omega = util.get_sample_frequencies(pulse, spacing='log', n_samples=50)
-        for N in rng.randint(2, 5, 4):
-            for target in rng.randint(0, N-1, 2):
+        for N in rng.integers(2, 5, 4):
+            for target in rng.integers(0, N-1, 2):
                 pulse.cleanup('all')
                 ext_opers = util.tensor(*np.insert(np.tile(ID, (N-1, 3, 1, 1)),
                                                    target, (X, Y, Z), axis=0))
@@ -699,7 +699,7 @@ class ExtensionTest(testutil.TestCase):
                     np.ones(n_dt), basis=ff.Basis.pauli(N)
                 )
 
-                calc_filter_functionF = rng.randint(0, 2)
+                calc_filter_functionF = rng.integers(0, 2)
                 if calc_filter_functionF:
                     # Expect things to be cached in extended pulse if original
                     # also was cached
@@ -1232,7 +1232,7 @@ class RemappingTest(testutil.TestCase):
     def test_accuracy(self):
         paulis = np.array(util.paulis)
         I, X, Y, Z = paulis
-        amps = rng.standard_normal(rng.randint(1, 11))
+        amps = rng.standard_normal(rng.integers(1, 11))
         pulse = ff.PulseSequence(
             [[util.tensor(X, Y, Z), amps]],
             [[util.tensor(X, I, I), np.ones_like(amps), 'XII'],
