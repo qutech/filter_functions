@@ -462,6 +462,11 @@ class PrecisionTest(testutil.TestCase):
             ff.infidelity(pulse, rng.standard_normal((2, 3, 4, len(omega))), omega)
 
         with self.assertRaises(ValueError):
+            # S wrong dimensions
+            ff.infidelity(testutil.rand_pulse_sequence(2, 3, n_nops=2),
+                          rng.standard_normal((3, 2, 2, len(omega))), omega)
+
+        with self.assertRaises(ValueError):
             # S cross-correlated but not hermitian
             ff.infidelity(testutil.rand_pulse_sequence(2, 3, n_nops=2),
                           rng.standard_normal((2, 2, len(omega))), omega)
