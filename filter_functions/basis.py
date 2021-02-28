@@ -40,6 +40,7 @@ Functions
 
 """
 
+from itertools import product
 from typing import Optional, Sequence, Union
 from warnings import warn
 
@@ -106,6 +107,9 @@ class Basis(ndarray):
     skip_check: bool, optional (default: ``False``)
         Skip the internal routine for checking ``basis_array``'s
         orthonormality and completeness. Use with caution.
+    labels: sequence of str, optional
+        A list of labels for the individual basis elements. Defaults to
+        'C_0', 'C_1', ...
 
     Attributes
     ----------
@@ -114,6 +118,8 @@ class Basis(ndarray):
 
     btype: str
         Basis type.
+    labels: sequence of str
+        The labels for the basis elements.
     d: int
         Dimension of the space spanned by the basis.
     H: Basis
@@ -153,7 +159,8 @@ class Basis(ndarray):
     """
 
     def __new__(cls, basis_array: Sequence, traceless: Optional[bool] = None,
-                btype: Optional[str] = None, skip_check: bool = False) -> 'Basis':
+                btype: Optional[str] = None, skip_check: bool = False,
+                labels: Optional[Sequence[str]] = None) -> 'Basis':
         """Constructor."""
         if not skip_check:
             if not hasattr(basis_array, '__getitem__'):
@@ -193,7 +200,13 @@ class Basis(ndarray):
 
         basis = basis.view(cls)
         basis.btype = btype or 'Custom'
-        basis.d = d
+        basis.d = basis.shape[-1]
+        if labels is not None:
+            if len(labels) != len(basis):
+                raise ValueError(f'Got {len(labels)} basis labels but expected {len(basis)}')
+            basis.labels = labels
+        else:
+            basis.labels = [f'$C_{{{i}}}$' for i in range(len(basis))]
         return basis
 
     def __array_finalize__(self, basis: 'Basis') -> None:
@@ -227,9 +240,7 @@ class Basis(ndarray):
 
     def __contains__(self, item: ndarray) -> bool:
         """Implement 'in' operator."""
-        return any(np.all(np.isclose(item.view(ndarray), self.view(ndarray),
-                                     rtol=self._rtol, atol=self._atol),
-                          axis=(1, 2)))
+        return any(np.isclose(item.view(ndarray), self.view(ndarray),
 
     def __array_wrap__(self, out_arr, context=None):
         """
@@ -421,7 +432,7 @@ class Basis(ndarray):
         combinations = np.indices((4,)*n).reshape(n, 4**n)
         sigma = util.tensor(*util.paulis[combinations], rank=2)
         sigma /= normalization
-        return cls(sigma, btype='Pauli', skip_check=True)
+        return cls(sigma, btype='Pauli',
 
     @classmethod
     def ggm(cls, d: int) -> 'Basis':
@@ -484,7 +495,6 @@ class Basis(ndarray):
             np.sqrt(diag_rng*(diag_rng + 1))[:, None], (1, d)
         )
 
-        return cls(Lambda, btype='GGM', skip_check=True)
 
 
 def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
@@ -509,9 +519,10 @@ def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
         traceless = elems.istraceless
     else:
         if traceless and not elems.istraceless:
-            raise ValueError("The basis elements are not traceless (up to " +
-                             "an identity element) but a traceless basis " +
-                             "was requested!")
+            raise ValueError("The basis elements are not traceless (up to an identity element) " +
+                             "but a traceless basis was requested!")
+
+    if labels is not None and len(labels) not in (len(elems), elems.d**2):
 
     # Get a Generalized Gell-Mann basis to expand in (fulfills the desired
     # properties hermiticity and orthonormality, and therefore also linear
@@ -548,7 +559,19 @@ def _full_from_partial(elems: Sequence, traceless: Union[None, bool]) -> Basis:
     # Clean up
     basis.tidyup()
 
-    return basis
+    if labels is not None and len(labels) == len(elems):
+        # Fill up labels for newly generated elements
+        labels = list(labels)
+        if traceless:
+            # sort Identity label to the front, default to first if not found
+            # (should not happen since traceless checks that it is present)
+            id_idx = next((i for i, elem in enumerate(elems)
+                           if np.allclose(Id.view(ndarray), elem.view(ndarray),
+                                          rtol=elems._rtol, atol=elems._atol)), 0)
+            labels.insert(0, labels.pop(id_idx))
+
+        labels.extend('$C_{{{}}}$'.format(i) for i in range(len(labels), len(basis)))
+
 
 
 def _norm(b: Sequence) -> ndarray:

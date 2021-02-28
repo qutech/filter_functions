@@ -60,6 +60,10 @@ class BasisTest(testutil.TestCase):
         # Non traceless elems but traceless basis requested
         with self.assertRaises(ValueError):
             _ = ff.Basis(np.ones((2, 2)), traceless=True)
+        # Incorrect number of labels for default constructor
+        with self.assertRaises(ValueError):
+            _ = ff.Basis(util.paulis, labels=['a', 'b', 'c'])
+
 
         # Calling with only the identity should work with traceless true or
         # false
