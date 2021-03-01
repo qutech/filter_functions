@@ -923,7 +923,7 @@ class CoreTest(testutil.TestCase):
                                         atol=1e-16)
             self.assertEqual(cumulant_function_first_order.shape,
                              cumulant_function_second_order.shape)
-            self.assertLessEqual(rel, 100)
+            self.assertLessEqual(rel, 200)
             self.assertGreaterEqual(rel, 1/10)
 
     def test_error_transfer_matrix(self):
