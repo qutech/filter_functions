@@ -453,28 +453,31 @@ class UtilTest(testutil.TestCase):
 
             result = util.oper_equiv(psi, psi*np.exp(1j*phase))
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase, places=5)
+            self.assertAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(phase, 2*np.pi), places=5)
 
             result = util.oper_equiv(psi*np.exp(1j*phase), psi)
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], -phase, places=5)
+            self.assertAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(-phase, 2*np.pi), places=5)
 
             psi /= np.linalg.norm(psi, ord=2)
 
             result = util.oper_equiv(psi, psi*np.exp(1j*phase), normalized=True, eps=1e-13)
             self.assertTrue(result[0])
-            self.assertArrayAlmostEqual(result[1], phase, atol=1e-5)
+            self.assertArrayAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(phase, 2*np.pi),
+                                        atol=1e-5)
 
             result = util.oper_equiv(psi, psi+1)
             self.assertFalse(result[0])
 
             result = util.oper_equiv(U, U*np.exp(1j*phase))
             self.assertTrue(np.all(result[0]))
-            self.assertArrayAlmostEqual(result[1], phase, atol=1e-5)
+            self.assertArrayAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(phase, 2*np.pi),
+                                        atol=1e-5)
 
             result = util.oper_equiv(U*np.exp(1j*phase), U)
             self.assertTrue(np.all(result[0]))
-            self.assertArrayAlmostEqual(result[1], -phase, atol=1e-5)
+            self.assertArrayAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(-phase, 2*np.pi),
+                                        atol=1e-5)
 
             norm = np.sqrt(util.dot_HS(U, U))
             norm = norm[:, None, None] if U.ndim == 3 else norm
@@ -483,7 +486,7 @@ class UtilTest(testutil.TestCase):
             # U /= np.expand_dims(np.sqrt(util.dot_HS(U, U)), axis=(-1, -2))
             result = util.oper_equiv(U, U*np.exp(1j*phase), normalized=True, eps=1e-10)
             self.assertTrue(np.all(result[0]))
-            self.assertArrayAlmostEqual(result[1], phase)
+            self.assertArrayAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(phase, 2*np.pi))
 
             result = util.oper_equiv(U, U+1)
             self.assertFalse(np.all(result[0]))
@@ -496,7 +499,7 @@ class UtilTest(testutil.TestCase):
 
         for d in rng.integers(2, 10, (5,)):
             U, V = testutil.rand_herm(d, 2)
-            self.assertArrayAlmostEqual(util.dot_HS(U, V),  (U.conj().T @ V).trace())
+            self.assertArrayAlmostEqual(util.dot_HS(U, V), (U.conj().T @ V).trace())
 
             U = testutil.rand_unit(d).squeeze()
             self.assertEqual(util.dot_HS(U, U), d)
