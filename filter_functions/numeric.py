@@ -1295,31 +1295,17 @@ def calculate_frequency_shifts(
 
         \Delta_{\alpha\beta, kl} = \int_{-\infty}^\infty
             \frac{\mathrm{d}{\omega}}{2\pi} S_{\alpha\beta}(\omega)
-            \sum_{g=1}^G\left[\mathcal{G}_{\alpha k}^{(g)\ast}(\omega)
-                \sum_{g'=1}^{g-1}\mathcal{G}_{\beta l}^{(g')}(\omega) +
-                \bar{B}_{\alpha,ij}^{(g)}\bar{C}_{k,ji}^{(g)}
-                I_{ijmn}^{(g)}(\omega)\bar{C}_{l,nm}^{(g)}
-                \bar{B}_{\beta,mn}^{(g)}
-            \right]
+            F_{\alpha\beta,kl}^{(2)}(\omega)
 
-    with
-
-    .. math::
-
-        \mathcal{G}^{(g)}(\omega) &=
-            e^{i\omega t_{g-1}}\mathcal{R}^{(g)}(\omega)
-            \mathcal{Q}^{(g-1)}, \\
-        I_{ijmn}^{(g)}(\omega) &=
-            \int_{t_{g-1}}^{t_g}\mathrm{d}{t}
-            e^{i\Omega_{ij}^{(g)}(t - t_{g-1}) - i\omega t}
-            \int_{t_{g-1}}^{t}\mathrm{d}{t'}
-            e^{i\Omega_{mn}^{(g)}(t' - t_{g-1}) + i\omega t'}.
+    with :math:`F_{\alpha\beta,kl}^{(2)}(\omega)` the second order filter
+    function.
 
     See Also
     --------
+    calculate_second_order_filter_function: Corresponding filter function.
+    calculate_decay_amplitudes: First order (dissipative) terms.
     infidelity: Compute the infidelity directly.
     pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
-    calculate_decay_amplitudes: First order (dissipative) terms.
     calculate_pulse_correlation_filter_function
     """
     idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
@@ -1471,9 +1457,9 @@ def calculate_second_order_filter_function(
         F_{\alpha\beta, kl}^{(2)} = \sum_{g=1}^G\left[
                 \mathcal{G}_{\alpha k}^{(g)\ast}(\omega)
                 \sum_{g'=1}^{g-1}\mathcal{G}_{\beta l}^{(g')}(\omega) +
-                \bar{B}_{\alpha,ij}^{(g)}\bar{C}_{k,ji}^{(g)}
-                I_{ijmn}^{(g)}(\omega)\bar{C}_{l,nm}^{(g)}
-                \bar{B}_{\beta,mn}^{(g)}
+                s_\alpha^{(g)}\bar{B}_{\alpha,ij}^{(g)}\bar{C}_{k,ji}^{(g)}
+                I_{ijmn}^{(g)}(\omega)\bar{C}_{l,nm}^{(g)
+                \bar{B}_{\beta,mn}^{(g)}s_\beta^{(g)}}
             \right]
 
     with
@@ -1481,7 +1467,7 @@ def calculate_second_order_filter_function(
     .. math::
 
         \mathcal{G}^{(g)}(\omega) &=
-            e^{i\omega t_{g-1}}\mathcal{R}^{(g)}(\omega)
+            e^{i\omega t_{g-1}}\mathcal{B}^{(g)}(\omega)
             \mathcal{Q}^{(g-1)}, \\
         I_{ijmn}^{(g)}(\omega) &=
             \int_{t_{g-1}}^{t_g}\mathrm{d}{t}
