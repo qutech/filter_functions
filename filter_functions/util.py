@@ -793,8 +793,7 @@ def integrate(f: ndarray, x: Optional[ndarray] = None, dx: float = 1.0) -> Union
 
     """
     dx = np.diff(x) if x is not None else dx
-    ret = f[..., 1:].copy()
-    ret += f[..., :-1]
+    ret = f[..., 1:] + f[..., :-1]
     ret *= dx
     return ret.sum(axis=-1)/2
 
