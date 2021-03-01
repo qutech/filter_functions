@@ -675,9 +675,8 @@ class CoreTest(testutil.TestCase):
             # Test caching
             F_2 = pulse.get_filter_function(omega, order=2)
             F_3 = numeric.calculate_second_order_filter_function(
-                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis,
-                pulse.n_opers, pulse.n_coeffs, pulse.dt, memory_parsimonious=False,
-                show_progressbar=False, intermediates=None
+                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis, pulse.n_opers,
+                pulse.n_coeffs, pulse.dt, show_progressbar=False, intermediates=None
             )
             # Make sure first and second order are of same order of magnitude
             rel = np.linalg.norm(F) / np.linalg.norm(F_1)
@@ -853,15 +852,6 @@ class CoreTest(testutil.TestCase):
             with self.assertRaises(ValueError):
                 numeric.calculate_decay_amplitudes(pulse, np.tile(spectrum, [1]*i), omega)
 
-    def test_calculate_frequency_shifts(self):
-        """Test raises of numeric.calculate_frequency_shifts"""
-        pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
-        omega = rng.standard_normal(43)
-        spectrum = rng.standard_normal(43)
-        with self.assertRaises(NotImplementedError):
-            numeric.calculate_frequency_shifts(pulse, spectrum, omega,
-                                               memory_parsimonious=True)
-
     def test_cumulant_function(self):
         pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
         omega = rng.standard_normal(43)
@@ -894,6 +884,11 @@ class CoreTest(testutil.TestCase):
             # Using precomputed frequency shifts or decay amplitudes but different shapes
             numeric.calculate_cumulant_function(pulse, spectrum, omega, second_order=True,
                                                 decay_amplitudes=Gamma[1:])
+
+        with self.assertWarns(UserWarning):
+            # Memory parsimonious only works for decay amplitudes
+            numeric.calculate_cumulant_function(pulse, spectrum, omega, second_order=True,
+                                                memory_parsimonious=True)
 
         for d in [2, *rng.integers(2, 7, 5)]:
             pulse = testutil.rand_pulse_sequence(d, 3, 2, 2)

@@ -705,8 +705,7 @@ class PulseSequence:
                 # order == 2
                 filter_function = numeric.calculate_second_order_filter_function(
                     self.eigvals, self.eigvecs, self.propagators, omega, self.basis,
-                    self.n_opers, self.n_coeffs, self.dt, memory_parsimonious=False,
-                    show_progressbar=show_progressbar, intermediates=self._intermediates
+                    self.n_opers, self.n_coeffs, self.dt, self._intermediates, show_progressbar
                 )
 
         self.omega = omega

@@ -1037,9 +1037,11 @@ def calculate_cumulant_function(
 
     if second_order:
         if frequency_shifts is None:
+            if memory_parsimonious:
+                warn('Memory parsimonious calculation not implemented for frequency shifts.')
+
             frequency_shifts = calculate_frequency_shifts(pulse, spectrum, omega,
-                                                          n_oper_identifiers, show_progressbar,
-                                                          memory_parsimonious)
+                                                          n_oper_identifiers, show_progressbar)
 
         if frequency_shifts.shape != decay_amplitudes.shape:
             raise ValueError('Frequency shifts not same shape as decay amplitudes')
@@ -1236,8 +1238,7 @@ def calculate_frequency_shifts(
         spectrum: ndarray,
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
-        show_progressbar: bool = False,
-        memory_parsimonious: bool = False
+        show_progressbar: bool = False
 ) -> ndarray:
     r"""
     Get the frequency shifts :math:`\Delta_{\alpha\beta, kl}` for noise
@@ -1262,18 +1263,6 @@ def calculate_frequency_shifts(
         the frequency shifts. The default is all.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
-    memory_parsimonious: bool, optional
-        For large dimensions, the integrand
-
-        .. math::
-
-            F_{\alpha\beta, kl}^{(2)}(\omega)S_{\alpha\beta}(\omega)
-
-        can consume quite a large amount of memory if set up for all
-        :math:`\alpha,\beta,k,l` at once. If ``True``, it is only set up
-        and integrated for a single :math:`k` at a time and looped over.
-        This is slower but requires much less memory. The default is
-        ``False``.
 
     Raises
     ------
@@ -1309,15 +1298,12 @@ def calculate_frequency_shifts(
     calculate_pulse_correlation_filter_function
     """
     idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
-    if not memory_parsimonious:
-        filter_function_2 = pulse.get_filter_function(omega, order=2,
-                                                      show_progressbar=show_progressbar)
-        integrand = _get_integrand(spectrum, omega, idx, which_pulse='total',
-                                   which_FF='generalized', filter_function=filter_function_2)
-        frequency_shifts = util.integrate(integrand, omega)/(2*np.pi)
-        return frequency_shifts
-
-    raise NotImplementedError
+    filter_function_2 = pulse.get_filter_function(omega, order=2,
+                                                  show_progressbar=show_progressbar)
+    integrand = _get_integrand(spectrum, omega, idx, which_pulse='total', which_FF='generalized',
+                               filter_function=filter_function_2)
+    frequency_shifts = util.integrate(integrand, omega)/(2*np.pi)
+    return frequency_shifts
 
 
 @util.parse_which_FF_parameter
@@ -1387,7 +1373,6 @@ def calculate_second_order_filter_function(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         intermediates: Optional[Dict[str, ndarray]] = None,
-        memory_parsimonious: bool = False,
         show_progressbar: bool = False
 ) -> ndarray:
     r"""Calculate the second order filter function for frequency shifts.
@@ -1423,21 +1408,6 @@ def calculate_second_order_filter_function(
         Intermediate terms of the calculation of the control matrix that
         can be reused here. If None (default), they are computed from
         scratch.
-    memory_parsimonious: bool, optional
-
-        .. warning:: Not implemented.
-
-        For large dimensions, the integrand
-
-        .. math::
-
-            F_{\alpha\beta, kl}^{(2)}(\omega)S_{\alpha\beta}(\omega)
-
-        can consume quite a large amount of memory if set up for all
-        :math:`\alpha,\beta,k,l` at once. If ``True``, it is only set up
-        and integrated for a single :math:`k` at a time and looped over.
-        This is slower but requires much less memory. The default is
-        ``False``.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
 
