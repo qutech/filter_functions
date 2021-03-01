@@ -1069,17 +1069,17 @@ def calculate_cumulant_function(
         # result is guaranteed to be real (if we didn't do anything wrong)
         traces = pulse.basis.four_element_traces
         cumulant_function = - (
-            oe.contract('...kl,klji->...ij', decay_amplitudes, traces, backend='sparse') -
-            oe.contract('...kl,kjli->...ij', decay_amplitudes, traces, backend='sparse') -
-            oe.contract('...kl,kilj->...ij', decay_amplitudes, traces, backend='sparse') +
-            oe.contract('...kl,kijl->...ij', decay_amplitudes, traces, backend='sparse')
+            + oe.contract('...kl,klji->...ij', decay_amplitudes, traces, backend='sparse')
+            - oe.contract('...kl,kjli->...ij', decay_amplitudes, traces, backend='sparse')
+            - oe.contract('...kl,kilj->...ij', decay_amplitudes, traces, backend='sparse')
+            + oe.contract('...kl,kijl->...ij', decay_amplitudes, traces, backend='sparse')
         ) / 2
         if second_order:
             cumulant_function -= (
-                oe.contract('...kl,klji->...ij', frequency_shifts, traces, backend='sparse') -
-                oe.contract('...kl,lkji->...ij', frequency_shifts, traces, backend='sparse') -
-                oe.contract('...kl,klij->...ij', frequency_shifts, traces, backend='sparse') +
-                oe.contract('...kl,lkij->...ij', frequency_shifts, traces, backend='sparse')
+                + oe.contract('...kl,klji->...ij', frequency_shifts, traces, backend='sparse')
+                - oe.contract('...kl,lkji->...ij', frequency_shifts, traces, backend='sparse')
+                - oe.contract('...kl,klij->...ij', frequency_shifts, traces, backend='sparse')
+                + oe.contract('...kl,lkij->...ij', frequency_shifts, traces, backend='sparse')
             ) / 2
 
     return cumulant_function.real
