@@ -669,6 +669,7 @@ def plot_cumulant_function(
         omega: Optional[Coefficients] = None,
         cumulant_function: Optional[ndarray] = None,
         n_oper_identifiers: Optional[Sequence[int]] = None,
+        second_order: bool = False,
         colorscale: str = 'linear',
         linthresh: Optional[float] = None,
         basis_labels: Optional[Sequence[str]] = None,
@@ -711,6 +712,10 @@ def plot_cumulant_function(
         The identifiers of the noise operators for which the cumulant
         function should be plotted. All identifiers can be accessed via
         ``pulse.n_oper_identifiers``. Defaults to all.
+    second_order: bool, optional
+        Also take into account the frequency shifts :math:`\Delta` that
+        correspond to second order Magnus expansion and constitute unitary
+        terms. Default ``False``.
     colorscale: str, optional
         The scale of the color code ('linear' or 'log' (default))
     linthresh: float, optional
@@ -774,9 +779,8 @@ def plot_cumulant_function(
 
         n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
         n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
-        K = numeric.calculate_cumulant_function(pulse, spectrum, omega,
-                                                n_oper_identifiers=n_oper_identifiers,
-                                                which='total')
+        K = numeric.calculate_cumulant_function(pulse, spectrum, omega, n_oper_identifiers,
+                                                'total', second_order)
         if K.ndim == 4:
             # Only autocorrelated noise supported
             K = K[tuple(n_oper_inds), tuple(n_oper_inds)]

@@ -663,6 +663,30 @@ class CoreTest(testutil.TestCase):
             self.assertArrayAlmostEqual(F_fidelity,
                                         F_generalized.trace(axis1=2, axis2=3))
 
+    def test_second_order_filter_function(self):
+        for d, n_nops in zip(rng.integers(2, 7, 5), rng.integers(1, 5, 5)):
+            pulse = testutil.rand_pulse_sequence(d, 3, 2, n_nops)
+            omega = util.get_sample_frequencies(pulse, n_samples=42)
+
+            # Make sure result is the same with or without intermediates
+            pulse.cache_control_matrix(omega, cache_intermediates=True)
+            F = pulse.get_filter_function(omega, order=1)
+            F_1 = pulse.get_filter_function(omega, order=2)
+            # Test caching
+            F_2 = pulse.get_filter_function(omega, order=2)
+            F_3 = numeric.calculate_second_order_filter_function(
+                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis, pulse.n_opers,
+                pulse.n_coeffs, pulse.dt, show_progressbar=False, intermediates=None
+            )
+            # Make sure first and second order are of same order of magnitude
+            rel = np.linalg.norm(F) / np.linalg.norm(F_1)
+
+            self.assertIs(F_1, F_2)
+            self.assertArrayEqual(F_1, F_3)
+            self.assertEqual(F_1.shape, (n_nops, n_nops, d**2, d**2, 42))
+            self.assertLessEqual(rel, 10)
+            self.assertGreaterEqual(rel, 1/10)
+
     def test_pulse_correlation_filter_function(self):
         """
         Test calculation of pulse correlation filter function and control
@@ -828,20 +852,74 @@ class CoreTest(testutil.TestCase):
             with self.assertRaises(ValueError):
                 numeric.calculate_decay_amplitudes(pulse, np.tile(spectrum, [1]*i), omega)
 
-    def test_calculate_cumulant_function(self):
-        """Test numeric.calculate_cumulant_function"""
+    def test_cumulant_function(self):
         pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
-
         omega = rng.standard_normal(43)
-        # single spectrum
         spectrum = rng.standard_normal(43)
         Gamma = numeric.calculate_decay_amplitudes(pulse, spectrum, omega)
+        Delta = numeric.calculate_frequency_shifts(pulse, spectrum, omega)
         K_1 = numeric.calculate_cumulant_function(pulse, spectrum, omega)
         K_2 = numeric.calculate_cumulant_function(pulse, decay_amplitudes=Gamma)
+        K_3 = numeric.calculate_cumulant_function(pulse, spectrum, omega, second_order=True)
+        K_4 = numeric.calculate_cumulant_function(pulse, decay_amplitudes=Gamma,
+                                                  frequency_shifts=Delta, second_order=True)
         self.assertArrayAlmostEqual(K_1, K_2)
+        self.assertArrayAlmostEqual(K_3, K_4)
 
         with self.assertRaises(ValueError):
-            numeric.calculate_cumulant_function(pulse, None, None, None)
+            # Neither spectrum + frequencies nor decay amplitudes supplied
+            numeric.calculate_cumulant_function(pulse, None, None, decay_amplitudes=None)
+
+        with self.assertRaises(ValueError):
+            # Neither spectrum + frequencies nor frequency shifts supplied
+            numeric.calculate_cumulant_function(pulse, None, None, frequency_shifts=None,
+                                                second_order=True)
+
+        with self.assertRaises(ValueError):
+            # Trying to get correlation cumulant function for second order
+            numeric.calculate_cumulant_function(pulse, spectrum, omega, second_order=True,
+                                                which='correlations')
+
+        with self.assertRaises(ValueError):
+            # Using precomputed frequency shifts or decay amplitudes but different shapes
+            numeric.calculate_cumulant_function(pulse, spectrum, omega, second_order=True,
+                                                decay_amplitudes=Gamma[1:])
+
+        with self.assertWarns(UserWarning):
+            # Memory parsimonious only works for decay amplitudes
+            numeric.calculate_cumulant_function(pulse, spectrum, omega, second_order=True,
+                                                memory_parsimonious=True)
+
+        for d in [2, *rng.integers(2, 7, 5)]:
+            pulse = testutil.rand_pulse_sequence(d, 3, 2, 2)
+            omega = util.get_sample_frequencies(pulse, n_samples=42)
+            spectrum = 4e-3/abs(omega)
+
+            pulse.cache_control_matrix(omega, cache_intermediates=True)
+            cumulant_function_first_order = numeric.calculate_cumulant_function(
+                pulse, spectrum, omega, second_order=False
+            )
+            cumulant_function_second_order = numeric.calculate_cumulant_function(
+                pulse, spectrum, omega, second_order=True
+            )
+            # Make sure first and second order are --roughly -- of same order
+            # of magnitude. Unlike the frequency shifts themselves, the
+            # second order contributions to the cumulant function vanish on the
+            # diagonal, whereas the first order contributions dominate. Hence,
+            # be quite lenient.
+            second_order_contribution = (cumulant_function_second_order -
+                                         cumulant_function_first_order)
+            rel = (np.linalg.norm(cumulant_function_first_order) /
+                   np.linalg.norm(second_order_contribution))
+
+            # Second order terms should be anti-hermitian
+            self.assertArrayAlmostEqual(second_order_contribution,
+                                        - second_order_contribution.transpose(0, 2, 1),
+                                        atol=1e-16)
+            self.assertEqual(cumulant_function_first_order.shape,
+                             cumulant_function_second_order.shape)
+            self.assertLessEqual(rel, 200)
+            self.assertGreaterEqual(rel, 1/10)
 
     def test_error_transfer_matrix(self):
         """Test raises of numeric.error_transfer_matrix."""

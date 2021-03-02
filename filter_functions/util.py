@@ -131,6 +131,12 @@ def cexp(x: ndarray, out=None, where=True) -> ndarray:
     ----------
     x: ndarray
         Argument of the complex exponential :math:`\exp(i x)`.
+    out: ndarray, None, or tuple of ndarray and None, optional
+        A location into which the result is stored. See
+        :func:`numpy.ufunc`.
+    where: array_like, optional
+        This condition is broadcast over the input. See
+        :func:`numpy.ufunc`.
 
     Returns
     -------
@@ -787,8 +793,7 @@ def integrate(f: ndarray, x: Optional[ndarray] = None, dx: float = 1.0) -> Union
 
     """
     dx = np.diff(x) if x is not None else dx
-    ret = f[..., 1:].copy()
-    ret += f[..., :-1]
+    ret = f[..., 1:] + f[..., :-1]
     ret *= dx
     return ret.sum(axis=-1)/2
 
