@@ -70,7 +70,7 @@ class GradientTest(testutil.TestCase):
                 spectral_noise_density=gradient_testutil.one_over_f_noise,
                 c_id=[f'c{i}' for i in range(len(u_ctrl))], n_coeffs_deriv=None
             )
-            self.assertArrayAlmostEqual(ana_grad, fin_diff_grad, rtol=1e-6, atol=1e-10)
+            self.assertArrayAlmostEqual(ana_grad, fin_diff_grad, rtol=1e-6, atol=1e-8)
 
     def test_raises(self):
         pulse = testutil.rand_pulse_sequence(2, 3)
