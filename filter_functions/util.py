@@ -183,6 +183,55 @@ def parse_optional_parameters(params_dict: Dict[str, Sequence]) -> Callable:
 parse_which_FF_parameter = parse_optional_parameters({'which': ('fidelity', 'generalized')})
 
 
+def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
+    """Parse a sequence of operators and convert to ndarray.
+
+    Parameters
+    ----------
+    opers: Sequence[Operator]
+        Sequence of operators.
+    err_loc: str
+        Some cosmetics for the exceptions to be raised.
+
+    Raises
+    ------
+    TypeError
+        If any operator is not a valid type.
+    ValueError
+        If not all operators are 2d and square.
+
+    Returns
+    -------
+    parse_opers: ndarray, shape (len(opers), *opers[0].shape)
+        The parsed ndarray.
+
+    """
+    parsed_opers = []
+    for oper in opers:
+        if isinstance(oper, ndarray):
+            parsed_opers.append(oper.squeeze())
+        elif hasattr(oper, 'full'):
+            # qutip.Qobj
+            parsed_opers.append(oper.full())
+        elif hasattr(oper, 'todense'):
+            # sparse object
+            parsed_opers.append(oper.todense())
+        elif hasattr(oper, 'data') and hasattr(oper, 'dexp'):
+            # qopt DenseMatrix
+            parsed_opers.append(oper.data)
+        else:
+            raise TypeError(f'Expected operators in {err_loc} to be NumPy arrays or QuTiP Qobjs!')
+
+    # Check correct dimensions of the operators
+    if set(oper.ndim for oper in parsed_opers) != {2}:
+        raise ValueError(f'Expected all operators in {err_loc} to be two-dimensional!')
+
+    if len(set(*set(oper.shape for oper in parsed_opers))) != 1:
+        raise ValueError(f'Expected operators in {err_loc} to be square!')
+
+    return np.asarray(parsed_opers)
+
+
 def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int], rank: int):
     """Get shape of the tensor product between A and B of rank rank"""
     broadcast_shape = ()
