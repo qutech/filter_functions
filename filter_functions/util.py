@@ -26,8 +26,8 @@ Functions
 :func:`abs2`
     Absolute value squared
 :func:`get_indices_from_identifiers`
-    The the indices of control or noise operators with given identifiers
-    as they are saved in a ``PulseSequence``.
+    The the indices of a subset of identifiers within a list of
+    identifiers.
 :func:`tensor`
     Fast, flexible tensor product of an arbitrary number of inputs using
     :func:`~numpy.einsum`
@@ -183,6 +183,55 @@ def parse_optional_parameters(params_dict: Dict[str, Sequence]) -> Callable:
 parse_which_FF_parameter = parse_optional_parameters({'which': ('fidelity', 'generalized')})
 
 
+def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
+    """Parse a sequence of operators and convert to ndarray.
+
+    Parameters
+    ----------
+    opers: Sequence[Operator]
+        Sequence of operators.
+    err_loc: str
+        Some cosmetics for the exceptions to be raised.
+
+    Raises
+    ------
+    TypeError
+        If any operator is not a valid type.
+    ValueError
+        If not all operators are 2d and square.
+
+    Returns
+    -------
+    parse_opers: ndarray, shape (len(opers), *opers[0].shape)
+        The parsed ndarray.
+
+    """
+    parsed_opers = []
+    for oper in opers:
+        if isinstance(oper, ndarray):
+            parsed_opers.append(oper.squeeze())
+        elif hasattr(oper, 'full'):
+            # qutip.Qobj
+            parsed_opers.append(oper.full())
+        elif hasattr(oper, 'todense'):
+            # sparse object
+            parsed_opers.append(oper.todense())
+        elif hasattr(oper, 'data') and hasattr(oper, 'dexp'):
+            # qopt DenseMatrix
+            parsed_opers.append(oper.data)
+        else:
+            raise TypeError(f'Expected operators in {err_loc} to be NumPy arrays or QuTiP Qobjs!')
+
+    # Check correct dimensions of the operators
+    if set(oper.ndim for oper in parsed_opers) != {2}:
+        raise ValueError(f'Expected all operators in {err_loc} to be two-dimensional!')
+
+    if len(set(*set(oper.shape for oper in parsed_opers))) != 1:
+        raise ValueError(f'Expected operators in {err_loc} to be square!')
+
+    return np.asarray(parsed_opers)
+
+
 def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int], rank: int):
     """Get shape of the tensor product between A and B of rank rank"""
     broadcast_shape = ()
@@ -221,32 +270,21 @@ def _parse_dims_arg(name: str, dims: Sequence[Sequence[int]], rank: int) -> None
         raise ValueError(f'Require all lists in {name}_dims to be of same length!')
 
 
-@parse_optional_parameters({'kind': ('noise', 'control')})
-def get_indices_from_identifiers(pulse: 'PulseSequence',
-                                 identifiers: Union[None, str, Sequence[str]],
-                                 kind: str) -> Tuple[Sequence[int],
-                                                     Sequence[str]]:
+def get_indices_from_identifiers(all_identifiers: Sequence[str],
+                                 identifiers: Union[None, str, Sequence[str]]) -> Sequence[int]:
     """Get the indices of operators for given identifiers.
 
     Parameters
     ----------
-    pulse: PulseSequence
-        The PulseSequence instance for which to get the indices.
+    all_identifiers: sequence of str
+        All available identifiers.
     identifiers: str or sequence of str
         The identifiers whose indices to get.
-    kind: str
-        Whether to get 'control' or 'noise' operator indices.
     """
-    if kind == 'noise':
-        pulse_identifiers = pulse.n_oper_identifiers
-    else:
-        # kind == 'control'
-        pulse_identifiers = pulse.c_oper_identifiers
-
     identifier_to_index_table = {identifier: index for index, identifier
-                                 in enumerate(pulse_identifiers)}
+                                 in enumerate(all_identifiers)}
     if identifiers is None:
-        inds = np.arange(len(pulse_identifiers))
+        inds = np.arange(len(all_identifiers))
     else:
         try:
             if isinstance(identifiers, str):
@@ -256,7 +294,7 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
                                  for identifier in identifiers])
         except KeyError:
             raise ValueError('Invalid identifiers given. All available ones ' +
-                             f'are: {pulse_identifiers}')
+                             f'are: {all_identifiers}')
 
     return inds
 

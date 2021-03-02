@@ -23,8 +23,8 @@ This module tests if the package produces the correct results numerically.
 """
 
 import numpy as np
-from scipy import linalg as sla
 from scipy import integrate
+from scipy import linalg as sla
 
 import filter_functions as ff
 from filter_functions import analytic, numeric, util

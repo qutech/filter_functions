@@ -55,26 +55,26 @@ class UtilTest(testutil.TestCase):
             [[util.paulis[2], [2]]],
             [1]
         )
-        idx = util.get_indices_from_identifiers(pulse, ['X'], 'control')
+        idx = util.get_indices_from_identifiers(pulse.c_oper_identifiers, ['X'])
         self.assertArrayEqual(idx, [0])
 
-        idx = util.get_indices_from_identifiers(pulse, 'X', 'control')
+        idx = util.get_indices_from_identifiers(pulse.c_oper_identifiers, 'X')
         self.assertArrayEqual(idx, [0])
 
-        idx = util.get_indices_from_identifiers(pulse, ['Z', 'X'], 'control')
+        idx = util.get_indices_from_identifiers(pulse.c_oper_identifiers, ['Z', 'X'])
         self.assertArrayEqual(idx, [1, 0])
 
-        idx = util.get_indices_from_identifiers(pulse, None, 'control')
+        idx = util.get_indices_from_identifiers(pulse.c_oper_identifiers, None)
         self.assertArrayEqual(idx, [0, 1])
 
-        idx = util.get_indices_from_identifiers(pulse, ['B_0'], 'noise')
+        idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, ['B_0'])
         self.assertArrayEqual(idx, [0])
 
-        idx = util.get_indices_from_identifiers(pulse, 'B_0', 'noise')
+        idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, 'B_0')
         self.assertArrayEqual(idx, [0])
 
         with self.assertRaises(ValueError):
-            util.get_indices_from_identifiers(pulse, ['foobar'], 'noise')
+            util.get_indices_from_identifiers(pulse.n_oper_identifiers, ['foobar'])
 
     def test_tensor(self):
         shapes = [(1, 2, 3, 4, 5), (5, 4, 3, 2, 1)]
@@ -615,16 +615,16 @@ class QutipCompatibilityTest(testutil.TestCase):
 
             result = util.oper_equiv(psi, psi*np.exp(1j*phase))
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase, places=5)
+            self.assertAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(phase, 2*np.pi), places=5)
 
             result = util.oper_equiv(psi*np.exp(1j*phase), psi)
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], -phase, places=5)
+            self.assertAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(-phase, 2*np.pi), places=5)
 
             result = util.oper_equiv(U, U*np.exp(1j*phase))
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase, places=5)
+            self.assertAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(phase, 2*np.pi), places=5)
 
             result = util.oper_equiv(U*np.exp(1j*phase), U)
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], -phase, places=5)
+            self.assertAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(-phase, 2*np.pi), places=5)

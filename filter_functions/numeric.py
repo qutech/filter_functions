@@ -65,7 +65,7 @@ Functions
     frequencies
 """
 from collections import deque
-from itertools import accumulate, repeat
+from itertools import accumulate, repeat, zip_longest
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 from warnings import warn
 
@@ -93,39 +93,49 @@ def _propagate_eigenvectors(propagators, eigvecs):
     return propagators.transpose(0, 2, 1).conj() @ eigvecs
 
 
-def _transform_noise_operators(n_coeffs, n_opers, eigvecs):
-    r"""
-    Transform noise operators into the eigenspaces spanned by eigvecs.
-    I.e., the following transformation is performed:
-
-    .. math::
-
-        B_\alpha\rightarrow s_\alpha^{(g)}V^{(g)}B_\alpha V^{(g)\dagger}
-
-    """
-    assert len(n_opers) == len(n_coeffs)
-    n_opers_transformed = np.empty((len(n_opers), *eigvecs.shape), dtype=complex)
-    for j, (n_coeff, n_oper) in enumerate(zip(n_coeffs, n_opers)):
-        n_opers_transformed[j] = n_oper @ eigvecs
-        n_opers_transformed[j] = eigvecs.conj().transpose(0, 2, 1) @ n_opers_transformed[j]
-        n_opers_transformed[j] *= n_coeff[:, None, None]
-
-    return n_opers_transformed
-
-
-def _transform_basis(basis, eigvecs_propagated, out=None):
-    r"""
-    Transform the basis into the eigenspace spanned by V propagated by Q
+def _transform_hamiltonian(eigvecs, opers, coeffs=None):
+    r"""Transform a Hamiltonian into the eigenspaces spanned by eigvecs.
 
     I.e., the following transformation is performed:
 
     .. math::
 
-        C_k\rightarrow Q_{g-1}V^{(g)\dagger}C_k V^{(g)}Q_{g-1}^\dagger.
+        s_\alpha^{(g)} B_\alpha\rightarrow
+            s_\alpha^{(g)} V^{(g)}B_\alpha V^{(g)\dagger}
+
+    where :math:`s_\alpha^{(g)}` are coefficients of the operator
+    :math:`B_\alpha`.
 
     """
-    out = np.matmul(basis, eigvecs_propagated, out=out)
-    out = np.matmul(eigvecs_propagated.conj().T, out, out=out)
+    if coeffs is None:
+        coeffs = []
+    else:
+        assert len(opers) == len(coeffs)
+
+    opers_transformed = np.empty((len(opers), *eigvecs.shape), dtype=complex)
+    for j, (coeff, oper) in enumerate(zip_longest(coeffs, opers, fillvalue=None)):
+        opers_transformed[j] = _transform_by_unitary(eigvecs, oper, out=opers_transformed[j])
+        if coeff is not None:
+            opers_transformed[j] *= coeff[:, None, None]
+
+    return opers_transformed
+
+
+def _transform_by_unitary(unitary, oper, out=None):
+    r"""Transform the operators by a unitary. Uses broadcasting.
+
+    I.e., the following transformation is performed:
+
+    .. math::
+
+        C_k\rightarrow  U C_k U^\dagger.
+
+    """
+    if out is None:
+        out = np.empty(oper.shape, dtype=oper.dtype)
+
+    out = np.matmul(oper, unitary, out=out)
+    out = np.matmul(unitary.conj().swapaxes(-1, -2), out, out=out)
     return out
 
 
@@ -147,7 +157,7 @@ def _first_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
 
     # Catch zero-division
-    mask = (int_buf.imag != 0)
+    mask = (np.abs(int_buf.imag) > 1e-7)
     exp_buf = util.cexp(int_buf.imag*dt, out=exp_buf, where=mask)
     exp_buf = np.subtract(exp_buf, 1, out=exp_buf, where=mask)
     int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=mask)
@@ -463,7 +473,8 @@ def calculate_noise_operators_from_scratch(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         t: Optional[Coefficients] = None,
-        show_progressbar: bool = False
+        show_progressbar: bool = False,
+        cache_intermediates: bool = False
 ) -> ndarray:
     r"""
     Calculate the noise operators in interaction picture from scratch.
@@ -563,30 +574,44 @@ def calculate_noise_operators_from_scratch(
     n_coeffs = np.asarray(n_coeffs)
 
     # Precompute noise opers transformed to eigenbasis of each pulse
-    # segment and Q^\dagger @ V
+    # segment and V^\dagger @ Q
     eigvecs_propagated = _propagate_eigenvectors(eigvecs, propagators[:-1])
-    n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
+    n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
 
     # Allocate memory
     exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
-    intermediate = np.empty((len(omega), len(n_opers), d, d), dtype=complex)
     noise_operators = np.zeros((len(omega), len(n_opers), d, d), dtype=complex)
+
+    if cache_intermediates:
+        sum_cache = np.empty((len(dt), len(omega), len(n_opers), d, d), dtype=complex)
+    else:
+        sum_buf = np.empty((len(omega), len(n_opers), d, d), dtype=complex)
 
     # Set up reusable expressions
     expr_1 = oe.contract_expression('akl,okl->oakl',
                                     n_opers_transformed[:, 0].shape, int_buf.shape)
     expr_2 = oe.contract_expression('ji,...jk,kl',
-                                    eigvecs_propagated[0].shape, intermediate.shape,
+                                    eigvecs_propagated[0].shape, (len(omega), len(n_opers), d, d),
                                     eigvecs_propagated[0].shape, optimize=[(0, 1), (0, 1)])
 
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating noise operators'):
-        int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
-        intermediate = expr_1(n_opers_transformed[:, g],
-                              util.cexp(omega[:, None, None]*t[g])*int_buf, out=intermediate)
+        if cache_intermediates:
+            # Assign references to the locations in the cache for the quantities
+            # that should be stored
+            sum_buf = sum_cache[g]
 
-        noise_operators += expr_2(eigvecs_propagated[g].conj(), intermediate,
-                                  eigvecs_propagated[g])
+        int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
+        sum_buf = expr_1(n_opers_transformed[:, g], util.cexp(omega*t[g])[:, None, None]*int_buf,
+                         out=sum_buf)
+
+        noise_operators += expr_2(eigvecs_propagated[g].conj(), sum_buf, eigvecs_propagated[g],
+                                  out=sum_buf)
+
+    if cache_intermediates:
+        intermediates = dict(n_opers_transformed=n_opers_transformed,
+                             noise_operators_step=sum_cache)
+        return noise_operators, intermediates
 
     return noise_operators
 
@@ -715,7 +740,7 @@ def calculate_control_matrix_from_scratch(
     cache_intermediates: bool, optional
         Keep and return intermediate terms
         :math:`\mathcal{G}^{(g)}(\omega)` of the sum so that
-        :math:`\mathcal{R}(\omega)=\sum_g\mathcal{G}^{(g)}(\omega)`.
+        :math:`\mathcal{B}(\omega)=\sum_g\mathcal{G}^{(g)}(\omega)`.
         Otherwise the sum is performed in-place.
     out: ndarray, optional
         A location into which the result is stored. See
@@ -771,28 +796,29 @@ def calculate_control_matrix_from_scratch(
     # Precompute noise opers transformed to eigenbasis of each pulse segment
     # and Q^\dagger @ V
     eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
-    n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
+    n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
 
     # Allocate result and buffers for intermediate arrays
-    exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
-
+    exp_buf = np.empty((len(omega), d, d), dtype=complex)
     if out is None:
-        control_matrix = np.zeros((len(n_opers), len(basis), len(omega)), dtype=complex)
-    else:
-        control_matrix = out
+        out = np.zeros((len(n_opers), len(basis), len(omega)), dtype=complex)
 
     if cache_intermediates:
         basis_transformed_cache = np.empty((len(dt), *basis.shape), dtype=complex)
+        phase_factors_cache = np.empty((len(dt), len(omega)), dtype=complex)
+        int_cache = np.empty((len(dt), len(omega), d, d), dtype=complex)
         sum_cache = np.empty((len(dt), len(n_opers), len(basis), len(omega)), dtype=complex)
     else:
         basis_transformed = np.empty(basis.shape, dtype=complex)
+        phase_factors = np.empty(len(omega), dtype=complex)
+        int_buf = np.empty((len(omega), d, d), dtype=complex)
         sum_buf = np.empty((len(n_opers), len(basis), len(omega)), dtype=complex)
 
     # Optimize the contraction path dynamically since it differs for different
     # values of d
     expr = oe.contract_expression('o,jmn,omn,knm->jko',
                                   omega.shape, n_opers_transformed[:, 0].shape,
-                                  int_buf.shape, basis.shape, optimize=True)
+                                  exp_buf.shape, basis.shape, optimize=True)
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
 
@@ -800,22 +826,28 @@ def calculate_control_matrix_from_scratch(
             # Assign references to the locations in the cache for the quantities
             # that should be stored
             basis_transformed = basis_transformed_cache[g]
+            phase_factors = phase_factors_cache[g]
+            int_buf = int_cache[g]
             sum_buf = sum_cache[g]
 
-        basis_transformed = _transform_basis(basis, eigvecs_propagated[g], out=basis_transformed)
+        basis_transformed = _transform_by_unitary(eigvecs_propagated[g], basis,
+                                                  out=basis_transformed)
+        phase_factors = util.cexp(omega*t[g], out=phase_factors)
         int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
-        sum_buf = expr(util.cexp(omega*t[g]), n_opers_transformed[:, g], int_buf,
+        sum_buf = expr(phase_factors, n_opers_transformed[:, g], int_buf,
                        basis_transformed, out=sum_buf)
 
-        control_matrix += sum_buf
+        out += sum_buf
 
     if cache_intermediates:
         intermediates = dict(n_opers_transformed=n_opers_transformed,
                              basis_transformed=basis_transformed_cache,
+                             phase_factors=phase_factors_cache,
+                             first_order_integral=int_cache,
                              control_matrix_step=sum_cache)
-        return control_matrix, intermediates
+        return out, intermediates
 
-    return control_matrix
+    return out
 
 
 def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
@@ -1180,7 +1212,7 @@ def calculate_decay_amplitudes(
     """
     # TODO: Replace infidelity() by this?
     # Noise operator indices
-    idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
     if which == 'total':
         # Faster to use filter function instead of control matrix
         if pulse.is_cached('filter_function_gen'):
@@ -1297,7 +1329,7 @@ def calculate_frequency_shifts(
     pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
     calculate_pulse_correlation_filter_function
     """
-    idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
     filter_function_2 = pulse.get_filter_function(omega, order=2,
                                                   show_progressbar=show_progressbar)
     integrand = _get_integrand(spectrum, omega, idx, which_pulse='total', which_FF='generalized',
@@ -1478,7 +1510,7 @@ def calculate_second_order_filter_function(
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
         # Cheap to precompute as these don't use a lot of memory
         eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
-        n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
+        n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
         # These are populated anew during every iteration, so there is no need
         # to keep every time step
         basis_transformed = np.empty(basis.shape, dtype=complex)
@@ -1494,8 +1526,8 @@ def calculate_second_order_filter_function(
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating second order FF'):
         if not intermediates:
-            basis_transformed = _transform_basis(basis, eigvecs_propagated[g],
-                                                 out=basis_transformed)
+            basis_transformed = _transform_by_unitary(eigvecs_propagated[g], basis,
+                                                      out=basis_transformed)
             # Need to compute G^(g) since no cache given. First initialize
             # buffer to zero. There is a probably lots of overhead computing
             # this individually for every time step.
@@ -1930,7 +1962,7 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
     plotting.plot_infidelity_convergence: Convenience function to plot results.
     """
     # Noise operator indices
-    idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
 
     if test_convergence:
         if not callable(spectrum):

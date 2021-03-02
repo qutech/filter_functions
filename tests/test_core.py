@@ -556,9 +556,9 @@ class CoreTest(testutil.TestCase):
         self.assertArrayAlmostEqual(pulse._intermediates['control_matrix_step'].sum(0), ctrlmat)
         self.assertArrayAlmostEqual(numeric.calculate_filter_function(ctrlmat), filtfun)
         self.assertArrayAlmostEqual(pulse._intermediates['n_opers_transformed'],
-                                    numeric._transform_noise_operators(pulse.n_coeffs,
-                                                                       pulse.n_opers,
-                                                                       pulse.eigvecs))
+                                    numeric._transform_hamiltonian(pulse.eigvecs,
+                                                                   pulse.n_opers,
+                                                                   pulse.n_coeffs))
         eigvecs_prop = numeric._propagate_eigenvectors(pulse.propagators[:-1], pulse.eigvecs)
         basis_transformed = np.einsum('gba,kbc,gcd->gkad',
                                       eigvecs_prop.conj(), pulse.basis, eigvecs_prop)

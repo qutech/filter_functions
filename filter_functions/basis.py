@@ -173,20 +173,10 @@ class Basis(ndarray):
             except AttributeError:
                 pass
 
-            basis = np.empty((len(basis_array), *basis_array[0].shape), dtype=complex)
+            basis = util.parse_operators(basis_array, 'basis_array')
             if basis.shape[0] > np.product(basis.shape[1:]):
                 raise ValueError('Given overcomplete set of basis matrices. '
                                  'Not linearly independent.')
-
-            for i, elem in enumerate(basis_array):
-                if isinstance(elem, ndarray):   # numpy array
-                    basis[i] = elem
-                elif hasattr(elem, 'full'):     # qutip.Qobj
-                    basis[i] = elem.full()
-                elif hasattr(elem, 'todense'):  # sparse array
-                    basis[i] = elem.todense()
-                else:
-                    raise TypeError('At least one element invalid type!')
 
         basis = basis.view(cls)
         basis.btype = btype or 'Custom'
