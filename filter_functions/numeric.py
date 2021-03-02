@@ -157,7 +157,7 @@ def _first_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
 
     # Catch zero-division
-    mask = (int_buf.imag != 0)
+    mask = (np.abs(int_buf.imag) > 1e-7)
     exp_buf = util.cexp(int_buf.imag*dt, out=exp_buf, where=mask)
     exp_buf = np.subtract(exp_buf, 1, out=exp_buf, where=mask)
     int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=mask)
@@ -473,7 +473,8 @@ def calculate_noise_operators_from_scratch(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         t: Optional[Coefficients] = None,
-        show_progressbar: bool = False
+        show_progressbar: bool = False,
+        cache_intermediates: bool = False
 ) -> ndarray:
     r"""
     Calculate the noise operators in interaction picture from scratch.
@@ -573,30 +574,44 @@ def calculate_noise_operators_from_scratch(
     n_coeffs = np.asarray(n_coeffs)
 
     # Precompute noise opers transformed to eigenbasis of each pulse
-    # segment and Q^\dagger @ V
+    # segment and V^\dagger @ Q
     eigvecs_propagated = _propagate_eigenvectors(eigvecs, propagators[:-1])
-    n_opers_transformed = _transform_noise_operators(n_coeffs, n_opers, eigvecs)
+    n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
 
     # Allocate memory
     exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
-    intermediate = np.empty((len(omega), len(n_opers), d, d), dtype=complex)
     noise_operators = np.zeros((len(omega), len(n_opers), d, d), dtype=complex)
+
+    if cache_intermediates:
+        sum_cache = np.empty((len(dt), len(omega), len(n_opers), d, d), dtype=complex)
+    else:
+        sum_buf = np.empty((len(omega), len(n_opers), d, d), dtype=complex)
 
     # Set up reusable expressions
     expr_1 = oe.contract_expression('akl,okl->oakl',
                                     n_opers_transformed[:, 0].shape, int_buf.shape)
     expr_2 = oe.contract_expression('ji,...jk,kl',
-                                    eigvecs_propagated[0].shape, intermediate.shape,
+                                    eigvecs_propagated[0].shape, (len(omega), len(n_opers), d, d),
                                     eigvecs_propagated[0].shape, optimize=[(0, 1), (0, 1)])
 
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating noise operators'):
-        int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
-        intermediate = expr_1(n_opers_transformed[:, g],
-                              util.cexp(omega[:, None, None]*t[g])*int_buf, out=intermediate)
+        if cache_intermediates:
+            # Assign references to the locations in the cache for the quantities
+            # that should be stored
+            sum_buf = sum_cache[g]
 
-        noise_operators += expr_2(eigvecs_propagated[g].conj(), intermediate,
-                                  eigvecs_propagated[g])
+        int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
+        sum_buf = expr_1(n_opers_transformed[:, g], util.cexp(omega*t[g])[:, None, None]*int_buf,
+                         out=sum_buf)
+
+        noise_operators += expr_2(eigvecs_propagated[g].conj(), sum_buf, eigvecs_propagated[g],
+                                  out=sum_buf)
+
+    if cache_intermediates:
+        intermediates = dict(n_opers_transformed=n_opers_transformed,
+                             noise_operators_step=sum_cache)
+        return noise_operators, intermediates
 
     return noise_operators
 
