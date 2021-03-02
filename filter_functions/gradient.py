@@ -198,15 +198,18 @@ def control_matrix_at_timestep_derivative(
         dt: Coefficients,
         eigvals: ndarray,
         eigvecs: ndarray,
-        basis: Basis,
+        basis_transformed,
         c_opers_transformed: ndarray,
-        n_opers: Sequence[Operator],
+        n_opers_transformed: ndarray,
         n_coeffs: Sequence[Coefficients],
-        n_coeffs_deriv: Optional[Sequence[Coefficients]] = None,
-        intermediates: Optional[Dict[str, ndarray]] = None
+        n_coeffs_deriv: Sequence[Coefficients],
+        phase_factor: ndarray,
+        integral: ndarray,
+        deriv_integral: ndarray,
+        ctrlmat_step: ndarray,
+        ctrlmat_expr: ContractExpression,
 ) -> Tuple[ndarray, ndarray]:
-    r"""
-    Calculate the control matrices and corresponding derivatives.
+    r"""Calculate the control matrices and corresponding derivatives.
 
     Calculate control matrices at each time step and the corresponding
     partial derivatives of those with respect to control strength at
@@ -223,29 +226,39 @@ def control_matrix_at_timestep_derivative(
     eigvals: array_like, shape (n_dt, d)
         Eigenvalue vectors for each time pulse segment *g* with the
         first axis counting the pulse segment, i.e.
-        ``HD == array([D_0, D_1, ...])``.
+        ``D == array([D_0, D_1, ...])``.
     eigvecs: array_like, shape (n_dt, d, d)
         Eigenvector matrices for each time pulse segment *g* with the
         first axis counting the pulse segment, i.e.
-        ``HV == array([V_0, V_1, ...])``.
-    basis: Basis, shape (d**2, d, d)
-        The basis elements, in which the pulse control matrix will be
-        expanded.
-    c_opers_transformed: array_like, shape (n_dt, n_ctrl, d, d)
+        ``V == array([V_0, V_1, ...])``.
+    basis_transformed: array_like, shape (d**2, d, d)
+        The basis elements in which the pulse control matrix will be
+        expanded transformed by the eigenvectors.
+    c_opers_transformed: array_like, shape (n_ctrl, d, d)
         The control operators transformed into the eigenspace of the
-        control Hamiltonian. The drift operators are ignored, if
-        identifiers for accessible control operators are provided.
-    n_opers: array_like, shape (n_nops, d, d)
-        Noise operators :math:`B_\alpha`.
-    n_coeffs: array_like, shape (n_nops, n_dt)
+        control Hamiltonian.
+    n_opers_transformed: array_like, shape (n_nops, d, d)
+        The noise operators transformed into the eigenspace of the
+        control Hamiltonian.
+    n_coeffs: array_like, shape (n_nops,)
         The sensitivities of the system to the noise operators given by
-        *n_opers* at the given time step.
-    n_coeffs_deriv: array_like, shape (n_nops, n_ctrl, n_dt)
+        *n_opers_transformed* at the given time step.
+    n_coeffs_deriv: array_like, shape (n_nops, n_ctrl,)
         The derivatives of the noise susceptibilities by the control
         amplitudes. Defaults to None.
-    intermediates: Dict[str, ndarray], optional
-        Optional dictionary containing intermediate results of the
-        calculation of the control matrix.
+    phase_factor: array_like, shape (n_omega,)
+        The phase factor :math:`e^{i\omega t_{g-1}}`.
+    integral: array_like, shape (n_omega, d, d)
+        The integral during the time step appearing in the regular
+        control matrix.
+    deriv_integral: array_like, shape (n_omega, d, d, d, d)
+        An array to write the integral during the time step appearing in
+        the derivative into.
+    ctrlmat_step: array_like, shape (n_nops, d**2, n_omega)
+        An array to write the control matrix during the time step into.
+    ctrlmat_expr: ContractExpression
+        An :class:`opt_einsum.contract.ContractExpression` to compute
+        the control matrix during the time step.
 
     Returns
     -------
@@ -314,99 +327,6 @@ def control_matrix_at_timestep_derivative(
             \frac{\exp(\mathrm{i}(\omega + \Delta\omega_{nm})\Delta t_g) - 1}
             {\mathrm{i}(\omega + \Delta\omega_{nm})}
     """
-    d = eigvecs.shape[-1]
-    n_dt = len(dt)
-    n_ctrl = len(c_opers_transformed[0])
-    n_nops = len(n_opers)
-    n_omega = len(omega)
-
-    # Cannot grab this from cached intermediates because those include the propagators
-    basis_transformed = numeric._transform_by_unitary(eigvecs[:, None], basis[None],
-                                                      out=np.empty((n_dt, d**2, d, d), complex))
-    if not intermediates:
-        n_opers_transformed = numeric._transform_hamiltonian(eigvecs, n_opers,
-                                                             n_coeffs).swapaxes(0, 1)
-        exp_buf, integral = np.empty((2, n_omega, d, d), dtype=complex)
-    else:
-        n_opers_transformed = intermediates['n_opers_transformed'].swapaxes(0, 1)
-        first_order_integral = intermediates['first_order_integral']
-
-    deriv_integral = np.empty((n_dt, n_omega, d, d, d, d), dtype=complex)
-    ctrlmat_g = np.empty((n_dt, n_nops, d**2, n_omega), dtype=complex)
-    ctrlmat_g_deriv_s = np.empty((n_dt, n_nops, d**2, n_ctrl, n_omega), dtype=complex)
-    # Expression for calculating the control matrix during single time step
-    expr = oe.contract_expression('bcd,adc,hdc->abh', basis.shape, basis.shape,
-                                  (n_omega, d, d), optimize=[(0, 1), (0, 1)])
-    for g in range(n_dt):
-        deriv_integral[g] = _derivative_integral(omega, eigvals[g], dt[g], deriv_integral[g])
-        if not intermediates:
-            integral = numeric._first_order_integral(omega, eigvals[g], dt[g], exp_buf, integral)
-        else:
-            integral = first_order_integral[g]
-
-        ctrlmat_g[g] = expr(basis_transformed[g], n_opers_transformed[g], integral,
-                            out=ctrlmat_g[g])
-
-        if n_coeffs_deriv is not None:
-            # equivalent contraction: 'ah,a,ako->akho', but this faster
-            ctrlmat_g_deriv_s[g] = (
-                (n_coeffs_deriv[..., g] / n_coeffs[:, g, None])[:, None, :, None]
-                * ctrlmat_g[g, :, :, None]
-            )
-
-    # Basically a tensor product
-    # K = np.einsum('taij,thkl->tahikjl', VBV, VHV)
-    # L = K.transpose(0, 1, 2, 4, 3, 6, 5)
-    K = util.tensor(n_opers_transformed[:, :, None], c_opers_transformed[:, None])
-    L = util.tensor_transpose(K, (1, 0), [[d, d], [d, d]])
-    k = np.diagonal(K.reshape(n_dt, n_nops, n_ctrl, d, d, d, d), 0, -2, -3)
-    l = np.diagonal(L.reshape(n_dt, n_nops, n_ctrl, d, d, d, d), 0, -2, -3)
-    i1 = np.diagonal(deriv_integral, 0, -2, -3)
-    i2 = np.diagonal(deriv_integral, 0, -1, -4)
-    # Reshaping in F-major is faster than not (~ factor 2-4)
-    M = np.einsum(
-        'tahpm,topm->tahop',
-        l.reshape(n_dt, n_nops, n_ctrl, d**2, d, order='F'),
-        i1.reshape(n_dt, n_omega, d**2, d, order='F')
-    ).reshape(n_dt, n_nops, n_ctrl, n_omega, d, d, order='F')
-    if d == 2:
-        # Life a bit simpler
-        mask = np.eye(d, dtype=bool)
-        M[..., mask] -= M[..., mask][..., ::-1]
-        M[..., ~mask] *= 2
-    else:
-        M -= np.einsum(
-            'tahpn,topn->tahop',
-            k.swapaxes(-2, -3).reshape(n_dt, n_nops, n_ctrl, d**2, d, order='F'),
-            i2.reshape(n_dt, n_omega, d**2, d, order='F')
-        ).reshape(n_dt, n_nops, n_ctrl, n_omega, d, d, order='F').swapaxes(-1, -2)
-
-    # Expand in basis transformed to eigenspace
-    ctrlmat_g_deriv = oe.contract('tjnk,tahokn->tajho', 1j*basis_transformed, M)
-
-    if n_coeffs_deriv is not None:
-        ctrlmat_g_deriv += ctrlmat_g_deriv_s
-
-    return ctrlmat_g, ctrlmat_g_deriv
-
-
-def control_matrix_at_timestep_derivative_loop(
-        omega: Coefficients,
-        dt: Coefficients,
-        eigvals: ndarray,
-        eigvecs: ndarray,
-        basis_transformed,
-        c_opers_transformed: ndarray,
-        n_opers_transformed,
-        n_coeffs: Sequence[Coefficients],
-        n_coeffs_deriv: Sequence[Coefficients],
-        ctrlmat_step,
-        phase_factor,
-        deriv_integral,
-        integral,
-        ctrlmat_expr
-) -> Tuple[ndarray, ndarray]:
-    """"."""
     d = len(eigvecs)
     d2 = d**2
     n_ctrl = len(c_opers_transformed)
@@ -444,7 +364,8 @@ def control_matrix_at_timestep_derivative_loop(
             i2.reshape(n_omega, d2, d, order='F')
         ).reshape(n_nops, n_ctrl, n_omega, d, d, order='F').swapaxes(-1, -2)
 
-    # Expand in basis transformed to eigenspace
+    # Expand in basis transformed to eigenspace. Include phase factor and
+    # factor 1j here to make use of optimized contraction order
     ctrlmat_step_deriv = oe.contract('o,jnk,ahokn->ajho', phase_factor, 1j*basis_transformed, M,
                                      optimize=[(1, 2), (0, 1)])
 
@@ -550,62 +471,9 @@ def calculate_derivative_of_control_matrix_from_scratch(
 
     See Also
     --------
-    :func:`liouville_derivative`
-    :func:`control_matrix_at_timestep_derivative`
+    :func:`_liouville_derivative`
+    :func:`_control_matrix_at_timestep_derivative`
     """
-    # Distinction between control and drift operators and only calculate the
-    # derivatives in control direction
-    try:
-        idx = util.get_indices_from_identifiers(all_identifiers, control_identifiers)
-    except ValueError as err:
-        raise ValueError('Given control identifiers have to be a subset of (drift+control) ' +
-                         'Hamiltonian!') from err
-
-    c_opers_transformed = numeric._transform_hamiltonian(eigvecs, c_opers[idx]).swapaxes(0, 1)
-    propagators_liouville = superoperator.liouville_representation(propagators[:-1], basis)
-    propagators_liouville_deriv = liouville_derivative(dt, propagators, basis, eigvecs, eigvals,
-                                                       c_opers_transformed)
-
-    ctrlmat_g, ctrlmat_g_deriv = control_matrix_at_timestep_derivative(
-        omega, dt, eigvals, eigvecs, basis, c_opers_transformed, n_opers, n_coeffs, n_coeffs_deriv,
-        intermediates
-    )
-
-    if intermediates:
-        phase_factors = intermediates['phase_factors'].T
-    else:
-        phase_factors = util.cexp(np.multiply.outer(omega, t[:-1]))
-
-    # Equivalent (but slower) einsum contraction for first term:
-    # ctrlmat_deriv = np.einsum('ot,tajho,tjk->hotak',
-    #                           phase_factors, ctrlmat_g_deriv, propagators_liouville,
-    #                           optimize=['einsum_path', (0, 2), (0, 1)])
-    ctrlmat_deriv = (ctrlmat_g_deriv.transpose(3, 4, 0, 1, 2)
-                     @ (phase_factors[..., None, None] * propagators_liouville))
-    ctrlmat_deriv += np.einsum('ot,tajo,thsjk->hosak',
-                               phase_factors[:, 1:], ctrlmat_g[1:], propagators_liouville_deriv,
-                               optimize=['einsum_path', (0, 1), (0, 1)])
-
-    return ctrlmat_deriv
-
-
-def calculate_derivative_of_control_matrix_from_scratch_loop(
-        omega: Coefficients,
-        propagators: ndarray,
-        eigvals: ndarray,
-        eigvecs: ndarray,
-        basis: Basis,
-        t: Coefficients,
-        dt: Coefficients,
-        n_opers: Sequence[Operator],
-        n_coeffs: Sequence[Coefficients],
-        c_opers: Sequence[Operator],
-        all_identifiers: Sequence[str],
-        control_identifiers: Optional[Sequence[str]] = None,
-        n_coeffs_deriv: Optional[Sequence[Coefficients]] = None,
-        intermediates: Dict[str, ndarray] = None
-) -> ndarray:
-    r"""."""
     # Distinction between control and drift operators and only
     # calculate the derivatives in control direction
     try:
@@ -620,6 +488,7 @@ def calculate_derivative_of_control_matrix_from_scratch_loop(
     n_nops = len(n_opers)
     n_omega = len(omega)
 
+    # Precompute some transformations or grab from cache if possible
     basis_transformed = numeric._transform_by_unitary(eigvecs[:, None], basis[None],
                                                       out=np.empty((n_dt, d**2, d, d), complex))
     c_opers_transformed = numeric._transform_hamiltonian(eigvecs, c_opers[idx]).swapaxes(0, 1)
@@ -637,6 +506,8 @@ def calculate_derivative_of_control_matrix_from_scratch_loop(
     deriv_integral = np.empty((n_omega, d, d, d, d), dtype=complex)
     ctrlmat_deriv = np.empty((n_ctrl, n_omega, n_dt, n_nops, d**2), dtype=complex)
     ctrlmat_step = np.empty((n_dt, n_nops, d**2, n_omega), dtype=complex)
+    # Optimized expression that is passed to control_matrix_at_timestep_derivative
+    # in each iteration
     ctrlmat_expr = oe.contract_expression('o,icd,adc,odc->aio', (len(omega),), basis.shape,
                                           n_opers.shape, (len(omega), d, d),
                                           optimize=[(0, 3), (0, 1), (0, 1)])
@@ -644,21 +515,21 @@ def calculate_derivative_of_control_matrix_from_scratch_loop(
         if intermediates is None:
             integral = numeric._first_order_integral(omega, eigvals[g], dt[g], exp_buf, integral)
         else:
-            # Grab from cache
             integral = intermediates['first_order_integral'][g]
 
-        phase_factor = util.cexp(omega * t[g])
         n_coeff_deriv = n_coeffs_deriv if n_coeffs_deriv is None else n_coeffs_deriv[:, :, g]
 
         ctrlmat_step[g], ctrlmat_step_deriv = control_matrix_at_timestep_derivative_loop(
             omega, dt[g], eigvals[g], eigvecs[g], basis_transformed[g], c_opers_transformed[g],
-            n_opers_transformed[g], n_coeffs[:, g], n_coeff_deriv, ctrlmat_step[g],
-            phase_factor, deriv_integral, integral, ctrlmat_expr
+            n_opers_transformed[g], n_coeffs[:, g], n_coeff_deriv, util.cexp(omega*t[g]), integral,
+            deriv_integral, ctrlmat_step[g], ctrlmat_expr
         )
+        # Phase factor already part of ctrlmat_step_deriv
         ctrlmat_deriv[:, :, g] = (ctrlmat_step_deriv.transpose(2, 3, 0, 1)
                                   @ propagators_liouville[g])
 
     # opt_einsum a lot faster here
+    # Phase factor again already part of ctrlmat_step
     ctrlmat_deriv += oe.contract('tajo,thsjk->hosak',
                                  ctrlmat_step[1:], propagators_liouville_deriv)
 
