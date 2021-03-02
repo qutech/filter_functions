@@ -26,8 +26,8 @@ Functions
 :func:`abs2`
     Absolute value squared
 :func:`get_indices_from_identifiers`
-    The the indices of control or noise operators with given identifiers
-    as they are saved in a ``PulseSequence``.
+    The the indices of a subset of identifiers within a list of
+    identifiers.
 :func:`tensor`
     Fast, flexible tensor product of an arbitrary number of inputs using
     :func:`~numpy.einsum`
@@ -221,32 +221,21 @@ def _parse_dims_arg(name: str, dims: Sequence[Sequence[int]], rank: int) -> None
         raise ValueError(f'Require all lists in {name}_dims to be of same length!')
 
 
-@parse_optional_parameters({'kind': ('noise', 'control')})
-def get_indices_from_identifiers(pulse: 'PulseSequence',
-                                 identifiers: Union[None, str, Sequence[str]],
-                                 kind: str) -> Tuple[Sequence[int],
-                                                     Sequence[str]]:
+def get_indices_from_identifiers(all_identifiers: Sequence[str],
+                                 identifiers: Union[None, str, Sequence[str]]) -> Sequence[int]:
     """Get the indices of operators for given identifiers.
 
     Parameters
     ----------
-    pulse: PulseSequence
-        The PulseSequence instance for which to get the indices.
+    all_identifiers: sequence of str
+        All available identifiers.
     identifiers: str or sequence of str
         The identifiers whose indices to get.
-    kind: str
-        Whether to get 'control' or 'noise' operator indices.
     """
-    if kind == 'noise':
-        pulse_identifiers = pulse.n_oper_identifiers
-    else:
-        # kind == 'control'
-        pulse_identifiers = pulse.c_oper_identifiers
-
     identifier_to_index_table = {identifier: index for index, identifier
-                                 in enumerate(pulse_identifiers)}
+                                 in enumerate(all_identifiers)}
     if identifiers is None:
-        inds = np.arange(len(pulse_identifiers))
+        inds = np.arange(len(all_identifiers))
     else:
         try:
             if isinstance(identifiers, str):
@@ -256,7 +245,7 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
                                  for identifier in identifiers])
         except KeyError:
             raise ValueError('Invalid identifiers given. All available ones ' +
-                             f'are: {pulse_identifiers}')
+                             f'are: {all_identifiers}')
 
     return inds
 

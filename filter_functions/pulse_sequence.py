@@ -2439,7 +2439,7 @@ def extend(
 
         if additional_noise_Hamiltonian is not None:
             newpulse_n_oper_inds = util.get_indices_from_identifiers(
-                newpulse, n_oper_identifiers[n_ops_counter:], 'noise'
+                newpulse.n_oper_identifiers, n_oper_identifiers[n_ops_counter:]
             )
             control_matrix[n_ops_counter:] = numeric.calculate_control_matrix_from_scratch(
                 newpulse.eigvals, newpulse.eigvecs, newpulse.propagators, omega, newpulse.basis,

@@ -55,26 +55,26 @@ class UtilTest(testutil.TestCase):
             [[util.paulis[2], [2]]],
             [1]
         )
-        idx = util.get_indices_from_identifiers(pulse, ['X'], 'control')
+        idx = util.get_indices_from_identifiers(pulse.c_oper_identifiers, ['X'])
         self.assertArrayEqual(idx, [0])
 
-        idx = util.get_indices_from_identifiers(pulse, 'X', 'control')
+        idx = util.get_indices_from_identifiers(pulse.c_oper_identifiers, 'X')
         self.assertArrayEqual(idx, [0])
 
-        idx = util.get_indices_from_identifiers(pulse, ['Z', 'X'], 'control')
+        idx = util.get_indices_from_identifiers(pulse.c_oper_identifiers, ['Z', 'X'])
         self.assertArrayEqual(idx, [1, 0])
 
-        idx = util.get_indices_from_identifiers(pulse, None, 'control')
+        idx = util.get_indices_from_identifiers(pulse.c_oper_identifiers, None)
         self.assertArrayEqual(idx, [0, 1])
 
-        idx = util.get_indices_from_identifiers(pulse, ['B_0'], 'noise')
+        idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, ['B_0'])
         self.assertArrayEqual(idx, [0])
 
-        idx = util.get_indices_from_identifiers(pulse, 'B_0', 'noise')
+        idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, 'B_0')
         self.assertArrayEqual(idx, [0])
 
         with self.assertRaises(ValueError):
-            util.get_indices_from_identifiers(pulse, ['foobar'], 'noise')
+            util.get_indices_from_identifiers(pulse.n_oper_identifiers, ['foobar'])
 
     def test_tensor(self):
         shapes = [(1, 2, 3, 4, 5), (5, 4, 3, 2, 1)]

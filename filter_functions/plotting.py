@@ -315,7 +315,7 @@ def plot_pulse_train(
     ValueError
         If an invalid number of c_oper_labels were given
     """
-    c_oper_inds = util.get_indices_from_identifiers(pulse, c_oper_identifiers, 'control')
+    c_oper_inds = util.get_indices_from_identifiers(pulse.c_oper_identifiers, c_oper_identifiers)
     c_oper_identifiers = pulse.c_oper_identifiers[c_oper_inds]
 
     if fig is None and axes is None:
@@ -425,7 +425,7 @@ def plot_filter_function(
         else:
             omega = pulse.omega
 
-    n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    n_oper_inds = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
     n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
 
     if fig is None and axes is None:
@@ -548,7 +548,7 @@ def plot_pulse_correlation_filter_function(
         If the pulse correlation filter function was not computed during
         concatenation.
     """
-    n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    n_oper_inds = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
     n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
     diag_idx = np.arange(len(pulse.n_opers))
     F_pc = pulse.get_pulse_correlation_filter_function()
@@ -777,7 +777,8 @@ def plot_cumulant_function(
             raise ValueError('Require either precomputed cumulant function ' +
                              'or pulse, spectrum, and omega as arguments.')
 
-        n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+        n_oper_inds = util.get_indices_from_identifiers(pulse.n_oper_identifiers,
+                                                        n_oper_identifiers)
         n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
         K = numeric.calculate_cumulant_function(pulse, spectrum, omega, n_oper_identifiers,
                                                 'total', second_order)

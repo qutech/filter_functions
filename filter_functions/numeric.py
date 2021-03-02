@@ -1197,7 +1197,7 @@ def calculate_decay_amplitudes(
     """
     # TODO: Replace infidelity() by this?
     # Noise operator indices
-    idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
     if which == 'total':
         # Faster to use filter function instead of control matrix
         if pulse.is_cached('filter_function_gen'):
@@ -1314,7 +1314,7 @@ def calculate_frequency_shifts(
     pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
     calculate_pulse_correlation_filter_function
     """
-    idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
     filter_function_2 = pulse.get_filter_function(omega, order=2,
                                                   show_progressbar=show_progressbar)
     integrand = _get_integrand(spectrum, omega, idx, which_pulse='total', which_FF='generalized',
@@ -1947,7 +1947,7 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
     plotting.plot_infidelity_convergence: Convenience function to plot results.
     """
     # Noise operator indices
-    idx = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
 
     if test_convergence:
         if not callable(spectrum):
