@@ -9,7 +9,7 @@ Simply put, filter functions characterize a quantum system's susceptibility to n
 
 Initially, filter functions have been introduced to model dynamical decoupling sequences [1, 2]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms. These filter functions can be used to compute process descriptions, fidelities and other quantities of interest from arbitrary classical noise spectral densities. For the efficient and convenient treatment of gate sequences, concatenation rules that allow the filter function of a sequence to be computed from those of its constituents are implemented.
 
-The `filter_functions` package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, and comes with extensive documentation and a test suite. Note that the project is still in pre-release and thus liable to breaking API changes.
+The `filter_functions` package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, as well as [qopt](https://github.com/qutech/qopt) and comes with extensive documentation and a test suite.
 
 As a very brief introduction, consider a Hadamard gate implemented by a pi/2 Y-gate followed by a NOT-gate using simple square pulses. We can calculate and plot the dephasing filter function of the gate with the following code:
 
@@ -54,9 +54,9 @@ hadamard.is_cached('filter function')
 To compute, for example, the infidelity of the gate in the presence of an arbitrary classical noise spectrum, we can simply call `infidelity()`:
 
 ```python
-spectrum = 1e-2/abs(omega)
+spectrum = 1e-2/omega
 infidelity = ff.infidelity(hadamard, spectrum, omega)
-# array([0.006037])  (one contribution per noise operator)
+# array([0.0025])  (one contribution per noise operator)
 ```
 
 ## Installation
@@ -70,6 +70,11 @@ You can find the documentation on [Readthedocs](https://filter-functions.readthe
 The documentation including the example notebooks and an automatically generated API documentation can be built by running `make <format>` inside the *doc* directory where `<format>` is for example `html`.
 
 Interactively using the documentation requires `jupyter`, and building a static version additionally requires `nbsphinx`, `numpydoc`, `sphinx_rtd_theme`, as well as `pandoc`. The last can be installed via conda (`conda install pandoc`) or downloaded from [Github](https://github.com/jgm/pandoc/releases/) and the rest automatically by running `pip install -e .[doc]`.
+
+## Citing
+If this software has benefited your research, please consider citing:
+
+arXiv ID for now.
 
 ## References
 [1]: Cywinski, L., Lutchyn, R. M., Nave, C. P., & Das Sarma, S. (2008). How to enhance dephasing time in superconducting qubits. Physical Review B - Condensed Matter and Materials Physics, 77(17), 1–11. [https://doi.org/10.1103/PhysRevB.77.174509](https://doi.org/10.1103/PhysRevB.77.174509)
