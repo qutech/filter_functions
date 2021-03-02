@@ -44,11 +44,6 @@ Throughout this documentation the following notation will be used:
 
 Functions
 ---------
-:func:`liouville_derivative`
-    Calculate the derivatives of the control propagators in Liouville
-    representation.
-:func:`control_matrix_at_timestep_derivative`
-    Calculate the control matrices and corresponding derivatives.
 :func:`calculate_derivative_of_control_matrix_from_scratch`
     Calculate the derivative of the control matrix from scratch.
 :func:`calculate_canonical_filter_function_derivative`
@@ -60,14 +55,14 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import opt_einsum as oe
+from opt_einsum.contract import ContractExpression
 from numpy import ndarray
 
 from . import numeric, superoperator, util
 from .basis import Basis
 from .types import Coefficients, Operator
 
-__all__ = ['liouville_derivative', 'control_matrix_at_timestep_derivative',
-           'calculate_derivative_of_control_matrix_from_scratch',
+__all__ = ['calculate_derivative_of_control_matrix_from_scratch',
            'calculate_filter_function_derivative', 'infidelity_derivative']
 
 
@@ -105,8 +100,8 @@ def _derivative_integral(E: Coefficients, eigvals: Coefficients, dt: float,
     return out
 
 
-def liouville_derivative(dt: Coefficients, propagators: ndarray, basis: Basis, eigvecs: ndarray,
-                         eigvals: ndarray, c_opers_transformed: ndarray) -> ndarray:
+def _liouville_derivative(dt: Coefficients, propagators: ndarray, basis: Basis, eigvecs: ndarray,
+                          eigvals: ndarray, c_opers_transformed: ndarray) -> ndarray:
     r"""
     Calculate the derivatives of the control propagators in Liouville
     representation.
@@ -193,7 +188,7 @@ def liouville_derivative(dt: Coefficients, propagators: ndarray, basis: Basis, e
     return liouville_deriv
 
 
-def control_matrix_at_timestep_derivative(
+def _control_matrix_at_timestep_derivative(
         omega: Coefficients,
         dt: Coefficients,
         eigvals: ndarray,
@@ -500,8 +495,8 @@ def calculate_derivative_of_control_matrix_from_scratch(
         n_opers_transformed = intermediates['n_opers_transformed'].swapaxes(0, 1)
 
     propagators_liouville = superoperator.liouville_representation(propagators[:-1], basis)
-    propagators_liouville_deriv = liouville_derivative(dt, propagators, basis, eigvecs, eigvals,
-                                                       c_opers_transformed)
+    propagators_liouville_deriv = _liouville_derivative(dt, propagators, basis, eigvecs, eigvals,
+                                                        c_opers_transformed)
 
     deriv_integral = np.empty((n_omega, d, d, d, d), dtype=complex)
     ctrlmat_deriv = np.empty((n_ctrl, n_omega, n_dt, n_nops, d**2), dtype=complex)
@@ -519,7 +514,11 @@ def calculate_derivative_of_control_matrix_from_scratch(
 
         n_coeff_deriv = n_coeffs_deriv if n_coeffs_deriv is None else n_coeffs_deriv[:, :, g]
 
-        ctrlmat_step[g], ctrlmat_step_deriv = control_matrix_at_timestep_derivative_loop(
+        # ctrlmat_step is computed from scratch because the quantity in
+        # the cache (from numeric.calculate_control_matrix_from_scratch)
+        # contains the Liouville propagators already and it is expensive
+        # to remove them by multiplying with the transpose.
+        ctrlmat_step[g], ctrlmat_step_deriv = _control_matrix_at_timestep_derivative(
             omega, dt[g], eigvals[g], eigvecs[g], basis_transformed[g], c_opers_transformed[g],
             n_opers_transformed[g], n_coeffs[:, g], n_coeff_deriv, util.cexp(omega*t[g]), integral,
             deriv_integral, ctrlmat_step[g], ctrlmat_expr
