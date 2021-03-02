@@ -26,10 +26,12 @@ def deriv_2_exchange_interaction(eps):
 
 
 def one_over_f_noise(f):
-    return S_0 / f
+    spectrum = np.divide(S_0, f, where=(f != 0))
+    spectrum[f == 0] = spectrum[np.abs(f).argmin()]
+    return spectrum
 
 
-def create_sing_trip_pulse_seq(eps, dbz):
+def create_sing_trip_pulse_seq(eps, dbz, *args):
 
     H_c = [
         [sigma_z, exchange_interaction(eps[0]), 'control1'],
@@ -48,7 +50,21 @@ def create_sing_trip_pulse_seq(eps, dbz):
     return pulse
 
 
-def finite_diff_infid(u_ctrl_central, u_drift, pulse_sequence_builder,
+def create_pulse_sequence(u_ctrl, u_drift, *args):
+    # hacky hacky!
+    if len(args):
+        d = args[0]
+
+    basis = ff.Basis.ggm(d)
+    H_c = (list(zip(basis[1:len(u_ctrl)+1], u_ctrl, [f'c{i}' for i in range(len(u_ctrl)+1)])) +
+           list(zip(basis[len(u_ctrl)+1:], u_drift, [f'd{i}' for i in range(d**2-len(u_ctrl)+1)])))
+    H_n = (list(zip(basis[1:], np.ones((d**2-1, u_drift.shape[1])))))
+    dt = np.full(u_ctrl.shape[-1], fill_value=0.32)
+
+    return ff.PulseSequence(H_c, H_n, dt, basis=basis)
+
+
+def finite_diff_infid(u_ctrl_central, u_drift, d, pulse_sequence_builder,
                       spectral_noise_density, n_freq_samples=200,
                       c_id=None, delta_u=1e-6):
     """
@@ -67,13 +83,15 @@ def finite_diff_infid(u_ctrl_central, u_drift, pulse_sequence_builder,
     gradient: shape (n_nop, n_dt, n_ctrl)
 
     """
-    pulse = pulse_sequence_builder(u_ctrl_central, u_drift)
+    pulse = pulse_sequence_builder(u_ctrl_central, u_drift, d)
     all_id = pulse.c_oper_identifiers
     if c_id is None:
         c_id = all_id[:len(u_ctrl_central)]
-    omega = ff.util.get_sample_frequencies(
-        pulse=pulse, n_samples=n_freq_samples, spacing='log')
-    S = spectral_noise_density(omega)
+
+    # Make sure we test for zero frequency case (possible convergence issues)
+    omega = ff.util.get_sample_frequencies(pulse=pulse, n_samples=n_freq_samples, spacing='log',
+                                           include_quasistatic=True)
+    spectrum = spectral_noise_density(omega)
 
     gradient = np.empty((len(pulse.n_coeffs), len(pulse.dt), len(c_id)))
 
@@ -81,22 +99,22 @@ def finite_diff_infid(u_ctrl_central, u_drift, pulse_sequence_builder,
         for k in range(len(c_id)):
             u_plus = u_ctrl_central.copy()
             u_plus[k, g] += delta_u
-            pulse_plus = pulse_sequence_builder(u_plus, u_drift)
-            infid_plus = ff.numeric.infidelity(pulse=pulse_plus, spectrum=S,
+            pulse_plus = pulse_sequence_builder(u_plus, u_drift, pulse.d)
+            infid_plus = ff.numeric.infidelity(pulse=pulse_plus, spectrum=spectrum,
                                                omega=omega)
 
             u_minus = u_ctrl_central.copy()
             u_minus[k, g] -= delta_u
-            pulse_minus = pulse_sequence_builder(u_minus, u_drift)
-            infid_minus = ff.numeric.infidelity(pulse=pulse_minus, spectrum=S,
+            pulse_minus = pulse_sequence_builder(u_minus, u_drift, pulse.d)
+            infid_minus = ff.numeric.infidelity(pulse=pulse_minus, spectrum=spectrum,
                                                 omega=omega)
 
             gradient[:, g, k] = (infid_plus - infid_minus) / 2 / delta_u
     return gradient
 
 
-def analytic_gradient(u_ctrl, u_drift, pulse_sequence_builder,
-                      spectral_noise_density, s_derivs=None, n_freq_samples=200,
+def analytic_gradient(u_ctrl, u_drift, d, pulse_sequence_builder,
+                      spectral_noise_density, n_coeffs_deriv=None, n_freq_samples=200,
                       c_id=None, ctrl_amp_deriv=None):
     """
     Parameters
@@ -107,7 +125,7 @@ def analytic_gradient(u_ctrl, u_drift, pulse_sequence_builder,
     spectral_noise_density: function handle
     n_freq_samples: int
     c_id: List of string
-    s_derivs: shape (n_nops, n_ctrl, n_dt)
+    n_coeffs_deriv: shape (n_nops, n_ctrl, n_dt)
     ctrl_amp_deriv: function handle
 
     Returns
@@ -115,21 +133,15 @@ def analytic_gradient(u_ctrl, u_drift, pulse_sequence_builder,
     gradient: shape (n_nop, n_dt, n_ctrl)
 
     """
-
-    pulse = pulse_sequence_builder(u_ctrl, u_drift)
+    pulse = pulse_sequence_builder(u_ctrl, u_drift, d)
     omega = ff.util.get_sample_frequencies(
-        pulse=pulse, n_samples=n_freq_samples, spacing='log')
-    S = spectral_noise_density(omega)
+        pulse=pulse, n_samples=n_freq_samples, spacing='log', include_quasistatic=True)
+    spectrum = spectral_noise_density(omega)
     gradient = ff.gradient.infidelity_derivative(
-        pulse=pulse, S=S, omega=omega, control_identifiers=c_id,
-        s_derivs=s_derivs)
+        pulse=pulse, spectrum=spectrum, omega=omega, control_identifiers=c_id,
+        n_coeffs_deriv=n_coeffs_deriv)
     if ctrl_amp_deriv is not None:
         # gradient shape (n_nops, n_dt, n_ctrl)
         # deriv_exchange_interaction shape (n_ctrl, n_dt)
-        gradient = np.einsum("agk,kg -> agk", gradient,
-                             ctrl_amp_deriv(u_ctrl))
+        gradient = np.einsum("agk,kg -> agk", gradient, ctrl_amp_deriv(u_ctrl))
     return gradient
-
-
-def relative_norm_difference(m, n):
-    return np.linalg.norm(m - n) / (np.linalg.norm(m) + np.linalg.norm(n)) * 2

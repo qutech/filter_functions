@@ -793,52 +793,39 @@ class PulseSequence:
     def get_filter_function_derivative(
             self,
             omega: Coefficients,
-            contorl_identifier: Optional[Sequence[str]] = None,
-            s_derivs: Optional[Sequence[Coefficients]] = None
+            control_identifiers: Optional[Sequence[str]] = None,
+            n_coeffs_deriv: Optional[Sequence[Coefficients]] = None
     ) -> ndarray:
-        r"""
-        Calculate the filter function derivative of the pulse sequence.
-
-        The filter function derivative is cached so it doesn't need to be
-        calculated twice for the same frequencies.
+        r"""Calculate the pulse sequence's filter function derivative.
 
         Parameters
         ----------
-        omega : array_like, shape (n_omega,)
-            Frequencies at which the pulse control matrix is to be evaluated.
-        contorl_identifier : Sequence[str]
-            Sequence of strings with the control identifiern to distinguish
-            between control and drift Hamiltonian. The default is None.
-        s_derivs : array_like, shape (n_nops, n_ctrl, n_dt)
+        omega: array_like, shape (n_omega,)
+            Frequencies at which the pulse control matrix is to be
+            evaluated.
+        control_identifiers: Sequence[str]
+            Sequence of strings with the control identifiern to
+            distinguish between control and drift Hamiltonian. The
+            default is None.
+        n_coeffs_deriv: array_like, shape (n_nops, n_ctrl, n_dt)
             The derivatives of the noise susceptibilities by the control
             amplitudes. Defaults to None.
 
         Returns
         -------
-        deriv_filter_function : ndarray, shape (n_nops, n_t, n_ctrl, n_omega)
-            The regular filter functions' derivatives for variation in each
-            control contribution.
+        filter_function_deriv: ndarray, shape (n_nops, n_t, n_ctrl, n_omega)
+            The regular filter functions' derivatives for variation in
+            each control contribution.
 
         """
+        control_matrix = self.get_control_matrix(omega, cache_intermediates=True)
 
-        R = self.get_control_matrix(omega)
-        eigvals, eigvecs, propagators, all_id = (
-            self.eigvals, self.eigvecs, self._propagators,
-            self.c_oper_identifiers)
-        basis, dt, t = self.basis, self.dt, self.t
-        n_coeffs, c_coeffs = self.n_coeffs, self.c_coeffs
-        c_opers, n_opers = self.c_opers, self.n_opers
-
-        Q_Liou = liouville_representation(propagators, basis)
-        deriv_R = gradient.calculate_derivative_of_control_matrix_from_scratch(
-            omega=omega, propagators=propagators, Q_Liou=Q_Liou, eigvals=eigvals, eigvecs=eigvecs,
-            basis=basis, t=t, dt=dt, n_opers=n_opers, n_coeffs=n_coeffs,
-            c_opers=c_opers, all_identifiers=all_id, control_identifiers=contorl_identifier,
-            s_derivs=s_derivs)
-
-        return gradient.calculate_canonical_filter_function_derivative(
-            R, deriv_R
+        control_matrix_deriv = gradient.calculate_derivative_of_control_matrix_from_scratch(
+            omega, self.propagators, self.eigvals, self.eigvecs, self.basis, self.t, self.dt,
+            self.n_opers, self.n_coeffs, self.c_opers, self.c_oper_identifiers,
+            control_identifiers, n_coeffs_deriv, self._intermediates
         )
+        return gradient.calculate_filter_function_derivative(control_matrix, control_matrix_deriv)
 
     def get_total_phases(self, omega: Coefficients) -> ndarray:
         """Get the (cached) total phase factors for this pulse and omega."""
@@ -1024,8 +1011,10 @@ class PulseSequence:
         elif method == 'frequency dependent':
             attrs = filter_function_attrs.union({'_control_matrix', '_control_matrix_pc',
                                                  '_total_phases'})
-            # Remove frequency dependent control_matrix_step from intermediates
+            # Remove frequency dependent terms from intermediates
             self._intermediates.pop('control_matrix_step', None)
+            self._intermediates.pop('phase_factors', None)
+            self._intermediates.pop('first_order_integral', None)
         else:
             # method == all
             attrs = filter_function_attrs.union(default_attrs, concatenation_attrs)
