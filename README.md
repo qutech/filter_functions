@@ -74,7 +74,7 @@ Interactively using the documentation requires `jupyter`, and building a static 
 ## Citing
 If this software has benefited your research, please consider citing:
 
-arXiv ID for now.
+arXiv ID to be posted.
 
 ## References
 [1]: Cywinski, L., Lutchyn, R. M., Nave, C. P., & Das Sarma, S. (2008). How to enhance dephasing time in superconducting qubits. Physical Review B - Condensed Matter and Materials Physics, 77(17), 1–11. [https://doi.org/10.1103/PhysRevB.77.174509](https://doi.org/10.1103/PhysRevB.77.174509)
