@@ -615,16 +615,16 @@ class QutipCompatibilityTest(testutil.TestCase):
 
             result = util.oper_equiv(psi, psi*np.exp(1j*phase))
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase, places=5)
+            self.assertAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(phase, 2*np.pi), places=5)
 
             result = util.oper_equiv(psi*np.exp(1j*phase), psi)
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], -phase, places=5)
+            self.assertAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(-phase, 2*np.pi), places=5)
 
             result = util.oper_equiv(U, U*np.exp(1j*phase))
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], phase, places=5)
+            self.assertAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(phase, 2*np.pi), places=5)
 
             result = util.oper_equiv(U*np.exp(1j*phase), U)
             self.assertTrue(result[0])
-            self.assertAlmostEqual(result[1], -phase, places=5)
+            self.assertAlmostEqual(np.mod(result[1], 2*np.pi), np.mod(-phase, 2*np.pi), places=5)
