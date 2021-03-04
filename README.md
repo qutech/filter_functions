@@ -8,7 +8,7 @@
 ## Introduction
 Simply put, filter functions characterize a quantum system's susceptibility to noise at a given frequency during a control operation and can thus be used to gain insight into its decoherence. The formalism allows for efficient calculation of several quantities of interest such as average gate fidelity and even the entire quantum process up to a unitary rotation. Moreover, the filter function of a composite pulse can be easily derived from those of the constituent pulses, allowing for efficient assembly and characterization of pulse sequences.
 
-Initially, filter functions have been introduced to model dynamical decoupling sequences [1, 2]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms. These filter functions can be used to compute process descriptions, fidelities and other quantities of interest from arbitrary classical noise spectral densities. For the efficient and convenient treatment of gate sequences, concatenation rules that allow the filter function of a sequence to be computed from those of its constituents are implemented.
+Initially, filter functions have been introduced to model dynamical decoupling sequences [4, 5]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms. These filter functions can be used to compute process descriptions, fidelities and other quantities of interest from arbitrary classical noise spectral densities. For the efficient and convenient treatment of gate sequences, concatenation rules that allow the filter function of a sequence to be computed from those of its constituents are implemented.
 
 The `filter_functions` package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, as well as [qopt](https://github.com/qutech/qopt) and comes with extensive documentation and a test suite.
 
@@ -75,15 +75,13 @@ Interactively using the documentation requires `jupyter`, and building a static 
 ## Citing
 If this software has benefited your research, please consider citing:
 
-T. Hangleiter, P. Cerfontaine, and H. Bluhm, “Filter function formalism and software package to compute quantum processes
-of gate sequences for classical non-markovian noise,” (2021), [arXiv:2103.02403](https://arxiv.org/abs/2103.02403)
+[1]: T. Hangleiter, P. Cerfontaine, and H. Bluhm, “Filter function formalism and software package to compute quantum processes of gate sequences for classical non-markovian noise,” (2021), [arXiv:2103.02403](https://arxiv.org/abs/2103.02403)
 
-T. Hangleiter, I. N. M. Le, and J. D. Teske, “filter_functions: A package for efficient numerical calculation of generalized
-filter functions to describe the effect of noise on quantum gate operations,” (2021). [doi:10.5281/zenodo.4575001](http://doi.org/10.5281/zenodo.4575001)
+[2]: T. Hangleiter, I. N. M. Le, and J. D. Teske, “filter_functions: A package for efficient numerical calculation of generalized filter functions to describe the effect of noise on quantum gate operations,” (2021). [doi:10.5281/zenodo.4575001](http://doi.org/10.5281/zenodo.4575001)
 
-P. Cerfontaine, T. Hangleiter, and H. Bluhm, “Filter functions for quantum processes under correlated noise,” (2021), [arXiv:2103.02385](https://arxiv.org/abs/2103.02385).
+[3]: P. Cerfontaine, T. Hangleiter, and H. Bluhm, “Filter functions for quantum processes under correlated noise,” (2021), [arXiv:2103.02385](https://arxiv.org/abs/2103.02385).
 
-## References
-[1]: Cywinski, L., Lutchyn, R. M., Nave, C. P., & Das Sarma, S. (2008). How to enhance dephasing time in superconducting qubits. Physical Review B - Condensed Matter and Materials Physics, 77(17), 1–11. [https://doi.org/10.1103/PhysRevB.77.174509](https://doi.org/10.1103/PhysRevB.77.174509)
+## Additional References
+[4]: Cywinski, L., Lutchyn, R. M., Nave, C. P., & Das Sarma, S. (2008). How to enhance dephasing time in superconducting qubits. Physical Review B - Condensed Matter and Materials Physics, 77(17), 1–11. [https://doi.org/10.1103/PhysRevB.77.174509](https://doi.org/10.1103/PhysRevB.77.174509)
 
-[2]: Green, T. J., Sastrawan, J., Uys, H., & Biercuk, M. J. (2013). Arbitrary quantum control of qubits in the presence of universal noise. New Journal of Physics, 15(9), 095004. [https://doi.org/10.1088/1367-2630/15/9/095004](https://doi.org/10.1088/1367-2630/15/9/095004)
+[5]: Green, T. J., Sastrawan, J., Uys, H., & Biercuk, M. J. (2013). Arbitrary quantum control of qubits in the presence of universal noise. New Journal of Physics, 15(9), 095004. [https://doi.org/10.1088/1367-2630/15/9/095004](https://doi.org/10.1088/1367-2630/15/9/095004)
