@@ -20,7 +20,7 @@
 # =============================================================================
 """Package for efficient calculation of generalized filter functions"""
 
-from . import analytic, basis, numeric, pulse_sequence, superoperator, util
+from . import analytic, basis, gradient, numeric, pulse_sequence, superoperator, util
 from .basis import Basis
 from .gradient import infidelity_derivative
 from .numeric import error_transfer_matrix, infidelity
@@ -29,7 +29,7 @@ from .superoperator import liouville_representation
 
 __all__ = ['Basis', 'PulseSequence', 'analytic', 'basis', 'concatenate', 'concatenate_periodic',
            'error_transfer_matrix', 'extend', 'infidelity', 'liouville_representation', 'numeric',
-           'pulse_sequence', 'remap', 'util', 'superoperator', 'infidelity_derivative']
+           'gradient', 'pulse_sequence', 'remap', 'util', 'superoperator', 'infidelity_derivative']
 
 
 __version__ = '1.0.1'
