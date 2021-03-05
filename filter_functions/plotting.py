@@ -48,7 +48,7 @@ from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import colors, lines  # , collections
+from matplotlib import cm, collections, colors, lines
 from mpl_toolkits import axes_grid1, mplot3d
 from numpy import ndarray
 
@@ -170,8 +170,11 @@ def plot_bloch_vector_evolution(
         psi0: Optional[State] = None,
         b: Optional[qt.Bloch] = None,
         n_samples: Optional[int] = None,
-        cmap: Optional[Colormap] = None,
-        show: bool = True, return_Bloch: bool = False,
+        cmap: Colormap = 'winter',
+        add_cbar: bool = False,
+        show: bool = True,
+        return_Bloch: bool = False,
+        cbar_kwargs: Optional[dict] = None,
         **bloch_kwargs
 ) -> Union[None, qt.Bloch]:
     r"""
@@ -235,22 +238,21 @@ def plot_bloch_vector_evolution(
 
     times = np.linspace(pulse.t[0], pulse.tau, n_samples)
     propagators = pulse.propagator_at_arb_t(times)
-    points = get_bloch_vector(get_states_from_prop(propagators, psi0))
-    b.add_points(points, meth='l')
 
-    # The following enables a color gradient for the trajectory, but only works
-    # by patching matplotlib, see
-    # https://github.com/matplotlib/matplotlib/issues/17755
-    # points = get_bloch_vector(get_states_from_prop(propagators, psi0)).T.reshape(-1, 1, 3)
-    # points[:, :, 1] *= -1  # qutip convention
-    # segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    points = get_bloch_vector(get_states_from_prop(propagators, psi0)).T.reshape(-1, 1, 3)
+    points[:, :, 1] *= -1  # qutip convention
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
 
-    # if cmap is None:
-    #     cmap = plt.get_cmap('winter')
+    cmap = plt.get_cmap(cmap)
+    segment_colors = cmap(np.linspace(0, 1, n_samples - 1))
+    lc = collections.LineCollection(segments[:, :, :2], colors=segment_colors)
+    b.axes.add_collection3d(lc, zdir='z', zs=segments[:, :, 2])
 
-    # colors = cmap(np.linspace(0, 1, n_samples - 1))
-    # lc = collections.LineCollection(segments[:, :, :2], colors=colors)
-    # b.axes.add_collection3d(lc, zdir='z', zs=segments[:, :, 2])
+    if add_cbar:
+        default_cbar_kwargs = dict(orientation='vertical', shrink=2/3, pad=0.05,
+                                   label=r'$t$ ($\tau$)', ticks=[0, 1])
+        cbar_kwargs = {**default_cbar_kwargs, **(cbar_kwargs or {})}
+        b.fig.colorbar(cm.ScalarMappable(cmap=cmap), **cbar_kwargs)
 
     if show:
         b.make_sphere()
