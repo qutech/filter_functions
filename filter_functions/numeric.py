@@ -475,25 +475,26 @@ def calculate_noise_operators_from_scratch(
         t: Optional[Coefficients] = None,
         show_progressbar: bool = False,
         cache_intermediates: bool = False
-) -> ndarray:
+) -> Union[ndarray, Tuple[ndarray, Dict[str, ndarray]]]:
     r"""
     Calculate the noise operators in interaction picture from scratch.
 
     Parameters
     ----------
     eigvals: array_like, shape (n_dt, d)
-        Eigenvalue vectors for each time pulse segment *g* with the first
-        axis counting the pulse segment, i.e.
+        Eigenvalue vectors for each time pulse segment *g* with the
+        first axis counting the pulse segment, i.e.
         ``eigvals == array([D_0, D_1, ...])``.
     eigvecs: array_like, shape (n_dt, d, d)
-        Eigenvector matrices for each time pulse segment *g* with the first
-        axis counting the pulse segment, i.e.
+        Eigenvector matrices for each time pulse segment *g* with the
+        first axis counting the pulse segment, i.e.
         ``eigvecs == array([V_0, V_1, ...])``.
     propagators: array_like, shape (n_dt+1, d, d)
-        The propagators :math:`Q_g = P_g P_{g-1}\cdots P_0` as a (d, d) array
-        with *d* the dimension of the Hilbert space.
+        The propagators :math:`Q_g = P_g P_{g-1}\cdots P_0` as a (d, d)
+        array with *d* the dimension of the Hilbert space.
     omega: array_like, shape (n_omega,)
-        Frequencies at which the pulse control matrix is to be evaluated.
+        Frequencies at which the pulse control matrix is to be
+        evaluated.
     n_opers: array_like, shape (n_nops, d, d)
         Noise operators :math:`B_\alpha`.
     n_coeffs: array_like, shape (n_nops, n_dt)
@@ -507,12 +508,19 @@ def calculate_noise_operators_from_scratch(
         computed from *dt*.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
+    cache_intermediates: bool, optional
+        Keep and return intermediate terms of the calculation that can
+        be reused in other computations (second order or gradients).
+        Otherwise the sum is performed in-place. The default is False.
 
     Returns
     -------
     noise_operators: ndarray, shape (n_omega, n_nops, d, d)
         The interaction picture noise operators
         :math:`\tilde{B}_\alpha(\omega)`.
+    intermediates: dict[str, ndarray]
+        Intermediate results of the calculation. Only if
+        cache_intermediates is True.
 
     Notes
     -----
@@ -700,7 +708,7 @@ def calculate_control_matrix_from_scratch(
         show_progressbar: bool = False,
         cache_intermediates: bool = False,
         out: Optional[ndarray] = None
-) -> Union[ndarray, Dict[str, ndarray]]:
+) -> Union[ndarray, Tuple[ndarray, Dict[str, ndarray]]]:
     r"""
     Calculate the control matrix from scratch, i.e. without knowledge of
     the control matrices of more atomic pulse sequences.
@@ -738,10 +746,9 @@ def calculate_control_matrix_from_scratch(
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
     cache_intermediates: bool, optional
-        Keep and return intermediate terms
-        :math:`\mathcal{G}^{(g)}(\omega)` of the sum so that
-        :math:`\mathcal{B}(\omega)=\sum_g\mathcal{G}^{(g)}(\omega)`.
-        Otherwise the sum is performed in-place.
+        Keep and return intermediate terms of the calculation that can
+        be reused in other computations (second order or gradients).
+        Otherwise the sum is performed in-place. The default is False.
     out: ndarray, optional
         A location into which the result is stored. See
         :func:`numpy.ufunc`.
@@ -934,7 +941,8 @@ def calculate_cumulant_function(
         decay_amplitudes: Optional[ndarray] = None,
         frequency_shifts: Optional[ndarray] = None,
         show_progressbar: bool = False,
-        memory_parsimonious: bool = False
+        memory_parsimonious: bool = False,
+        cache_intermediates: bool = False
 ) -> ndarray:
     r"""Calculate the cumulant function :math:`\mathcal{K}(\tau)`.
 
@@ -984,6 +992,11 @@ def calculate_cumulant_function(
         Trade memory footprint for performance. See
         :func:`~numeric.calculate_decay_amplitudes`. The default is
         ``False``.
+    cache_intermediates: bool, optional
+        Keep and return intermediate terms of the calculation of the
+        control matrix that can be reused in other computations (second
+        order or gradients). Otherwise the sum is performed in-place.
+        The default is False.
 
     Returns
     -------
@@ -1063,9 +1076,8 @@ def calculate_cumulant_function(
 
     if decay_amplitudes is None:
         decay_amplitudes = calculate_decay_amplitudes(pulse, spectrum, omega, n_oper_identifiers,
-                                                      which, show_progressbar,
-                                                      cache_intermediates=second_order,
-                                                      memory_parsimonious=memory_parsimonious)
+                                                      which, show_progressbar, cache_intermediates,
+                                                      memory_parsimonious)
 
     if second_order:
         if frequency_shifts is None:
@@ -1694,7 +1706,8 @@ def error_transfer_matrix(
         second_order: bool = False,
         cumulant_function: Optional[ndarray] = None,
         show_progressbar: bool = False,
-        memory_parsimonious: bool = False
+        memory_parsimonious: bool = False,
+        cache_intermediates: bool = False
 ) -> ndarray:
     r"""Compute the error transfer matrix up to unitary rotations.
 
@@ -1735,6 +1748,11 @@ def error_transfer_matrix(
         Trade memory footprint for performance. See
         :func:`~numeric.calculate_decay_amplitudes`. The default is
         ``False``.
+    cache_intermediates: bool, optional
+        Keep and return intermediate terms of the calculation of the
+        control matrix (if it is not already cached) that can be reused
+        for second order or gradients. Can consume large amount of
+        memory, but speed up the calculation.
 
     Returns
     -------
@@ -1787,7 +1805,8 @@ def error_transfer_matrix(
         cumulant_function = calculate_cumulant_function(pulse, spectrum, omega,
                                                         n_oper_identifiers, 'total', second_order,
                                                         show_progressbar=show_progressbar,
-                                                        memory_parsimonious=memory_parsimonious)
+                                                        memory_parsimonious=memory_parsimonious,
+                                                        cache_intermediates=cache_intermediates)
 
     try:
         # agnostic of the specific shape of cumulant_function, just sum over everything except for
@@ -1804,11 +1823,17 @@ def error_transfer_matrix(
 
 
 @util.parse_optional_parameters({'which': ('total', 'correlations')})
-def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
-               omega: Union[Coefficients, Dict[str, Union[int, str]]],
-               n_oper_identifiers: Optional[Sequence[str]] = None,
-               which: str = 'total', return_smallness: bool = False,
-               test_convergence: bool = False) -> Union[ndarray, Any]:
+def infidelity(
+        pulse: 'PulseSequence',
+        spectrum: Union[Coefficients, Callable],
+        omega: Union[Coefficients, Dict[str, Union[int, str]]],
+        n_oper_identifiers: Optional[Sequence[str]] = None,
+        which: str = 'total',
+        show_progressbar: bool = False,
+        cache_intermediates: bool = False,
+        return_smallness: bool = False,
+        test_convergence: bool = False
+) -> Union[ndarray, Any]:
     r"""Calculate the leading order entanglement infidelity.
 
     This function calculates the infidelity approximately from the
@@ -1861,6 +1886,12 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
         functions have been computed during concatenation (see
         :func:`calculate_pulse_correlation_filter_function` and
         :func:`~filter_functions.pulse_sequence.concatenate`).
+    show_progressbar: bool, optional
+        Show a progressbar for the calculation of the control matrix.
+    cache_intermediates: bool, optional
+        Keep and return intermediate terms of the calculation of the
+        control matrix (if it is not already cached) that can be reused
+        for second order or gradients. The default is False.
     return_smallness: bool, optional
         Return the smallness parameter :math:`\xi` for the given
         spectrum.
@@ -1998,7 +2029,8 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
             freqs = xspace(omega_IR, omega_UV, n//2)
             convergence_infids[i] = infidelity(pulse, spectrum(freqs), freqs,
                                                n_oper_identifiers=n_oper_identifiers,
-                                               which='total', return_smallness=False,
+                                               which='total', show_progressbar=show_progressbar,
+                                               cache_intermediates=False, return_smallness=False,
                                                test_convergence=False)
 
         return n_samples, convergence_infids
@@ -2012,11 +2044,13 @@ def infidelity(pulse: 'PulseSequence', spectrum: Union[Coefficients, Callable],
             traces_diag = (sparse.diagonal(traces, axis1=2, axis2=3).sum(-1) -
                            sparse.diagonal(traces, axis1=1, axis2=3).sum(-1)).todense()
 
-            control_matrix = pulse.get_control_matrix(omega)
+            control_matrix = pulse.get_control_matrix(omega, show_progressbar, cache_intermediates)
             filter_function = np.einsum('ako,blo,kl->abo',
                                         control_matrix.conj(), control_matrix, traces_diag)/pulse.d
         else:
-            filter_function = pulse.get_filter_function(omega)
+            filter_function = pulse.get_filter_function(omega, which='fidelity',
+                                                        show_progressbar=show_progressbar,
+                                                        cache_intermediates=cache_intermediates)
     else:
         # which == 'correlations'
         if not pulse.basis.istraceless:

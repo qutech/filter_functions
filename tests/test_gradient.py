@@ -72,6 +72,38 @@ class GradientTest(testutil.TestCase):
             )
             self.assertArrayAlmostEqual(ana_grad, fin_diff_grad, rtol=1e-6, atol=1e-8)
 
+    def test_caching(self):
+        """Make sure calculation works with or without cached intermediates."""
+
+        for d, n_dt in zip(testutil.rng.integers(2, 5, 5), testutil.rng.integers(2, 8, 5)):
+            pulse = testutil.rand_pulse_sequence(d, n_dt)
+            omega = ff.util.get_sample_frequencies(pulse, n_samples=27)
+            spect = 1/omega
+
+            # Cache control matrix but not intermediates
+            pulse.cache_control_matrix(omega, cache_intermediates=False)
+            infid_nocache = ff.infidelity(pulse, spect, omega, cache_intermediates=False)
+            infid_cache = ff.infidelity(pulse, spect, omega, cache_intermediates=True)
+
+            self.assertArrayAlmostEqual(infid_nocache, infid_cache)
+
+            cm_nocache = ff.gradient.calculate_derivative_of_control_matrix_from_scratch(
+                omega, pulse.propagators, pulse.eigvals, pulse.eigvecs, pulse.basis, pulse.t,
+                pulse.dt, pulse.n_opers, pulse.n_coeffs, pulse.c_opers, pulse.c_oper_identifiers,
+                intermediates=dict()
+            )
+
+            pulse.cleanup('frequency dependent')
+            pulse.cache_control_matrix(omega, cache_intermediates=True)
+            cm_cache = ff.gradient.calculate_derivative_of_control_matrix_from_scratch(
+                omega, pulse.propagators, pulse.eigvals, pulse.eigvecs, pulse.basis, pulse.t,
+                pulse.dt, pulse.n_opers, pulse.n_coeffs, pulse.c_opers, pulse.c_oper_identifiers,
+                intermediates=pulse._intermediates
+            )
+
+            self.assertArrayAlmostEqual(cm_nocache, cm_cache)
+
+
     def test_raises(self):
         pulse = testutil.rand_pulse_sequence(2, 3)
         omega = ff.util.get_sample_frequencies(pulse, n_samples=13)
