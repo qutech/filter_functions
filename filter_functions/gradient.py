@@ -487,7 +487,8 @@ def calculate_derivative_of_control_matrix_from_scratch(
     basis_transformed = numeric._transform_by_unitary(eigvecs[:, None], basis[None],
                                                       out=np.empty((n_dt, d**2, d, d), complex))
     c_opers_transformed = numeric._transform_hamiltonian(eigvecs, c_opers[idx]).swapaxes(0, 1)
-    if intermediates is None:
+    if not intermediates:
+        # None or empty
         n_opers_transformed = numeric._transform_hamiltonian(eigvecs, n_opers,
                                                              n_coeffs).swapaxes(0, 1)
         exp_buf, integral = np.empty((2, n_omega, d, d), dtype=complex)
@@ -507,7 +508,7 @@ def calculate_derivative_of_control_matrix_from_scratch(
                                           n_opers.shape, (len(omega), d, d),
                                           optimize=[(0, 3), (0, 1), (0, 1)])
     for g in range(n_dt):
-        if intermediates is None:
+        if not intermediates:
             integral = numeric._first_order_integral(omega, eigvals[g], dt[g], exp_buf, integral)
         else:
             integral = intermediates['first_order_integral'][g]
