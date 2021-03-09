@@ -223,12 +223,17 @@ def plot_bloch_vector_evolution(
         raise ValueError('Plotting Bloch sphere evolution only implemented for one-qubit case!')
 
     # Parse default arguments
+    figsize = bloch_kwargs.pop('figsize', [5, 5])
+    view = bloch_kwargs.pop('view', [-60, 30])
     if b is None:
-        figsize = bloch_kwargs.pop('figsize', [5, 5])
-        view = bloch_kwargs.pop('view', [-60, 30])
         fig = plt.figure(figsize=figsize)
         axes = mplot3d.Axes3D(fig, azim=view[0], elev=view[1])
         b = init_bloch_sphere(fig=fig, axes=axes, **bloch_kwargs)
+    else:
+        if b.fig is None:
+            b.fig = plt.figure(figsize=figsize)
+        if b.axes is None:
+            b.axes = mplot3d.Axes3D(b.fig, azim=view[0], elev=view[1])
 
     if n_samples is None:
         # 5 time points during  the smallest time interval in pulse.t. Being
