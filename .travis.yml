@@ -20,6 +20,17 @@ env:
     - INSTALL_EXTRAS=[plotting,fancy_progressbar]
     - INSTALL_EXTRAS=[none]
 
+# Cache pip packages
+cache:
+  pip: true
+  timeout: 1000
+  directories:
+    - $HOME/miniconda
+
+before_cache:
+  - rm -rf $HOME/miniconda/locks $HOME/miniconda/pkgs $HOME/miniconda/var
+  - rm -rf $HOME/miniconda/conda-bld $HOME/miniconda/conda-meda/history
+  
 before_install:
   # Resolve INSTALL_EXTRAS into required packages for use with conda. HACKY
   # Split by comma and replace by parameter designator ($)
