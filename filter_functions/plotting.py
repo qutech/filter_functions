@@ -245,7 +245,10 @@ def plot_bloch_vector_evolution(
     propagators = pulse.propagator_at_arb_t(times)
 
     points = get_bloch_vector(get_states_from_prop(propagators, psi0)).T.reshape(-1, 1, 3)
-    points[:, :, 1] *= -1  # qutip convention
+    # Qutip convention: -x at +y, +y at +x
+    copy = points.copy()
+    points[:, :, 0] = copy[:, :, 1]
+    points[:, :, 1] = -copy[:, :, 0]
     segments = np.concatenate([points[:-1], points[1:]], axis=1)
 
     cmap = plt.get_cmap(cmap)
@@ -254,8 +257,7 @@ def plot_bloch_vector_evolution(
     b.axes.add_collection3d(lc, zdir='z', zs=segments[:, :, 2])
 
     if add_cbar:
-        default_cbar_kwargs = dict(orientation='vertical', shrink=2/3, pad=0.05,
-                                   label=r'$t$ ($\tau$)', ticks=[0, 1])
+        default_cbar_kwargs = dict(shrink=2/3, pad=0.05, label=r'$t$ ($\tau$)', ticks=[0, 1])
         cbar_kwargs = {**default_cbar_kwargs, **(cbar_kwargs or {})}
         b.fig.colorbar(cm.ScalarMappable(cmap=cmap), **cbar_kwargs)
 
