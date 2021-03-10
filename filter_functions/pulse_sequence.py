@@ -1300,13 +1300,11 @@ def _concatenate_Hamiltonian(
         # cannot do this, we have to raise an exception since we cannot know
         # the sensitivities at other moments in time if they are non-trivial.
         nan_mask = np.isnan(concat_coeffs)
-        # test = np.logical_and(nan_mask.any(axis=1), ~nan_mask.all(axis=1))
         test = nan_mask.any(axis=1)
         for i, (concat_coeff, mask) in enumerate(zip(concat_coeffs[test], nan_mask[test])):
             nonnan_coeff = concat_coeff[~mask]
-            constant = (nonnan_coeff == nonnan_coeff[0]).all()
-            if constant:
-                # Fill with constant value
+            if (nonnan_coeff == nonnan_coeff[0]).all():
+                # Constant value, use for empty segment
                 concat_coeffs[i, mask] = nonnan_coeff[0]
             else:
                 raise ValueError('Not all pulses have the same noise operators and ' +
