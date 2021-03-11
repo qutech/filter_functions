@@ -1528,18 +1528,9 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     attributes.update(**{key: value for key, value in zip(noise_keys, noise_values)})
 
     newpulse = PulseSequence(**attributes)
-
-    if all(pulse.is_cached('t') for pulse in pulses):
-        # Cache times
-        times = [pulses[0].t]
-        for pulse in pulses[1:]:
-            times.append(pulse.t[1:] + times[-1][-1])
-
-        newpulse.t = np.concatenate(times)
-    else:
-        # Only cache total duration (whole array of times might be large
-        # in case of concatenation)
-        newpulse.tau = sum(pulse.tau for pulse in pulses)
+    # Only cache total duration (whole array of times might be large
+    # in case of concatenation)
+    newpulse.tau = sum(pulse.tau for pulse in pulses)
 
     if return_identifier_mappings:
         return newpulse, control_values[-1], noise_values[-1]
