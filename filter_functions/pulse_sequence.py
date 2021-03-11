@@ -1281,7 +1281,7 @@ def _concatenate_Hamiltonian(
 
     # Concatenate the coefficients. Place them in the right time segments of
     # the concatenated Hamiltonian.
-    concat_coeffs = np.zeros((len(concat_identifiers), sum(n_dt)), dtype=float)
+    concat_coeffs = np.full((len(concat_identifiers), sum(n_dt)), fill_value=np.nan)
     flat_coeffs = [co for coeff in coeffs for co in coeff]
     for i in range(len(concat_identifiers)):
         # Get the indices in opers (and coeffs) for the i-th unique operator
@@ -1299,17 +1299,18 @@ def _concatenate_Hamiltonian(
         # the remaining segments as usually the sensitivity is constant. If we
         # cannot do this, we have to raise an exception since we cannot know
         # the sensitivities at other moments in time if they are non-trivial.
-        for i, c_coeffs in enumerate(concat_coeffs):
-            zero_mask = (c_coeffs == 0)
-            if zero_mask.any() and not zero_mask.all():
-                nonzero_coeffs = c_coeffs[~zero_mask]
-                constant = (nonzero_coeffs == nonzero_coeffs[0]).all()
-                if constant:
-                    # Fill with constant value
-                    concat_coeffs[i, zero_mask] = nonzero_coeffs[0]
-                else:
-                    raise ValueError('Not all pulses have the same noise operators and ' +
-                                     'non-trivial noise sensitivities so I cannot infer them.')
+        nan_mask = np.isnan(concat_coeffs)
+        test = nan_mask.any(axis=1)
+        for i, (concat_coeff, mask) in enumerate(zip(concat_coeffs[test], nan_mask[test])):
+            nonnan_coeff = concat_coeff[~mask]
+            if (nonnan_coeff == nonnan_coeff[0]).all():
+                # Constant value, use for empty segment
+                concat_coeffs[i, mask] = nonnan_coeff[0]
+            else:
+                raise ValueError('Not all pulses have the same noise operators and ' +
+                                 'non-trivial noise sensitivities so I cannot infer them.')
+    else:
+        concat_coeffs[np.isnan(concat_coeffs)] = 0
 
     return concat_opers, concat_identifiers, concat_coeffs[sort_idx], pulse_identifier_mapping
 
@@ -1482,12 +1483,12 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
 
     # Compose new control Hamiltonian
     control_values = _concatenate_Hamiltonian(
-        *list(zip(*[tuple(getattr(pulse, key) for key in control_keys) for pulse in pulses])),
+        *zip(*[[getattr(pulse, key) for key in control_keys] for pulse in pulses]),
         kind='control'
     )
     # Compose new control Hamiltonian
     noise_values = _concatenate_Hamiltonian(
-        *list(zip(*[tuple(getattr(pulse, key) for key in noise_keys) for pulse in pulses])),
+        *zip(*[[getattr(pulse, key) for key in noise_keys] for pulse in pulses]),
         kind='noise'
     )
 

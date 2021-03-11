@@ -469,6 +469,13 @@ class CoreTest(testutil.TestCase):
                                     [X, rng.standard_normal(2)]],
                                    [[Z, np.abs(rng.standard_normal(2))]],
                                    [1, 1])
+        pulse_4 = ff.PulseSequence([[Y, rng.standard_normal(2)],
+                                    [X, rng.standard_normal(2)]],
+                                   [[Z, np.ones(2)]],
+                                   [1, 1])
+        pulse_5 = ff.PulseSequence([[Y, np.zeros(5), 'A_0']],
+                                   [[Y, np.zeros(5), 'B_1']],
+                                   1 - rng.random(5))
 
         # Concatenate with different noise opers
         pulses = [testutil.rand_pulse_sequence(2, 1) for _ in range(2)]
@@ -479,6 +486,7 @@ class CoreTest(testutil.TestCase):
 
         pulse_12 = pulse_1 @ pulse_2
         pulse_21 = pulse_2 @ pulse_1
+        pulse_45 = pulse_4 @ pulse_5
 
         with self.assertRaises(TypeError):
             _ = pulse_1 @ rng.standard_normal((2, 2))
@@ -514,6 +522,16 @@ class CoreTest(testutil.TestCase):
 
         self.assertArrayEqual(pulse_12.n_coeffs, [[*z_coeff_1, *z_coeff_2]])
         self.assertArrayEqual(pulse_21.n_coeffs, [[*z_coeff_2, *z_coeff_1]])
+
+        # Make sure zero coefficients are handled correctly
+        self.assertFalse(np.any(np.isnan(pulse_45.c_coeffs)))
+        self.assertFalse(np.any(np.isnan(pulse_45.n_coeffs)))
+        self.assertArrayEqual(pulse_45.c_coeffs,
+                              [[*pulse_4.c_coeffs[0], *np.zeros(5)],
+                               [*pulse_4.c_coeffs[1], *np.zeros(5)]])
+        self.assertArrayEqual(pulse_45.n_coeffs,
+                              [[*pulse_4.n_coeffs[0], *[pulse_4.n_coeffs[0, 0]]*5],
+                               [*[pulse_5.n_coeffs[0, 0]]*2, *pulse_5.n_coeffs[0]]])
 
         omega = np.linspace(-100, 100, 101)
         pulses = (pulse_1, pulse_2, pulse_12, pulse_21)
