@@ -417,22 +417,37 @@ class PulseSequence:
         return getattr(self, attr) is not None
 
     @property
-    def t(self):
+    def t(self) -> ndarray:
         """The times of the pulse."""
         if self._t is None:
             self._t = np.concatenate(([0], self.dt.cumsum()))
 
         return self._t
 
+    @t.setter
+    def t(self, val: ndarray):
+        """Set the times of the pulse."""
+        self._t = val
+
     @property
-    def tau(self):
+    def tau(self) -> Union[float, int]:
         """The duration of the pulse."""
-        if self.t is not None:
+        if self._t is not None:
             self._tau = self.t[-1]
         else:
             self._tau = self.dt.sum()
 
         return self._tau
+
+    @tau.setter
+    def tau(self, val: Union[float, int]):
+        """Set the total duration of the pulse."""
+        self._tau = val
+
+    @property
+    def duration(self) -> float:
+        """The duration of the pulse. Alias of tau."""
+        return self.tau
 
     def diagonalize(self) -> None:
         r"""Diagonalize the Hamiltonian defining the pulse sequence."""
@@ -443,7 +458,6 @@ class PulseSequence:
             self.eigvals, self.eigvecs, self.propagators = numeric.diagonalize(hamiltonian,
                                                                                self.dt)
 
-        # Set the total propagator
         self.total_propagator = self.propagators[-1]
 
     def get_control_matrix(self, omega: Coefficients, show_progressbar: bool = False,
@@ -1521,11 +1535,11 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
         for pulse in pulses[1:]:
             times.append(pulse.t[1:] + times[-1][-1])
 
-        newpulse._t = np.concatenate(times)
+        newpulse.t = np.concatenate(times)
     else:
         # Only cache total duration (whole array of times might be large
         # in case of concatenation)
-        newpulse._tau = sum(pulse.tau for pulse in pulses)
+        newpulse.tau = sum(pulse.tau for pulse in pulses)
 
     if return_identifier_mappings:
         return newpulse, control_values[-1], noise_values[-1]
@@ -1792,7 +1806,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
         d=pulse.d,
         basis=pulse.basis
     )
-    newpulse._tau = repeats*pulse.tau
+    newpulse.tau = repeats*pulse.tau
 
     if not cached_ctrl_mat:
         # No cached filter functions to reuse and pulse correlation FFs not
@@ -1902,8 +1916,8 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
         d=pulse.d,
         basis=pulse.basis
     )
-    remapped_pulse._t = pulse._t
-    remapped_pulse._tau = pulse._tau
+    remapped_pulse.t = pulse._t
+    remapped_pulse.tau = pulse._tau
 
     if pulse.is_cached('eigvals'):
         remapped_pulse.eigvals = util.tensor_transpose(pulse.eigvals, order,
@@ -2324,8 +2338,8 @@ def extend(
         d=d,
         basis=basis
     )
-    newpulse._t = pulses[0]._t
-    newpulse._tau = pulses[0]._tau
+    newpulse.t = pulses[0]._t
+    newpulse.tau = pulses[0]._tau
 
     if newpulse.basis.btype != 'Pauli':
         # Cannot do any extensions
