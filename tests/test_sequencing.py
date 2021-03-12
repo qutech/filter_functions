@@ -769,7 +769,7 @@ class ExtensionTest(testutil.TestCase):
         pulse_2 = testutil.rand_pulse_sequence(2, 10, btype='Pauli')
         pulse_3 = testutil.rand_pulse_sequence(2, 10, btype='GGM')
         pulse_2.dt = pulse_1.dt
-        pulse_2.t = pulse_1.t
+        pulse_2._tau = pulse_1._tau
         omega = util.get_sample_frequencies(pulse_1, 50)
 
         # diagonalize one pulse

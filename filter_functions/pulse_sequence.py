@@ -243,15 +243,12 @@ class PulseSequence:
         self.c_coeffs = None
         self.n_coeffs = None
         self.dt = None
-        self.t = None
-        self.tau = None
         self.d = None
         self.basis = None
 
         # Parse the input arguments and set attributes
         attributes = ('c_opers', 'c_oper_identifiers', 'c_coeffs', 'n_opers',
-                      'n_oper_identifiers', 'n_coeffs', 'dt', 't', 'tau', 'd',
-                      'basis')
+                      'n_oper_identifiers', 'n_coeffs', 'dt', 'd', 'basis')
         if not args:
             # Bypass args parsing and directly set necessary attributes
             values = (kwargs[attr] for attr in attributes)
@@ -270,6 +267,8 @@ class PulseSequence:
             setattr(self, attr, value)
 
         # Initialize attributes that can be set by bound methods to None
+        self._t = None
+        self._tau = None
         self._omega = None
         self._eigvals = None
         self._eigvecs = None
@@ -417,6 +416,39 @@ class PulseSequence:
 
         return getattr(self, attr) is not None
 
+    @property
+    def t(self) -> ndarray:
+        """The times of the pulse."""
+        if self._t is None:
+            self._t = np.concatenate(([0], self.dt.cumsum()))
+
+        return self._t
+
+    @t.setter
+    def t(self, val: ndarray):
+        """Set the times of the pulse."""
+        self._t = val
+
+    @property
+    def tau(self) -> Union[float, int]:
+        """The duration of the pulse."""
+        if self._t is not None:
+            self._tau = self.t[-1]
+        else:
+            self._tau = self.dt.sum()
+
+        return self._tau
+
+    @tau.setter
+    def tau(self, val: Union[float, int]):
+        """Set the total duration of the pulse."""
+        self._tau = val
+
+    @property
+    def duration(self) -> float:
+        """The duration of the pulse. Alias of tau."""
+        return self.tau
+
     def diagonalize(self) -> None:
         r"""Diagonalize the Hamiltonian defining the pulse sequence."""
         # Only calculate if not done so before
@@ -426,7 +458,6 @@ class PulseSequence:
             self.eigvals, self.eigvecs, self.propagators = numeric.diagonalize(hamiltonian,
                                                                                self.dt)
 
-        # Set the total propagator
         self.total_propagator = self.propagators[-1]
 
     def get_control_matrix(self, omega: Coefficients, show_progressbar: bool = False,
@@ -1089,8 +1120,6 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
         # Check operator shapes
         raise ValueError('Control and noise Hamiltonian not same dimension!')
 
-    t = np.concatenate(([0], dt.cumsum()))
-    tau = t[-1]
     # Dimension of the system
     d = control_args[0].shape[-1]
 
@@ -1109,7 +1138,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
             raise ValueError("Expected basis elements to be of shape " +
                              f"({d}, {d}), not {basis.shape[1:]}!")
 
-    return (*control_args, *noise_args, dt, t, tau, d, basis)
+    return (*control_args, *noise_args, dt, d, basis)
 
 
 def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[Operator],
@@ -1493,14 +1522,16 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     )
 
     dt = np.concatenate(tuple(pulse.dt for pulse in pulses))
-    t = np.concatenate(([0], dt.cumsum()))
-    tau = t[-1]
 
-    attributes = {'dt': dt, 't': t, 'tau': tau, 'd': pulses[0].d, 'basis': basis}
+    attributes = {'dt': dt, 'd': pulses[0].d, 'basis': basis}
     attributes.update(**{key: value for key, value in zip(control_keys, control_values)})
     attributes.update(**{key: value for key, value in zip(noise_keys, noise_values)})
 
     newpulse = PulseSequence(**attributes)
+    # Only cache total duration (whole array of times might be large
+    # in case of concatenation)
+    newpulse.tau = sum(pulse.tau for pulse in pulses)
+
     if return_identifier_mappings:
         return newpulse, control_values[-1], noise_values[-1]
 
@@ -1755,8 +1786,6 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
     dt = np.tile(pulse.dt, repeats)
-    t = np.concatenate(([0], dt.cumsum()))
-    tau = t[-1]
     newpulse = PulseSequence(
         c_opers=pulse.c_opers,
         n_opers=pulse.n_opers,
@@ -1765,11 +1794,10 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
         c_coeffs=np.tile(pulse.c_coeffs, (1, repeats)),
         n_coeffs=np.tile(pulse.n_coeffs, (1, repeats)),
         dt=dt,
-        t=t,
-        tau=tau,
         d=pulse.d,
         basis=pulse.basis
     )
+    newpulse.tau = repeats*pulse.tau
 
     if not cached_ctrl_mat:
         # No cached filter functions to reuse and pulse correlation FFs not
@@ -1876,11 +1904,11 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
         c_coeffs=pulse.c_coeffs[c_sort_idx],
         n_coeffs=pulse.n_coeffs[n_sort_idx],
         dt=pulse.dt,
-        t=pulse.t,
-        tau=pulse.tau,
         d=pulse.d,
         basis=pulse.basis
     )
+    remapped_pulse.t = pulse._t
+    remapped_pulse.tau = pulse._tau
 
     if pulse.is_cached('eigvals'):
         remapped_pulse.eigvals = util.tensor_transpose(pulse.eigvals, order,
@@ -2298,11 +2326,11 @@ def extend(
         c_coeffs=np.asarray(c_coeffs)[c_sort_idx],
         n_coeffs=np.asarray(n_coeffs)[n_sort_idx],
         dt=pulses[0].dt,
-        t=pulses[0].t,
-        tau=pulses[0].tau,
         d=d,
         basis=basis
     )
+    newpulse.t = pulses[0]._t
+    newpulse.tau = pulses[0]._tau
 
     if newpulse.basis.btype != 'Pauli':
         # Cannot do any extensions

@@ -394,6 +394,8 @@ class CoreTest(testutil.TestCase):
             assertion(A.is_cached(alias.replace(' ', '_')))
 
         A.cleanup('all')
+        A._t = None
+        A._tau = None
 
         # Test cleanup
         C = ff.concatenate((A, A), calc_pulse_correlation_FF=True,
@@ -448,6 +450,14 @@ class CoreTest(testutil.TestCase):
         for attr in set(attrs).difference(freq_attrs):
             self.assertIsNotNone(getattr(C, attr))
 
+        # Test t, tau, and duration properties
+        pulse = testutil.rand_pulse_sequence(2, 3, 1, 1)
+        self.assertIs(pulse._t, None)
+        self.assertIs(pulse._tau, None)
+        self.assertArrayEqual(pulse.t, [0, *pulse.dt.cumsum()])
+        self.assertEqual(pulse.tau, pulse.t[-1])
+        self.assertEqual(pulse.duration, pulse.tau)
+
     def test_pulse_sequence_attributes_concat(self):
         """Test attributes of concatenated sequence."""
         X, Y, Z = util.paulis[1:]
@@ -484,10 +494,6 @@ class CoreTest(testutil.TestCase):
         newpulse = ff.concatenate(pulses, calc_filter_function=True)
         self.assertTrue(newpulse.is_cached('filter function'))
 
-        pulse_12 = pulse_1 @ pulse_2
-        pulse_21 = pulse_2 @ pulse_1
-        pulse_45 = pulse_4 @ pulse_5
-
         with self.assertRaises(TypeError):
             _ = pulse_1 @ rng.standard_normal((2, 2))
 
@@ -498,8 +504,25 @@ class CoreTest(testutil.TestCase):
         # Test nbytes property
         _ = pulse_1.nbytes
 
+        pulse_12 = pulse_1 @ pulse_2
+        pulse_21 = pulse_2 @ pulse_1
+        pulse_45 = pulse_4 @ pulse_5
+
         self.assertArrayEqual(pulse_12.dt, [*dt_1, *dt_2])
         self.assertArrayEqual(pulse_21.dt, [*dt_2, *dt_1])
+
+        self.assertIs(pulse_12._t, None)
+        self.assertIs(pulse_21._t, None)
+
+        self.assertEqual(pulse_12._tau, pulse_1.tau + pulse_2.tau)
+        self.assertEqual(pulse_21._tau, pulse_1.tau + pulse_2.tau)
+
+        self.assertAlmostEqual(pulse_12.duration, pulse_1.duration + pulse_2.duration)
+        self.assertAlmostEqual(pulse_21.duration, pulse_2.duration + pulse_1.duration)
+        self.assertAlmostEqual(pulse_12.duration, pulse_21.duration)
+
+        self.assertArrayAlmostEqual(pulse_12.t, [*pulse_1.t, *(pulse_2.t[1:] + pulse_1.tau)])
+        self.assertArrayAlmostEqual(pulse_21.t, [*pulse_2.t, *(pulse_1.t[1:] + pulse_2.tau)])
 
         self.assertArrayEqual(pulse_12.c_opers, [X, Y])
         self.assertArrayEqual(pulse_21.c_opers, [Y, X])
@@ -562,6 +585,13 @@ class CoreTest(testutil.TestCase):
 
         self.assertArrayEqual(pulse.c_oper_identifiers, sorted(ids))
         self.assertArrayEqual(pulse.n_oper_identifiers, sorted(ids))
+
+        pulse = testutil.rand_pulse_sequence(2, 7, 1, 2)
+        periodic_pulse = ff.concatenate_periodic(pulse, 7)
+
+        self.assertIs(periodic_pulse._t, None)
+        self.assertEqual(periodic_pulse._tau, pulse.tau * 7)
+        self.assertArrayAlmostEqual(periodic_pulse.t, [0, *periodic_pulse.dt.cumsum()])
 
     def test_cache_intermediates(self):
         """Test caching of intermediate elements"""
