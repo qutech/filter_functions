@@ -942,7 +942,7 @@ def calculate_cumulant_function(
         frequency_shifts: Optional[ndarray] = None,
         show_progressbar: bool = False,
         memory_parsimonious: bool = False,
-        cache_intermediates: bool = False
+        cache_intermediates: Optional[bool] = None
 ) -> ndarray:
     r"""Calculate the cumulant function :math:`\mathcal{K}(\tau)`.
 
@@ -996,7 +996,7 @@ def calculate_cumulant_function(
         Keep and return intermediate terms of the calculation of the
         control matrix that can be reused in other computations (second
         order or gradients). Otherwise the sum is performed in-place.
-        The default is False.
+        Default is True if second_order=True, else False.
 
     Returns
     -------
@@ -1073,6 +1073,9 @@ def calculate_cumulant_function(
 
     if which == 'correlations' and second_order:
         raise ValueError('Cannot compute correlation cumulant function for second order terms')
+
+    if cache_intermediates is None:
+        cache_intermediates = second_order
 
     if decay_amplitudes is None:
         decay_amplitudes = calculate_decay_amplitudes(pulse, spectrum, omega, n_oper_identifiers,
@@ -1517,27 +1520,31 @@ def calculate_second_order_filter_function(
     result = np.zeros(shape, dtype=complex)
 
     # intermediate results from calculation of control matrix
-    if not intermediates:
-        # Require absolut times for calculation of control matrix at step g
-        t = np.concatenate(([0], np.asarray(dt).cumsum()))
-        # Cheap to precompute as these don't use a lot of memory
-        eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
-        n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
-        # These are populated anew during every iteration, so there is no need
-        # to keep every time step
-        basis_transformed = np.empty(basis.shape, dtype=complex)
-        ctrlmat_step = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
-    else:
-        n_opers_transformed = intermediates['n_opers_transformed']
+    if intermediates is None:
+        intermediates = dict()
+
+    # Work around possibly populated intermediates dict with missing keys
+    n_opers_transformed = intermediates.get('n_opers_transformed',
+                                            _transform_hamiltonian(eigvecs, n_opers, n_coeffs))
+    try:
         basis_transformed_cache = intermediates['basis_transformed']
         ctrlmat_step_cache = intermediates['control_matrix_step']
+        have_intermediates = True
+    except KeyError:
+        have_intermediates = False
+        # No cache. Precompute some things and perform the costly computations
+        # during each loop iteration below
+        t = np.concatenate(([0], np.asarray(dt).cumsum()))
+        eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
+        basis_transformed = np.empty(basis.shape, dtype=complex)
+        ctrlmat_step = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
 
     step_expr = oe.contract_expression('oijmn,akij,blmn->abklo', int_buf.shape,
                                        *[(len(n_coeffs), len(basis), d, d)]*2,
                                        optimize=[(0, 1), (0, 1)])
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating second order FF'):
-        if not intermediates:
+        if not have_intermediates:
             basis_transformed = _transform_by_unitary(eigvecs_propagated[g], basis,
                                                       out=basis_transformed)
             # Need to compute G^(g) since no cache given. First initialize
