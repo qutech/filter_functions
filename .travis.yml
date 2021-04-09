@@ -6,6 +6,7 @@ python:
   - 3.6
   - 3.7
   - 3.8
+  - 3.9
 env:
   global:
     - INSTALL_DEPS="numpy scipy opt_einsum sparse tqdm"
@@ -28,7 +29,7 @@ cache:
 before_cache:
   - rm -rf $HOME/miniconda/locks $HOME/miniconda/pkgs $HOME/miniconda/var
   - rm -rf $HOME/miniconda/conda-bld $HOME/miniconda/conda-meda/history
-  
+
 before_install:
   # Resolve INSTALL_EXTRAS into required packages for use with conda. HACKY
   # Split by comma and replace by parameter designator ($)
