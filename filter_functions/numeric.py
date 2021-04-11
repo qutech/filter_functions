@@ -1786,7 +1786,7 @@ def error_transfer_matrix(
     For non-Gaussian noise the expression above is perturbative and
     includes noise up to order :math:`\xi^2` and hence
     :math:`\tilde{\mathcal{U}} = \mathbb{1} + \mathcal{K}(\tau) +
-    \mathcal{O}(\xi^2)`
+    \mathcal{O}(\xi^4)`
     (although it is evaluated as a matrix exponential in any case).
 
     Given the above expression of the error transfer matrix, the
