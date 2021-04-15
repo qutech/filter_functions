@@ -1524,8 +1524,10 @@ def calculate_second_order_filter_function(
         intermediates = dict()
 
     # Work around possibly populated intermediates dict with missing keys
-    n_opers_transformed = intermediates.get('n_opers_transformed',
-                                            _transform_hamiltonian(eigvecs, n_opers, n_coeffs))
+    n_opers_transformed = intermediates.get('n_opers_transformed')
+    if n_opers_transformed is None:
+        n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
+
     try:
         basis_transformed_cache = intermediates['basis_transformed']
         ctrlmat_step_cache = intermediates['control_matrix_step']
