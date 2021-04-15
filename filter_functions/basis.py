@@ -568,7 +568,7 @@ def _full_from_partial(elems: Sequence, traceless: bool, labels: Sequence[str]) 
     else:
         ggm = Basis.ggm(elems.d)
 
-    coeffs = expand(elems, ggm, tidyup=True)
+    coeffs = expand(elems, ggm, hermitian=elems.isherm, tidyup=True)
     # Throw out coefficient vectors that are all zero (should only happen for
     # the identity)
     coeffs = coeffs[(coeffs != 0).any(axis=-1)]
