@@ -902,7 +902,6 @@ def oper_equiv(psi: Union[Operator, State], phi: Union[Operator, State],
     """
     # Convert qutip.Qobj's to numpy arrays
     psi, phi = [obj.full() if hasattr(obj, 'full') else obj for obj in (psi, phi)]
-
     psi, phi = np.atleast_2d(psi, phi)
 
     if eps is None:
@@ -915,14 +914,15 @@ def oper_equiv(psi: Union[Operator, State], phi: Union[Operator, State],
             eps *= (np.prod(psi.shape[-2:])*phi.shape[-1]*2)**2
 
     try:
-        inner_product = (psi.swapaxes(-1, -2).conj() @ phi).trace(0, -1, -2)
+        # Don't need to round at this point
+        inner_product = dot_HS(psi, phi, eps=0)
     except ValueError as err:
         raise ValueError('psi and phi have incompatible dimensions!') from err
 
     if normalized:
         norm = 1
     else:
-        norm = nla.norm(psi, axis=(-1, -2))*nla.norm(phi, axis=(-1, -2))
+        norm = np.sqrt(dot_HS(psi, psi, eps=0)*dot_HS(phi, phi, eps=0))
 
     phase = np.angle(inner_product)
     modulus = abs(inner_product)
@@ -940,6 +940,9 @@ def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> float:
     ----------
     U, V: qutip.Qobj or ndarray
         Objects to compute the inner product of.
+    eps: float
+        The floating point precision. The result is rounded to
+        `abs(int(np.log10(eps)))` decimals if `eps > 0`.
 
     Returns
     -------
@@ -970,17 +973,15 @@ def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> float:
             eps = 0
 
     if eps == 0:
-        decimals = 0
+        res = np.einsum('...ij,...ij', U.conj(), V)
     else:
-        decimals = abs(int(np.log10(eps)))
+        res = np.around(np.einsum('...ij,...ij', U.conj(), V), decimals=abs(int(np.log10(eps))))
 
-    res = np.round(np.einsum('...ij,...ij', U.conj(), V), decimals)
     return res if res.imag.any() else res.real
 
 
 @parse_optional_parameters({'spacing': ('log', 'linear')})
-def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
-                           spacing: str = 'log',
+def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing: str = 'log',
                            include_quasistatic: bool = False) -> ndarray:
     """Get *n_samples* sample frequencies spaced 'linear' or 'log'.
 
