@@ -75,7 +75,6 @@ from itertools import zip_longest
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-from numpy import linalg as nla
 from numpy import ndarray
 
 from .types import Operator, State
