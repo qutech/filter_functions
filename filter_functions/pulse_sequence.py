@@ -564,7 +564,7 @@ class PulseSequence:
             "True."
         )
 
-    @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
+    @util.parse_optional_parameters(which=('fidelity', 'generalized'), order=(1, 2))
     def get_filter_function(
             self, omega: Coefficients,
             which: str = 'fidelity',
@@ -664,7 +664,7 @@ class PulseSequence:
             # order == 2
             return self._filter_function_2
 
-    @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
+    @util.parse_optional_parameters(which=('fidelity', 'generalized'), order=(1, 2))
     def cache_filter_function(
             self, omega: Coefficients,
             control_matrix: Optional[ndarray] = None,
@@ -983,8 +983,8 @@ class PulseSequence:
 
         return sum(_nbytes)
 
-    @util.parse_optional_parameters({'method': ('conservative', 'greedy',
-                                                'frequency dependent', 'all')})
+    @util.parse_optional_parameters(method=('conservative', 'greedy',
+                                            'frequency dependent', 'all'))
     def cleanup(self, method: str = 'conservative') -> None:
         """
         Delete cached byproducts of the calculation of the filter

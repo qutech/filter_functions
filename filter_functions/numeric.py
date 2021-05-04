@@ -624,7 +624,7 @@ def calculate_noise_operators_from_scratch(
     return noise_operators
 
 
-@util.parse_optional_parameters({'which': ('total', 'correlations')})
+@util.parse_optional_parameters(which=('total', 'correlations'))
 def calculate_control_matrix_from_atomic(
         phases: ndarray,
         control_matrix_atomic: ndarray,
@@ -930,7 +930,7 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     return control_matrix_tot
 
 
-@util.parse_optional_parameters({'which': ('total', 'correlations')})
+@util.parse_optional_parameters(which=('total', 'correlations'))
 def calculate_cumulant_function(
         pulse: 'PulseSequence',
         spectrum: Optional[ndarray] = None,
@@ -1134,7 +1134,7 @@ def calculate_cumulant_function(
     return cumulant_function.real
 
 
-@util.parse_optional_parameters({'which': ('total', 'correlations')})
+@util.parse_optional_parameters(which=('total', 'correlations'))
 def calculate_decay_amplitudes(
         pulse: 'PulseSequence',
         spectrum: ndarray,
@@ -1831,7 +1831,7 @@ def error_transfer_matrix(
     return error_transfer_matrix
 
 
-@util.parse_optional_parameters({'which': ('total', 'correlations')})
+@util.parse_optional_parameters(which=('total', 'correlations'))
 def infidelity(
         pulse: 'PulseSequence',
         spectrum: Union[Coefficients, Callable],

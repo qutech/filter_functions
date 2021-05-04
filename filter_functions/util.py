@@ -152,18 +152,20 @@ def cexp(x: ndarray, out=None, where=True) -> ndarray:
     return out
 
 
-def parse_optional_parameters(params_dict: Dict[str, Sequence]) -> Callable:
-    """Decorator factory to parse optional parameter with certain legal values.
+def parse_optional_parameters(**allowed_kwargs: Dict[str, Sequence]) -> Callable:
+    """Decorator factory to parse optional parameter with certain legal
+    values.
 
-    For ``params_dict = {name: allowed, ...}``: If the parameter value
-    corresponding to ``name`` (either in args or kwargs of the decorated
-    function) is not contained in ``allowed`` a ``ValueError`` is raised.
+    For ``allowed_kwargs = {name: allowed, ...}``: If the parameter
+    value corresponding to ``name`` (either in args or kwargs of the
+    decorated function) is not contained in ``allowed`` a ``ValueError``
+    is raised.
     """
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             parameters = inspect.signature(func).parameters
-            for name, allowed in params_dict.items():
+            for name, allowed in allowed_kwargs.items():
                 idx = tuple(parameters).index(name)
                 try:
                     value = args[idx]
@@ -179,7 +181,7 @@ def parse_optional_parameters(params_dict: Dict[str, Sequence]) -> Callable:
     return decorator
 
 
-parse_which_FF_parameter = parse_optional_parameters({'which': ('fidelity', 'generalized')})
+parse_which_FF_parameter = parse_optional_parameters(which=('fidelity', 'generalized'))
 
 
 def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
@@ -979,7 +981,7 @@ def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> float:
     return res if res.imag.any() else res.real
 
 
-@parse_optional_parameters({'spacing': ('log', 'linear')})
+@parse_optional_parameters(spacing=('log', 'linear'))
 def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing: str = 'log',
                            include_quasistatic: bool = False) -> ndarray:
     """Get *n_samples* sample frequencies spaced 'linear' or 'log'.

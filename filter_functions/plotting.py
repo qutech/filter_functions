@@ -127,7 +127,7 @@ def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
     return b
 
 
-@util.parse_optional_parameters({'prop': ['total', 'piecewise']})
+@util.parse_optional_parameters(prop=('total', 'piecewise'))
 def get_states_from_prop(U: Sequence[Operator], psi0: Optional[State] = None,
                          prop: str = 'total') -> ndarray:
     r"""
@@ -662,7 +662,7 @@ def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float
     return fig, ax
 
 
-@util.parse_optional_parameters({'colorscale': ['linear', 'log']})
+@util.parse_optional_parameters(colorscale=('linear', 'log'))
 def plot_cumulant_function(
         pulse: Optional['PulseSequence'] = None,
         spectrum: Optional[ndarray] = None,
