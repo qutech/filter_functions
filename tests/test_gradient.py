@@ -20,42 +20,92 @@
 #
 #     Contact email: j.teske@fz-juelich.de
 # =============================================================================
-
 import numpy as np
 
-import tests.gradient_testutil as grad_util
-from tests import testutil
-
-
-np.random.seed(0)
-initial_pulse = np.random.rand(grad_util.n_time_steps)
-initial_pulse = np.expand_dims(initial_pulse, 0)
-u_drift = 1. * np.ones(grad_util.n_time_steps)
-
-s_derivs = grad_util.deriv_2_exchange_interaction(eps=initial_pulse)
-s_derivs = np.expand_dims(s_derivs, 0)
-
-
-fin_diff_grad = grad_util.finite_diff_infid(
-    u_ctrl_central=initial_pulse, u_drift=u_drift,
-    pulse_sequence_builder=grad_util.create_sing_trip_pulse_seq,
-    spectral_noise_density=grad_util.one_over_f_noise, n_freq_samples=200,
-    c_id=['control1'], delta_u=1e-4
-)
-
-
-ana_grad = grad_util.analytic_gradient(
-    u_ctrl=initial_pulse, u_drift=u_drift,
-    pulse_sequence_builder=grad_util.create_sing_trip_pulse_seq,
-    spectral_noise_density=grad_util.one_over_f_noise,
-    c_id=['control1'], s_derivs=np.ones_like(s_derivs),
-    ctrl_amp_deriv=grad_util.deriv_exchange_interaction
-)
+import filter_functions as ff
+from tests import gradient_testutil, testutil
 
 
 class GradientTest(testutil.TestCase):
 
     def test_gradient_calculation_variable_noise_coefficients(self):
-        relativ_diff = grad_util.relative_norm_difference(
-            fin_diff_grad, ana_grad)
-        self.assertLess(relativ_diff, 5e-9)
+
+        initial_pulse = np.random.rand(gradient_testutil.n_time_steps)
+        initial_pulse = np.expand_dims(initial_pulse, 0)
+        u_drift = 1. * np.ones(gradient_testutil.n_time_steps)
+
+        n_coeffs_deriv = gradient_testutil.deriv_2_exchange_interaction(eps=initial_pulse)
+        n_coeffs_deriv = np.expand_dims(n_coeffs_deriv, 0)
+
+        fin_diff_grad = gradient_testutil.finite_diff_infid(
+            u_ctrl_central=initial_pulse, u_drift=u_drift, d=2,
+            pulse_sequence_builder=gradient_testutil.create_sing_trip_pulse_seq,
+            spectral_noise_density=gradient_testutil.one_over_f_noise, n_freq_samples=200,
+            c_id=['control1'], delta_u=1e-4
+        )
+        ana_grad = gradient_testutil.analytic_gradient(
+            u_ctrl=initial_pulse, u_drift=u_drift, d=2,
+            pulse_sequence_builder=gradient_testutil.create_sing_trip_pulse_seq,
+            spectral_noise_density=gradient_testutil.one_over_f_noise,
+            c_id=['control1'], n_coeffs_deriv=np.ones_like(n_coeffs_deriv),
+            ctrl_amp_deriv=gradient_testutil.deriv_exchange_interaction
+        )
+        self.assertArrayAlmostEqual(ana_grad, fin_diff_grad, rtol=1e-6, atol=1e-10)
+
+    def test_gradient_calculation_random_pulse(self):
+
+        for d, n_dt in zip(testutil.rng.integers(2, 5, 5), testutil.rng.integers(2, 8, 5)):
+            u_ctrl = testutil.rng.normal(0, 1, (testutil.rng.integers(1, 4), n_dt))
+            u_drift = testutil.rng.normal(0, 1, (d**2-1-len(u_ctrl), n_dt))
+
+            fin_diff_grad = gradient_testutil.finite_diff_infid(
+                u_ctrl_central=u_ctrl, u_drift=u_drift, d=d,
+                pulse_sequence_builder=gradient_testutil.create_pulse_sequence,
+                spectral_noise_density=gradient_testutil.one_over_f_noise, n_freq_samples=200,
+                c_id=[f'c{i}' for i in range(len(u_ctrl))], delta_u=1e-4
+            )
+            ana_grad = gradient_testutil.analytic_gradient(
+                u_ctrl=u_ctrl, u_drift=u_drift, d=d,
+                pulse_sequence_builder=gradient_testutil.create_pulse_sequence,
+                spectral_noise_density=gradient_testutil.one_over_f_noise,
+                c_id=[f'c{i}' for i in range(len(u_ctrl))], n_coeffs_deriv=None
+            )
+            self.assertArrayAlmostEqual(ana_grad, fin_diff_grad, rtol=1e-6, atol=1e-8)
+
+    def test_caching(self):
+        """Make sure calculation works with or without cached intermediates."""
+
+        for d, n_dt in zip(testutil.rng.integers(2, 5, 5), testutil.rng.integers(2, 8, 5)):
+            pulse = testutil.rand_pulse_sequence(d, n_dt)
+            omega = ff.util.get_sample_frequencies(pulse, n_samples=27)
+            spect = 1/omega
+
+            # Cache control matrix but not intermediates
+            pulse.cache_control_matrix(omega, cache_intermediates=False)
+            infid_nocache = ff.infidelity(pulse, spect, omega, cache_intermediates=False)
+            infid_cache = ff.infidelity(pulse, spect, omega, cache_intermediates=True)
+
+            self.assertArrayAlmostEqual(infid_nocache, infid_cache)
+
+            cm_nocache = ff.gradient.calculate_derivative_of_control_matrix_from_scratch(
+                omega, pulse.propagators, pulse.eigvals, pulse.eigvecs, pulse.basis, pulse.t,
+                pulse.dt, pulse.n_opers, pulse.n_coeffs, pulse.c_opers, pulse.c_oper_identifiers,
+                intermediates=dict()
+            )
+
+            pulse.cleanup('frequency dependent')
+            pulse.cache_control_matrix(omega, cache_intermediates=True)
+            cm_cache = ff.gradient.calculate_derivative_of_control_matrix_from_scratch(
+                omega, pulse.propagators, pulse.eigvals, pulse.eigvecs, pulse.basis, pulse.t,
+                pulse.dt, pulse.n_opers, pulse.n_coeffs, pulse.c_opers, pulse.c_oper_identifiers,
+                intermediates=pulse._intermediates
+            )
+
+            self.assertArrayAlmostEqual(cm_nocache, cm_cache)
+
+
+    def test_raises(self):
+        pulse = testutil.rand_pulse_sequence(2, 3)
+        omega = ff.util.get_sample_frequencies(pulse, n_samples=13)
+        with self.assertRaises(ValueError):
+            ff.infidelity_derivative(pulse, 1/omega, omega, control_identifiers=['long string'])

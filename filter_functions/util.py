@@ -26,8 +26,8 @@ Functions
 :func:`abs2`
     Absolute value squared
 :func:`get_indices_from_identifiers`
-    The the indices of control or noise operators with given identifiers
-    as they are saved in a ``PulseSequence``.
+    The the indices of a subset of identifiers within a list of
+    identifiers.
 :func:`tensor`
     Fast, flexible tensor product of an arbitrary number of inputs using
     :func:`~numpy.einsum`
@@ -69,10 +69,7 @@ Exceptions
 """
 import functools
 import inspect
-import json
 import operator
-import os
-import re
 import string
 from itertools import zip_longest
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
@@ -84,79 +81,9 @@ from numpy import ndarray
 from .types import Operator, State
 
 try:
-    import jupyter_client
-    import requests
-    from notebook.notebookapp import list_running_servers
-    from requests.compat import urljoin
-
-    def _get_notebook_name() -> str:
-        """
-        Return the full path of the jupyter notebook.
-
-        See https://github.com/jupyter/notebook/issues/1000
-
-        Jupyter notebook is licensed as follows:
-
-        This project is licensed under the terms of the Modified BSD License
-        (also known as New or Revised or 3-Clause BSD), as follows:
-
-        - Copyright (c) 2001-2015, IPython Development Team
-        - Copyright (c) 2015-, Jupyter Development Team
-
-        All rights reserved.
-
-        Redistribution and use in source and binary forms, with or without
-        modification, are permitted provided that the following conditions are
-        met:
-
-        Redistributions of source code must retain the above copyright notice,
-        this list of conditions and the following disclaimer.
-
-        Redistributions in binary form must reproduce the above copyright
-        notice, this list of conditions and the following disclaimer in the
-        documentation and/or other materials provided with the distribution.
-
-        Neither the name of the Jupyter Development Team nor the names of its
-        contributors may be used to endorse or promote products derived from
-        this software without specific prior written permission.
-
-        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-        IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-        TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-        PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-        OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-        SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-        LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-        DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-        THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-        OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-        """
-        try:
-            connection_file = jupyter_client.find_connection_file()
-        except OSError:
-            return ''
-
-        kernel_id = re.search('kernel-(.*).json', connection_file).group(1)
-        servers = list_running_servers()
-        for ss in servers:
-            response = requests.get(urljoin(ss['url'], 'api/sessions'),
-                                    params={'token': ss.get('token', '')})
-            for nn in json.loads(response.text):
-                try:
-                    if nn['kernel']['id'] == kernel_id:
-                        try:
-                            relative_path = nn['notebook']['path']
-                            return os.path.join(ss['notebook_dir'], relative_path)
-                        except KeyError:
-                            return ''
-                except TypeError:
-                    return ''
-
-        return ''
-
-    _NOTEBOOK_NAME = _get_notebook_name()
-except ImportError:
+    import ipynbname
+    _NOTEBOOK_NAME = ipynbname.name()
+except (ImportError, IndexError, FileNotFoundError):
     _NOTEBOOK_NAME = ''
 
 if _NOTEBOOK_NAME:
@@ -204,6 +131,12 @@ def cexp(x: ndarray, out=None, where=True) -> ndarray:
     ----------
     x: ndarray
         Argument of the complex exponential :math:`\exp(i x)`.
+    out: ndarray, None, or tuple of ndarray and None, optional
+        A location into which the result is stored. See
+        :func:`numpy.ufunc`.
+    where: array_like, optional
+        This condition is broadcast over the input. See
+        :func:`numpy.ufunc`.
 
     Returns
     -------
@@ -250,6 +183,55 @@ def parse_optional_parameters(params_dict: Dict[str, Sequence]) -> Callable:
 parse_which_FF_parameter = parse_optional_parameters({'which': ('fidelity', 'generalized')})
 
 
+def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
+    """Parse a sequence of operators and convert to ndarray.
+
+    Parameters
+    ----------
+    opers: Sequence[Operator]
+        Sequence of operators.
+    err_loc: str
+        Some cosmetics for the exceptions to be raised.
+
+    Raises
+    ------
+    TypeError
+        If any operator is not a valid type.
+    ValueError
+        If not all operators are 2d and square.
+
+    Returns
+    -------
+    parse_opers: ndarray, shape (len(opers), *opers[0].shape)
+        The parsed ndarray.
+
+    """
+    parsed_opers = []
+    for oper in opers:
+        if isinstance(oper, ndarray):
+            parsed_opers.append(oper.squeeze())
+        elif hasattr(oper, 'full'):
+            # qutip.Qobj
+            parsed_opers.append(oper.full())
+        elif hasattr(oper, 'todense'):
+            # sparse object
+            parsed_opers.append(oper.todense())
+        elif hasattr(oper, 'data') and hasattr(oper, 'dexp'):
+            # qopt DenseMatrix
+            parsed_opers.append(oper.data)
+        else:
+            raise TypeError(f'Expected operators in {err_loc} to be NumPy arrays or QuTiP Qobjs!')
+
+    # Check correct dimensions of the operators
+    if set(oper.ndim for oper in parsed_opers) != {2}:
+        raise ValueError(f'Expected all operators in {err_loc} to be two-dimensional!')
+
+    if len(set(*set(oper.shape for oper in parsed_opers))) != 1:
+        raise ValueError(f'Expected operators in {err_loc} to be square!')
+
+    return np.asarray(parsed_opers)
+
+
 def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int], rank: int):
     """Get shape of the tensor product between A and B of rank rank"""
     broadcast_shape = ()
@@ -288,32 +270,21 @@ def _parse_dims_arg(name: str, dims: Sequence[Sequence[int]], rank: int) -> None
         raise ValueError(f'Require all lists in {name}_dims to be of same length!')
 
 
-@parse_optional_parameters({'kind': ('noise', 'control')})
-def get_indices_from_identifiers(pulse: 'PulseSequence',
-                                 identifiers: Union[None, str, Sequence[str]],
-                                 kind: str) -> Tuple[Sequence[int],
-                                                     Sequence[str]]:
+def get_indices_from_identifiers(all_identifiers: Sequence[str],
+                                 identifiers: Union[None, str, Sequence[str]]) -> Sequence[int]:
     """Get the indices of operators for given identifiers.
 
     Parameters
     ----------
-    pulse: PulseSequence
-        The PulseSequence instance for which to get the indices.
+    all_identifiers: sequence of str
+        All available identifiers.
     identifiers: str or sequence of str
         The identifiers whose indices to get.
-    kind: str
-        Whether to get 'control' or 'noise' operator indices.
     """
-    if kind == 'noise':
-        pulse_identifiers = pulse.n_oper_identifiers
-    else:
-        # kind == 'control'
-        pulse_identifiers = pulse.c_oper_identifiers
-
     identifier_to_index_table = {identifier: index for index, identifier
-                                 in enumerate(pulse_identifiers)}
+                                 in enumerate(all_identifiers)}
     if identifiers is None:
-        inds = np.arange(len(pulse_identifiers))
+        inds = np.arange(len(all_identifiers))
     else:
         try:
             if isinstance(identifiers, str):
@@ -323,7 +294,7 @@ def get_indices_from_identifiers(pulse: 'PulseSequence',
                                  for identifier in identifiers])
         except KeyError:
             raise ValueError('Invalid identifiers given. All available ones ' +
-                             f'are: {pulse_identifiers}')
+                             f'are: {all_identifiers}')
 
     return inds
 
@@ -535,7 +506,8 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
     if len(args) == 0:
         raise ValueError('Require nonzero number of args!')
 
-    if isinstance(pos, int):
+    if np.issubdtype(type(pos), np.integer):
+        # super awkward type check, thanks numpy!
         pos = (pos,)
         if len(args) > 1:
             # Inserting all args at same position, perform their tensor product
@@ -835,25 +807,63 @@ def mdot(arr: Sequence, axis: int = 0) -> ndarray:
     return functools.reduce(np.matmul, np.swapaxes(arr, 0, axis))
 
 
-def remove_float_errors(arr: ndarray, eps_scale: Optional[float] = None):
+def integrate(f: ndarray, x: Optional[ndarray] = None, dx: float = 1.0) -> Union[ndarray, float,
+                                                                                 complex]:
+    """Fast trapezoidal integration with small memory footprint.
+
+    Parameters
+    ----------
+    f: ndarray
+        Function to be integrated.
+    x: ndarray, optional
+        Optional integration domain if the values are not evenly spaced.
+    dx: float, optional
+        Spacing. The default is 1.0.
+
+    Returns
+    -------
+    result: ndarray
+        Integral over the last axis of *f*.
+
+    See Also
+    --------
+    numpy.trapz
+
+    """
+    dx = np.diff(x) if x is not None else dx
+    ret = f[..., 1:] + f[..., :-1]
+    ret *= dx
+    return ret.sum(axis=-1)/2
+
+
+def remove_float_errors(arr: ndarray, eps_scale: Optional[float] = None) -> ndarray:
     """
     Clean up arr by removing floating point numbers smaller than the
     dtype's precision multiplied by eps_scale. Treats real and imaginary
     parts separately.
+
+    Obviously only works for arrays with norm ~1.
     """
+    arr = np.asanyarray(arr)
     if eps_scale is None:
-        atol = np.finfo(arr.dtype).eps*arr.shape[-1]
+        atol = np.finfo(arr.dtype).eps
+        if arr.ndim:
+            atol *= arr.shape[-1]
     else:
         atol = np.finfo(arr.dtype).eps*eps_scale
 
-    # Hack around arr.imag sometimes not being writable
-    if arr.dtype == complex:
-        arr = arr.real + 1j*arr.imag
-        arr.real[np.abs(arr.real) <= atol] = 0
-        arr.imag[np.abs(arr.imag) <= atol] = 0
+    if arr.ndim:
+        if arr.dtype == float:
+            arr[np.abs(arr) <= atol] = 0
+        else:
+            arr.real[np.abs(arr.real) <= atol] = 0
+            arr.imag[np.abs(arr.imag) <= atol] = 0
     else:
-        arr = arr.real
-        arr.real[np.abs(arr.real) <= atol] = 0
+        if arr.dtype == float:
+            arr.real = 0 if np.abs(arr) <= atol else arr
+        else:
+            arr.real = 0 if np.abs(arr.real) <= atol else arr.real
+            arr.imag = 0 if np.abs(arr.imag) <= atol else arr.imag
 
     return arr
 

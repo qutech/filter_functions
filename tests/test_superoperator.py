@@ -75,9 +75,9 @@ class SuperoperatorTest(testutil.TestCase):
 
     def test_liouville_to_choi(self):
         """Test converting Liouville superops to choi matrices."""
-        for d in rng.randint(2, 9, (15,)):
+        for d in rng.integers(2, 9, (15,)):
             # unitary channel
-            U = testutil.rand_unit(d, rng.randint(1, 8)).squeeze()
+            U = testutil.rand_unit(d, rng.integers(1, 8)).squeeze()
             n = np.log2(d)
             if n % 1 == 0:
                 basis = ff.Basis.pauli(int(n))
@@ -113,9 +113,9 @@ class SuperoperatorTest(testutil.TestCase):
         CP = superoperator.liouville_is_CP(Phi, basis)
         self.assertFalse(CP)
 
-        for d in rng.randint(2, 9, (15,)):
+        for d in rng.integers(2, 9, (15,)):
             # unitary channel
-            U = testutil.rand_unit(d, rng.randint(1, 8)).squeeze()
+            U = testutil.rand_unit(d, rng.integers(1, 8)).squeeze()
             n = np.log2(d)
             if n % 1 == 0:
                 basis = ff.Basis.pauli(int(n))
@@ -146,9 +146,9 @@ class SuperoperatorTest(testutil.TestCase):
             self.assertIsInstance(CP, (bool, np.bool8))
 
     def test_liouville_is_cCP(self):
-        for d in rng.randint(2, 9, (15,)):
+        for d in rng.integers(2, 9, (15,)):
             # (anti-) Hermitian generator, should always be cCP
-            H = 1j*testutil.rand_herm(d, rng.randint(1, 8)).squeeze()
+            H = 1j*testutil.rand_herm(d, rng.integers(1, 8)).squeeze()
             n = np.log2(d)
             if n % 1 == 0:
                 basis = ff.Basis.pauli(int(n))

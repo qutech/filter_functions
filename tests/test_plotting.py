@@ -22,6 +22,7 @@
 This module tests the plotting functionality of the package.
 """
 import string
+from copy import copy
 from random import sample
 
 import numpy as np
@@ -38,6 +39,7 @@ plotting = pytest.importorskip('filter_functions.plotting',
                                reason='Skipping plotting tests for build without matplotlib')
 if plotting is not None:
     import matplotlib.pyplot as plt
+    from matplotlib import cycler
 
 simple_pulse = testutil.rand_pulse_sequence(2, 1, 1, 1, btype='Pauli')
 complicated_pulse = testutil.rand_pulse_sequence(2, 100, 3, 3)
@@ -59,13 +61,17 @@ class PlottingTest(testutil.TestCase):
 
         # Call with custom args
         c_oper_identifiers = sample(
-            complicated_pulse.c_oper_identifiers.tolist(), rng.randint(2, 4)
+            complicated_pulse.c_oper_identifiers.tolist(), rng.integers(2, 4)
         )
 
         fig, ax = plt.subplots()
         fig, ax, leg = plotting.plot_pulse_train(complicated_pulse,
                                                  c_oper_identifiers,
                                                  fig=fig, axes=ax)
+
+        # Test cycler arg
+        cycle = cycler(color=['r', 'g', 'b'])
+        fig, ax, leg = plotting.plot_pulse_train(simple_pulse, cycler=cycle)
 
         # invalid identifier
         with self.assertRaises(ValueError):
@@ -101,7 +107,7 @@ class PlottingTest(testutil.TestCase):
 
         # Non-default args
         n_oper_identifiers = sample(
-            complicated_pulse.n_oper_identifiers.tolist(), rng.randint(2, 4)
+            complicated_pulse.n_oper_identifiers.tolist(), rng.integers(2, 4)
         )
 
         fig, ax = plt.subplots()
@@ -112,6 +118,10 @@ class PlottingTest(testutil.TestCase):
             n_oper_identifiers=n_oper_identifiers,
             fig=fig, axes=ax, omega_in_units_of_tau=False
         )
+
+        # Test cycler arg
+        cycle = cycler(color=['r', 'g', 'b'])
+        fig, ax, leg = plotting.plot_filter_function(simple_pulse, cycler=cycle)
 
         # invalid identifier
         with self.assertRaises(ValueError):
@@ -166,7 +176,7 @@ class PlottingTest(testutil.TestCase):
 
         # Non-default args
         n_oper_identifiers = sample(
-            complicated_pulse.n_oper_identifiers.tolist(), rng.randint(2, 4)
+            complicated_pulse.n_oper_identifiers.tolist(), rng.integers(2, 4)
         )
 
         fig, ax = plt.subplots()
@@ -176,6 +186,11 @@ class PlottingTest(testutil.TestCase):
             n_oper_identifiers=n_oper_identifiers, fig=fig,
             omega_in_units_of_tau=False
         )
+
+        # Test cycler arg
+        cycle = cycler(color=['r', 'g', 'b'])
+        fig, ax, leg = plotting.plot_pulse_correlation_filter_function(concatenated_simple_pulse,
+                                                                       cycler=cycle)
 
         # invalid identifiers
         with self.assertRaises(ValueError):
@@ -233,12 +248,12 @@ class PlottingTest(testutil.TestCase):
         fig, grid = plotting.plot_cumulant_function(cumulant_function=K, colorscale='log')
 
         # Non-default args
-        n_oper_inds = sample(range(len(complicated_pulse.n_opers)), rng.randint(2, 4))
+        n_oper_inds = sample(range(len(complicated_pulse.n_opers)), rng.integers(2, 4))
         n_oper_identifiers = complicated_pulse.n_oper_identifiers[n_oper_inds]
 
         basis_labels = []
         for i in range(4):
-            basis_labels.append(string.ascii_uppercase[rng.randint(0, 26)])
+            basis_labels.append(string.ascii_uppercase[rng.integers(0, 26)])
 
         omega = ff.util.get_sample_frequencies(complicated_pulse, n_samples=50, spacing='log')
         spectrum = np.exp(-omega**2)
@@ -299,6 +314,17 @@ class PlottingTest(testutil.TestCase):
         fig, ax = plotting.plot_infidelity_convergence(n, infids)
 
 
+class LaTeXRenderingTest(testutil.TestCase):
+
+    def test_plot_filter_function(self):
+        pulse = copy(simple_pulse)
+        pulse.c_oper_identifiers = np.array([f'B_{i}' for i in range(len(pulse.c_opers))])
+        pulse.n_oper_identifiers = np.array([f'B_{i}' for i in range(len(pulse.n_opers))])
+        with plt.rc_context(rc={'text.usetex': True}):
+            _ = plotting.plot_pulse_train(pulse)
+            _ = plotting.plot_filter_function(pulse)
+
+
 @pytest.mark.skipif(
     qutip is None,
     reason='Skipping bloch sphere visualization tests for build without qutip')
@@ -342,3 +368,9 @@ class BlochSphereVisualizationTest(testutil.TestCase):
             plotting.plot_bloch_vector_evolution(two_qubit_pulse)
 
         plt.close('all')
+
+    def test_box_aspect(self):
+        """Fix https://github.com/qutech/filter_functions/issues/41"""
+        b = plotting.plot_bloch_vector_evolution(simple_pulse, return_Bloch=True)
+        aspect = b.axes.get_box_aspect()
+        self.assertAlmostEqual(aspect.std(), 0)

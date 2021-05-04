@@ -33,7 +33,7 @@ from scipy import linalg as sla
 
 from filter_functions import Basis, PulseSequence, util
 
-rng = random.RandomState()
+rng = random.default_rng()
 
 
 class TestCase(unittest.TestCase):
@@ -128,42 +128,51 @@ def generate_dd_hamiltonian(n, tau=10, tau_pi=1e-2, dd_type='cpmg', pulse_type='
     return H, np.diff(t)
 
 
-def rand_herm(d: int, n: int = 1) -> np.ndarray:
+def rand_herm(d: int, n: int = 1, local_rng=None) -> np.ndarray:
     """n random Hermitian matrices of dimension d"""
-    A = rng.standard_normal((n, d, d)) + 1j*rng.standard_normal((n, d, d))
+    if local_rng is None:
+        local_rng = rng
+
+    A = local_rng.standard_normal((n, d, d)) + 1j*local_rng.standard_normal((n, d, d))
     return (A + A.conj().transpose([0, 2, 1]))/2
 
 
-def rand_herm_traceless(d: int, n: int = 1) -> np.ndarray:
+def rand_herm_traceless(d: int, n: int = 1, local_rng=None) -> np.ndarray:
     """n random traceless Hermitian matrices of dimension d"""
-    A = rand_herm(d, n).transpose()
+    if local_rng is None:
+        local_rng = rng
+
+    A = rand_herm(d, n, local_rng).transpose()
     A -= A.trace(axis1=0, axis2=1)/d
     return A.transpose()
 
 
-def rand_unit(d: int, n: int = 1) -> np.ndarray:
+def rand_unit(d: int, n: int = 1, local_rng=None) -> np.ndarray:
     """n random unitary matrices of dimension d"""
-    H = rand_herm(d, n)
+    if local_rng is None:
+        local_rng = rng
+
+    H = rand_herm(d, n, local_rng)
     return np.array([sla.expm(1j*h) for h in H])
 
 
 def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
-                        btype: str = 'GGM', seed=None):
+                        btype: str = 'GGM', local_rng=None):
     """Random pulse sequence instance"""
-    if seed is not None:
-        rng.seed(seed)
+    if local_rng is None:
+        local_rng = rng
 
-    c_opers = rand_herm_traceless(d, n_cops)
-    n_opers = rand_herm_traceless(d, n_nops)
+    c_opers = rand_herm_traceless(d, n_cops, local_rng=local_rng)
+    n_opers = rand_herm_traceless(d, n_nops, local_rng=local_rng)
 
-    c_coeffs = rng.standard_normal((n_cops, n_dt))
-    n_coeffs = rng.random_sample((n_nops, n_dt))
+    c_coeffs = local_rng.standard_normal((n_cops, n_dt))
+    n_coeffs = local_rng.random((n_nops, n_dt))
 
     letters = np.array(list(string.ascii_letters))
-    c_identifiers = rng.choice(letters, n_cops, replace=False)
-    n_identifiers = rng.choice(letters, n_nops, replace=False)
+    c_identifiers = local_rng.choice(letters, n_cops, replace=False)
+    n_identifiers = local_rng.choice(letters, n_nops, replace=False)
 
-    dt = 1 - rng.random_sample(n_dt)  # (0, 1] instead of [0, 1)
+    dt = 1 - local_rng.random(n_dt)  # (0, 1] instead of [0, 1)
     if btype == 'GGM':
         basis = Basis.ggm(d)
     else:

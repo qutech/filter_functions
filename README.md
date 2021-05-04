@@ -1,15 +1,16 @@
-# `filter_functions`: A package for efficient numerical calculation of generalized filter functions
+# `filter_functions`: A package for efficient numerical calculation of generalized filter functions to describe the effect of noise on quantum gate operations
 [![codecov](https://codecov.io/gh/qutech/filter_functions/branch/master/graph/badge.svg)](https://codecov.io/gh/qutech/filter_functions)
 [![Build Status](https://travis-ci.org/qutech/filter_functions.svg?branch=master)](https://travis-ci.org/qutech/filter_functions)
 [![Documentation Status](https://readthedocs.org/projects/filter-functions/badge/?version=latest)](https://filter-functions.readthedocs.io/en/latest/?badge=latest)
-[![PyPI version](https://badge.fury.io/py/filter-functions.svg)](https://badge.fury.io/py/filter-functions)
+[![PyPI version](https://img.shields.io/pypi/v/filter-functions.svg)](https://pypi.org/project/filter-functions/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4575001.svg)](https://doi.org/10.5281/zenodo.4575001)
 
 ## Introduction
 Simply put, filter functions characterize a quantum system's susceptibility to noise at a given frequency during a control operation and can thus be used to gain insight into its decoherence. The formalism allows for efficient calculation of several quantities of interest such as average gate fidelity and even the entire quantum process up to a unitary rotation. Moreover, the filter function of a composite pulse can be easily derived from those of the constituent pulses, allowing for efficient assembly and characterization of pulse sequences.
 
-Previously, filter functions have only been computed analytically for select pulses such as dynamical decoupling sequences [1, 2]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms.
+Initially, filter functions have been introduced to model dynamical decoupling sequences [5, 6]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms. These filter functions can be used to compute process descriptions, fidelities and other quantities of interest from arbitrary classical noise spectral densities. For the efficient and convenient treatment of gate sequences, concatenation rules that allow the filter function of a sequence to be computed from those of its constituents are implemented.
 
-The `filter_functions` package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, and comes with extensive documentation and a test suite. Note that the project is still in pre-release and thus liable to breaking API changes.
+The `filter_functions` package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, as well as [qopt](https://github.com/qutech/qopt) and comes with extensive documentation and a test suite.
 
 As a very brief introduction, consider a Hadamard gate implemented by a pi/2 Y-gate followed by a NOT-gate using simple square pulses. We can calculate and plot the dephasing filter function of the gate with the following code:
 
@@ -54,9 +55,9 @@ hadamard.is_cached('filter function')
 To compute, for example, the infidelity of the gate in the presence of an arbitrary classical noise spectrum, we can simply call `infidelity()`:
 
 ```python
-spectrum = 1e-2/abs(omega)
+spectrum = 1e-2/omega
 infidelity = ff.infidelity(hadamard, spectrum, omega)
-# array([0.006037])  (one contribution per noise operator)
+# array([0.0025])  (one contribution per noise operator)
 ```
 
 ## Installation
@@ -71,7 +72,22 @@ The documentation including the example notebooks and an automatically generated
 
 Interactively using the documentation requires `jupyter`, and building a static version additionally requires `nbsphinx`, `numpydoc`, `sphinx_rtd_theme`, as well as `pandoc`. The last can be installed via conda (`conda install pandoc`) or downloaded from [Github](https://github.com/jgm/pandoc/releases/) and the rest automatically by running `pip install -e .[doc]`.
 
-## References
-[1]: Cywinski, L., Lutchyn, R. M., Nave, C. P., & Das Sarma, S. (2008). How to enhance dephasing time in superconducting qubits. Physical Review B - Condensed Matter and Materials Physics, 77(17), 1–11. [https://doi.org/10.1103/PhysRevB.77.174509](https://doi.org/10.1103/PhysRevB.77.174509)
+## Citing
+If this software has benefited your research, please consider citing:
 
-[2]: Green, T. J., Sastrawan, J., Uys, H., & Biercuk, M. J. (2013). Arbitrary quantum control of qubits in the presence of universal noise. New Journal of Physics, 15(9), 095004. [https://doi.org/10.1088/1367-2630/15/9/095004](https://doi.org/10.1088/1367-2630/15/9/095004)
+### Formalism
+[1]: T. Hangleiter, P. Cerfontaine, and H. Bluhm, "Filter function formalism and software package to compute quantum processes of gate sequences for classical non-markovian noise," (2021), [arXiv:2103.02403](https://arxiv.org/abs/2103.02403)
+
+[2]: P. Cerfontaine, T. Hangleiter, and H. Bluhm, "Filter functions for quantum processes under correlated noise," (2021), [arXiv:2103.02385](https://arxiv.org/abs/2103.02385).
+
+### Gradients
+[3]: I. N. M. Le, J. D. Teske, T. Hangleiter, P. Cerfontaine, and Hendrik Bluhm, "Analytic Filter Function Derivatives for Quantum Optimal Control," (2021), [arXiv:2103.09126](https://arxiv.org/abs/2103.09126).
+
+### Software
+[4]: T. Hangleiter, I. N. M. Le, and J. D. Teske, "filter_functions: A package for efficient numerical calculation of generalized filter functions to describe the effect of noise on quantum gate operations," (2021). [doi:10.5281/zenodo.4575001](http://doi.org/10.5281/zenodo.4575001)
+
+
+## Additional References
+[5]: Cywinski, L., Lutchyn, R. M., Nave, C. P., & Das Sarma, S. (2008). How to enhance dephasing time in superconducting qubits. Physical Review B - Condensed Matter and Materials Physics, 77(17), 1–11. [https://doi.org/10.1103/PhysRevB.77.174509](https://doi.org/10.1103/PhysRevB.77.174509)
+
+[6]: Green, T. J., Sastrawan, J., Uys, H., & Biercuk, M. J. (2013). Arbitrary quantum control of qubits in the presence of universal noise. New Journal of Physics, 15(9), 095004. [https://doi.org/10.1088/1367-2630/15/9/095004](https://doi.org/10.1088/1367-2630/15/9/095004)

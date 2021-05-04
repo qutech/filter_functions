@@ -42,7 +42,6 @@ Functions
     spectrum as an image.
 
 """
-from itertools import product
 from typing import Optional, Sequence, Union
 from unittest import mock
 from warnings import warn
@@ -54,8 +53,8 @@ from mpl_toolkits import axes_grid1, mplot3d
 from numpy import ndarray
 
 from . import numeric, util
-from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes,
-                    FigureAxesLegend, FigureGrid, Grid, Operator, State)
+from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes, FigureAxesLegend, FigureGrid,
+                    Grid, Operator, State)
 
 __all__ = ['plot_cumulant_function', 'plot_infidelity_convergence', 'plot_filter_function',
            'plot_pulse_correlation_filter_function', 'plot_pulse_train']
@@ -66,6 +65,24 @@ try:
 except ImportError:
     warn('Qutip not installed. plot_bloch_vector_evolution() is not available')
     qt = mock.Mock()
+
+
+def _make_str_tex_compatible(s: str) -> str:
+    """Escape incompatible characters in strings passed to TeX."""
+    if not plt.rcParams['text.usetex']:
+        return s
+
+    s = str(s)
+    incompatible = ('_',)
+    for char in incompatible:
+        locs = [i for i, c in enumerate(s) if c == char]
+        # Loop backwards so as not to change locs when modifying s
+        for loc in locs[::-1]:
+            # Check if already escaped or math environment, if not add escape character
+            if not s[loc-1:].startswith('\\') and not s.count('$', loc) % 2:
+                s = s[:loc] + '\\' + s[loc:]
+
+    return s
 
 
 def get_bloch_vector(states: Sequence[State]) -> ndarray:
@@ -100,6 +117,11 @@ def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
 
     bloch_kwargs.setdefault('view', [-150, 30])
     b = qt.Bloch(**bloch_kwargs)
+
+    # https://github.com/qutip/qutip/issues/1385
+    if hasattr(b.axes, 'set_box_aspect'):
+        b.axes.set_box_aspect([1, 1, 1])
+
     b.xlabel = [r'$|+\rangle$', '']
     b.ylabel = [r'$|+_i\rangle$', '']
     return b
@@ -212,13 +234,6 @@ def plot_bloch_vector_evolution(
         n_samples = min([5000, 5*int(pulse.tau/np.diff(pulse.t).min())])
 
     times = np.linspace(pulse.t[0], pulse.tau, n_samples)
-    n_cops = len(pulse.c_opers)
-    coeffs = np.zeros((n_cops, len(times)))
-    for i in range(n_cops):
-        for j, coeff in enumerate(pulse.c_coeffs[i]):
-            if coeff != 0:
-                coeffs[i] += coeff*(pulse.t[j] <= times)*(times <= pulse.t[j+1])
-
     propagators = pulse.propagator_at_arb_t(times)
     points = get_bloch_vector(get_states_from_prop(propagators, psi0))
     b.add_points(points, meth='l')
@@ -249,6 +264,7 @@ def plot_pulse_train(
         c_oper_identifiers: Optional[Sequence[int]] = None,
         fig: Optional[Figure] = None,
         axes: Optional[Axes] = None,
+        cycler: Optional['cycler.Cycler'] = None,
         plot_kw: Optional[dict] = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -269,6 +285,9 @@ def plot_pulse_train(
         A matplotlib figure instance to plot in
     axes: matplotlib axes, optional
         A matplotlib axes instance to use for plotting.
+    cycler: cycler.Cycler, optional
+        A Cycler instance used to set the style cycle if multiple lines
+        are to be drawn
     plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
     subplot_kw: dict, optional
@@ -296,7 +315,7 @@ def plot_pulse_train(
     ValueError
         If an invalid number of c_oper_labels were given
     """
-    c_oper_inds = util.get_indices_from_identifiers(pulse, c_oper_identifiers, 'control')
+    c_oper_inds = util.get_indices_from_identifiers(pulse.c_oper_identifiers, c_oper_identifiers)
     c_oper_identifiers = pulse.c_oper_identifiers[c_oper_inds]
 
     if fig is None and axes is None:
@@ -309,10 +328,14 @@ def plot_pulse_train(
     elif fig is None and axes is not None:
         fig = axes.figure
 
+    if cycler is not None:
+        axes.set_prop_cycle(cycler)
+
     handles = []
     for i, c_coeffs in enumerate(pulse.c_coeffs[tuple(c_oper_inds), ...]):
         coeffs = np.insert(c_coeffs, 0, c_coeffs[0])
-        handles += axes.step(pulse.t, coeffs, label=c_oper_identifiers[i], **plot_kw)
+        handles += axes.step(pulse.t, coeffs,
+                             label=_make_str_tex_compatible(c_oper_identifiers[i]), **plot_kw)
 
     axes.set_xlim(pulse.t[0], pulse.tau)
     axes.set_xlabel(r'$t$ / a.u.')
@@ -332,6 +355,7 @@ def plot_filter_function(
         xscale: str = 'log',
         yscale: str = 'linear',
         omega_in_units_of_tau: bool = True,
+        cycler: Optional['cycler.Cycler'] = None,
         plot_kw: dict = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -365,6 +389,9 @@ def plot_filter_function(
         y-axis scaling. One of ('linear', 'log').
     omega_in_units_of_tau: bool, optional
         Plot :math:`\omega\tau` or just :math:`\omega` on x-axis.
+    cycler: cycler.Cycler, optional
+        A Cycler instance used to set the style cycle if multiple lines
+        are to be drawn
     plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
     subplot_kw: dict, optional
@@ -398,7 +425,7 @@ def plot_filter_function(
         else:
             omega = pulse.omega
 
-    n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    n_oper_inds = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
     n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
 
     if fig is None and axes is None:
@@ -410,6 +437,9 @@ def plot_filter_function(
         axes = fig.add_subplot(111, **subplot_kw)
     elif fig is None and axes is not None:
         fig = axes.figure
+
+    if cycler is not None:
+        axes.set_prop_cycle(cycler)
 
     if omega_in_units_of_tau:
         tau = np.ptp(pulse.t)
@@ -425,7 +455,8 @@ def plot_filter_function(
     handles = []
     for i, ind in enumerate(n_oper_inds):
         handles += axes.plot(z, filter_function[ind],
-                             label=n_oper_identifiers[i], **plot_kw)
+                             label=_make_str_tex_compatible(n_oper_identifiers[i]),
+                             **plot_kw)
 
     # Set the axis scales
     axes.set_xscale(xscale)
@@ -454,6 +485,7 @@ def plot_pulse_correlation_filter_function(
         xscale: str = 'log',
         yscale: str = 'linear',
         omega_in_units_of_tau: bool = True,
+        cycler: Optional['cycler.Cycler'] = None,
         plot_kw: dict = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -485,6 +517,9 @@ def plot_pulse_correlation_filter_function(
         y-axis scaling. One of ('linear', 'log').
     omega_in_units_of_tau: bool, optional
         Plot :math:`\omega\tau` or just :math:`\omega` on x-axis.
+    cycler: cycler.Cycler, optional
+        A Cycler instance used to set the style cycle if multiple lines
+        are to be drawn in one subplot. Used for all subplots.
     plot_kw: dict, optional
         Dictionary with keyword arguments passed to the plot function
     subplot_kw: dict, optional
@@ -513,7 +548,7 @@ def plot_pulse_correlation_filter_function(
         If the pulse correlation filter function was not computed during
         concatenation.
     """
-    n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+    n_oper_inds = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
     n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
     diag_idx = np.arange(len(pulse.n_opers))
     F_pc = pulse.get_pulse_correlation_filter_function()
@@ -548,10 +583,13 @@ def plot_pulse_correlation_filter_function(
     dashed_line = lines.Line2D([], [], color='gray', linestyle='--')
     for i in range(n):
         for j in range(n):
+            if cycler is not None:
+                axes[i, j].set_prop_cycle(cycler)
+
             handles = []
             for k, ind in enumerate(n_oper_inds):
                 handles += axes[i, j].plot(z, F_pc[i, j, ind].real,
-                                           label=n_oper_identifiers[k],
+                                           label=_make_str_tex_compatible(n_oper_identifiers[k]),
                                            **plot_kw)
                 if i != j:
                     axes[i, j].plot(z, F_pc[i, j, ind].imag, linestyle='--',
@@ -568,7 +606,8 @@ def plot_pulse_correlation_filter_function(
 
             if i == 0 and j == n-1:
                 handles += [transparent_line, solid_line, dashed_line]
-                labels = n_oper_identifiers.tolist() + ['', r'$Re$', r'$Im$']
+                labels = ([_make_str_tex_compatible(n) for n in n_oper_identifiers]
+                          + ['', r'$Re$', r'$Im$'])
                 legend = axes[i, j].legend(handles=handles, labels=labels,
                                            bbox_to_anchor=(1.05, 1), loc=2,
                                            borderaxespad=0., frameon=False)
@@ -630,11 +669,13 @@ def plot_cumulant_function(
         omega: Optional[Coefficients] = None,
         cumulant_function: Optional[ndarray] = None,
         n_oper_identifiers: Optional[Sequence[int]] = None,
-        basis_labels: Optional[Sequence[str]] = None,
+        second_order: bool = False,
         colorscale: str = 'linear',
         linthresh: Optional[float] = None,
-        cbar_label: str = 'Cumulant Function',
+        basis_labels: Optional[Sequence[str]] = None,
         basis_labelsize: Optional[int] = None,
+        cbar_label: str = 'Cumulant Function',
+        cbar_labelsize: Optional[int] = None,
         fig: Optional[Figure] = None,
         grid: Optional[Grid] = None,
         cmap: Optional[Colormap] = None,
@@ -671,18 +712,24 @@ def plot_cumulant_function(
         The identifiers of the noise operators for which the cumulant
         function should be plotted. All identifiers can be accessed via
         ``pulse.n_oper_identifiers``. Defaults to all.
-    basis_labels: array_like (str), optional
-        Labels for the elements of the cumulant function (the basis
-        elements).
+    second_order: bool, optional
+        Also take into account the frequency shifts :math:`\Delta` that
+        correspond to second order Magnus expansion and constitute unitary
+        terms. Default ``False``.
     colorscale: str, optional
         The scale of the color code ('linear' or 'log' (default))
     linthresh: float, optional
         The threshold below which the colorscale will be linear (only
         for 'log') colorscale
-    cbar_label: str, optional
-        The label for the colorbar. Default: 'Cumulant Function'.
+    basis_labels: array_like (str), optional
+        Custom labels for the elements of the cumulant function (the
+        basis elements). Grabbed from the basis by default.
     basis_labelsize: int, optional
         The size in points for the basis labels.
+    cbar_label: str, optional
+        The label for the colorbar. Default: 'Cumulant Function'.
+    cbar_labelsize: int, optional
+        The size in points for the colorbar label.
     fig: matplotlib figure, optional
         A matplotlib figure instance to plot in
     grid: matplotlib ImageGrid, optional
@@ -730,29 +777,28 @@ def plot_cumulant_function(
             raise ValueError('Require either precomputed cumulant function ' +
                              'or pulse, spectrum, and omega as arguments.')
 
-        n_oper_inds = util.get_indices_from_identifiers(pulse, n_oper_identifiers, 'noise')
+        n_oper_inds = util.get_indices_from_identifiers(pulse.n_oper_identifiers,
+                                                        n_oper_identifiers)
         n_oper_identifiers = pulse.n_oper_identifiers[n_oper_inds]
-        K = numeric.calculate_cumulant_function(pulse, spectrum, omega,
-                                                n_oper_identifiers=n_oper_identifiers,
-                                                which='total')
+        K = numeric.calculate_cumulant_function(pulse, spectrum, omega, n_oper_identifiers,
+                                                'total', second_order)
         if K.ndim == 4:
             # Only autocorrelated noise supported
             K = K[tuple(n_oper_inds), tuple(n_oper_inds)]
 
-    # Only autocorrelated noise implemented for now, ie U is real
+    # Only autocorrelated noise implemented for now, ie K is real
     K = K.real
 
     if basis_labels is None:
-        btype = pulse.basis.btype if pulse is not None else ''
-        if btype == 'Pauli':
-            n_qubits = int(np.log(K.shape[-1])/np.log(4))
-            basis_labels = [''.join(tup) for tup in
-                            product(['I', 'X', 'Y', 'Z'], repeat=n_qubits)]
+        if pulse is not None:
+            basis_labels = pulse.basis.labels
         else:
             basis_labels = [f'$C_{{{i}}}$' for i in range(K.shape[-1])]
     else:
-        if len(basis_labels) != K.shape[-1]:
+        if basis_labels and len(basis_labels) != K.shape[-1]:
             raise ValueError('Invalid number of basis_labels given')
+
+        basis_labels = [_make_str_tex_compatible(bl) for bl in basis_labels]
 
     if grid is None:
         aspect_ratio = 2/3
@@ -801,12 +847,13 @@ def plot_cumulant_function(
     imshow_kw.setdefault('norm', norm)
 
     basis_labelsize = basis_labelsize or 8
+    cbar_labelsize = cbar_labelsize or plt.rcParams['axes.labelsize']
 
     # Draw the images
     for i, n_oper_identifier in enumerate(n_oper_identifiers):
         ax = grid[i]
         im = ax.imshow(K[i], **imshow_kw)
-        ax.set_title(n_oper_identifier)
+        ax.set_title(n_oper_identifier, loc='left')
         ax.set_xticks(np.arange(K.shape[-1]))
         ax.set_yticks(np.arange(K.shape[-1]))
         ax.set_xticklabels(basis_labels, fontsize=basis_labelsize, rotation='vertical')
@@ -820,6 +867,6 @@ def plot_cumulant_function(
     cbar_kw = cbar_kw or {}
     cbar_kw.setdefault('orientation', 'vertical')
     cbar = fig.colorbar(im, cax=grid.cbar_axes[0], **cbar_kw)
-    cbar.set_label(cbar_label)
+    cbar.set_label(_make_str_tex_compatible(cbar_label), fontsize=cbar_labelsize)
 
     return fig, grid

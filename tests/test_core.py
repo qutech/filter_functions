@@ -60,7 +60,7 @@ class CoreTest(testutil.TestCase):
             # dt not a sequence
             ff.PulseSequence(H_c, H_n, dt[0])
 
-        idx = rng.randint(0, 5)
+        idx = rng.integers(0, 5)
         with self.assertRaises(ValueError):
             # negative dt
             dt[idx] *= -1
@@ -99,7 +99,7 @@ class CoreTest(testutil.TestCase):
             # Element of noise Hamiltonian not list or tuple
             ff.PulseSequence(H_c, [np.array(H_n[0], dtype=object)], dt)
 
-        idx = rng.randint(0, 3)
+        idx = rng.integers(0, 3)
         with self.assertRaises(TypeError):
             # Control Hamiltonian element not list or tuple
             H_c[idx] = dict(H_c[idx])
@@ -143,7 +143,7 @@ class CoreTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             # Control operators not 2d
             for hc in H_c:
-                hc[0] = np.tile(hc[0], (rng.randint(2, 11), 1, 1))
+                hc[0] = np.tile(hc[0], (rng.integers(2, 11), 1, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hc in H_c:
@@ -151,7 +151,7 @@ class CoreTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             # Noise operators not 2d
             for hn in H_n:
-                hn[0] = np.tile(hn[0], (rng.randint(2, 11), 1, 1))
+                hn[0] = np.tile(hn[0], (rng.integers(2, 11), 1, 1))
             ff.PulseSequence(H_c, H_n, dt)
 
         for hn in H_n:
@@ -234,7 +234,7 @@ class CoreTest(testutil.TestCase):
     def test_pulse_sequence_attributes(self):
         """Test attributes of single instance"""
         X, Y, Z = util.paulis[1:]
-        n_dt = rng.randint(1, 10)
+        n_dt = rng.integers(1, 10)
 
         # trivial case
         A = ff.PulseSequence([[X, rng.standard_normal(n_dt), 'X']],
@@ -343,7 +343,7 @@ class CoreTest(testutil.TestCase):
                     _ = A.is_cached(attr)
             else:
                 # set mock attribute at random
-                if rng.randint(0, 2):
+                if rng.integers(0, 2):
                     setattr(A, attr, 'foo')
                     assertion = self.assertTrue
                 else:
@@ -382,7 +382,7 @@ class CoreTest(testutil.TestCase):
 
         for alias, attr in aliases.items():
             # set mock attribute at random
-            if rng.randint(0, 2):
+            if rng.integers(0, 2):
                 setattr(A, attr, 'foo')
                 assertion = self.assertTrue
             else:
@@ -394,6 +394,8 @@ class CoreTest(testutil.TestCase):
             assertion(A.is_cached(alias.replace(' ', '_')))
 
         A.cleanup('all')
+        A._t = None
+        A._tau = None
 
         # Test cleanup
         C = ff.concatenate((A, A), calc_pulse_correlation_FF=True,
@@ -448,14 +450,22 @@ class CoreTest(testutil.TestCase):
         for attr in set(attrs).difference(freq_attrs):
             self.assertIsNotNone(getattr(C, attr))
 
+        # Test t, tau, and duration properties
+        pulse = testutil.rand_pulse_sequence(2, 3, 1, 1)
+        self.assertIs(pulse._t, None)
+        self.assertIs(pulse._tau, None)
+        self.assertArrayEqual(pulse.t, [0, *pulse.dt.cumsum()])
+        self.assertEqual(pulse.tau, pulse.t[-1])
+        self.assertEqual(pulse.duration, pulse.tau)
+
     def test_pulse_sequence_attributes_concat(self):
         """Test attributes of concatenated sequence."""
         X, Y, Z = util.paulis[1:]
-        n_dt_1 = rng.randint(5, 11)
+        n_dt_1 = rng.integers(5, 11)
         x_coeff_1 = rng.standard_normal(n_dt_1)
         z_coeff_1 = rng.standard_normal(n_dt_1)
         dt_1 = np.abs(rng.standard_normal(n_dt_1))
-        n_dt_2 = rng.randint(5, 11)
+        n_dt_2 = rng.integers(5, 11)
         y_coeff_2 = rng.standard_normal(n_dt_2)
         z_coeff_2 = rng.standard_normal(n_dt_2)
         dt_2 = np.abs(rng.standard_normal(n_dt_2))
@@ -469,6 +479,13 @@ class CoreTest(testutil.TestCase):
                                     [X, rng.standard_normal(2)]],
                                    [[Z, np.abs(rng.standard_normal(2))]],
                                    [1, 1])
+        pulse_4 = ff.PulseSequence([[Y, rng.standard_normal(2)],
+                                    [X, rng.standard_normal(2)]],
+                                   [[Z, np.ones(2)]],
+                                   [1, 1])
+        pulse_5 = ff.PulseSequence([[Y, np.zeros(5), 'A_0']],
+                                   [[Y, np.zeros(5), 'B_1']],
+                                   1 - rng.random(5))
 
         # Concatenate with different noise opers
         pulses = [testutil.rand_pulse_sequence(2, 1) for _ in range(2)]
@@ -476,9 +493,6 @@ class CoreTest(testutil.TestCase):
         pulses[1].omega = np.arange(10)
         newpulse = ff.concatenate(pulses, calc_filter_function=True)
         self.assertTrue(newpulse.is_cached('filter function'))
-
-        pulse_12 = pulse_1 @ pulse_2
-        pulse_21 = pulse_2 @ pulse_1
 
         with self.assertRaises(TypeError):
             _ = pulse_1 @ rng.standard_normal((2, 2))
@@ -490,8 +504,25 @@ class CoreTest(testutil.TestCase):
         # Test nbytes property
         _ = pulse_1.nbytes
 
+        pulse_12 = pulse_1 @ pulse_2
+        pulse_21 = pulse_2 @ pulse_1
+        pulse_45 = pulse_4 @ pulse_5
+
         self.assertArrayEqual(pulse_12.dt, [*dt_1, *dt_2])
         self.assertArrayEqual(pulse_21.dt, [*dt_2, *dt_1])
+
+        self.assertIs(pulse_12._t, None)
+        self.assertIs(pulse_21._t, None)
+
+        self.assertEqual(pulse_12._tau, pulse_1.tau + pulse_2.tau)
+        self.assertEqual(pulse_21._tau, pulse_1.tau + pulse_2.tau)
+
+        self.assertAlmostEqual(pulse_12.duration, pulse_1.duration + pulse_2.duration)
+        self.assertAlmostEqual(pulse_21.duration, pulse_2.duration + pulse_1.duration)
+        self.assertAlmostEqual(pulse_12.duration, pulse_21.duration)
+
+        self.assertArrayAlmostEqual(pulse_12.t, [*pulse_1.t, *(pulse_2.t[1:] + pulse_1.tau)])
+        self.assertArrayAlmostEqual(pulse_21.t, [*pulse_2.t, *(pulse_1.t[1:] + pulse_2.tau)])
 
         self.assertArrayEqual(pulse_12.c_opers, [X, Y])
         self.assertArrayEqual(pulse_21.c_opers, [Y, X])
@@ -514,6 +545,16 @@ class CoreTest(testutil.TestCase):
 
         self.assertArrayEqual(pulse_12.n_coeffs, [[*z_coeff_1, *z_coeff_2]])
         self.assertArrayEqual(pulse_21.n_coeffs, [[*z_coeff_2, *z_coeff_1]])
+
+        # Make sure zero coefficients are handled correctly
+        self.assertFalse(np.any(np.isnan(pulse_45.c_coeffs)))
+        self.assertFalse(np.any(np.isnan(pulse_45.n_coeffs)))
+        self.assertArrayEqual(pulse_45.c_coeffs,
+                              [[*pulse_4.c_coeffs[0], *np.zeros(5)],
+                               [*pulse_4.c_coeffs[1], *np.zeros(5)]])
+        self.assertArrayEqual(pulse_45.n_coeffs,
+                              [[*pulse_4.n_coeffs[0], *[pulse_4.n_coeffs[0, 0]]*5],
+                               [*[pulse_5.n_coeffs[0, 0]]*2, *pulse_5.n_coeffs[0]]])
 
         omega = np.linspace(-100, 100, 101)
         pulses = (pulse_1, pulse_2, pulse_12, pulse_21)
@@ -545,6 +586,13 @@ class CoreTest(testutil.TestCase):
         self.assertArrayEqual(pulse.c_oper_identifiers, sorted(ids))
         self.assertArrayEqual(pulse.n_oper_identifiers, sorted(ids))
 
+        pulse = testutil.rand_pulse_sequence(2, 7, 1, 2)
+        periodic_pulse = ff.concatenate_periodic(pulse, 7)
+
+        self.assertIs(periodic_pulse._t, None)
+        self.assertEqual(periodic_pulse._tau, pulse.tau * 7)
+        self.assertArrayAlmostEqual(periodic_pulse.t, [0, *periodic_pulse.dt.cumsum()])
+
     def test_cache_intermediates(self):
         """Test caching of intermediate elements"""
         pulse = testutil.rand_pulse_sequence(3, 4, 2, 3)
@@ -556,9 +604,9 @@ class CoreTest(testutil.TestCase):
         self.assertArrayAlmostEqual(pulse._intermediates['control_matrix_step'].sum(0), ctrlmat)
         self.assertArrayAlmostEqual(numeric.calculate_filter_function(ctrlmat), filtfun)
         self.assertArrayAlmostEqual(pulse._intermediates['n_opers_transformed'],
-                                    numeric._transform_noise_operators(pulse.n_coeffs,
-                                                                       pulse.n_opers,
-                                                                       pulse.eigvecs))
+                                    numeric._transform_hamiltonian(pulse.eigvecs,
+                                                                   pulse.n_opers,
+                                                                   pulse.n_coeffs))
         eigvecs_prop = numeric._propagate_eigenvectors(pulse.propagators[:-1], pulse.eigvecs)
         basis_transformed = np.einsum('gba,kbc,gcd->gkad',
                                       eigvecs_prop.conj(), pulse.basis, eigvecs_prop)
@@ -567,8 +615,8 @@ class CoreTest(testutil.TestCase):
 
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
-        for d, n_dt in zip(rng.randint(2, 10, (3,)),
-                           rng.randint(10, 200, (3,))):
+        for d, n_dt in zip(rng.integers(2, 10, (3,)),
+                           rng.integers(10, 200, (3,))):
             total_pulse = testutil.rand_pulse_sequence(d, n_dt, 4, 6)
             c_opers, c_coeffs = total_pulse.c_opers, total_pulse.c_coeffs
             n_opers, n_coeffs = total_pulse.n_opers, total_pulse.n_coeffs
@@ -663,6 +711,30 @@ class CoreTest(testutil.TestCase):
             self.assertArrayAlmostEqual(F_fidelity,
                                         F_generalized.trace(axis1=2, axis2=3))
 
+    def test_second_order_filter_function(self):
+        for d, n_nops in zip(rng.integers(2, 7, 5), rng.integers(1, 5, 5)):
+            pulse = testutil.rand_pulse_sequence(d, 3, 2, n_nops)
+            omega = util.get_sample_frequencies(pulse, n_samples=42)
+
+            # Make sure result is the same with or without intermediates
+            pulse.cache_control_matrix(omega, cache_intermediates=True)
+            F = pulse.get_filter_function(omega, order=1)
+            F_1 = pulse.get_filter_function(omega, order=2)
+            # Test caching
+            F_2 = pulse.get_filter_function(omega, order=2)
+            F_3 = numeric.calculate_second_order_filter_function(
+                pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis, pulse.n_opers,
+                pulse.n_coeffs, pulse.dt, show_progressbar=False, intermediates=None
+            )
+            # Make sure first and second order are of same order of magnitude
+            rel = np.linalg.norm(F) / np.linalg.norm(F_1)
+
+            self.assertIs(F_1, F_2)
+            self.assertArrayEqual(F_1, F_3)
+            self.assertEqual(F_1.shape, (n_nops, n_nops, d**2, d**2, 42))
+            self.assertLessEqual(rel, 10)
+            self.assertGreaterEqual(rel, 1/10)
+
     def test_pulse_correlation_filter_function(self):
         """
         Test calculation of pulse correlation filter function and control
@@ -692,8 +764,7 @@ class CoreTest(testutil.TestCase):
                 pulses[key] = ff.PulseSequence(H_c[key], H_n[key], dt[key])
                 pulses[key].cache_filter_function(omega + i)
 
-            ff.concatenate([pulses['X'], pulses['Y']],
-                           calc_pulse_correlation_FF=True)
+            ff.concatenate([pulses['X'], pulses['Y']], calc_pulse_correlation_FF=True)
 
         # Get filter functions at same frequencies
         [pulse.cache_filter_function(omega) for pulse in pulses.values()]
@@ -720,18 +791,14 @@ class CoreTest(testutil.TestCase):
         self.assertEqual(pulse_1, pulse_2)
         self.assertEqual(pulse_2.get_pulse_correlation_filter_function().shape,
                          (2, 2, n_nops, n_nops, len(omega)))
-        self.assertArrayAlmostEqual(
-            pulse_1.get_filter_function(omega),
-            pulse_2.get_pulse_correlation_filter_function().sum((0, 1))
-        )
         self.assertArrayAlmostEqual(pulse_1.get_filter_function(omega),
-                                    pulse_2._filter_function)
+                                    pulse_2.get_pulse_correlation_filter_function().sum((0, 1)))
+        self.assertArrayAlmostEqual(pulse_1.get_filter_function(omega), pulse_2._filter_function)
 
         # Test the behavior of the pulse correlation control matrix
         with self.assertRaises(ValueError):
             # R wrong dimension
-            numeric.calculate_pulse_correlation_filter_function(
-                pulse_1._control_matrix)
+            numeric.calculate_pulse_correlation_filter_function(pulse_1._control_matrix)
 
         with self.assertRaises(util.CalculationError):
             # not calculated
@@ -746,8 +813,7 @@ class CoreTest(testutil.TestCase):
         )
 
         control_matrix_pc = pulse_3.get_pulse_correlation_control_matrix()
-        filter_function = \
-            pulse_3.get_pulse_correlation_filter_function(which='fidelity')
+        filter_function = pulse_3.get_pulse_correlation_filter_function(which='fidelity')
         self.assertArrayEqual(
             filter_function,
             numeric.calculate_pulse_correlation_filter_function(
@@ -755,8 +821,7 @@ class CoreTest(testutil.TestCase):
             )
         )
 
-        filter_function = \
-            pulse_3.get_pulse_correlation_filter_function(which='generalized')
+        filter_function = pulse_3.get_pulse_correlation_filter_function(which='generalized')
         self.assertArrayEqual(
             filter_function,
             numeric.calculate_pulse_correlation_filter_function(
@@ -770,8 +835,7 @@ class CoreTest(testutil.TestCase):
         pulse_3._filter_function_pc_gen = None
 
         control_matrix_pc = pulse_3.get_pulse_correlation_control_matrix()
-        filter_function = \
-            pulse_3.get_pulse_correlation_filter_function(which='fidelity')
+        filter_function = pulse_3.get_pulse_correlation_filter_function(which='fidelity')
         self.assertArrayEqual(
             filter_function,
             numeric.calculate_pulse_correlation_filter_function(
@@ -779,8 +843,7 @@ class CoreTest(testutil.TestCase):
             )
         )
 
-        filter_function = \
-            pulse_3.get_pulse_correlation_filter_function(which='generalized')
+        filter_function = pulse_3.get_pulse_correlation_filter_function(which='generalized')
         self.assertArrayEqual(
             filter_function,
             numeric.calculate_pulse_correlation_filter_function(
@@ -790,14 +853,13 @@ class CoreTest(testutil.TestCase):
 
         spectrum = omega**0*1e-2
         with self.assertRaises(util.CalculationError):
-            infid_1 = ff.infidelity(pulse_1, spectrum, omega,
-                                    which='correlations')
+            infid_1 = ff.infidelity(pulse_1, spectrum, omega, which='correlations')
 
         with self.assertRaises(ValueError):
             infid_1 = ff.infidelity(pulse_1, spectrum, omega, which='foobar')
 
         for _ in range(10):
-            n_nops = rng.randint(1, 4)
+            n_nops = rng.integers(1, 4)
             identifiers = sample(['B_0', 'B_1', 'B_2'], n_nops)
 
             infid_X = ff.infidelity(pulses['X'], spectrum, omega,
@@ -838,25 +900,79 @@ class CoreTest(testutil.TestCase):
             with self.assertRaises(ValueError):
                 numeric.calculate_decay_amplitudes(pulse, np.tile(spectrum, [1]*i), omega)
 
-    def test_calculate_cumulant_function(self):
-        """Test numeric.calculate_cumulant_function"""
+    def test_cumulant_function(self):
         pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
-
         omega = rng.standard_normal(43)
-        # single spectrum
         spectrum = rng.standard_normal(43)
         Gamma = numeric.calculate_decay_amplitudes(pulse, spectrum, omega)
+        Delta = numeric.calculate_frequency_shifts(pulse, spectrum, omega)
         K_1 = numeric.calculate_cumulant_function(pulse, spectrum, omega)
         K_2 = numeric.calculate_cumulant_function(pulse, decay_amplitudes=Gamma)
+        K_3 = numeric.calculate_cumulant_function(pulse, spectrum, omega, second_order=True)
+        K_4 = numeric.calculate_cumulant_function(pulse, decay_amplitudes=Gamma,
+                                                  frequency_shifts=Delta, second_order=True)
         self.assertArrayAlmostEqual(K_1, K_2)
+        self.assertArrayAlmostEqual(K_3, K_4)
 
         with self.assertRaises(ValueError):
-            numeric.calculate_cumulant_function(pulse, None, None, None)
+            # Neither spectrum + frequencies nor decay amplitudes supplied
+            numeric.calculate_cumulant_function(pulse, None, None, decay_amplitudes=None)
+
+        with self.assertRaises(ValueError):
+            # Neither spectrum + frequencies nor frequency shifts supplied
+            numeric.calculate_cumulant_function(pulse, None, None, frequency_shifts=None,
+                                                second_order=True)
+
+        with self.assertRaises(ValueError):
+            # Trying to get correlation cumulant function for second order
+            numeric.calculate_cumulant_function(pulse, spectrum, omega, second_order=True,
+                                                which='correlations')
+
+        with self.assertRaises(ValueError):
+            # Using precomputed frequency shifts or decay amplitudes but different shapes
+            numeric.calculate_cumulant_function(pulse, spectrum, omega, second_order=True,
+                                                decay_amplitudes=Gamma[1:])
+
+        with self.assertWarns(UserWarning):
+            # Memory parsimonious only works for decay amplitudes
+            numeric.calculate_cumulant_function(pulse, spectrum, omega, second_order=True,
+                                                memory_parsimonious=True)
+
+        for d in [2, *rng.integers(2, 7, 5)]:
+            pulse = testutil.rand_pulse_sequence(d, 3, 2, 2)
+            omega = util.get_sample_frequencies(pulse, n_samples=42)
+            spectrum = 4e-3/abs(omega)
+
+            pulse.cache_control_matrix(omega, cache_intermediates=True)
+            cumulant_function_first_order = numeric.calculate_cumulant_function(
+                pulse, spectrum, omega, second_order=False
+            )
+            cumulant_function_second_order = numeric.calculate_cumulant_function(
+                pulse, spectrum, omega, second_order=True
+            )
+            # Make sure first and second order are --roughly -- of same order
+            # of magnitude. Unlike the frequency shifts themselves, the
+            # second order contributions to the cumulant function vanish on the
+            # diagonal, whereas the first order contributions dominate. Hence,
+            # be quite lenient.
+            second_order_contribution = (cumulant_function_second_order -
+                                         cumulant_function_first_order)
+            rel = (np.linalg.norm(cumulant_function_first_order) /
+                   np.linalg.norm(second_order_contribution))
+
+            # Second order terms should be anti-hermitian
+            self.assertArrayAlmostEqual(second_order_contribution,
+                                        - second_order_contribution.transpose(0, 2, 1),
+                                        atol=1e-16)
+            self.assertEqual(cumulant_function_first_order.shape,
+                             cumulant_function_second_order.shape)
+            self.assertLessEqual(rel, 200)
+            self.assertGreaterEqual(rel, 1/10)
 
     def test_error_transfer_matrix(self):
         """Test raises of numeric.error_transfer_matrix."""
         pulse = testutil.rand_pulse_sequence(2, 1, 1, 1)
-        omega = testutil.rng.randn(43)
+        omega = testutil.rng.standard_normal(43)
         spectrum = np.ones_like(omega)
         with self.assertRaises(ValueError):
             ff.error_transfer_matrix(pulse, spectrum)
@@ -865,7 +981,7 @@ class CoreTest(testutil.TestCase):
             ff.error_transfer_matrix(cumulant_function=[1, 2, 3])
 
         with self.assertRaises(ValueError):
-            ff.error_transfer_matrix(cumulant_function=testutil.rng.randn(2, 3, 4))
+            ff.error_transfer_matrix(cumulant_function=testutil.rng.standard_normal((2, 3, 4)))
 
     def test_infidelity_convergence(self):
         omega = {
@@ -903,7 +1019,7 @@ class CoreTest(testutil.TestCase):
 
         # Test with non-default args
         identifiers = rng.choice(complicated_pulse.n_oper_identifiers,
-                                 rng.randint(1, 4))
+                                 rng.integers(1, 4))
 
         n, infids = ff.infidelity(complicated_pulse, spectrum, omega,
                                   test_convergence=True,
