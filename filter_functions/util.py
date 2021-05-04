@@ -181,9 +181,6 @@ def parse_optional_parameters(**allowed_kwargs: Dict[str, Sequence]) -> Callable
     return decorator
 
 
-parse_which_FF_parameter = parse_optional_parameters(which=('fidelity', 'generalized'))
-
-
 def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
     """Parse a sequence of operators and convert to ndarray.
 

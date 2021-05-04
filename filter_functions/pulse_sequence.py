@@ -750,7 +750,7 @@ class PulseSequence:
             # order == 2
             self._filter_function_2 = filter_function
 
-    @util.parse_which_FF_parameter
+    @util.parse_optional_parameters(which=('fidelity', 'generalized'))
     def get_pulse_correlation_filter_function(self, which: str = 'fidelity') -> ndarray:
         r"""
         Get the pulse correlation filter function given by
@@ -1538,7 +1538,7 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     return newpulse
 
 
-@util.parse_which_FF_parameter
+@util.parse_optional_parameters(which=('fidelity', 'generalized'))
 def concatenate(
         pulses: Iterable[PulseSequence],
         calc_pulse_correlation_FF: bool = False,

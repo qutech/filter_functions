@@ -1353,7 +1353,7 @@ def calculate_frequency_shifts(
     return frequency_shifts
 
 
-@util.parse_which_FF_parameter
+@util.parse_optional_parameters(which=('fidelity', 'generalized'))
 def calculate_filter_function(control_matrix: ndarray, which: str = 'fidelity') -> ndarray:
     r"""Compute the filter function from the control matrix.
 
@@ -1587,7 +1587,7 @@ def calculate_second_order_filter_function(
     return result
 
 
-@util.parse_which_FF_parameter
+@util.parse_optional_parameters(which=('fidelity', 'generalized'))
 def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
                                                 which: str = 'fidelity') -> ndarray:
     r"""Compute pulse correlation filter function from control matrix.
