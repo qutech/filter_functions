@@ -85,14 +85,17 @@ def _make_str_tex_compatible(s: str) -> str:
     return s
 
 
-def get_bloch_vector(states: Sequence[State]) -> ndarray:
-    r"""
-    Get the Bloch vector from quantum states.
-    """
+def _import_qutip_or_raise():
     try:
         import qutip as qt
     except ImportError as err:
         raise RuntimeError('Requirements not fulfilled. Please install Qutip') from err
+    return qt
+
+
+def get_bloch_vector(states: Sequence[State]) -> ndarray:
+    """Get the Bloch vector from quantum states."""
+    qt = _import_qutip_or_raise()
 
     if isinstance(states[0], qt.Qobj):
         a = np.empty((3, len(states)))
@@ -110,10 +113,7 @@ def get_bloch_vector(states: Sequence[State]) -> ndarray:
 def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
     """A helper function to create a Bloch instance with a default viewing
     angle and axis labels."""
-    try:
-        import qutip as qt
-    except ImportError as err:
-        raise RuntimeError('Requirements not fulfilled. Please install Qutip') from err
+    qt = _import_qutip_or_raise()
 
     bloch_kwargs.setdefault('view', [-150, 30])
     b = qt.Bloch(**bloch_kwargs)
