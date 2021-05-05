@@ -383,7 +383,7 @@ class PulseSequence:
             c_oper_identifiers=self.c_oper_identifiers,
             n_oper_identifiers=self.n_oper_identifiers,
             c_coeffs=np.atleast_2d(self.c_coeffs.T[key]).T,
-            n_coeffs=np.atleast_2d(self.c_coeffs.T[key]).T,
+            n_coeffs=np.atleast_2d(self.n_coeffs.T[key]).T,
             dt=new_dt,
             d=self.d,
             basis=self.basis
