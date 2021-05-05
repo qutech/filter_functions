@@ -228,10 +228,9 @@ def plot_bloch_vector_evolution(
         b = init_bloch_sphere(fig=fig, axes=axes, **bloch_kwargs)
 
     if n_samples is None:
-        # 5 time points during  the smallest time interval in pulse.t. Being
-        # careful that doesn't blow up in our face for extremely narrow pulses,
-        # max out at 5000.
-        n_samples = min([5000, 5*int(pulse.tau/np.diff(pulse.t).min())])
+        # At least 100, at most 5000 points, default 10 points per smallest
+        # time interval
+        n_samples = min(5000, max(10*int(pulse.tau/pulse.dt.min()), 100))
 
     times = np.linspace(pulse.t[0], pulse.tau, n_samples)
     propagators = pulse.propagator_at_arb_t(times)
