@@ -287,7 +287,7 @@ class PulseSequence:
 
     def __str__(self):
         """String method."""
-        return f'{repr(self)} with total duration {self.tau}'
+        return f'{repr(self)}\n\tof dimension {self.d} and duration {self.duration}'
 
     def __eq__(self, other: object) -> bool:
         """
