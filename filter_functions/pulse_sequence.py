@@ -1488,13 +1488,14 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     concatenate: Concatenate PulseSequences including filter functions.
     concatenate_periodic: Concatenate PulseSequences periodically.
     """
-    pulses = tuple(pulses)
     try:
-        # Do awkward checking for type
-        if not all(hasattr(pls, 'c_opers') for pls in pulses):
-            raise TypeError('Can only concatenate PulseSequences!')
+        pulses = tuple(pulses)
     except TypeError:
         raise TypeError(f'Expected pulses to be iterable, not {type(pulses)}')
+
+    if not all(hasattr(pls, 'c_opers') for pls in pulses):
+        # Do awkward checking for type
+        raise TypeError('Can only concatenate PulseSequences!')
 
     # Check if the Hamiltonians' shapes are compatible, ie the set of all
     # shapes has length 1

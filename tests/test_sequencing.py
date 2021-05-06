@@ -103,7 +103,7 @@ class ConcatenationTest(testutil.TestCase):
 
         with self.assertRaises(TypeError):
             # Not iterable
-            pulse_sequence.concatenate_without_filter_function(pulse)
+            pulse_sequence.concatenate_without_filter_function(1)
 
         with self.assertRaises(ValueError):
             # Incompatible Hamiltonian shapes
