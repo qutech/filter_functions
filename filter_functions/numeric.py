@@ -2030,7 +2030,7 @@ def infidelity(
         else:
             raise ValueError("spacing should be either 'linear' or 'log'.")
 
-        delta_n = (n_max - n_min)//n_points
+        delta_n = (n_max - n_min)//(n_points - 1)
         n_samples = np.arange(n_min, n_max + delta_n, delta_n)
 
         convergence_infids = np.empty((len(n_samples), len(idx)))
