@@ -40,7 +40,7 @@ Functions
 """
 
 import bisect
-from copy import copy
+import copy
 from itertools import accumulate, compress, zip_longest
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 from warnings import warn
@@ -371,9 +371,15 @@ class PulseSequence:
     def __copy__(self) -> 'PulseSequence':
         """Return shallow copy of self"""
         cls = self.__class__
-        copy = cls.__new__(cls)
-        copy.__dict__.update(self.__dict__)
-        return copy
+        copied = cls.__new__(cls)
+        copied.__dict__.update(self.__dict__)
+        return copied
+
+    def __deepcopy__(self, memo=None) -> 'PulseSequence':
+        cls = self.__class__
+        copied = cls.__new__(cls)
+        copied.__dict__.update({key: copy.deepcopy(val) for key, val in self.__dict__.items()})
+        return copied
 
     def __matmul__(self, other: 'PulseSequence') -> 'PulseSequence':
         """Concatenation of PulseSequences."""
@@ -1598,7 +1604,7 @@ def concatenate(
     """
     pulses = tuple(pulses)
     if len(pulses) == 1:
-        return copy(pulses[0])
+        return copy.deepcopy(pulses[0])
 
     newpulse, _, n_oper_mapping = concatenate_without_filter_function(
         pulses, return_identifier_mappings=True

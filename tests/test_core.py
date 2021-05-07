@@ -21,8 +21,8 @@
 """
 This module tests the core functionality of the package.
 """
+import copy
 import string
-from copy import copy
 from random import sample
 
 import numpy as np
@@ -217,9 +217,6 @@ class CoreTest(testutil.TestCase):
         pulse
         print(pulse)
 
-        # Hit __copy__ method
-        _ = copy(pulse)
-
         # Fewer identifiers than opers
         pulse_2 = ff.PulseSequence(
             [[util.paulis[1], [1], 'X'],
@@ -230,6 +227,24 @@ class CoreTest(testutil.TestCase):
         )
         self.assertArrayEqual(pulse_2.c_oper_identifiers, ('A_1', 'X'))
         self.assertArrayEqual(pulse_2.n_oper_identifiers, ('B_0', 'Y'))
+
+    def test_copy(self):
+        pulse = testutil.rand_pulse_sequence(2, 2)
+        old_copers = pulse.c_opers.copy()
+
+        copied = copy.copy(pulse)
+        deepcopied = copy.deepcopy(pulse)
+
+        self.assertEqual(pulse, copied)
+        self.assertEqual(pulse, deepcopied)
+
+        pulse.c_opers[...] = rng.standard_normal(size=pulse.c_opers.shape)
+
+        self.assertArrayEqual(pulse.c_opers, copied.c_opers)
+        self.assertArrayEqual(old_copers, deepcopied.c_opers)
+
+        self.assertEqual(pulse, copied)
+        self.assertNotEqual(pulse, deepcopied)
 
     def test_pulse_sequence_attributes(self):
         """Test attributes of single instance"""
