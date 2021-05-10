@@ -732,6 +732,7 @@ class PulseSequence:
                         self._filter_function_pc = F_pc
                     else:
                         # which == 'generalized'
+                        self._filter_function_pc = F_pc.trace(axis1=4, axis2=5)
                         self._filter_function_pc_gen = F_pc
 
                     filter_function = F_pc.sum(axis=(0, 1))
@@ -751,6 +752,7 @@ class PulseSequence:
                 self._filter_function = filter_function
             else:
                 # which == 'generalized'
+                self._filter_function = filter_function.trace(axis1=2, axis2=3)
                 self._filter_function_gen = filter_function
         else:
             # order == 2
