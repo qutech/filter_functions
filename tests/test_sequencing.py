@@ -86,7 +86,11 @@ class ConcatenationTest(testutil.TestCase):
 
             # Boolean indices
             ix = rng.integers(0, 2, size=n, dtype=bool)
-            self.assertEqual(pulse[ix], ff.concatenate(parts[ix]))
+            if not ix.any():
+                with self.assertRaises(IndexError):
+                    pulse[ix]
+            else:
+                self.assertEqual(pulse[ix], ff.concatenate(parts[ix]))
 
         # Raises
         with self.assertRaises(IndexError):
