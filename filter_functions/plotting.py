@@ -794,7 +794,7 @@ def plot_cumulant_function(
         else:
             basis_labels = [f'$C_{{{i}}}$' for i in range(K.shape[-1])]
     else:
-        if basis_labels and len(basis_labels) != K.shape[-1]:
+        if basis_labels is not None and len(basis_labels) != K.shape[-1]:
             raise ValueError('Invalid number of basis_labels given')
 
         basis_labels = [_make_str_tex_compatible(bl) for bl in basis_labels]

@@ -260,7 +260,7 @@ class PlottingTest(testutil.TestCase):
         K = numeric.calculate_cumulant_function(complicated_pulse, spectrum, omega)
         fig, grid = plotting.plot_cumulant_function(
             complicated_pulse, spectrum=spectrum, omega=omega,
-            n_oper_identifiers=n_oper_identifiers, basis_labels=basis_labels,
+            n_oper_identifiers=n_oper_identifiers, basis_labels=np.array(basis_labels),
             basis_labelsize=4, linthresh=1e-4, cmap=plt.cm.jet
         )
         fig, grid = plotting.plot_cumulant_function(
