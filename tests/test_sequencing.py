@@ -62,6 +62,44 @@ class ConcatenationTest(testutil.TestCase):
             pulse_2.omega = [3, 4]
             ff.concatenate([pulse_1, pulse_2], calc_filter_function=True)
 
+    def test_slicing(self):
+        """Tests _getitem__."""
+        for d, n in zip(rng.integers(2, 5, 20), rng.integers(3, 51, 20)):
+            pulse = testutil.rand_pulse_sequence(d, n)
+            parts = np.array([part for part in pulse], dtype=object).squeeze()
+
+            # Iterable
+            self.assertEqual(pulse, ff.concatenate(parts))
+            self.assertEqual(len(pulse), n)
+
+            # Slices
+            ix = rng.integers(1, n-1)
+            part = pulse[ix]
+            self.assertEqual(part, parts[ix])
+            self.assertEqual(pulse, ff.concatenate([pulse[:ix], pulse[ix:]]))
+
+            # More complicated slices
+            self.assertEqual(pulse[:len(pulse) // 2 * 2],
+                             ff.concatenate([p for zipped in zip(pulse[::2], pulse[1::2])
+                                             for p in zipped]))
+            self.assertEqual(pulse[::-1], ff.concatenate(parts[::-1]))
+
+            # Boolean indices
+            ix = rng.integers(0, 2, size=n, dtype=bool)
+            if not ix.any():
+                with self.assertRaises(IndexError):
+                    pulse[ix]
+            else:
+                self.assertEqual(pulse[ix], ff.concatenate(parts[ix]))
+
+        # Raises
+        with self.assertRaises(IndexError):
+            pulse[:0]
+        with self.assertRaises(IndexError):
+            pulse[1, 3]
+        with self.assertRaises(IndexError):
+            pulse['a']
+
     def test_concatenate_without_filter_function(self):
         """Concatenate two Spin Echos without filter functions."""
         tau = 10
@@ -103,7 +141,7 @@ class ConcatenationTest(testutil.TestCase):
 
         with self.assertRaises(TypeError):
             # Not iterable
-            pulse_sequence.concatenate_without_filter_function(pulse)
+            pulse_sequence.concatenate_without_filter_function(1)
 
         with self.assertRaises(ValueError):
             # Incompatible Hamiltonian shapes

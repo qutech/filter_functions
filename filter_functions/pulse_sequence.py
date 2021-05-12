@@ -368,6 +368,28 @@ class PulseSequence:
 
         return True
 
+    def __len__(self) -> int:
+        return len(self.dt)
+
+    def __getitem__(self, key) -> 'PulseSequence':
+        """Return a slice of the PulseSequence."""
+        new_dt = np.atleast_1d(self.dt[key])
+        if not new_dt.size:
+            raise IndexError('Cannot create empty PulseSequence')
+
+        new = self.__class__(
+            c_opers=self.c_opers,
+            n_opers=self.n_opers,
+            c_oper_identifiers=self.c_oper_identifiers,
+            n_oper_identifiers=self.n_oper_identifiers,
+            c_coeffs=np.atleast_2d(self.c_coeffs.T[key]).T,
+            n_coeffs=np.atleast_2d(self.n_coeffs.T[key]).T,
+            dt=new_dt,
+            d=self.d,
+            basis=self.basis
+        )
+        return new
+
     def __copy__(self) -> 'PulseSequence':
         """Return shallow copy of self"""
         cls = self.__class__
@@ -1488,13 +1510,14 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     concatenate: Concatenate PulseSequences including filter functions.
     concatenate_periodic: Concatenate PulseSequences periodically.
     """
-    pulses = tuple(pulses)
     try:
-        # Do awkward checking for type
-        if not all(hasattr(pls, 'c_opers') for pls in pulses):
-            raise TypeError('Can only concatenate PulseSequences!')
+        pulses = tuple(pulses)
     except TypeError:
         raise TypeError(f'Expected pulses to be iterable, not {type(pulses)}')
+
+    if not all(hasattr(pls, 'c_opers') for pls in pulses):
+        # Do awkward checking for type
+        raise TypeError('Can only concatenate PulseSequences!')
 
     # Check if the Hamiltonians' shapes are compatible, ie the set of all
     # shapes has length 1
