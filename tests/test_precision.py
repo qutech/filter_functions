@@ -59,12 +59,11 @@ def _get_integrals_second_order(d, E, eigval, dt, t0):
     dE = np.subtract.outer(eigval, eigval)
 
     ex = (np.multiply.outer(dE, tspace - t0) +
-          np.expand_dims(np.multiply.outer(E, tspace), (1, 2)))
+          np.multiply.outer(E, tspace)[:, None, None])
     I1 = integrate.cumtrapz(util.cexp(ex), tspace, initial=0)
     ex = (np.multiply.outer(dE, tspace - t0) -
-          np.expand_dims(np.multiply.outer(E, tspace), (1, 2)))
-    integrand = (np.expand_dims(util.cexp(ex), (3, 4)) *
-                 np.expand_dims(I1, (1, 2)))
+          np.multiply.outer(E, tspace)[:, None, None])
+    integrand = util.cexp(ex)[:, :, :, None, None] * I1[:, None, None]
 
     integral_numeric = integrate.trapz(integrand, tspace)
     integral = numeric._second_order_integral(E, eigval, dt, int_buf, frc_bufs, dE_bufs,
