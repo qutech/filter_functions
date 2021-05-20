@@ -306,12 +306,12 @@ class PlottingTest(testutil.TestCase):
         plt.close('all')
 
     def test_plot_infidelity_convergence(self):
-        def spectrum(omega):
-            return omega**0
-
-        n, infids = ff.infidelity(simple_pulse, spectrum, {},
-                                  test_convergence=True)
+        n, infids = ff.infidelity(simple_pulse, lambda x: x**0, {}, test_convergence=True)
         fig, ax = plotting.plot_infidelity_convergence(n, infids)
+
+        fig, ax = plt.subplots(1, 2)
+        cfig, ax = plotting.plot_infidelity_convergence(n, infids, ax)
+        self.assertIs(cfig, fig)
 
 
 class LaTeXRenderingTest(testutil.TestCase):
