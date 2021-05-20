@@ -1292,8 +1292,8 @@ def _concatenate_Hamiltonian(
 
     if any(len(value) > 1 for value in oper_to_identifier_mapping.values()):
         # Clash: two different identifiers are assigned to the same operator
-        raise ValueError('Trying to concatenate pulses with equal operators with different ' +
-                         'identifiers. Please choose unique identifiers!')
+        raise ValueError(f'Trying to concatenate pulses with equal {kind} operators but ' +
+                         f'different identifiers. Please choose unique {kind} identifiers!')
 
     # A dict that maps the identifiers of each Hamiltonian to the identifiers
     # in the new Hamiltonian
