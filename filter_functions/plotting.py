@@ -623,7 +623,8 @@ def plot_pulse_correlation_filter_function(
     return fig, axes, legend
 
 
-def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float]) -> FigureAxes:
+def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float],
+                                axes: Optional[Axes] = None) -> FigureAxes:
     """
     Plot the convergence of the infidelity integral. The function
     arguments are those returned by
@@ -638,6 +639,8 @@ def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float
     infids: array_like, shape (n_samples, [n_oper_inds, optional])
         Array with the calculated infidelities for each noise operator
         on the second axis or the second axis already traced out.
+    axes: sequence of two matplotlib axes, optional
+        Two axes that the result is plotted in.
 
     Returns
     -------
@@ -647,18 +650,22 @@ def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float
         The matplotlib axes instances used for plotting.
 
     """
-    fig, ax = plt.subplots(2, 1, sharex=True)
-    ax[1].set_xlabel(r'$n_\omega$')
-    ax[0].set_ylabel(r'$\mathcal{I}$')
-    ax[1].set_ylabel(r'$|\Delta\mathcal{I}|/\mathcal{I}$ (%)')
-    ax[0].set_xlim(min(n_samples), max(n_samples))
-    ax[0].grid()
-    ax[1].grid()
+    if axes is None:
+        fig, axes = plt.subplots(2, 1, sharex=True)
+    else:
+        fig = axes[0].get_figure()
 
-    ax[0].plot(n_samples, infids, 'o-')
-    ax[1].semilogy(n_samples, np.abs(np.gradient(infids, axis=0))/infids*100, 'o-')
+    axes[1].set_xlabel(r'$n_\omega$')
+    axes[0].set_ylabel(r'$\mathcal{I}$')
+    axes[1].set_ylabel(r'$|\Delta\mathcal{I}|/\mathcal{I}$ (%)')
+    axes[0].set_xlim(min(n_samples), max(n_samples))
+    axes[0].grid()
+    axes[1].grid()
 
-    return fig, ax
+    axes[0].plot(n_samples, infids, 'o-')
+    axes[1].semilogy(n_samples, np.abs(np.gradient(infids, axis=0))/infids*100, 'o-')
+
+    return fig, axes
 
 
 @util.parse_optional_parameters(colorscale=('linear', 'log'))
