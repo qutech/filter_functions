@@ -1812,8 +1812,6 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     except TypeError:
         raise TypeError(f'Expected pulses to be iterable, not {type(pulse)}')
 
-    cached_ctrl_mat = pulse.is_cached('control_matrix')
-
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
     dt = np.tile(pulse.dt, repeats)
@@ -1830,7 +1828,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     )
     newpulse.tau = repeats*pulse.tau
 
-    if not cached_ctrl_mat:
+    if not pulse.is_cached('control_matrix'):
         # No cached filter functions to reuse and pulse correlation FFs not
         # requested. If they were, continue even if there are no cached FF
         # they cannot be computed anymore afterwards.
@@ -1838,16 +1836,13 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     phases_at = pulse.get_total_phases(pulse.omega)
     control_matrix_at = pulse.get_control_matrix(pulse.omega)
-    L_at = pulse.total_propagator_liouville
+    total_propagator_liouville_at = pulse.total_propagator_liouville
 
     newpulse.total_propagator = nla.matrix_power(pulse.total_propagator, repeats)
     newpulse.cache_total_phases(pulse.omega)
-    # Might be cheaper for small repeats to use matrix_power, but this function
-    # is aimed at a large number so we calculate it explicitly
-    newpulse.total_propagator_liouville = newpulse.total_propagator_liouville
 
     control_matrix_tot = numeric.calculate_control_matrix_periodic(phases_at, control_matrix_at,
-                                                                   L_at, repeats)
+                                                                   total_propagator_liouville_at, repeats)
 
     newpulse.cache_filter_function(pulse.omega, control_matrix_tot)
 
