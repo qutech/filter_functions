@@ -924,7 +924,7 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     # Solve LSE instead of computing inverse, faster + numerically more stable
     S[invertible] = nla.solve(M[invertible], eye - nla.matrix_power(T[invertible], repeats))
     if (~invertible).any():
-        S[~invertible] = sum(accumulate(repeat(T[~invertible], repeats-1), np.matmul, initial=eye))
+        S[~invertible] = eye + sum(accumulate(repeat(T[~invertible], repeats-1), np.matmul))
 
     control_matrix_tot = (control_matrix.transpose(2, 0, 1) @ S).transpose(1, 2, 0)
     return control_matrix_tot
