@@ -859,7 +859,7 @@ def calculate_control_matrix_from_scratch(
 
 def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
                                       total_propagator_liouville: ndarray,
-                                      repeats: int) -> ndarray:
+                                      repeats: int, check_invertible: bool = True) -> ndarray:
     r"""
     Calculate the control matrix of a periodic pulse given the phase
     factors, control matrix and transfer matrix of the total propagator,
@@ -877,6 +877,11 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
         pulse.
     repeats: int
         The number of repetitions.
+    check_invertible: bool, optional
+        Check for all frequencies if the inverse :math:`\mathbb{I} -
+        e^{i\omega T} \mathcal{Q}^{(1)}` exists by calculating the
+        determinant. If it does not exist, the sum is evaluated
+        explicitly for those points. The default is True.
 
     Returns
     -------
@@ -909,22 +914,17 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     # evaluate it explicitly.
     eye = np.eye(total_propagator_liouville.shape[0])
     T = np.multiply.outer(phases, total_propagator_liouville)
-
-    # Mask the invertible frequencies. The chosen atol is somewhat empiric.
     M = eye - T
-    M_inv = nla.inv(M)
-    good_inverse = np.isclose(M_inv @ M, eye, atol=1e-10, rtol=0).all((1, 2))
+    if check_invertible:
+        invertible = ~np.isclose(nla.det(M), 0)
+    else:
+        invertible = np.array(True)
 
     S = np.empty((*phases.shape, *total_propagator_liouville.shape), dtype=complex)
-    # Evaluate the sum for invertible frequencies
-    S[good_inverse] = M_inv[good_inverse] @ (eye - nla.matrix_power(T[good_inverse], repeats))
-
-    # Evaluate the sum for non-invertible frequencies
-    # HINT: Using numba, this could be a factor of ten or so faster. But since
-    # usually very few omega-values have a bad inverse, the compilation
-    # overhead is not compensated.
-    if (~good_inverse).any():
-        S[~good_inverse] = eye + sum(accumulate(repeat(T[~good_inverse], repeats-1), np.matmul))
+    # Solve LSE instead of computing inverse, faster + numerically more stable
+    S[invertible] = nla.solve(M[invertible], eye - nla.matrix_power(T[invertible], repeats))
+    if (~invertible).any():
+        S[~invertible] = sum(accumulate(repeat(T[~invertible], repeats-1), np.matmul, initial=eye))
 
     control_matrix_tot = (control_matrix.transpose(2, 0, 1) @ S).transpose(1, 2, 0)
     return control_matrix_tot

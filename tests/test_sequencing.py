@@ -24,7 +24,7 @@ This module tests the concatenation functionality for PulseSequence's.
 
 import string
 from copy import deepcopy
-from itertools import product
+from itertools import product, repeat
 from random import sample
 
 import numpy as np
@@ -507,7 +507,7 @@ class ConcatenationTest(testutil.TestCase):
             # Test forcibly caching
             self.assertTrue(pulse_13_2.is_cached('filter_function'))
 
-    def test_concatenation_periodic(self):
+    def test_concatenate_periodic(self):
         """Test concatenation for periodic Hamiltonians"""
         X, Y, Z = util.paulis[1:]
         A = 0.01
@@ -566,6 +566,24 @@ class ConcatenationTest(testutil.TestCase):
 
         self.assertArrayAlmostEqual(F_LAB, F_CC, atol=1e-13)
         self.assertArrayAlmostEqual(F_LAB, F_CC_PERIODIC, atol=1e-13)
+
+        # Random tests, make sure we test for G=1
+        for d, G in zip(rng.integers(2, 7, 11), np.concatenate([[1], rng.integers(2, 1000, 10)])):
+            pulse = testutil.rand_pulse_sequence(d, 5, 2, 2)
+            pulse.cache_filter_function(rng.random(37))
+            a = ff.concatenate(repeat(pulse, G))
+            b = ff.concatenate_periodic(pulse, G)
+            self.assertEqual(a, b)
+            self.assertArrayAlmostEqual(a._control_matrix, b._control_matrix)
+            self.assertArrayAlmostEqual(a._filter_function, b._filter_function)
+
+            cm = ff.numeric.calculate_control_matrix_periodic(pulse.get_total_phases(pulse.omega),
+                                                              pulse.get_control_matrix(pulse.omega),
+                                                              pulse.total_propagator_liouville,
+                                                              G, check_invertible=False)
+            # Check mostly always equal
+            self.assertGreater(np.isclose(cm, a._control_matrix).sum()/cm.size, 0.9)
+
 
     def test_pulse_correlations(self):
         """Test calculating pulse correlation quantities."""
