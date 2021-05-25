@@ -444,8 +444,8 @@ def calculate_noise_operators_from_atomic(
 
     See Also
     --------
-    :func:`calculate_noise_operators_from_scratch`: Compute the operators from scratch.
-    :func:`calculate_control_matrix_from_atomic`: Same calculation in Liouville space.
+    calculate_noise_operators_from_scratch: Compute the operators from scratch.
+    calculate_control_matrix_from_atomic: Same calculation in Liouville space.
     """
     n = len(noise_operators_atomic)
     # Allocate memory
@@ -572,8 +572,8 @@ def calculate_noise_operators_from_scratch(
 
     See Also
     --------
-    :func:`calculate_noise_operators_from_atomic`: Compute the operators from atomic segments.
-    :func:`calculate_control_matrix_from_scratch`: Same calculation in Liouville space.
+    calculate_noise_operators_from_atomic: Compute the operators from atomic segments.
+    calculate_control_matrix_from_scratch: Same calculation in Liouville space.
     """
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))

@@ -466,8 +466,8 @@ def calculate_derivative_of_control_matrix_from_scratch(
 
     See Also
     --------
-    :func:`_liouville_derivative`
-    :func:`_control_matrix_at_timestep_derivative`
+    _liouville_derivative
+    _control_matrix_at_timestep_derivative
     """
     # Distinction between control and drift operators and only
     # calculate the derivatives in control direction
