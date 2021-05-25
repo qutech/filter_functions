@@ -2035,7 +2035,7 @@ def infidelity(
 
         convergence_infids = np.empty((len(n_samples), len(idx)))
         for i, n in enumerate(n_samples):
-            freqs = xspace(omega_IR, omega_UV, n//2)
+            freqs = xspace(omega_IR, omega_UV, n)
             convergence_infids[i] = infidelity(pulse, spectrum(freqs), freqs,
                                                n_oper_identifiers=n_oper_identifiers,
                                                which='total', show_progressbar=show_progressbar,
