@@ -1096,23 +1096,25 @@ def calculate_cumulant_function(
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
         cumulant_function = np.zeros(decay_amplitudes.shape, decay_amplitudes.dtype)
-        diag_mask = np.eye(N, dtype=bool)
+        diag_mask = np.zeros((N, N), dtype=bool)
+        diag_mask[1:, 1:] = ~np.eye(N-1, dtype=bool)
 
         # Offdiagonal terms
-        cumulant_function[..., ~diag_mask] = decay_amplitudes[..., ~diag_mask]
+        cumulant_function[..., diag_mask] = decay_amplitudes[..., diag_mask]
 
         # Diagonal terms K_ii given by sum over diagonal of Gamma excluding
         # Gamma_ii. Since the Pauli basis is traceless, K_00 is zero, therefore
         # start at K_11.
-        diag_idx = deque((True, False, True, True))
+        diag_deque = deque((False, True, True))
         for i in range(1, N):
+            diag_idx = [False] + list(diag_deque)
             cumulant_function[..., i, i] = -decay_amplitudes[..., diag_idx, diag_idx].sum(axis=-1)
             # shift the item not summed over by one
-            diag_idx.rotate()
+            diag_deque.rotate()
 
         if second_order:
-            cumulant_function -= frequency_shifts
-            cumulant_function += frequency_shifts.swapaxes(-1, -2)
+            cumulant_function[..., 1:, 1:] -= frequency_shifts[..., 1:, 1:]
+            cumulant_function[..., 1:, 1:] += frequency_shifts[..., 1:, 1:].swapaxes(-1, -2)
     else:
         # Multi qubit case. Use general expression. Drop imaginary part since
         # result is guaranteed to be real (if we didn't do anything wrong)

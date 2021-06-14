@@ -549,6 +549,11 @@ class PrecisionTest(testutil.TestCase):
         d = 2
         for n_dt in rng.integers(1, 11, 10):
             pulse = testutil.rand_pulse_sequence(d, n_dt, 3, 2, btype='Pauli')
+            traceless = rng.integers(2, dtype=bool)
+            if not traceless:
+                # Test that result correct for finite trace n_oper (edge case)
+                pulse.n_opers[0] = np.eye(d)/np.sqrt(d)
+
             omega = util.get_sample_frequencies(pulse, n_samples=51)
             n_oper_identifiers = pulse.n_oper_identifiers
             traces = pulse.basis.four_element_traces.todense()
@@ -575,14 +580,16 @@ class PrecisionTest(testutil.TestCase):
                       np.einsum('...kl,kijl->...ij', Gamma, traces))/2
                 U_onfoot = sla.expm(K.sum(tuple(range(K.ndim - 2))))
                 U_from_K = ff.error_transfer_matrix(cumulant_function=K)
-                I_fidelity = ff.infidelity(pulse, S, omega)
-                I_decayamps = -np.einsum('...ii', K)/d**2
-                I_transfer = 1 - np.einsum('...ii', U)/d**2
                 self.assertArrayAlmostEqual(Up, U)
-                self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
-                self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4, atol=1e-10)
                 self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
                 self.assertArrayAlmostEqual(U_from_K, U_onfoot)
+                if traceless:
+                    # Simplified fidelity calculation relies on traceless n_opers
+                    I_fidelity = ff.infidelity(pulse, S, omega)
+                    I_decayamps = -np.einsum('...ii', K)/d**2
+                    I_transfer = 1 - np.einsum('...ii', U)/d**2
+                    self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
+                    self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4, atol=1e-10)
 
                 # second order
                 K -= (np.einsum('...kl,klji->...ij', Delta, traces) -
@@ -592,10 +599,13 @@ class PrecisionTest(testutil.TestCase):
                 U = ff.error_transfer_matrix(pulse, S, omega, second_order=True)
                 U_onfoot = sla.expm(K.sum(tuple(range(K.ndim - 2))))
                 U_from_K = ff.error_transfer_matrix(cumulant_function=K)
-                I_transfer = 1 - np.einsum('...ii', U)/d**2
-                self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4, atol=1e-10)
                 self.assertArrayAlmostEqual(U, U_onfoot, atol=1e-14)
                 self.assertArrayAlmostEqual(U_from_K, U_onfoot)
+                if traceless:
+                    # Simplified fidelity calculation relies on traceless n_opers
+                    I_transfer = 1 - np.einsum('...ii', U)/d**2
+                    self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4, atol=1e-10)
+
 
     def test_multi_qubit_error_transfer_matrix(self):
         """Test the calculation of the multi-qubit transfer matrix"""
