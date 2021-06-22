@@ -174,11 +174,12 @@ def _liouville_derivative(dt: Coefficients, propagators: ndarray, basis: Basis, 
 
     # Calculate the whole propagator derivative
     propagators_deriv = np.zeros((c_opers_transformed.shape[1], n-1, n, d, d), dtype=complex)
+    U_deriv_transformed = np.zeros((c_opers_transformed.shape[1], n-1, d, d), dtype=complex)
     for g in range(n-1):
-        propagators_deriv[:, g, :g+1] = (propagators[g+1]
-                                         @ propagators[1:g+2].conj().swapaxes(-1, -2)
-                                         @ U_deriv[:, :g+1]
-                                         @ propagators[:g+1])
+        U_deriv_transformed[:, g] = (propagators[g+1].conj().swapaxes(-1, -2)
+                                     @ U_deriv[:, g]
+                                     @ propagators[g])
+        propagators_deriv[:, g, :g+1] = propagators[g+1] @ U_deriv_transformed[:, :g+1]
 
     # Equivalent but usually slower contraction: 'htsba,jbc,tcd,kda->thsjk'
     # Can just take 2*Re(·) when calculating x + x*
