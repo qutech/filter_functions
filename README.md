@@ -1,6 +1,6 @@
 # `filter_functions`: A package for efficient numerical calculation of generalized filter functions to describe the effect of noise on quantum gate operations
 [![codecov](https://codecov.io/gh/qutech/filter_functions/branch/master/graph/badge.svg)](https://codecov.io/gh/qutech/filter_functions)
-[![Build Status](https://travis-ci.org/qutech/filter_functions.svg?branch=master)](https://travis-ci.org/qutech/filter_functions)
+[![Build status](https://github.com/qutech/filter_functions/actions/workflows/main.yml/badge.svg)](https://github.com/qutech/filter_functions/actions/workflows/main.yml)
 [![Documentation Status](https://readthedocs.org/projects/filter-functions/badge/?version=latest)](https://filter-functions.readthedocs.io/en/latest/?badge=latest)
 [![PyPI version](https://img.shields.io/pypi/v/filter-functions.svg)](https://pypi.org/project/filter-functions/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4575001.svg)](https://doi.org/10.5281/zenodo.4575001)
