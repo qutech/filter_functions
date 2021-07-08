@@ -40,7 +40,7 @@ Functions
 """
 
 import bisect
-from copy import copy
+import copy
 from itertools import accumulate, compress, zip_longest
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 from warnings import warn
@@ -287,7 +287,7 @@ class PulseSequence:
 
     def __str__(self):
         """String method."""
-        return f'{repr(self)} with total duration {self.tau}'
+        return f'{repr(self)}\n\tof dimension {self.d} and duration {self.duration}'
 
     def __eq__(self, other: object) -> bool:
         """
@@ -393,9 +393,15 @@ class PulseSequence:
     def __copy__(self) -> 'PulseSequence':
         """Return shallow copy of self"""
         cls = self.__class__
-        copy = cls.__new__(cls)
-        copy.__dict__.update(self.__dict__)
-        return copy
+        copied = cls.__new__(cls)
+        copied.__dict__.update(self.__dict__)
+        return copied
+
+    def __deepcopy__(self, memo=None) -> 'PulseSequence':
+        cls = self.__class__
+        copied = cls.__new__(cls)
+        copied.__dict__.update({key: copy.deepcopy(val) for key, val in self.__dict__.items()})
+        return copied
 
     def __matmul__(self, other: 'PulseSequence') -> 'PulseSequence':
         """Concatenation of PulseSequences."""
@@ -586,7 +592,7 @@ class PulseSequence:
             "True."
         )
 
-    @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
+    @util.parse_optional_parameters(which=('fidelity', 'generalized'), order=(1, 2))
     def get_filter_function(
             self, omega: Coefficients,
             which: str = 'fidelity',
@@ -686,7 +692,7 @@ class PulseSequence:
             # order == 2
             return self._filter_function_2
 
-    @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
+    @util.parse_optional_parameters(which=('fidelity', 'generalized'), order=(1, 2))
     def cache_filter_function(
             self, omega: Coefficients,
             control_matrix: Optional[ndarray] = None,
@@ -748,6 +754,7 @@ class PulseSequence:
                         self._filter_function_pc = F_pc
                     else:
                         # which == 'generalized'
+                        self._filter_function_pc = F_pc.trace(axis1=4, axis2=5)
                         self._filter_function_pc_gen = F_pc
 
                     filter_function = F_pc.sum(axis=(0, 1))
@@ -767,12 +774,13 @@ class PulseSequence:
                 self._filter_function = filter_function
             else:
                 # which == 'generalized'
+                self._filter_function = filter_function.trace(axis1=2, axis2=3)
                 self._filter_function_gen = filter_function
         else:
             # order == 2
             self._filter_function_2 = filter_function
 
-    @util.parse_which_FF_parameter
+    @util.parse_optional_parameters(which=('fidelity', 'generalized'))
     def get_pulse_correlation_filter_function(self, which: str = 'fidelity') -> ndarray:
         r"""
         Get the pulse correlation filter function given by
@@ -1005,8 +1013,8 @@ class PulseSequence:
 
         return sum(_nbytes)
 
-    @util.parse_optional_parameters({'method': ('conservative', 'greedy',
-                                                'frequency dependent', 'all')})
+    @util.parse_optional_parameters(method=('conservative', 'greedy',
+                                            'frequency dependent', 'all'))
     def cleanup(self, method: str = 'conservative') -> None:
         """
         Delete cached byproducts of the calculation of the filter
@@ -1306,8 +1314,8 @@ def _concatenate_Hamiltonian(
 
     if any(len(value) > 1 for value in oper_to_identifier_mapping.values()):
         # Clash: two different identifiers are assigned to the same operator
-        raise ValueError('Trying to concatenate pulses with equal operators with different ' +
-                         'identifiers. Please choose unique identifiers!')
+        raise ValueError(f'Trying to concatenate pulses with equal {kind} operators but ' +
+                         f'different identifiers. Please choose unique {kind} identifiers!')
 
     # A dict that maps the identifiers of each Hamiltonian to the identifiers
     # in the new Hamiltonian
@@ -1561,7 +1569,7 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     return newpulse
 
 
-@util.parse_which_FF_parameter
+@util.parse_optional_parameters(which=('fidelity', 'generalized'))
 def concatenate(
         pulses: Iterable[PulseSequence],
         calc_pulse_correlation_FF: bool = False,
@@ -1620,7 +1628,7 @@ def concatenate(
     """
     pulses = tuple(pulses)
     if len(pulses) == 1:
-        return copy(pulses[0])
+        return copy.deepcopy(pulses[0])
 
     newpulse, _, n_oper_mapping = concatenate_without_filter_function(
         pulses, return_identifier_mappings=True
@@ -1804,8 +1812,6 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     except TypeError:
         raise TypeError(f'Expected pulses to be iterable, not {type(pulse)}')
 
-    cached_ctrl_mat = pulse.is_cached('control_matrix')
-
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
     dt = np.tile(pulse.dt, repeats)
@@ -1822,7 +1828,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     )
     newpulse.tau = repeats*pulse.tau
 
-    if not cached_ctrl_mat:
+    if not pulse.is_cached('control_matrix'):
         # No cached filter functions to reuse and pulse correlation FFs not
         # requested. If they were, continue even if there are no cached FF
         # they cannot be computed anymore afterwards.
@@ -1830,16 +1836,13 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     phases_at = pulse.get_total_phases(pulse.omega)
     control_matrix_at = pulse.get_control_matrix(pulse.omega)
-    L_at = pulse.total_propagator_liouville
+    total_propagator_liouville_at = pulse.total_propagator_liouville
 
     newpulse.total_propagator = nla.matrix_power(pulse.total_propagator, repeats)
     newpulse.cache_total_phases(pulse.omega)
-    # Might be cheaper for small repeats to use matrix_power, but this function
-    # is aimed at a large number so we calculate it explicitly
-    newpulse.total_propagator_liouville = newpulse.total_propagator_liouville
 
     control_matrix_tot = numeric.calculate_control_matrix_periodic(phases_at, control_matrix_at,
-                                                                   L_at, repeats)
+                                                                   total_propagator_liouville_at, repeats)
 
     newpulse.cache_filter_function(pulse.omega, control_matrix_tot)
 

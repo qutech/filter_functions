@@ -77,19 +77,13 @@ def liouville_representation(U: ndarray, basis: _b.Basis) -> ndarray:
     Hilbert space.
     """
     U = np.asanyarray(U)
+    conjugated_basis = np.einsum('...ba,ibc,...cd->...iad', U.conj(), basis, U,
+                                 optimize=['einsum_path', (1, 2), (0, 1)])
     if basis.btype == 'GGM' and basis.d > 12:
         # Can do closed form expansion and overhead compensated
-        path = ['einsum_path', (0, 1), (0, 1)]
-        conjugated_basis = np.einsum('...ba,ibc,...cd->...iad', U.conj(), basis, U, optimize=path)
-        # If the basis is hermitian, the result will be strictly real so we can
-        # drop the imaginary part
-        R = _b.ggm_expand(conjugated_basis).real
+        return _b.ggm_expand(conjugated_basis, hermitian=basis.isherm)
     else:
-        path = ['einsum_path', (0, 1), (0, 1), (0, 1)]
-        R = np.einsum('...ba,ibc,...cd,jda', U.conj(), basis, U, basis,
-                      optimize=path).real
-
-    return R
+        return _b.expand(conjugated_basis, basis, hermitian=basis.isherm)
 
 
 def liouville_to_choi(superoperator: ndarray, basis: _b.Basis) -> ndarray:

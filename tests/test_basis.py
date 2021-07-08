@@ -158,6 +158,21 @@ class BasisTest(testutil.TestCase):
 
     def test_basis_expansion_and_normalization(self):
         """Correct expansion of operators and normalization of bases"""
+        # dtype
+        b = ff.Basis.ggm(3)
+        r = ff.basis.expand(rng.standard_normal((3, 3)), b, hermitian=False)
+        self.assertTrue(r.dtype == 'complex128')
+        r = ff.basis.expand(testutil.rand_herm(3), b, hermitian=True)
+        self.assertTrue(r.dtype == 'float64')
+        b._isherm = False
+        r = ff.basis.expand(testutil.rand_herm(3), b, hermitian=True)
+        self.assertTrue(r.dtype == 'complex128')
+
+        r = ff.basis.ggm_expand(testutil.rand_herm(3), hermitian=True)
+        self.assertTrue(r.dtype == 'float64')
+        r = ff.basis.ggm_expand(rng.standard_normal((3, 3)), hermitian=False)
+        self.assertTrue(r.dtype == 'complex128')
+
         for _ in range(10):
             d = rng.integers(2, 16)
             ggm_basis = ff.Basis.ggm(d)

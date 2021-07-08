@@ -85,14 +85,17 @@ def _make_str_tex_compatible(s: str) -> str:
     return s
 
 
-def get_bloch_vector(states: Sequence[State]) -> ndarray:
-    r"""
-    Get the Bloch vector from quantum states.
-    """
+def _import_qutip_or_raise():
     try:
         import qutip as qt
     except ImportError as err:
         raise RuntimeError('Requirements not fulfilled. Please install Qutip') from err
+    return qt
+
+
+def get_bloch_vector(states: Sequence[State]) -> ndarray:
+    """Get the Bloch vector from quantum states."""
+    qt = _import_qutip_or_raise()
 
     if isinstance(states[0], qt.Qobj):
         a = np.empty((3, len(states)))
@@ -110,10 +113,7 @@ def get_bloch_vector(states: Sequence[State]) -> ndarray:
 def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
     """A helper function to create a Bloch instance with a default viewing
     angle and axis labels."""
-    try:
-        import qutip as qt
-    except ImportError as err:
-        raise RuntimeError('Requirements not fulfilled. Please install Qutip') from err
+    qt = _import_qutip_or_raise()
 
     bloch_kwargs.setdefault('view', [-150, 30])
     b = qt.Bloch(**bloch_kwargs)
@@ -127,7 +127,7 @@ def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
     return b
 
 
-@util.parse_optional_parameters({'prop': ['total', 'piecewise']})
+@util.parse_optional_parameters(prop=('total', 'piecewise'))
 def get_states_from_prop(U: Sequence[Operator], psi0: Optional[State] = None,
                          prop: str = 'total') -> ndarray:
     r"""
@@ -228,10 +228,9 @@ def plot_bloch_vector_evolution(
         b = init_bloch_sphere(fig=fig, axes=axes, **bloch_kwargs)
 
     if n_samples is None:
-        # 5 time points during  the smallest time interval in pulse.t. Being
-        # careful that doesn't blow up in our face for extremely narrow pulses,
-        # max out at 5000.
-        n_samples = min([5000, 5*int(pulse.tau/np.diff(pulse.t).min())])
+        # At least 100, at most 5000 points, default 10 points per smallest
+        # time interval
+        n_samples = min(5000, max(10*int(pulse.tau/pulse.dt.min()), 100))
 
     times = np.linspace(pulse.t[0], pulse.tau, n_samples)
     propagators = pulse.propagator_at_arb_t(times)
@@ -624,7 +623,8 @@ def plot_pulse_correlation_filter_function(
     return fig, axes, legend
 
 
-def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float]) -> FigureAxes:
+def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float],
+                                axes: Optional[Axes] = None) -> FigureAxes:
     """
     Plot the convergence of the infidelity integral. The function
     arguments are those returned by
@@ -639,6 +639,8 @@ def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float
     infids: array_like, shape (n_samples, [n_oper_inds, optional])
         Array with the calculated infidelities for each noise operator
         on the second axis or the second axis already traced out.
+    axes: sequence of two matplotlib axes, optional
+        Two axes that the result is plotted in.
 
     Returns
     -------
@@ -648,21 +650,25 @@ def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float
         The matplotlib axes instances used for plotting.
 
     """
-    fig, ax = plt.subplots(2, 1, sharex=True)
-    ax[1].set_xlabel(r'$n_\omega$')
-    ax[0].set_ylabel(r'$\mathcal{I}$')
-    ax[1].set_ylabel(r'$|\Delta\mathcal{I}|/\mathcal{I}$ (%)')
-    ax[0].set_xlim(min(n_samples), max(n_samples))
-    ax[0].grid()
-    ax[1].grid()
+    if axes is None:
+        fig, axes = plt.subplots(2, 1, sharex=True)
+    else:
+        fig = axes[0].get_figure()
 
-    ax[0].plot(n_samples, infids, 'o-')
-    ax[1].semilogy(n_samples, np.abs(np.gradient(infids, axis=0))/infids*100, 'o-')
+    axes[1].set_xlabel(r'$n_\omega$')
+    axes[0].set_ylabel(r'$\mathcal{I}$')
+    axes[1].set_ylabel(r'$|\Delta\mathcal{I}|/\mathcal{I}$ (%)')
+    axes[0].set_xlim(min(n_samples), max(n_samples))
+    axes[0].grid()
+    axes[1].grid()
 
-    return fig, ax
+    axes[0].plot(n_samples, infids, 'o-')
+    axes[1].semilogy(n_samples, np.abs(np.gradient(infids, axis=0))/infids*100, 'o-')
+
+    return fig, axes
 
 
-@util.parse_optional_parameters({'colorscale': ['linear', 'log']})
+@util.parse_optional_parameters(colorscale=('linear', 'log'))
 def plot_cumulant_function(
         pulse: Optional['PulseSequence'] = None,
         spectrum: Optional[ndarray] = None,
@@ -795,7 +801,7 @@ def plot_cumulant_function(
         else:
             basis_labels = [f'$C_{{{i}}}$' for i in range(K.shape[-1])]
     else:
-        if basis_labels and len(basis_labels) != K.shape[-1]:
+        if basis_labels is not None and len(basis_labels) != K.shape[-1]:
             raise ValueError('Invalid number of basis_labels given')
 
         basis_labels = [_make_str_tex_compatible(bl) for bl in basis_labels]

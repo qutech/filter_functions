@@ -559,7 +559,7 @@ class UtilTest(testutil.TestCase):
 
     def test_parse_optional_parameters(self):
 
-        @util.parse_optional_parameters({'foo': [1, 'bar', (2, 3)]})
+        @util.parse_optional_parameters(foo=[1, 'bar', (2, 3)], x=(2, 3))
         def foobar(a, b, foo=None, x=2):
             pass
 
@@ -580,6 +580,12 @@ class UtilTest(testutil.TestCase):
             self.assertEqual(str(err.exception),
                              f"Invalid value for foo: {[1, 2]}." +
                              f" Should be one of {[1, 'bar', (2, 3)]}")
+
+        with self.assertRaises(ValueError):
+            foobar(1, 1, [1, 2], 4)
+            self.assertEqual(str(err.exception),
+                             f"Invalid value for x: {4}." +
+                             f" Should be one of {(2, 3)}")
 
 
 @pytest.mark.skipif(
