@@ -37,6 +37,7 @@ jobs:
         name: ${{ matrix.python }} - ${{ matrix.install_extras }}
         env_vars: OS,PYTHON
         fail_ci_if_error: true
+        verbose: true
 
   release:
     name: Publish to PyPi
