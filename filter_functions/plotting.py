@@ -224,7 +224,8 @@ def plot_bloch_vector_evolution(
         figsize = bloch_kwargs.pop('figsize', [5, 5])
         view = bloch_kwargs.pop('view', [-60, 30])
         fig = plt.figure(figsize=figsize)
-        axes = mplot3d.Axes3D(fig, azim=view[0], elev=view[1])
+        axes = mplot3d.Axes3D(fig, azim=view[0], elev=view[1], auto_add_to_figure=False)
+        fig.add_axes(axes)
         b = init_bloch_sphere(fig=fig, axes=axes, **bloch_kwargs)
 
     if n_samples is None:
