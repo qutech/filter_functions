@@ -49,7 +49,7 @@ from warnings import warn
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import colors, lines  # , collections
-from mpl_toolkits import axes_grid1, mplot3d
+from mpl_toolkits import axes_grid1
 from numpy import ndarray
 
 from . import numeric, util
@@ -224,8 +224,7 @@ def plot_bloch_vector_evolution(
         figsize = bloch_kwargs.pop('figsize', [5, 5])
         view = bloch_kwargs.pop('view', [-60, 30])
         fig = plt.figure(figsize=figsize)
-        axes = mplot3d.Axes3D(fig, azim=view[0], elev=view[1], auto_add_to_figure=False)
-        fig.add_axes(axes)
+        axes = fig.add_subplot(projection='3d', axim=view[0], elev=view[1])
         b = init_bloch_sphere(fig=fig, axes=axes, **bloch_kwargs)
 
     if n_samples is None:
