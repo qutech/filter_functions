@@ -196,7 +196,10 @@ def plot_bloch_vector_evolution(
         The number of time points to be sampled.
     cmap: matplotlib colormap, optional
         The colormap for the trajectory.
-    show**: bool, optional
+    add_cbar: bool, optional
+        Add a colorbar encoding the time evolution to the figure.
+        Default is false.
+    show: bool, optional
         Whether to show the sphere (by calling :code:`b.make_sphere()`).
     return_Bloch: bool, optional
         Whether to return the :class:`qutip.bloch.Bloch` instance
