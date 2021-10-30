@@ -568,7 +568,7 @@ def _full_from_partial(elems: Sequence, traceless: bool, labels: Sequence[str]) 
     else:
         ggm = Basis.ggm(elems.d)
 
-    coeffs = expand(elems, ggm, tidyup=True)
+    coeffs = expand(elems, ggm, hermitian=elems.isherm, tidyup=True)
     # Throw out coefficient vectors that are all zero (should only happen for
     # the identity)
     coeffs = coeffs[(coeffs != 0).any(axis=-1)]
@@ -637,7 +637,7 @@ def normalize(b: Basis) -> Basis:
 
 
 def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
-           normalized: bool = True, tidyup: bool = False) -> ndarray:
+           normalized: bool = True, hermitian: bool = False, tidyup: bool = False) -> ndarray:
     r"""
     Expand the array *M* in the basis given by *basis*.
 
@@ -650,6 +650,9 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
         The basis of shape (m, d, d) in which to expand.
     normalized: bool {True}
         Wether the basis is normalized.
+    hermitian: bool (default: False)
+        If M is hermitian along its last two axes, the result will be
+        real.
     tidyup: bool {False}
         Whether to set values below the floating point eps to zero.
 
@@ -673,15 +676,18 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
                     {\mathrm{tr}\big(C_j^\dagger C_j\big)}.
 
     """
-    coefficients = np.tensordot(M, basis, axes=[(-2, -1), (-1, -2)])
 
+    def cast(arr): return arr.real if hermitian and basis.isherm else arr
+
+    coefficients = cast(np.tensordot(M, basis, axes=[(-2, -1), (-1, -2)]))
     if not normalized:
-        coefficients /= np.einsum('bij,bji->b', basis, basis).real
+        coefficients /= cast(np.einsum('bij,bji->b', basis, basis))
 
     return util.remove_float_errors(coefficients) if tidyup else coefficients
 
 
-def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False) -> ndarray:
+def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False,
+               hermitian: bool = False) -> ndarray:
     r"""
     Expand the matrix *M* in a Generalized Gell-Mann basis [Bert08]_.
     This function makes use of the explicit construction prescription of
@@ -699,11 +705,14 @@ def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False) -> ndarray:
         expansion. If it is known beforehand that M is traceless, the
         corresponding coefficient is zero and thus doesn't need to be
         computed.
+    hermitian: bool (default: False)
+        If M is hermitian along its last two axes, the result will be
+        real.
 
     Returns
     -------
     coefficients: ndarray
-        The coefficient array with shape (d**2,) or (..., d**2)
+        The real coefficient array with shape (d**2,) or (..., d**2)
 
     References
     ----------
@@ -714,6 +723,8 @@ def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False) -> ndarray:
     """
     if M.shape[-1] != M.shape[-2]:
         raise ValueError('M should be square in its last two axes')
+
+    def cast(arr): return arr.real if hermitian else arr
 
     # Squeeze out an extra dimension to be shape agnostic
     square = M.ndim < 3
@@ -740,18 +751,19 @@ def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False) -> ndarray:
     diag_idx_shifted = tuple([...] + [tuple(i for i in range(1, d))]*2)
 
     # Compute the coefficients
-    coeffs = np.zeros((*M.shape[:-2], d**2), dtype=complex)
+    coeffs = np.zeros((*M.shape[:-2], d**2), dtype=float if hermitian else complex)
     if not traceless:
         # First element is proportional to the trace of M
-        coeffs[..., 0] = np.einsum('...jj', M)/np.sqrt(d)
+        coeffs[..., 0] = cast(np.einsum('...jj', M))/np.sqrt(d)
 
     # Elements proportional to the symmetric GGMs
-    coeffs[..., sym_rng] = (M[triu_idx] + M[tril_idx])/np.sqrt(2)
+    coeffs[..., sym_rng] = cast(M[triu_idx] + M[tril_idx])/np.sqrt(2)
     # Elements proportional to the antisymmetric GGMs
-    coeffs[..., sym_rng + n_sym] = 1j*(M[triu_idx] - M[tril_idx])/np.sqrt(2)
+    coeffs[..., sym_rng + n_sym] = cast(1j*(M[triu_idx] - M[tril_idx]))/np.sqrt(2)
     # Elements proportional to the diagonal GGMs
-    coeffs[..., diag_rng + 2*n_sym] = M[diag_idx].cumsum(axis=-1) - diag_rng*M[diag_idx_shifted]
-    coeffs[..., diag_rng + 2*n_sym] /= np.sqrt(diag_rng*(diag_rng + 1))
+    coeffs[..., diag_rng + 2*n_sym] = cast(M[diag_idx].cumsum(axis=-1)
+                                           - diag_rng*M[diag_idx_shifted])
+    coeffs[..., diag_rng + 2*n_sym] /= cast(np.sqrt(diag_rng*(diag_rng + 1)))
 
     return coeffs.squeeze() if square else coeffs
 

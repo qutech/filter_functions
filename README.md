@@ -1,6 +1,6 @@
 # `filter_functions`: A package for efficient numerical calculation of generalized filter functions to describe the effect of noise on quantum gate operations
 [![codecov](https://codecov.io/gh/qutech/filter_functions/branch/master/graph/badge.svg)](https://codecov.io/gh/qutech/filter_functions)
-[![Build Status](https://travis-ci.org/qutech/filter_functions.svg?branch=master)](https://travis-ci.org/qutech/filter_functions)
+[![Build status](https://github.com/qutech/filter_functions/actions/workflows/main.yml/badge.svg)](https://github.com/qutech/filter_functions/actions/workflows/main.yml)
 [![Documentation Status](https://readthedocs.org/projects/filter-functions/badge/?version=latest)](https://filter-functions.readthedocs.io/en/latest/?badge=latest)
 [![PyPI version](https://img.shields.io/pypi/v/filter-functions.svg)](https://pypi.org/project/filter-functions/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4575001.svg)](https://doi.org/10.5281/zenodo.4575001)
@@ -8,7 +8,7 @@
 ## Introduction
 Simply put, filter functions characterize a quantum system's susceptibility to noise at a given frequency during a control operation and can thus be used to gain insight into its decoherence. The formalism allows for efficient calculation of several quantities of interest such as average gate fidelity and even the entire quantum process up to a unitary rotation. Moreover, the filter function of a composite pulse can be easily derived from those of the constituent pulses, allowing for efficient assembly and characterization of pulse sequences.
 
-Initially, filter functions have been introduced to model dynamical decoupling sequences [4, 5]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms. These filter functions can be used to compute process descriptions, fidelities and other quantities of interest from arbitrary classical noise spectral densities. For the efficient and convenient treatment of gate sequences, concatenation rules that allow the filter function of a sequence to be computed from those of its constituents are implemented.
+Initially, filter functions have been introduced to model dynamical decoupling sequences [5, 6]. With this project we aim to provide a toolkit for calculating and inspecting filter functions for arbitrary pulses including pulses without analytic form such as one might get from numerical pulse optimization algorithms. These filter functions can be used to compute process descriptions, fidelities and other quantities of interest from arbitrary classical noise spectral densities. For the efficient and convenient treatment of gate sequences, concatenation rules that allow the filter function of a sequence to be computed from those of its constituents are implemented.
 
 The `filter_functions` package is built to interface with [QuTiP](http://qutip.org/), a widely-used quantum toolbox for Python, as well as [qopt](https://github.com/qutech/qopt) and comes with extensive documentation and a test suite.
 
@@ -75,13 +75,19 @@ Interactively using the documentation requires `jupyter`, and building a static 
 ## Citing
 If this software has benefited your research, please consider citing:
 
-[1]: T. Hangleiter, P. Cerfontaine, and H. Bluhm, “Filter function formalism and software package to compute quantum processes of gate sequences for classical non-markovian noise,” (2021), [arXiv:2103.02403](https://arxiv.org/abs/2103.02403)
+### Formalism
+[1]: T. Hangleiter, P. Cerfontaine, and H. Bluhm. Filter-function formalism and software package to compute quantum processes of gate sequences for classical non-Markovian noise. Phys. Rev. Res. **3**, 043047 (2021). [10.1103/PhysRevResearch.3.043047](https://doi.org/10.1103/PhysRevResearch.3.043047). [arXiv:2103.02403](https://arxiv.org/abs/2103.02403).
 
-[2]: T. Hangleiter, I. N. M. Le, and J. D. Teske, “filter_functions: A package for efficient numerical calculation of generalized filter functions to describe the effect of noise on quantum gate operations,” (2021). [doi:10.5281/zenodo.4575001](http://doi.org/10.5281/zenodo.4575001)
+[2]: P. Cerfontaine, T. Hangleiter, and H. Bluhm. Filter Functions for Quantum Processes under Correlated Noise. Phys. Rev. Lett. **127**, 170403 (2021). [10.1103/PhysRevLett.127.170403](https://doi.org/10.1103/PhysRevLett.127.170403). [arXiv:2103.02385](https://arxiv.org/abs/2103.02385).
 
-[3]: P. Cerfontaine, T. Hangleiter, and H. Bluhm, “Filter functions for quantum processes under correlated noise,” (2021), [arXiv:2103.02385](https://arxiv.org/abs/2103.02385).
+### Gradients
+[3]: I. N. M. Le, J. D. Teske, T. Hangleiter, P. Cerfontaine, and Hendrik Bluhm, "Analytic Filter Function Derivatives for Quantum Optimal Control," (2021). [arXiv:2103.09126](https://arxiv.org/abs/2103.09126).
+
+### Software
+[4]: T. Hangleiter, I. N. M. Le, and J. D. Teske, "filter_functions: A package for efficient numerical calculation of generalized filter functions to describe the effect of noise on quantum gate operations," (2021). [10.5281/zenodo.4575001](http://doi.org/10.5281/zenodo.4575001).
+
 
 ## Additional References
-[4]: Cywinski, L., Lutchyn, R. M., Nave, C. P., & Das Sarma, S. (2008). How to enhance dephasing time in superconducting qubits. Physical Review B - Condensed Matter and Materials Physics, 77(17), 1–11. [https://doi.org/10.1103/PhysRevB.77.174509](https://doi.org/10.1103/PhysRevB.77.174509)
+[5]: L. Cywinski, R. M. Lutchyn, C. P. Nave, and S. Das Sarma. How to enhance dephasing time in superconducting qubits. Phys. Rev. B **77**, 174509 (2008). [10.1103/PhysRevB.77.174509](https://doi.org/10.1103/PhysRevB.77.174509).
 
-[5]: Green, T. J., Sastrawan, J., Uys, H., & Biercuk, M. J. (2013). Arbitrary quantum control of qubits in the presence of universal noise. New Journal of Physics, 15(9), 095004. [https://doi.org/10.1088/1367-2630/15/9/095004](https://doi.org/10.1088/1367-2630/15/9/095004)
+[6]: T. J Green., J. Sastrawan, H. Uys, and M. J. Biercuk. Arbitrary quantum control of qubits in the presence of universal noise. *New J. Phys.* **15**, 095004 (2013). [10.1088/1367-2630/15/9/095004](https://doi.org/10.1088/1367-2630/15/9/095004).

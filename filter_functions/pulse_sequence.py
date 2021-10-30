@@ -40,7 +40,7 @@ Functions
 """
 
 import bisect
-from copy import copy
+import copy
 from itertools import accumulate, compress, zip_longest
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 from warnings import warn
@@ -243,15 +243,12 @@ class PulseSequence:
         self.c_coeffs = None
         self.n_coeffs = None
         self.dt = None
-        self.t = None
-        self.tau = None
         self.d = None
         self.basis = None
 
         # Parse the input arguments and set attributes
         attributes = ('c_opers', 'c_oper_identifiers', 'c_coeffs', 'n_opers',
-                      'n_oper_identifiers', 'n_coeffs', 'dt', 't', 'tau', 'd',
-                      'basis')
+                      'n_oper_identifiers', 'n_coeffs', 'dt', 'd', 'basis')
         if not args:
             # Bypass args parsing and directly set necessary attributes
             values = (kwargs[attr] for attr in attributes)
@@ -270,6 +267,8 @@ class PulseSequence:
             setattr(self, attr, value)
 
         # Initialize attributes that can be set by bound methods to None
+        self._t = None
+        self._tau = None
         self._omega = None
         self._eigvals = None
         self._eigvecs = None
@@ -288,7 +287,7 @@ class PulseSequence:
 
     def __str__(self):
         """String method."""
-        return f'{repr(self)} with total duration {self.tau}'
+        return f'{repr(self)}\n\tof dimension {self.d} and duration {self.duration}'
 
     def __eq__(self, other: object) -> bool:
         """
@@ -369,12 +368,40 @@ class PulseSequence:
 
         return True
 
+    def __len__(self) -> int:
+        return len(self.dt)
+
+    def __getitem__(self, key) -> 'PulseSequence':
+        """Return a slice of the PulseSequence."""
+        new_dt = np.atleast_1d(self.dt[key])
+        if not new_dt.size:
+            raise IndexError('Cannot create empty PulseSequence')
+
+        new = self.__class__(
+            c_opers=self.c_opers,
+            n_opers=self.n_opers,
+            c_oper_identifiers=self.c_oper_identifiers,
+            n_oper_identifiers=self.n_oper_identifiers,
+            c_coeffs=np.atleast_2d(self.c_coeffs.T[key]).T,
+            n_coeffs=np.atleast_2d(self.n_coeffs.T[key]).T,
+            dt=new_dt,
+            d=self.d,
+            basis=self.basis
+        )
+        return new
+
     def __copy__(self) -> 'PulseSequence':
         """Return shallow copy of self"""
         cls = self.__class__
-        copy = cls.__new__(cls)
-        copy.__dict__.update(self.__dict__)
-        return copy
+        copied = cls.__new__(cls)
+        copied.__dict__.update(self.__dict__)
+        return copied
+
+    def __deepcopy__(self, memo=None) -> 'PulseSequence':
+        cls = self.__class__
+        copied = cls.__new__(cls)
+        copied.__dict__.update({key: copy.deepcopy(val) for key, val in self.__dict__.items()})
+        return copied
 
     def __matmul__(self, other: 'PulseSequence') -> 'PulseSequence':
         """Concatenation of PulseSequences."""
@@ -417,6 +444,39 @@ class PulseSequence:
 
         return getattr(self, attr) is not None
 
+    @property
+    def t(self) -> ndarray:
+        """The times of the pulse."""
+        if self._t is None:
+            self._t = np.concatenate(([0], self.dt.cumsum()))
+
+        return self._t
+
+    @t.setter
+    def t(self, val: ndarray):
+        """Set the times of the pulse."""
+        self._t = val
+
+    @property
+    def tau(self) -> Union[float, int]:
+        """The duration of the pulse."""
+        if self._t is not None:
+            self._tau = self.t[-1]
+        else:
+            self._tau = self.dt.sum()
+
+        return self._tau
+
+    @tau.setter
+    def tau(self, val: Union[float, int]):
+        """Set the total duration of the pulse."""
+        self._tau = val
+
+    @property
+    def duration(self) -> float:
+        """The duration of the pulse. Alias of tau."""
+        return self.tau
+
     def diagonalize(self) -> None:
         r"""Diagonalize the Hamiltonian defining the pulse sequence."""
         # Only calculate if not done so before
@@ -426,7 +486,6 @@ class PulseSequence:
             self.eigvals, self.eigvecs, self.propagators = numeric.diagonalize(hamiltonian,
                                                                                self.dt)
 
-        # Set the total propagator
         self.total_propagator = self.propagators[-1]
 
     def get_control_matrix(self, omega: Coefficients, show_progressbar: bool = False,
@@ -533,7 +592,7 @@ class PulseSequence:
             "True."
         )
 
-    @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
+    @util.parse_optional_parameters(which=('fidelity', 'generalized'), order=(1, 2))
     def get_filter_function(
             self, omega: Coefficients,
             which: str = 'fidelity',
@@ -633,7 +692,7 @@ class PulseSequence:
             # order == 2
             return self._filter_function_2
 
-    @util.parse_optional_parameters({'which': ('fidelity', 'generalized'), 'order': (1, 2)})
+    @util.parse_optional_parameters(which=('fidelity', 'generalized'), order=(1, 2))
     def cache_filter_function(
             self, omega: Coefficients,
             control_matrix: Optional[ndarray] = None,
@@ -695,6 +754,7 @@ class PulseSequence:
                         self._filter_function_pc = F_pc
                     else:
                         # which == 'generalized'
+                        self._filter_function_pc = F_pc.trace(axis1=4, axis2=5)
                         self._filter_function_pc_gen = F_pc
 
                     filter_function = F_pc.sum(axis=(0, 1))
@@ -714,12 +774,13 @@ class PulseSequence:
                 self._filter_function = filter_function
             else:
                 # which == 'generalized'
+                self._filter_function = filter_function.trace(axis1=2, axis2=3)
                 self._filter_function_gen = filter_function
         else:
             # order == 2
             self._filter_function_2 = filter_function
 
-    @util.parse_which_FF_parameter
+    @util.parse_optional_parameters(which=('fidelity', 'generalized'))
     def get_pulse_correlation_filter_function(self, which: str = 'fidelity') -> ndarray:
         r"""
         Get the pulse correlation filter function given by
@@ -952,8 +1013,8 @@ class PulseSequence:
 
         return sum(_nbytes)
 
-    @util.parse_optional_parameters({'method': ('conservative', 'greedy',
-                                                'frequency dependent', 'all')})
+    @util.parse_optional_parameters(method=('conservative', 'greedy',
+                                            'frequency dependent', 'all'))
     def cleanup(self, method: str = 'conservative') -> None:
         """
         Delete cached byproducts of the calculation of the filter
@@ -1089,8 +1150,6 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
         # Check operator shapes
         raise ValueError('Control and noise Hamiltonian not same dimension!')
 
-    t = np.concatenate(([0], dt.cumsum()))
-    tau = t[-1]
     # Dimension of the system
     d = control_args[0].shape[-1]
 
@@ -1109,7 +1168,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
             raise ValueError("Expected basis elements to be of shape " +
                              f"({d}, {d}), not {basis.shape[1:]}!")
 
-    return (*control_args, *noise_args, dt, t, tau, d, basis)
+    return (*control_args, *noise_args, dt, d, basis)
 
 
 def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[Operator],
@@ -1255,8 +1314,8 @@ def _concatenate_Hamiltonian(
 
     if any(len(value) > 1 for value in oper_to_identifier_mapping.values()):
         # Clash: two different identifiers are assigned to the same operator
-        raise ValueError('Trying to concatenate pulses with equal operators with different ' +
-                         'identifiers. Please choose unique identifiers!')
+        raise ValueError(f'Trying to concatenate pulses with equal {kind} operators but ' +
+                         f'different identifiers. Please choose unique {kind} identifiers!')
 
     # A dict that maps the identifiers of each Hamiltonian to the identifiers
     # in the new Hamiltonian
@@ -1281,7 +1340,7 @@ def _concatenate_Hamiltonian(
 
     # Concatenate the coefficients. Place them in the right time segments of
     # the concatenated Hamiltonian.
-    concat_coeffs = np.zeros((len(concat_identifiers), sum(n_dt)), dtype=float)
+    concat_coeffs = np.full((len(concat_identifiers), sum(n_dt)), fill_value=np.nan)
     flat_coeffs = [co for coeff in coeffs for co in coeff]
     for i in range(len(concat_identifiers)):
         # Get the indices in opers (and coeffs) for the i-th unique operator
@@ -1299,17 +1358,18 @@ def _concatenate_Hamiltonian(
         # the remaining segments as usually the sensitivity is constant. If we
         # cannot do this, we have to raise an exception since we cannot know
         # the sensitivities at other moments in time if they are non-trivial.
-        for i, c_coeffs in enumerate(concat_coeffs):
-            zero_mask = (c_coeffs == 0)
-            if zero_mask.any() and not zero_mask.all():
-                nonzero_coeffs = c_coeffs[~zero_mask]
-                constant = (nonzero_coeffs == nonzero_coeffs[0]).all()
-                if constant:
-                    # Fill with constant value
-                    concat_coeffs[i, zero_mask] = nonzero_coeffs[0]
-                else:
-                    raise ValueError('Not all pulses have the same noise operators and ' +
-                                     'non-trivial noise sensitivities so I cannot infer them.')
+        nan_mask = np.isnan(concat_coeffs)
+        test = nan_mask.any(axis=1)
+        for i, (concat_coeff, mask) in enumerate(zip(concat_coeffs[test], nan_mask[test])):
+            nonnan_coeff = concat_coeff[~mask]
+            if (nonnan_coeff == nonnan_coeff[0]).all():
+                # Constant value, use for empty segment
+                concat_coeffs[i, mask] = nonnan_coeff[0]
+            else:
+                raise ValueError('Not all pulses have the same noise operators and ' +
+                                 'non-trivial noise sensitivities so I cannot infer them.')
+    else:
+        concat_coeffs[np.isnan(concat_coeffs)] = 0
 
     return concat_opers, concat_identifiers, concat_coeffs[sort_idx], pulse_identifier_mapping
 
@@ -1458,13 +1518,14 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     concatenate: Concatenate PulseSequences including filter functions.
     concatenate_periodic: Concatenate PulseSequences periodically.
     """
-    pulses = tuple(pulses)
     try:
-        # Do awkward checking for type
-        if not all(hasattr(pls, 'c_opers') for pls in pulses):
-            raise TypeError('Can only concatenate PulseSequences!')
+        pulses = tuple(pulses)
     except TypeError:
         raise TypeError(f'Expected pulses to be iterable, not {type(pulses)}')
+
+    if not all(hasattr(pls, 'c_opers') for pls in pulses):
+        # Do awkward checking for type
+        raise TypeError('Can only concatenate PulseSequences!')
 
     # Check if the Hamiltonians' shapes are compatible, ie the set of all
     # shapes has length 1
@@ -1482,31 +1543,33 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
 
     # Compose new control Hamiltonian
     control_values = _concatenate_Hamiltonian(
-        *list(zip(*[tuple(getattr(pulse, key) for key in control_keys) for pulse in pulses])),
+        *zip(*[[getattr(pulse, key) for key in control_keys] for pulse in pulses]),
         kind='control'
     )
     # Compose new control Hamiltonian
     noise_values = _concatenate_Hamiltonian(
-        *list(zip(*[tuple(getattr(pulse, key) for key in noise_keys) for pulse in pulses])),
+        *zip(*[[getattr(pulse, key) for key in noise_keys] for pulse in pulses]),
         kind='noise'
     )
 
     dt = np.concatenate(tuple(pulse.dt for pulse in pulses))
-    t = np.concatenate(([0], dt.cumsum()))
-    tau = t[-1]
 
-    attributes = {'dt': dt, 't': t, 'tau': tau, 'd': pulses[0].d, 'basis': basis}
+    attributes = {'dt': dt, 'd': pulses[0].d, 'basis': basis}
     attributes.update(**{key: value for key, value in zip(control_keys, control_values)})
     attributes.update(**{key: value for key, value in zip(noise_keys, noise_values)})
 
     newpulse = PulseSequence(**attributes)
+    # Only cache total duration (whole array of times might be large
+    # in case of concatenation)
+    newpulse.tau = sum(pulse.tau for pulse in pulses)
+
     if return_identifier_mappings:
         return newpulse, control_values[-1], noise_values[-1]
 
     return newpulse
 
 
-@util.parse_which_FF_parameter
+@util.parse_optional_parameters(which=('fidelity', 'generalized'))
 def concatenate(
         pulses: Iterable[PulseSequence],
         calc_pulse_correlation_FF: bool = False,
@@ -1565,7 +1628,7 @@ def concatenate(
     """
     pulses = tuple(pulses)
     if len(pulses) == 1:
-        return copy(pulses[0])
+        return copy.deepcopy(pulses[0])
 
     newpulse, _, n_oper_mapping = concatenate_without_filter_function(
         pulses, return_identifier_mappings=True
@@ -1749,13 +1812,9 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     except TypeError:
         raise TypeError(f'Expected pulses to be iterable, not {type(pulse)}')
 
-    cached_ctrl_mat = pulse.is_cached('control_matrix')
-
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
     dt = np.tile(pulse.dt, repeats)
-    t = np.concatenate(([0], dt.cumsum()))
-    tau = t[-1]
     newpulse = PulseSequence(
         c_opers=pulse.c_opers,
         n_opers=pulse.n_opers,
@@ -1764,13 +1823,12 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
         c_coeffs=np.tile(pulse.c_coeffs, (1, repeats)),
         n_coeffs=np.tile(pulse.n_coeffs, (1, repeats)),
         dt=dt,
-        t=t,
-        tau=tau,
         d=pulse.d,
         basis=pulse.basis
     )
+    newpulse.tau = repeats*pulse.tau
 
-    if not cached_ctrl_mat:
+    if not pulse.is_cached('control_matrix'):
         # No cached filter functions to reuse and pulse correlation FFs not
         # requested. If they were, continue even if there are no cached FF
         # they cannot be computed anymore afterwards.
@@ -1778,16 +1836,13 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     phases_at = pulse.get_total_phases(pulse.omega)
     control_matrix_at = pulse.get_control_matrix(pulse.omega)
-    L_at = pulse.total_propagator_liouville
+    total_propagator_liouville_at = pulse.total_propagator_liouville
 
     newpulse.total_propagator = nla.matrix_power(pulse.total_propagator, repeats)
     newpulse.cache_total_phases(pulse.omega)
-    # Might be cheaper for small repeats to use matrix_power, but this function
-    # is aimed at a large number so we calculate it explicitly
-    newpulse.total_propagator_liouville = newpulse.total_propagator_liouville
 
     control_matrix_tot = numeric.calculate_control_matrix_periodic(phases_at, control_matrix_at,
-                                                                   L_at, repeats)
+                                                                   total_propagator_liouville_at, repeats)
 
     newpulse.cache_filter_function(pulse.omega, control_matrix_tot)
 
@@ -1875,11 +1930,11 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
         c_coeffs=pulse.c_coeffs[c_sort_idx],
         n_coeffs=pulse.n_coeffs[n_sort_idx],
         dt=pulse.dt,
-        t=pulse.t,
-        tau=pulse.tau,
         d=pulse.d,
         basis=pulse.basis
     )
+    remapped_pulse.t = pulse._t
+    remapped_pulse.tau = pulse._tau
 
     if pulse.is_cached('eigvals'):
         remapped_pulse.eigvals = util.tensor_transpose(pulse.eigvals, order,
@@ -2297,11 +2352,11 @@ def extend(
         c_coeffs=np.asarray(c_coeffs)[c_sort_idx],
         n_coeffs=np.asarray(n_coeffs)[n_sort_idx],
         dt=pulses[0].dt,
-        t=pulses[0].t,
-        tau=pulses[0].tau,
         d=d,
         basis=basis
     )
+    newpulse.t = pulses[0]._t
+    newpulse.tau = pulses[0]._tau
 
     if newpulse.basis.btype != 'Pauli':
         # Cannot do any extensions

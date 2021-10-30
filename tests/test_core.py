@@ -21,8 +21,8 @@
 """
 This module tests the core functionality of the package.
 """
+import copy
 import string
-from copy import copy
 from random import sample
 
 import numpy as np
@@ -217,9 +217,6 @@ class CoreTest(testutil.TestCase):
         pulse
         print(pulse)
 
-        # Hit __copy__ method
-        _ = copy(pulse)
-
         # Fewer identifiers than opers
         pulse_2 = ff.PulseSequence(
             [[util.paulis[1], [1], 'X'],
@@ -230,6 +227,24 @@ class CoreTest(testutil.TestCase):
         )
         self.assertArrayEqual(pulse_2.c_oper_identifiers, ('A_1', 'X'))
         self.assertArrayEqual(pulse_2.n_oper_identifiers, ('B_0', 'Y'))
+
+    def test_copy(self):
+        pulse = testutil.rand_pulse_sequence(2, 2)
+        old_copers = pulse.c_opers.copy()
+
+        copied = copy.copy(pulse)
+        deepcopied = copy.deepcopy(pulse)
+
+        self.assertEqual(pulse, copied)
+        self.assertEqual(pulse, deepcopied)
+
+        pulse.c_opers[...] = rng.standard_normal(size=pulse.c_opers.shape)
+
+        self.assertArrayEqual(pulse.c_opers, copied.c_opers)
+        self.assertArrayEqual(old_copers, deepcopied.c_opers)
+
+        self.assertEqual(pulse, copied)
+        self.assertNotEqual(pulse, deepcopied)
 
     def test_pulse_sequence_attributes(self):
         """Test attributes of single instance"""
@@ -394,6 +409,8 @@ class CoreTest(testutil.TestCase):
             assertion(A.is_cached(alias.replace(' ', '_')))
 
         A.cleanup('all')
+        A._t = None
+        A._tau = None
 
         # Test cleanup
         C = ff.concatenate((A, A), calc_pulse_correlation_FF=True,
@@ -448,6 +465,14 @@ class CoreTest(testutil.TestCase):
         for attr in set(attrs).difference(freq_attrs):
             self.assertIsNotNone(getattr(C, attr))
 
+        # Test t, tau, and duration properties
+        pulse = testutil.rand_pulse_sequence(2, 3, 1, 1)
+        self.assertIs(pulse._t, None)
+        self.assertIs(pulse._tau, None)
+        self.assertArrayEqual(pulse.t, [0, *pulse.dt.cumsum()])
+        self.assertEqual(pulse.tau, pulse.t[-1])
+        self.assertEqual(pulse.duration, pulse.tau)
+
     def test_pulse_sequence_attributes_concat(self):
         """Test attributes of concatenated sequence."""
         X, Y, Z = util.paulis[1:]
@@ -469,6 +494,13 @@ class CoreTest(testutil.TestCase):
                                     [X, rng.standard_normal(2)]],
                                    [[Z, np.abs(rng.standard_normal(2))]],
                                    [1, 1])
+        pulse_4 = ff.PulseSequence([[Y, rng.standard_normal(2)],
+                                    [X, rng.standard_normal(2)]],
+                                   [[Z, np.ones(2)]],
+                                   [1, 1])
+        pulse_5 = ff.PulseSequence([[Y, np.zeros(5), 'A_0']],
+                                   [[Y, np.zeros(5), 'B_1']],
+                                   1 - rng.random(5))
 
         # Concatenate with different noise opers
         pulses = [testutil.rand_pulse_sequence(2, 1) for _ in range(2)]
@@ -476,9 +508,6 @@ class CoreTest(testutil.TestCase):
         pulses[1].omega = np.arange(10)
         newpulse = ff.concatenate(pulses, calc_filter_function=True)
         self.assertTrue(newpulse.is_cached('filter function'))
-
-        pulse_12 = pulse_1 @ pulse_2
-        pulse_21 = pulse_2 @ pulse_1
 
         with self.assertRaises(TypeError):
             _ = pulse_1 @ rng.standard_normal((2, 2))
@@ -490,8 +519,25 @@ class CoreTest(testutil.TestCase):
         # Test nbytes property
         _ = pulse_1.nbytes
 
+        pulse_12 = pulse_1 @ pulse_2
+        pulse_21 = pulse_2 @ pulse_1
+        pulse_45 = pulse_4 @ pulse_5
+
         self.assertArrayEqual(pulse_12.dt, [*dt_1, *dt_2])
         self.assertArrayEqual(pulse_21.dt, [*dt_2, *dt_1])
+
+        self.assertIs(pulse_12._t, None)
+        self.assertIs(pulse_21._t, None)
+
+        self.assertEqual(pulse_12._tau, pulse_1.tau + pulse_2.tau)
+        self.assertEqual(pulse_21._tau, pulse_1.tau + pulse_2.tau)
+
+        self.assertAlmostEqual(pulse_12.duration, pulse_1.duration + pulse_2.duration)
+        self.assertAlmostEqual(pulse_21.duration, pulse_2.duration + pulse_1.duration)
+        self.assertAlmostEqual(pulse_12.duration, pulse_21.duration)
+
+        self.assertArrayAlmostEqual(pulse_12.t, [*pulse_1.t, *(pulse_2.t[1:] + pulse_1.tau)])
+        self.assertArrayAlmostEqual(pulse_21.t, [*pulse_2.t, *(pulse_1.t[1:] + pulse_2.tau)])
 
         self.assertArrayEqual(pulse_12.c_opers, [X, Y])
         self.assertArrayEqual(pulse_21.c_opers, [Y, X])
@@ -514,6 +560,16 @@ class CoreTest(testutil.TestCase):
 
         self.assertArrayEqual(pulse_12.n_coeffs, [[*z_coeff_1, *z_coeff_2]])
         self.assertArrayEqual(pulse_21.n_coeffs, [[*z_coeff_2, *z_coeff_1]])
+
+        # Make sure zero coefficients are handled correctly
+        self.assertFalse(np.any(np.isnan(pulse_45.c_coeffs)))
+        self.assertFalse(np.any(np.isnan(pulse_45.n_coeffs)))
+        self.assertArrayEqual(pulse_45.c_coeffs,
+                              [[*pulse_4.c_coeffs[0], *np.zeros(5)],
+                               [*pulse_4.c_coeffs[1], *np.zeros(5)]])
+        self.assertArrayEqual(pulse_45.n_coeffs,
+                              [[*pulse_4.n_coeffs[0], *[pulse_4.n_coeffs[0, 0]]*5],
+                               [*[pulse_5.n_coeffs[0, 0]]*2, *pulse_5.n_coeffs[0]]])
 
         omega = np.linspace(-100, 100, 101)
         pulses = (pulse_1, pulse_2, pulse_12, pulse_21)
@@ -545,6 +601,13 @@ class CoreTest(testutil.TestCase):
         self.assertArrayEqual(pulse.c_oper_identifiers, sorted(ids))
         self.assertArrayEqual(pulse.n_oper_identifiers, sorted(ids))
 
+        pulse = testutil.rand_pulse_sequence(2, 7, 1, 2)
+        periodic_pulse = ff.concatenate_periodic(pulse, 7)
+
+        self.assertIs(periodic_pulse._t, None)
+        self.assertEqual(periodic_pulse._tau, pulse.tau * 7)
+        self.assertArrayAlmostEqual(periodic_pulse.t, [0, *periodic_pulse.dt.cumsum()])
+
     def test_cache_intermediates(self):
         """Test caching of intermediate elements"""
         pulse = testutil.rand_pulse_sequence(3, 4, 2, 3)
@@ -564,6 +627,21 @@ class CoreTest(testutil.TestCase):
                                       eigvecs_prop.conj(), pulse.basis, eigvecs_prop)
         self.assertArrayAlmostEqual(pulse._intermediates['basis_transformed'], basis_transformed,
                                     atol=1e-14)
+
+    def test_cache_filter_function(self):
+        omega = rng.random(32)
+        pulse = testutil.rand_pulse_sequence(2, 3, n_nops=2)
+        F_fidelity = numeric.calculate_filter_function(pulse.get_control_matrix(omega),
+                                                       'fidelity')
+        F_generalized = numeric.calculate_filter_function(pulse.get_control_matrix(omega),
+                                                          'generalized')
+
+        pulse.cache_filter_function(omega, filter_function=F_generalized, which='generalized')
+        self.assertTrue(pulse.is_cached('filter function'))
+        self.assertTrue(pulse.is_cached('generalized filter function'))
+
+        self.assertArrayEqual(pulse.get_filter_function(omega, which='generalized'), F_generalized)
+        self.assertArrayEqual(pulse.get_filter_function(omega, which='fidelity'), F_fidelity)
 
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
@@ -728,6 +806,8 @@ class CoreTest(testutil.TestCase):
         pulse_3 = ff.concatenate([pulses['X'], pulses['Y']],
                                  calc_pulse_correlation_FF=True,
                                  which='generalized')
+        pulse_4 = copy.copy(pulse_3)
+        pulse_4.cleanup('all')
 
         self.assertTrue(pulse_2.is_cached('control_matrix_pc'))
         self.assertTrue(pulse_2.is_cached('filter_function_pc'))
@@ -780,6 +860,36 @@ class CoreTest(testutil.TestCase):
                 control_matrix_pc, 'generalized'
             )
         )
+
+        # Test caching
+        pulse_4.cache_filter_function(omega, control_matrix=control_matrix_pc, which='fidelity')
+        self.assertTrue(pulse_4.is_cached('pulse correlation control matrix'))
+        self.assertTrue(pulse_4.is_cached('pulse correlation filter function'))
+        self.assertTrue(pulse_4.is_cached('filter function'))
+        self.assertArrayAlmostEqual(pulse_3.get_pulse_correlation_control_matrix(),
+                                    pulse_4.get_pulse_correlation_control_matrix())
+        self.assertArrayAlmostEqual(pulse_3.get_pulse_correlation_filter_function(),
+                                    pulse_4.get_pulse_correlation_filter_function())
+        self.assertArrayAlmostEqual(pulse_3.get_filter_function(omega),
+                                    pulse_4.get_filter_function(omega))
+
+        pulse_4.cleanup('all')
+        pulse_4.cache_filter_function(omega, control_matrix=control_matrix_pc, which='generalized')
+        self.assertTrue(pulse_4.is_cached('pulse correlation control matrix'))
+        self.assertTrue(pulse_4.is_cached('generalized pulse correlation filter function'))
+        self.assertTrue(pulse_4.is_cached('generalized filter function'))
+        self.assertTrue(pulse_4.is_cached('pulse correlation filter function'))
+        self.assertTrue(pulse_4.is_cached('filter function'))
+        self.assertArrayAlmostEqual(pulse_3.get_pulse_correlation_control_matrix(),
+                                    pulse_4.get_pulse_correlation_control_matrix())
+        self.assertArrayAlmostEqual(pulse_3.get_pulse_correlation_filter_function('fidelity'),
+                                    pulse_4.get_pulse_correlation_filter_function('fidelity'))
+        self.assertArrayAlmostEqual(pulse_3.get_pulse_correlation_filter_function('generalized'),
+                                    pulse_4.get_pulse_correlation_filter_function('generalized'))
+        self.assertArrayAlmostEqual(pulse_3.get_filter_function(omega, which='fidelity'),
+                                    pulse_4.get_filter_function(omega, which='fidelity'))
+        self.assertArrayAlmostEqual(pulse_3.get_filter_function(omega, which='generalized'),
+                                    pulse_4.get_filter_function(omega, which='generalized'))
 
         # If for some reason filter_function_pc_xy is removed, check if
         # recovered from control_matrix_pc

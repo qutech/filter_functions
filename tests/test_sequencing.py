@@ -24,7 +24,7 @@ This module tests the concatenation functionality for PulseSequence's.
 
 import string
 from copy import deepcopy
-from itertools import product
+from itertools import product, repeat
 from random import sample
 
 import numpy as np
@@ -61,6 +61,44 @@ class ConcatenationTest(testutil.TestCase):
             pulse_1.omega = [1, 2]
             pulse_2.omega = [3, 4]
             ff.concatenate([pulse_1, pulse_2], calc_filter_function=True)
+
+    def test_slicing(self):
+        """Tests _getitem__."""
+        for d, n in zip(rng.integers(2, 5, 20), rng.integers(3, 51, 20)):
+            pulse = testutil.rand_pulse_sequence(d, n)
+            parts = np.array([part for part in pulse], dtype=object).squeeze()
+
+            # Iterable
+            self.assertEqual(pulse, ff.concatenate(parts))
+            self.assertEqual(len(pulse), n)
+
+            # Slices
+            ix = rng.integers(1, n-1)
+            part = pulse[ix]
+            self.assertEqual(part, parts[ix])
+            self.assertEqual(pulse, ff.concatenate([pulse[:ix], pulse[ix:]]))
+
+            # More complicated slices
+            self.assertEqual(pulse[:len(pulse) // 2 * 2],
+                             ff.concatenate([p for zipped in zip(pulse[::2], pulse[1::2])
+                                             for p in zipped]))
+            self.assertEqual(pulse[::-1], ff.concatenate(parts[::-1]))
+
+            # Boolean indices
+            ix = rng.integers(0, 2, size=n, dtype=bool)
+            if not ix.any():
+                with self.assertRaises(IndexError):
+                    pulse[ix]
+            else:
+                self.assertEqual(pulse[ix], ff.concatenate(parts[ix]))
+
+        # Raises
+        with self.assertRaises(IndexError):
+            pulse[:0]
+        with self.assertRaises(IndexError):
+            pulse[1, 3]
+        with self.assertRaises(IndexError):
+            pulse['a']
 
     def test_concatenate_without_filter_function(self):
         """Concatenate two Spin Echos without filter functions."""
@@ -103,7 +141,7 @@ class ConcatenationTest(testutil.TestCase):
 
         with self.assertRaises(TypeError):
             # Not iterable
-            pulse_sequence.concatenate_without_filter_function(pulse)
+            pulse_sequence.concatenate_without_filter_function(1)
 
         with self.assertRaises(ValueError):
             # Incompatible Hamiltonian shapes
@@ -469,7 +507,7 @@ class ConcatenationTest(testutil.TestCase):
             # Test forcibly caching
             self.assertTrue(pulse_13_2.is_cached('filter_function'))
 
-    def test_concatenation_periodic(self):
+    def test_concatenate_periodic(self):
         """Test concatenation for periodic Hamiltonians"""
         X, Y, Z = util.paulis[1:]
         A = 0.01
@@ -528,6 +566,24 @@ class ConcatenationTest(testutil.TestCase):
 
         self.assertArrayAlmostEqual(F_LAB, F_CC, atol=1e-13)
         self.assertArrayAlmostEqual(F_LAB, F_CC_PERIODIC, atol=1e-13)
+
+        # Random tests, make sure we test for G=1
+        for d, G in zip(rng.integers(2, 7, 11), np.concatenate([[1], rng.integers(2, 1000, 10)])):
+            pulse = testutil.rand_pulse_sequence(d, 5, 2, 2)
+            pulse.cache_filter_function(rng.random(37))
+            a = ff.concatenate(repeat(pulse, G))
+            b = ff.concatenate_periodic(pulse, G)
+            self.assertEqual(a, b)
+            self.assertArrayAlmostEqual(a._control_matrix, b._control_matrix)
+            self.assertArrayAlmostEqual(a._filter_function, b._filter_function)
+
+            cm = ff.numeric.calculate_control_matrix_periodic(pulse.get_total_phases(pulse.omega),
+                                                              pulse.get_control_matrix(pulse.omega),
+                                                              pulse.total_propagator_liouville,
+                                                              G, check_invertible=False)
+            # Check mostly always equal
+            self.assertGreater(np.isclose(cm, a._control_matrix).sum()/cm.size, 0.9)
+
 
     def test_pulse_correlations(self):
         """Test calculating pulse correlation quantities."""
@@ -769,7 +825,7 @@ class ExtensionTest(testutil.TestCase):
         pulse_2 = testutil.rand_pulse_sequence(2, 10, btype='Pauli')
         pulse_3 = testutil.rand_pulse_sequence(2, 10, btype='GGM')
         pulse_2.dt = pulse_1.dt
-        pulse_2.t = pulse_1.t
+        pulse_2._tau = pulse_1._tau
         omega = util.get_sample_frequencies(pulse_1, 50)
 
         # diagonalize one pulse

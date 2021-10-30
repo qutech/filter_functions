@@ -29,11 +29,10 @@ References
     Hamiltonians: Example with ion traps, 1(1), 1–7.
     Retrieved from http://arxiv.org/abs/1503.08806
 """
-import numpy as np
-
 import filter_functions as ff
-from filter_functions import plotting
+import numpy as np
 import qutip as qt
+from filter_functions import plotting
 from qutip import qip
 from qutip.qip.algorithms.qft import qft as qt_qft
 

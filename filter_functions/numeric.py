@@ -444,8 +444,8 @@ def calculate_noise_operators_from_atomic(
 
     See Also
     --------
-    :func:`calculate_noise_operators_from_scratch`: Compute the operators from scratch.
-    :func:`calculate_control_matrix_from_atomic`: Same calculation in Liouville space.
+    calculate_noise_operators_from_scratch: Compute the operators from scratch.
+    calculate_control_matrix_from_atomic: Same calculation in Liouville space.
     """
     n = len(noise_operators_atomic)
     # Allocate memory
@@ -572,8 +572,8 @@ def calculate_noise_operators_from_scratch(
 
     See Also
     --------
-    :func:`calculate_noise_operators_from_atomic`: Compute the operators from atomic segments.
-    :func:`calculate_control_matrix_from_scratch`: Same calculation in Liouville space.
+    calculate_noise_operators_from_atomic: Compute the operators from atomic segments.
+    calculate_control_matrix_from_scratch: Same calculation in Liouville space.
     """
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
@@ -624,7 +624,7 @@ def calculate_noise_operators_from_scratch(
     return noise_operators
 
 
-@util.parse_optional_parameters({'which': ('total', 'correlations')})
+@util.parse_optional_parameters(which=('total', 'correlations'))
 def calculate_control_matrix_from_atomic(
         phases: ndarray,
         control_matrix_atomic: ndarray,
@@ -859,7 +859,7 @@ def calculate_control_matrix_from_scratch(
 
 def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
                                       total_propagator_liouville: ndarray,
-                                      repeats: int) -> ndarray:
+                                      repeats: int, check_invertible: bool = True) -> ndarray:
     r"""
     Calculate the control matrix of a periodic pulse given the phase
     factors, control matrix and transfer matrix of the total propagator,
@@ -877,6 +877,11 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
         pulse.
     repeats: int
         The number of repetitions.
+    check_invertible: bool, optional
+        Check for all frequencies if the inverse :math:`\mathbb{I} -
+        e^{i\omega T} \mathcal{Q}^{(1)}` exists by calculating the
+        determinant. If it does not exist, the sum is evaluated
+        explicitly for those points. The default is True.
 
     Returns
     -------
@@ -909,28 +914,23 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     # evaluate it explicitly.
     eye = np.eye(total_propagator_liouville.shape[0])
     T = np.multiply.outer(phases, total_propagator_liouville)
-
-    # Mask the invertible frequencies. The chosen atol is somewhat empiric.
     M = eye - T
-    M_inv = nla.inv(M)
-    good_inverse = np.isclose(M_inv @ M, eye, atol=1e-10, rtol=0).all((1, 2))
+    if check_invertible:
+        invertible = ~np.isclose(nla.det(M), 0)
+    else:
+        invertible = np.array(True)
 
     S = np.empty((*phases.shape, *total_propagator_liouville.shape), dtype=complex)
-    # Evaluate the sum for invertible frequencies
-    S[good_inverse] = M_inv[good_inverse] @ (eye - nla.matrix_power(T[good_inverse], repeats))
-
-    # Evaluate the sum for non-invertible frequencies
-    # HINT: Using numba, this could be a factor of ten or so faster. But since
-    # usually very few omega-values have a bad inverse, the compilation
-    # overhead is not compensated.
-    if (~good_inverse).any():
-        S[~good_inverse] = eye + sum(accumulate(repeat(T[~good_inverse], repeats-1), np.matmul))
+    # Solve LSE instead of computing inverse, faster + numerically more stable
+    S[invertible] = nla.solve(M[invertible], eye - nla.matrix_power(T[invertible], repeats))
+    if (~invertible).any():
+        S[~invertible] = eye + sum(accumulate(repeat(T[~invertible], repeats-1), np.matmul))
 
     control_matrix_tot = (control_matrix.transpose(2, 0, 1) @ S).transpose(1, 2, 0)
     return control_matrix_tot
 
 
-@util.parse_optional_parameters({'which': ('total', 'correlations')})
+@util.parse_optional_parameters(which=('total', 'correlations'))
 def calculate_cumulant_function(
         pulse: 'PulseSequence',
         spectrum: Optional[ndarray] = None,
@@ -942,7 +942,7 @@ def calculate_cumulant_function(
         frequency_shifts: Optional[ndarray] = None,
         show_progressbar: bool = False,
         memory_parsimonious: bool = False,
-        cache_intermediates: bool = False
+        cache_intermediates: Optional[bool] = None
 ) -> ndarray:
     r"""Calculate the cumulant function :math:`\mathcal{K}(\tau)`.
 
@@ -996,7 +996,7 @@ def calculate_cumulant_function(
         Keep and return intermediate terms of the calculation of the
         control matrix that can be reused in other computations (second
         order or gradients). Otherwise the sum is performed in-place.
-        The default is False.
+        Default is True if second_order=True, else False.
 
     Returns
     -------
@@ -1074,6 +1074,9 @@ def calculate_cumulant_function(
     if which == 'correlations' and second_order:
         raise ValueError('Cannot compute correlation cumulant function for second order terms')
 
+    if cache_intermediates is None:
+        cache_intermediates = second_order
+
     if decay_amplitudes is None:
         decay_amplitudes = calculate_decay_amplitudes(pulse, spectrum, omega, n_oper_identifiers,
                                                       which, show_progressbar, cache_intermediates,
@@ -1093,23 +1096,25 @@ def calculate_cumulant_function(
     if d == 2 and pulse.basis.btype in ('Pauli', 'GGM'):
         # Single qubit case. Can use simplified expression
         cumulant_function = np.zeros(decay_amplitudes.shape, decay_amplitudes.dtype)
-        diag_mask = np.eye(N, dtype=bool)
+        diag_mask = np.zeros((N, N), dtype=bool)
+        diag_mask[1:, 1:] = ~np.eye(N-1, dtype=bool)
 
         # Offdiagonal terms
-        cumulant_function[..., ~diag_mask] = decay_amplitudes[..., ~diag_mask]
+        cumulant_function[..., diag_mask] = decay_amplitudes[..., diag_mask]
 
         # Diagonal terms K_ii given by sum over diagonal of Gamma excluding
         # Gamma_ii. Since the Pauli basis is traceless, K_00 is zero, therefore
         # start at K_11.
-        diag_idx = deque((True, False, True, True))
+        diag_deque = deque((False, True, True))
         for i in range(1, N):
+            diag_idx = [False] + list(diag_deque)
             cumulant_function[..., i, i] = -decay_amplitudes[..., diag_idx, diag_idx].sum(axis=-1)
             # shift the item not summed over by one
-            diag_idx.rotate()
+            diag_deque.rotate()
 
         if second_order:
-            cumulant_function -= frequency_shifts
-            cumulant_function += frequency_shifts.swapaxes(-1, -2)
+            cumulant_function[..., 1:, 1:] -= frequency_shifts[..., 1:, 1:]
+            cumulant_function[..., 1:, 1:] += frequency_shifts[..., 1:, 1:].swapaxes(-1, -2)
     else:
         # Multi qubit case. Use general expression. Drop imaginary part since
         # result is guaranteed to be real (if we didn't do anything wrong)
@@ -1131,7 +1136,7 @@ def calculate_cumulant_function(
     return cumulant_function.real
 
 
-@util.parse_optional_parameters({'which': ('total', 'correlations')})
+@util.parse_optional_parameters(which=('total', 'correlations'))
 def calculate_decay_amplitudes(
         pulse: 'PulseSequence',
         spectrum: ndarray,
@@ -1350,7 +1355,7 @@ def calculate_frequency_shifts(
     return frequency_shifts
 
 
-@util.parse_which_FF_parameter
+@util.parse_optional_parameters(which=('fidelity', 'generalized'))
 def calculate_filter_function(control_matrix: ndarray, which: str = 'fidelity') -> ndarray:
     r"""Compute the filter function from the control matrix.
 
@@ -1517,27 +1522,33 @@ def calculate_second_order_filter_function(
     result = np.zeros(shape, dtype=complex)
 
     # intermediate results from calculation of control matrix
-    if not intermediates:
-        # Require absolut times for calculation of control matrix at step g
-        t = np.concatenate(([0], np.asarray(dt).cumsum()))
-        # Cheap to precompute as these don't use a lot of memory
-        eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
+    if intermediates is None:
+        intermediates = dict()
+
+    # Work around possibly populated intermediates dict with missing keys
+    n_opers_transformed = intermediates.get('n_opers_transformed')
+    if n_opers_transformed is None:
         n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
-        # These are populated anew during every iteration, so there is no need
-        # to keep every time step
-        basis_transformed = np.empty(basis.shape, dtype=complex)
-        ctrlmat_step = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
-    else:
-        n_opers_transformed = intermediates['n_opers_transformed']
+
+    try:
         basis_transformed_cache = intermediates['basis_transformed']
         ctrlmat_step_cache = intermediates['control_matrix_step']
+        have_intermediates = True
+    except KeyError:
+        have_intermediates = False
+        # No cache. Precompute some things and perform the costly computations
+        # during each loop iteration below
+        t = np.concatenate(([0], np.asarray(dt).cumsum()))
+        eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
+        basis_transformed = np.empty(basis.shape, dtype=complex)
+        ctrlmat_step = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
 
     step_expr = oe.contract_expression('oijmn,akij,blmn->abklo', int_buf.shape,
                                        *[(len(n_coeffs), len(basis), d, d)]*2,
                                        optimize=[(0, 1), (0, 1)])
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating second order FF'):
-        if not intermediates:
+        if not have_intermediates:
             basis_transformed = _transform_by_unitary(eigvecs_propagated[g], basis,
                                                       out=basis_transformed)
             # Need to compute G^(g) since no cache given. First initialize
@@ -1578,7 +1589,7 @@ def calculate_second_order_filter_function(
     return result
 
 
-@util.parse_which_FF_parameter
+@util.parse_optional_parameters(which=('fidelity', 'generalized'))
 def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
                                                 which: str = 'fidelity') -> ndarray:
     r"""Compute pulse correlation filter function from control matrix.
@@ -1779,7 +1790,7 @@ def error_transfer_matrix(
     For non-Gaussian noise the expression above is perturbative and
     includes noise up to order :math:`\xi^2` and hence
     :math:`\tilde{\mathcal{U}} = \mathbb{1} + \mathcal{K}(\tau) +
-    \mathcal{O}(\xi^2)`
+    \mathcal{O}(\xi^4)`
     (although it is evaluated as a matrix exponential in any case).
 
     Given the above expression of the error transfer matrix, the
@@ -1822,7 +1833,7 @@ def error_transfer_matrix(
     return error_transfer_matrix
 
 
-@util.parse_optional_parameters({'which': ('total', 'correlations')})
+@util.parse_optional_parameters(which=('total', 'correlations'))
 def infidelity(
         pulse: 'PulseSequence',
         spectrum: Union[Coefficients, Callable],
@@ -2021,12 +2032,12 @@ def infidelity(
         else:
             raise ValueError("spacing should be either 'linear' or 'log'.")
 
-        delta_n = (n_max - n_min)//n_points
+        delta_n = (n_max - n_min)//(n_points - 1)
         n_samples = np.arange(n_min, n_max + delta_n, delta_n)
 
         convergence_infids = np.empty((len(n_samples), len(idx)))
         for i, n in enumerate(n_samples):
-            freqs = xspace(omega_IR, omega_UV, n//2)
+            freqs = xspace(omega_IR, omega_UV, n)
             convergence_infids[i] = infidelity(pulse, spectrum(freqs), freqs,
                                                n_oper_identifiers=n_oper_identifiers,
                                                which='total', show_progressbar=show_progressbar,

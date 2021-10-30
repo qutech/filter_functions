@@ -75,7 +75,6 @@ from itertools import zip_longest
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-from numpy import linalg as nla
 from numpy import ndarray
 
 from .types import Operator, State
@@ -153,18 +152,20 @@ def cexp(x: ndarray, out=None, where=True) -> ndarray:
     return out
 
 
-def parse_optional_parameters(params_dict: Dict[str, Sequence]) -> Callable:
-    """Decorator factory to parse optional parameter with certain legal values.
+def parse_optional_parameters(**allowed_kwargs: Dict[str, Sequence]) -> Callable:
+    """Decorator factory to parse optional parameter with certain legal
+    values.
 
-    For ``params_dict = {name: allowed, ...}``: If the parameter value
-    corresponding to ``name`` (either in args or kwargs of the decorated
-    function) is not contained in ``allowed`` a ``ValueError`` is raised.
+    For ``allowed_kwargs = {name: allowed, ...}``: If the parameter
+    value corresponding to ``name`` (either in args or kwargs of the
+    decorated function) is not contained in ``allowed`` a ``ValueError``
+    is raised.
     """
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             parameters = inspect.signature(func).parameters
-            for name, allowed in params_dict.items():
+            for name, allowed in allowed_kwargs.items():
                 idx = tuple(parameters).index(name)
                 try:
                     value = args[idx]
@@ -178,9 +179,6 @@ def parse_optional_parameters(params_dict: Dict[str, Sequence]) -> Callable:
             return func(*args, **kwargs)
         return wrapper
     return decorator
-
-
-parse_which_FF_parameter = parse_optional_parameters({'which': ('fidelity', 'generalized')})
 
 
 def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
@@ -902,7 +900,6 @@ def oper_equiv(psi: Union[Operator, State], phi: Union[Operator, State],
     """
     # Convert qutip.Qobj's to numpy arrays
     psi, phi = [obj.full() if hasattr(obj, 'full') else obj for obj in (psi, phi)]
-
     psi, phi = np.atleast_2d(psi, phi)
 
     if eps is None:
@@ -915,14 +912,15 @@ def oper_equiv(psi: Union[Operator, State], phi: Union[Operator, State],
             eps *= (np.prod(psi.shape[-2:])*phi.shape[-1]*2)**2
 
     try:
-        inner_product = (psi.swapaxes(-1, -2).conj() @ phi).trace(0, -1, -2)
+        # Don't need to round at this point
+        inner_product = dot_HS(psi, phi, eps=0)
     except ValueError as err:
         raise ValueError('psi and phi have incompatible dimensions!') from err
 
     if normalized:
         norm = 1
     else:
-        norm = nla.norm(psi, axis=(-1, -2))*nla.norm(phi, axis=(-1, -2))
+        norm = np.sqrt(dot_HS(psi, psi, eps=0)*dot_HS(phi, phi, eps=0))
 
     phase = np.angle(inner_product)
     modulus = abs(inner_product)
@@ -940,6 +938,9 @@ def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> float:
     ----------
     U, V: qutip.Qobj or ndarray
         Objects to compute the inner product of.
+    eps: float
+        The floating point precision. The result is rounded to
+        `abs(int(np.log10(eps)))` decimals if `eps > 0`.
 
     Returns
     -------
@@ -970,17 +971,15 @@ def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> float:
             eps = 0
 
     if eps == 0:
-        decimals = 0
+        res = np.einsum('...ij,...ij', U.conj(), V)
     else:
-        decimals = abs(int(np.log10(eps)))
+        res = np.around(np.einsum('...ij,...ij', U.conj(), V), decimals=abs(int(np.log10(eps))))
 
-    res = np.round(np.einsum('...ij,...ij', U.conj(), V), decimals)
     return res if res.imag.any() else res.real
 
 
-@parse_optional_parameters({'spacing': ('log', 'linear')})
-def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300,
-                           spacing: str = 'log',
+@parse_optional_parameters(spacing=('log', 'linear'))
+def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing: str = 'log',
                            include_quasistatic: bool = False) -> ndarray:
     """Get *n_samples* sample frequencies spaced 'linear' or 'log'.
 

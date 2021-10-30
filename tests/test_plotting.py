@@ -260,7 +260,7 @@ class PlottingTest(testutil.TestCase):
         K = numeric.calculate_cumulant_function(complicated_pulse, spectrum, omega)
         fig, grid = plotting.plot_cumulant_function(
             complicated_pulse, spectrum=spectrum, omega=omega,
-            n_oper_identifiers=n_oper_identifiers, basis_labels=basis_labels,
+            n_oper_identifiers=n_oper_identifiers, basis_labels=np.array(basis_labels),
             basis_labelsize=4, linthresh=1e-4, cmap=plt.cm.jet
         )
         fig, grid = plotting.plot_cumulant_function(
@@ -306,12 +306,12 @@ class PlottingTest(testutil.TestCase):
         plt.close('all')
 
     def test_plot_infidelity_convergence(self):
-        def spectrum(omega):
-            return omega**0
-
-        n, infids = ff.infidelity(simple_pulse, spectrum, {},
-                                  test_convergence=True)
+        n, infids = ff.infidelity(simple_pulse, lambda x: x**0, {}, test_convergence=True)
         fig, ax = plotting.plot_infidelity_convergence(n, infids)
+
+        fig, ax = plt.subplots(1, 2)
+        cfig, ax = plotting.plot_infidelity_convergence(n, infids, ax)
+        self.assertIs(cfig, fig)
 
 
 class LaTeXRenderingTest(testutil.TestCase):
