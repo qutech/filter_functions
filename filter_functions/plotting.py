@@ -236,7 +236,7 @@ def plot_bloch_vector_evolution(
         if b.fig is None:
             b.fig = plt.figure(figsize=figsize)
         if b.axes is None:
-            b.axes = fig.add_subplot(projection='3d', azim=view[0], elev=view[1])
+            b.axes = b.fig.add_subplot(projection='3d', azim=view[0], elev=view[1])
 
     if n_samples is None:
         # At least 100, at most 5000 points, default 10 points per smallest
