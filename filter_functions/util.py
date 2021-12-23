@@ -72,7 +72,7 @@ import inspect
 import operator
 import string
 from itertools import zip_longest
-from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from numpy import ndarray
@@ -152,7 +152,7 @@ def cexp(x: ndarray, out=None, where=True) -> ndarray:
     return out
 
 
-def parse_optional_parameters(**allowed_kwargs: Dict[str, Sequence]) -> Callable:
+def parse_optional_parameters(**allowed_kwargs: Sequence) -> Callable:
     """Decorator factory to parse optional parameter with certain legal
     values.
 
@@ -944,7 +944,8 @@ def oper_equiv(psi: Union[Operator, State], phi: Union[Operator, State],
     return abs(norm - modulus) <= eps, phase
 
 
-def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> float:
+def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> Union[float, complex,
+                                                                           ndarray]:
     r"""Return the Hilbert-Schmidt inner product of U and V,
 
     .. math::
