@@ -173,8 +173,8 @@ def parse_optional_parameters(**allowed_kwargs: Dict[str, Sequence]) -> Callable
                     value = kwargs.get(name, parameters[name].default)
 
                 if value not in allowed:
-                    raise ValueError(f"Invalid value for {name}: {value}. " +
-                                     f"Should be one of {allowed}.")
+                    raise ValueError(f"Invalid value for {name}: {value}. "
+                                     + f"Should be one of {allowed}.")
 
             return func(*args, **kwargs)
         return wrapper
@@ -243,8 +243,8 @@ def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int], rank: 
             # Both arguments have same dimension on axis.
             broadcast_shape = dims[:1] + broadcast_shape
         else:
-            raise ValueError(f'Incompatible shapes {shape_A} and {shape_B} ' +
-                             f'for tensor product of rank {rank}.')
+            raise ValueError(f'Incompatible shapes {shape_A} and {shape_B} '
+                             + f'for tensor product of rank {rank}.')
 
     # Shape of the actual tensor product is product of each dimension,
     # again broadcasting if need be
@@ -291,8 +291,8 @@ def get_indices_from_identifiers(all_identifiers: Sequence[str],
                 inds = np.array([identifier_to_index_table[identifier]
                                  for identifier in identifiers])
         except KeyError:
-            raise ValueError('Invalid identifiers given. All available ones ' +
-                             f'are: {all_identifiers}')
+            raise ValueError('Invalid identifiers given. All available ones '
+                             + f'are: {all_identifiers}')
 
     return inds
 
@@ -514,8 +514,8 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
             args = (tensor(*args, rank=rank, optimize=optimize),)
     else:
         if not len(pos) == len(args):
-            raise ValueError('Expected pos to be either an int or a sequence of the same length ' +
-                             f'as the number of args, not length {len(pos)}')
+            raise ValueError('Expected pos to be either an int or a sequence of the same length '
+                             + f'as the number of args, not length {len(pos)}')
 
     _parse_dims_arg('arr', arr_dims, rank)
 
@@ -559,16 +559,16 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
             key=operator.itemgetter(0))):
 
         if div not in (-1, 0):
-            raise IndexError(f'Invalid position {cpos[i]} specified. Must ' +
-                             f'be between -{ndim} and {ndim}.')
+            raise IndexError(f'Invalid position {cpos[i]} specified. Must '
+                             + f'be between -{ndim} and {ndim}.')
 
         # Insert argument arg at position p+i (since every iteration the index
         # shifts by 1)
         try:
             result = single_tensor_insert(result, arg, carr_dims, p+i)
         except ValueError as err:
-            raise ValueError(f'Could not insert arg {arg_counter} with shape {result.shape} ' +
-                             f'into the array with shape {arg.shape} at position {p}.') from err
+            raise ValueError(f'Could not insert arg {arg_counter} with shape {result.shape} '
+                             + f'into the array with shape {arg.shape} at position {p}.') from err
 
         # Update arr_dims
         for axis, d in zip(carr_dims, arg.shape[-rank:]):
@@ -689,8 +689,8 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
             if p != arr_ndim:
                 div, p = divmod(p, arr_ndim)
                 if div not in (-1, 0):
-                    raise IndexError(f'Invalid position {pos[i]} specified. Must be between ' +
-                                     f'-{arr_ndim} and {arr_ndim}.')
+                    raise IndexError(f'Invalid position {pos[i]} specified. Must be between '
+                                     + f'-{arr_ndim} and {arr_ndim}.')
             arr_part = arr_part[:p+i] + ins_p + arr_part[p+i:]
 
         out_chars += arr_part
@@ -707,13 +707,13 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
     try:
         ins_reshaped = ins.reshape(*ins.shape[:-rank], *flat_ins_dims)
     except ValueError as err:
-        raise ValueError('ins_dims not compatible with ins.shape[-rank:] = ' +
-                         f'{ins.shape[-rank:]}') from err
+        raise ValueError('ins_dims not compatible with ins.shape[-rank:] = '
+                         + f'{ins.shape[-rank:]}') from err
     try:
         arr_reshaped = arr.reshape(*arr.shape[:-rank], *flat_arr_dims)
     except ValueError as err:
-        raise ValueError('arr_dims not compatible with arr.shape[-rank:] = ' +
-                         f'{arr.shape[-rank:]}') from err
+        raise ValueError('arr_dims not compatible with arr.shape[-rank:] = '
+                         + f'{arr.shape[-rank:]}') from err
 
     result = np.einsum(subscripts, ins_reshaped, arr_reshaped, optimize=optimize).reshape(outshape)
 
@@ -774,8 +774,8 @@ def tensor_transpose(arr: ndarray, order: Sequence[int], arr_dims: Sequence[Sequ
     ndim = len(arr_dims[0])
     # Number of axes that are broadcast over
     n_broadcast = len(arr.shape[:-rank])
-    transpose_axes = ([i for i in range(n_broadcast)] +
-                      [n_broadcast + r*ndim + o for r in range(rank) for o in order])
+    transpose_axes = ([i for i in range(n_broadcast)]
+                      + [n_broadcast + r*ndim + o for r in range(rank) for o in order])
 
     # Need to reshape arr to the rank*ndim-dimensional shape that's the
     # output of the regular tensor einsum call
@@ -785,17 +785,17 @@ def tensor_transpose(arr: ndarray, order: Sequence[int], arr_dims: Sequence[Sequ
     try:
         arr_reshaped = arr.reshape(*arr.shape[:-rank], *flat_arr_dims)
     except ValueError as err:
-        raise ValueError('arr_dims not compatible with arr.shape[-rank:] = ' +
-                         f'{arr.shape[-rank:]}') from err
+        raise ValueError('arr_dims not compatible with arr.shape[-rank:] = '
+                         + f'{arr.shape[-rank:]}') from err
 
     try:
         result = arr_reshaped.transpose(*transpose_axes).reshape(arr.shape)
     except TypeError as type_err:
-        raise TypeError("Could not transpose the order. Are all elements of " +
-                        "'order' integers?") from type_err
+        raise TypeError("Could not transpose the order. Are all elements of "
+                        + "'order' integers?") from type_err
     except ValueError as val_err:
-        raise ValueError("Could not transpose the order. Are all elements " +
-                         "of 'order' unique and match the array?") from val_err
+        raise ValueError("Could not transpose the order. Are all elements "
+                         + "of 'order' unique and match the array?") from val_err
 
     return result
 
@@ -905,8 +905,8 @@ def oper_equiv(psi: Union[Operator, State], phi: Union[Operator, State],
     if eps is None:
         # Tolerance the floating point eps times the # of flops for the matrix
         # multiplication, i.e. for psi and phi n x m matrices 2*n**2*m
-        eps = (max(np.finfo(psi.dtype).eps, np.finfo(phi.dtype).eps) *
-               np.prod(psi.shape)*phi.shape[-1]*2)
+        eps = (max(np.finfo(psi.dtype).eps, np.finfo(phi.dtype).eps)
+               * np.prod(psi.shape)*phi.shape[-1]*2)
         if not normalized:
             # normalization introduces more floating point error
             eps *= (np.prod(psi.shape[-2:])*phi.shape[-1]*2)**2

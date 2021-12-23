@@ -475,8 +475,8 @@ def calculate_derivative_of_control_matrix_from_scratch(
     try:
         idx = util.get_indices_from_identifiers(all_identifiers, control_identifiers)
     except ValueError as err:
-        raise ValueError('Given control identifiers have to be a subset of (drift+control) ' +
-                         'Hamiltonian!') from err
+        raise ValueError('Given control identifiers have to be a subset of (drift+control) '
+                         + 'Hamiltonian!') from err
 
     d = eigvecs.shape[-1]
     n_dt = len(dt)

@@ -786,13 +786,13 @@ def plot_cumulant_function(
                 n_oper_identifiers = [f'$B_{{{i}}}$' for i in range(len(n_oper_inds))]
         else:
             if len(n_oper_identifiers) != len(K):
-                raise ValueError('Both precomputed cumulant function and n_oper_identifiers ' +
-                                 f'given but not same len: {len(K)} != {len(n_oper_identifiers)}')
+                raise ValueError('Both precomputed cumulant function and n_oper_identifiers '
+                                 + f'given but not same len: {len(K)} != {len(n_oper_identifiers)}')
 
     else:
         if pulse is None or spectrum is None or omega is None:
-            raise ValueError('Require either precomputed cumulant function ' +
-                             'or pulse, spectrum, and omega as arguments.')
+            raise ValueError('Require either precomputed cumulant function '
+                             + 'or pulse, spectrum, and omega as arguments.')
 
         n_oper_inds = util.get_indices_from_identifiers(pulse.n_oper_identifiers,
                                                         n_oper_identifiers)
@@ -837,8 +837,8 @@ def plot_cumulant_function(
         grid = axes_grid1.ImageGrid(fig, **grid_kw)
     else:
         if len(grid) != len(n_oper_inds):
-            raise ValueError('Size of supplied ImageGrid instance does not ' +
-                             'match the number of n_oper_identifiers given!')
+            raise ValueError('Size of supplied ImageGrid instance does not '
+                             + 'match the number of n_oper_identifiers given!')
 
         fig = grid[0].get_figure()
 
