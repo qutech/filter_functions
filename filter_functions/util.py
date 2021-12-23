@@ -1021,7 +1021,7 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing
     omega_min, omega_max: float, optional
         Minimum and maximum angular frequencies included (DC
         notwithstanding). Default to :math:`2\pi\times 10^{-2}/\tau` and
-        :math:`2\pi/\Delta t_{\mathrm{min}}`.
+        :math:`2\pi\times 10^{+1}/\Delta t_{\mathrm{min}}`.
     include_quasistatic: bool, optional
         Include zero frequency. Default is False.
 
