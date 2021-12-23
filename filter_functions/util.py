@@ -79,6 +79,9 @@ from numpy import ndarray
 
 from .types import Operator, State
 
+if False:
+    from .pulse_sequence import PulseSequence
+
 try:
     import ipynbname
     _NOTEBOOK_NAME = ipynbname.name()
@@ -996,9 +999,10 @@ def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> Union[float
 
 
 @parse_optional_parameters(spacing=('log', 'linear'))
-def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing: str = 'log',
-                           include_quasistatic: bool = False) -> ndarray:
-    """Get *n_samples* sample frequencies spaced 'linear' or 'log'.
+def get_sample_frequencies(pulse: PulseSequence, n_samples: int = 300, spacing: str = 'log',
+                           include_quasistatic: bool = False, omega_min: Optional[float] = None,
+                           omega_max: Optional[float] = None) -> ndarray:
+    r"""Get *n_samples* sample frequencies spaced 'linear' or 'log'.
 
     The ultraviolet cutoff is taken to be two orders of magnitude larger
     than the timescale of the pulse tau. In the case of log spacing, the

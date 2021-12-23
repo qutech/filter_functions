@@ -55,8 +55,11 @@ from mpl_toolkits import axes_grid1
 from numpy import ndarray
 
 from . import numeric, util
-from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes, FigureAxesLegend, FigureGrid,
-                    Grid, Operator, State)
+from .types import (Axes, Coefficients, Colormap, Cycler, Figure, FigureAxes, FigureAxesLegend,
+                    FigureGrid, Grid, Operator, State)
+
+if False:
+    from .pulse_sequence import PulseSequence
 
 __all__ = ['plot_cumulant_function', 'plot_infidelity_convergence', 'plot_filter_function',
            'plot_pulse_correlation_filter_function', 'plot_pulse_train']
@@ -153,7 +156,7 @@ def get_states_from_prop(U: Sequence[Operator], psi0: Optional[State] = None) ->
 
 
 def plot_bloch_vector_evolution(
-        pulse: 'PulseSequence',
+        pulse: PulseSequence,
         psi0: Optional[State] = None,
         b: Optional[qt.Bloch] = None,
         n_samples: Optional[int] = None,
@@ -270,11 +273,11 @@ def plot_bloch_vector_evolution(
 
 
 def plot_pulse_train(
-        pulse: 'PulseSequence',
+        pulse: PulseSequence,
         c_oper_identifiers: Optional[Sequence[int]] = None,
         fig: Optional[Figure] = None,
         axes: Optional[Axes] = None,
-        cycler: Optional['cycler.Cycler'] = None,
+        cycler: Optional[Cycler] = None,
         plot_kw: Optional[dict] = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -357,7 +360,7 @@ def plot_pulse_train(
 
 
 def plot_filter_function(
-        pulse: 'PulseSequence',
+        pulse: PulseSequence,
         omega: Optional[Coefficients] = None,
         n_oper_identifiers: Optional[Sequence[int]] = None,
         fig: Optional[Figure] = None,
@@ -365,7 +368,7 @@ def plot_filter_function(
         xscale: str = 'log',
         yscale: str = 'linear',
         omega_in_units_of_tau: bool = True,
-        cycler: Optional['cycler.Cycler'] = None,
+        cycler: Optional[Cycler] = None,
         plot_kw: dict = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -489,13 +492,13 @@ def plot_filter_function(
 
 
 def plot_pulse_correlation_filter_function(
-        pulse: 'PulseSequence',
+        pulse: PulseSequence,
         n_oper_identifiers: Optional[Sequence[int]] = None,
         fig: Optional[Figure] = None,
         xscale: str = 'log',
         yscale: str = 'linear',
         omega_in_units_of_tau: bool = True,
-        cycler: Optional['cycler.Cycler'] = None,
+        cycler: Optional[Cycler] = None,
         plot_kw: dict = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -681,7 +684,7 @@ def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float
 
 @util.parse_optional_parameters(colorscale=('linear', 'log'))
 def plot_cumulant_function(
-        pulse: Optional['PulseSequence'] = None,
+        pulse: Optional[PulseSequence] = None,
         spectrum: Optional[ndarray] = None,
         omega: Optional[Coefficients] = None,
         cumulant_function: Optional[ndarray] = None,
@@ -716,7 +719,7 @@ def plot_cumulant_function(
 
     Parameters
     ----------
-    pulse: 'PulseSequence'
+    pulse: PulseSequence
         The pulse sequence.
     spectrum: ndarray
         The two-sided noise spectrum.
@@ -786,8 +789,10 @@ def plot_cumulant_function(
                 n_oper_identifiers = [f'$B_{{{i}}}$' for i in range(len(n_oper_inds))]
         else:
             if len(n_oper_identifiers) != len(K):
-                raise ValueError('Both precomputed cumulant function and n_oper_identifiers '
-                                 + f'given but not same len: {len(K)} != {len(n_oper_identifiers)}')
+                raise ValueError(
+                    'Both precomputed cumulant function and n_oper_identifiers '
+                    + f'given but not same len: {len(K)} != {len(n_oper_identifiers)}'
+                )
 
     else:
         if pulse is None or spectrum is None or omega is None:

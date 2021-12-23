@@ -1842,7 +1842,8 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     newpulse.cache_total_phases(pulse.omega)
 
     control_matrix_tot = numeric.calculate_control_matrix_periodic(phases_at, control_matrix_at,
-                                                                   total_propagator_liouville_at, repeats)
+                                                                   total_propagator_liouville_at,
+                                                                   repeats)
 
     newpulse.cache_filter_function(pulse.omega, control_matrix_tot)
 

@@ -55,12 +55,15 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import opt_einsum as oe
-from opt_einsum.contract import ContractExpression
 from numpy import ndarray
+from opt_einsum.contract import ContractExpression
 
 from . import numeric, superoperator, util
 from .basis import Basis
 from .types import Coefficients, Operator
+
+if False:
+    from .pulse_sequence import PulseSequence
 
 __all__ = ['calculate_derivative_of_control_matrix_from_scratch',
            'calculate_filter_function_derivative', 'infidelity_derivative']
@@ -571,7 +574,7 @@ def calculate_filter_function_derivative(ctrlmat: ndarray, ctrlmat_deriv: ndarra
 
 
 def infidelity_derivative(
-        pulse: 'PulseSequence',
+        pulse: PulseSequence,
         spectrum: Coefficients,
         omega: Coefficients,
         control_identifiers: Optional[Sequence[str]] = None,
