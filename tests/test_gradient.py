@@ -103,7 +103,6 @@ class GradientTest(testutil.TestCase):
 
             self.assertArrayAlmostEqual(cm_nocache, cm_cache)
 
-
     def test_raises(self):
         pulse = testutil.rand_pulse_sequence(2, 3)
         omega = ff.util.get_sample_frequencies(pulse, n_samples=13)

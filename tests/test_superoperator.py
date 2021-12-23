@@ -104,8 +104,7 @@ class SuperoperatorTest(testutil.TestCase):
         def partial_transpose(A):
             d = A.shape[-1]
             sqd = int(np.sqrt(d))
-            return A.reshape(-1, sqd, sqd, sqd, sqd).swapaxes(-1, -3).reshape(
-                A.shape)
+            return A.reshape(-1, sqd, sqd, sqd, sqd).swapaxes(-1, -3).reshape(A.shape)
 
         # Partial transpose map should be non-CP
         basis = ff.Basis.pauli(2)
@@ -123,7 +122,9 @@ class SuperoperatorTest(testutil.TestCase):
                 basis = ff.Basis.ggm(d)
 
             U_sup = superoperator.liouville_representation(U, basis)
-            CP, (D, V) = superoperator.liouville_is_CP(U_sup, basis, True)
+            CP, D, V = superoperator.liouville_is_CP(U_sup, basis,
+                                                     return_eigvals=True,
+                                                     return_eigvecs=True)
             _CP = superoperator.liouville_is_CP(U_sup, basis, False)
 
             self.assertArrayEqual(CP, _CP)
@@ -156,10 +157,12 @@ class SuperoperatorTest(testutil.TestCase):
                 basis = ff.Basis.ggm(d)
 
             H_sup = (np.einsum('iab,...bc,jca', basis, H, basis,
-                               optimize=['einsum_path', (0, 1), (0, 1)]) -
-                     np.einsum('iab,jbc,...ca', basis, basis, H,
-                               optimize=['einsum_path', (0, 2), (0, 1)]))
-            cCP, (D, V) = superoperator.liouville_is_cCP(H_sup, basis, True)
+                               optimize=['einsum_path', (0, 1), (0, 1)])
+                     - np.einsum('iab,jbc,...ca', basis, basis, H,
+                                 optimize=['einsum_path', (0, 2), (0, 1)]))
+            cCP, D, V = superoperator.liouville_is_cCP(H_sup, basis,
+                                                       return_eigvals=True,
+                                                       return_eigvecs=True)
             _cCP = superoperator.liouville_is_cCP(H_sup, basis, False)
 
             self.assertArrayEqual(cCP, _cCP)

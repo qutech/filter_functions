@@ -999,7 +999,7 @@ def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> Union[float
 
 
 @parse_optional_parameters(spacing=('log', 'linear'))
-def get_sample_frequencies(pulse: PulseSequence, n_samples: int = 300, spacing: str = 'log',
+def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing: str = 'log',
                            include_quasistatic: bool = False, omega_min: Optional[float] = None,
                            omega_max: Optional[float] = None) -> ndarray:
     r"""Get *n_samples* sample frequencies spaced 'linear' or 'log'.

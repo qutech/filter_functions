@@ -56,6 +56,6 @@ except ImportError:
 
 Coefficients = Sequence[float]
 Hamiltonian = Sequence[Sequence[Union[Operator, Coefficients]]]
-PulseMapping = Sequence[Sequence[Union[PulseSequence,
+PulseMapping = Sequence[Sequence[Union['PulseSequence',
                                        Union[Sequence[int], int],
                                        Optional[Mapping[str, str]]]]]

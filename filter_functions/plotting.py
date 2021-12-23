@@ -156,7 +156,7 @@ def get_states_from_prop(U: Sequence[Operator], psi0: Optional[State] = None) ->
 
 
 def plot_bloch_vector_evolution(
-        pulse: PulseSequence,
+        pulse: 'PulseSequence',
         psi0: Optional[State] = None,
         b: Optional[qt.Bloch] = None,
         n_samples: Optional[int] = None,
@@ -273,7 +273,7 @@ def plot_bloch_vector_evolution(
 
 
 def plot_pulse_train(
-        pulse: PulseSequence,
+        pulse: 'PulseSequence',
         c_oper_identifiers: Optional[Sequence[int]] = None,
         fig: Optional[Figure] = None,
         axes: Optional[Axes] = None,
@@ -360,7 +360,7 @@ def plot_pulse_train(
 
 
 def plot_filter_function(
-        pulse: PulseSequence,
+        pulse: 'PulseSequence',
         omega: Optional[Coefficients] = None,
         n_oper_identifiers: Optional[Sequence[int]] = None,
         fig: Optional[Figure] = None,
@@ -492,7 +492,7 @@ def plot_filter_function(
 
 
 def plot_pulse_correlation_filter_function(
-        pulse: PulseSequence,
+        pulse: 'PulseSequence',
         n_oper_identifiers: Optional[Sequence[int]] = None,
         fig: Optional[Figure] = None,
         xscale: str = 'log',
@@ -684,7 +684,7 @@ def plot_infidelity_convergence(n_samples: Sequence[int], infids: Sequence[float
 
 @util.parse_optional_parameters(colorscale=('linear', 'log'))
 def plot_cumulant_function(
-        pulse: Optional[PulseSequence] = None,
+        pulse: Optional['PulseSequence'] = None,
         spectrum: Optional[ndarray] = None,
         omega: Optional[Coefficients] = None,
         cumulant_function: Optional[ndarray] = None,

@@ -214,10 +214,10 @@ class UtilTest(testutil.TestCase):
         with self.assertRaises(ValueError) as err:
             util.tensor_insert(util.tensor(*arrs), *args, pos=(1, 2), arr_dims=[[3, 3], [2, 2]])
 
-        err_msg = ('Could not insert arg 0 with shape (4, 9, 4) into the ' +
-                   'array with shape (2, 3, 4) at position 1.')
-        cause_msg = ('Incompatible shapes (2, 3, 4) and (4, 9, 4) for ' +
-                     'tensor product of rank 2.')
+        err_msg = ('Could not insert arg 0 with shape (4, 9, 4) into the '
+                   + 'array with shape (2, 3, 4) at position 1.')
+        cause_msg = ('Incompatible shapes (2, 3, 4) and (4, 9, 4) for '
+                     + 'tensor product of rank 2.')
 
         self.assertEqual(err_msg, str(err.exception))
         self.assertEqual(cause_msg, str(err.exception.__cause__))
@@ -317,8 +317,8 @@ class UtilTest(testutil.TestCase):
                               pos=(1, 2), arr_dims=[[3, 3], [2, 2]],
                               ins_dims=[[3, 3], [4, 4]])
 
-        msg = ('Incompatible shapes (2, 9, 16) and (4, 9, 4) for tensor ' +
-               'product of rank 2.')
+        msg = ('Incompatible shapes (2, 9, 16) and (4, 9, 4) for tensor '
+               + 'product of rank 2.')
 
         self.assertEqual(msg, str(err.exception))
 
@@ -566,26 +566,26 @@ class UtilTest(testutil.TestCase):
         with self.assertRaises(ValueError) as err:
             foobar(1, 1, 2)
             self.assertEqual(str(err.exception),
-                             f"Invalid value for foo: {2}." +
-                             f" Should be one of {[1, 'bar', (2, 3)]}")
+                             f"Invalid value for foo: {2}."
+                             + f" Should be one of {[1, 'bar', (2, 3)]}")
 
         with self.assertRaises(ValueError):
             foobar(1, 1, 'x')
             self.assertEqual(str(err.exception),
-                             f"Invalid value for foo: {'x'}." +
-                             f" Should be one of {[1, 'bar', (2, 3)]}")
+                             f"Invalid value for foo: {'x'}."
+                             + f" Should be one of {[1, 'bar', (2, 3)]}")
 
         with self.assertRaises(ValueError):
             foobar(1, 1, [1, 2])
             self.assertEqual(str(err.exception),
-                             f"Invalid value for foo: {[1, 2]}." +
-                             f" Should be one of {[1, 'bar', (2, 3)]}")
+                             f"Invalid value for foo: {[1, 2]}."
+                             + f" Should be one of {[1, 'bar', (2, 3)]}")
 
         with self.assertRaises(ValueError):
             foobar(1, 1, [1, 2], 4)
             self.assertEqual(str(err.exception),
-                             f"Invalid value for x: {4}." +
-                             f" Should be one of {(2, 3)}")
+                             f"Invalid value for x: {4}."
+                             + f" Should be one of {(2, 3)}")
 
 
 @pytest.mark.skipif(
