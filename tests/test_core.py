@@ -1017,10 +1017,10 @@ class CoreTest(testutil.TestCase):
             # second order contributions to the cumulant function vanish on the
             # diagonal, whereas the first order contributions dominate. Hence,
             # be quite lenient.
-            second_order_contribution = (cumulant_function_second_order -
-                                         cumulant_function_first_order)
-            rel = (np.linalg.norm(cumulant_function_first_order) /
-                   np.linalg.norm(second_order_contribution))
+            second_order_contribution = (cumulant_function_second_order
+                                         - cumulant_function_first_order)
+            rel = (np.linalg.norm(cumulant_function_first_order)
+                   / np.linalg.norm(second_order_contribution))
 
             # Second order terms should be anti-hermitian
             self.assertArrayAlmostEqual(second_order_contribution,

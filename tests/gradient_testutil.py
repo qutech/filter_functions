@@ -56,8 +56,10 @@ def create_pulse_sequence(u_ctrl, u_drift, *args):
         d = args[0]
 
     basis = ff.Basis.ggm(d)
-    H_c = (list(zip(basis[1:len(u_ctrl)+1], u_ctrl, [f'c{i}' for i in range(len(u_ctrl)+1)])) +
-           list(zip(basis[len(u_ctrl)+1:], u_drift, [f'd{i}' for i in range(d**2-len(u_ctrl)+1)])))
+    H_c = (
+        list(zip(basis[1:len(u_ctrl)+1], u_ctrl, [f'c{i}' for i in range(len(u_ctrl)+1)]))
+        + list(zip(basis[len(u_ctrl)+1:], u_drift, [f'd{i}' for i in range(d**2-len(u_ctrl)+1)]))
+    )
     H_n = (list(zip(basis[1:], np.ones((d**2-1, u_drift.shape[1])))))
     dt = np.full(u_ctrl.shape[-1], fill_value=0.32)
 
