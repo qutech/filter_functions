@@ -42,10 +42,12 @@ Functions
     spectrum as an image.
 
 """
+from packaging import version
 from typing import Optional, Sequence, Union
 from unittest import mock
 from warnings import warn
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import cm, collections, colors, lines
@@ -195,7 +197,7 @@ def plot_bloch_vector_evolution(
     n_samples: int, optional
         The number of time points to be sampled.
     cmap: matplotlib colormap, optional
-        The colormap for the trajectory.
+        The colormap for the trajectory. Requires ``matplotlib >= 3.3.0``.
     add_cbar: bool, optional
         Add a colorbar encoding the time evolution to the figure.
         Default is false.
@@ -245,18 +247,23 @@ def plot_bloch_vector_evolution(
 
     times = np.linspace(pulse.t[0], pulse.tau, n_samples)
     propagators = pulse.propagator_at_arb_t(times)
+    points = get_bloch_vector(get_states_from_prop(propagators, psi0))
 
-    points = get_bloch_vector(get_states_from_prop(propagators, psi0)).T.reshape(-1, 1, 3)
-    # Qutip convention: -x at +y, +y at +x
-    copy = points.copy()
-    points[:, :, 0] = copy[:, :, 1]
-    points[:, :, 1] = -copy[:, :, 0]
-    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    if version.parse(matplotlib.__version__) < version.parse('3.3.0'):
+        # Colored trajectory not available.
+        b.add_points(points, meth='l')
+    else:
+        points = points.T.reshape(-1, 1, 3)
+        # Qutip convention: -x at +y, +y at +x
+        copy = points.copy()
+        points[:, :, 0] = copy[:, :, 1]
+        points[:, :, 1] = -copy[:, :, 0]
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
 
-    cmap = plt.get_cmap(cmap)
-    segment_colors = cmap(np.linspace(0, 1, n_samples - 1))
-    lc = collections.LineCollection(segments[:, :, :2], colors=segment_colors)
-    b.axes.add_collection3d(lc, zdir='z', zs=segments[:, :, 2])
+        cmap = plt.get_cmap(cmap)
+        segment_colors = cmap(np.linspace(0, 1, n_samples - 1))
+        lc = collections.LineCollection(segments[:, :, :2], colors=segment_colors)
+        b.axes.add_collection3d(lc, zdir='z', zs=segments[:, :, 2])
 
     if add_cbar:
         default_cbar_kwargs = dict(shrink=2/3, pad=0.05, label=r'$t$ ($\tau$)', ticks=[0, 1])
