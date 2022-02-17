@@ -57,7 +57,7 @@ class SuperoperatorTest(testutil.TestCase):
             self.assertArrayAlmostEqual(
                 U_liouville.swapaxes(-1, -2) @ U_liouville,
                 np.tile(np.eye(d**2), (U.shape[0], 1, 1)),
-                atol=np.finfo(float).eps*d**2
+                atol=5*np.finfo(float).eps*d**2
             )
 
             if d == 2:
