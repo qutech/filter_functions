@@ -265,10 +265,10 @@ def plot_bloch_vector_evolution(
         lc = collections.LineCollection(segments[:, :, :2], colors=segment_colors)
         b.axes.add_collection3d(lc, zdir='z', zs=segments[:, :, 2])
 
-    if add_cbar:
-        default_cbar_kwargs = dict(shrink=2/3, pad=0.05, label=r'$t$ ($\tau$)', ticks=[0, 1])
-        cbar_kwargs = {**default_cbar_kwargs, **(cbar_kwargs or {})}
-        b.fig.colorbar(cm.ScalarMappable(cmap=cmap), **cbar_kwargs)
+        if add_cbar:
+            default_cbar_kwargs = dict(shrink=2/3, pad=0.05, label=r'$t$ ($\tau$)', ticks=[0, 1])
+            cbar_kwargs = {**default_cbar_kwargs, **(cbar_kwargs or {})}
+            b.fig.colorbar(cm.ScalarMappable(cmap=cmap), **cbar_kwargs)
 
     if show:
         b.make_sphere()

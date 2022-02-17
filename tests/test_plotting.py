@@ -363,6 +363,9 @@ class BlochSphereVisualizationTest(testutil.TestCase):
 
         b = plotting.plot_bloch_vector_evolution(complicated_pulse)
 
+        # Test add_cbar kwarg
+        b = plotting.plot_bloch_vector_evolution(simple_pulse, cmap='viridis', add_cbar=True)
+
         # Check exceptions being raised
         with self.assertRaises(ValueError):
             plotting.plot_bloch_vector_evolution(two_qubit_pulse)
