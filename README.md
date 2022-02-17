@@ -81,7 +81,7 @@ If this software has benefited your research, please consider citing:
 [2]: P. Cerfontaine, T. Hangleiter, and H. Bluhm. Filter Functions for Quantum Processes under Correlated Noise. Phys. Rev. Lett. **127**, 170403 (2021). [10.1103/PhysRevLett.127.170403](https://doi.org/10.1103/PhysRevLett.127.170403). [arXiv:2103.02385](https://arxiv.org/abs/2103.02385).
 
 ### Gradients
-[3]: I. N. M. Le, J. D. Teske, T. Hangleiter, P. Cerfontaine, and Hendrik Bluhm, "Analytic Filter Function Derivatives for Quantum Optimal Control," (2021). [arXiv:2103.09126](https://arxiv.org/abs/2103.09126).
+[3]: I. N. M. Le, J. D. Teske, T. Hangleiter, P. Cerfontaine, and Hendrik Bluhm. Analytic Filter Function Derivatives for Quantum Optimal Control. Phys. Rev. Applied **17**, 024006 (2022). [10.1103/PhysRevApplied.17.024006](https://doi.org/10.1103/PhysRevApplied.17.024006). [arXiv:2103.09126](https://arxiv.org/abs/2103.09126).
 
 ### Software
 [4]: T. Hangleiter, I. N. M. Le, and J. D. Teske, "filter_functions: A package for efficient numerical calculation of generalized filter functions to describe the effect of noise on quantum gate operations," (2021). [10.5281/zenodo.4575001](http://doi.org/10.5281/zenodo.4575001).
