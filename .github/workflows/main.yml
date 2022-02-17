@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python_version: [3.6, 3.7, 3.8, 3.9]
+        python_version: [3.7, 3.8, 3.9]
         install_extras: ['tests', 'plotting,fancy_progressbar,tests', 'plotting,bloch_sphere_visualization,fancy_progressbar,doc,tests']
 
     steps:
