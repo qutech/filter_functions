@@ -1,8 +1,10 @@
 [build-system]
 requires = [
     "setuptools >= 42",
+    "ppsetuptools",
     "versioningit",
-    "wheel",
+    "wheel >= 0.35.1",
+    "toml >= 0.10.1",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -10,7 +12,7 @@ build-backend = "setuptools.build_meta"
 name = "filter_functions"
 description = "Package for efficient calculation of generalized filter functions"
 readme = "README.md"
-requires_python = ">= 3.7"
+requires_python = ">= 3.7, <4"
 license = {file = "LICENSE"}
 authors = [
     {name = "Quantum Technology Group, RWTH Aachen University"},
@@ -36,6 +38,7 @@ dependencies = [
 dynamic = [
     "version"
 ]
+keywords = ["physics", "numerics", "quantum information", "quantum computing", "noise"]
 
 [project.optional-dependencies]
 plotting = ["matplotlib"]
@@ -67,6 +70,10 @@ Homepage = "https://www.quantuminfo.physik.rwth-aachen.de/cms/Quantuminfo/Forsch
 # Dynamically obtains the version from git tags
 [tool.versioningit]
 
+[tool.versioningit.vcs]
+method = "git"
+match = ["v*"]
+
 [tool.pytest.ini_options]
 minversion = "4.6"
 addopts = "-ra --verbose --cov=filter_functions --cov-report=xml"
@@ -76,8 +83,6 @@ testpaths = [
 
 [tool.coverage.run]
 branch = true
-
-[tool.coverage.report]
 omit = ["tests/*", "*/__init__.py"]
 
 [tool.pylint.'MESSAGES CONTROL']
