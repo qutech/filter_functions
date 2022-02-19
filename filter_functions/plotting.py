@@ -249,10 +249,19 @@ def plot_bloch_vector_evolution(
     propagators = pulse.propagator_at_arb_t(times)
     points = get_bloch_vector(get_states_from_prop(propagators, psi0))
 
+    # Check the matplotlib version to see if we can draw a color gradient line. If not, draw sphere
+    # after adding the points using the Bloch method. If yes, we apparently need to draw the sphere
+    # before manually adding the line collection, otherwise there is some strange thing going on in
+    # notebooks and the lines are not rendered.
     if version.parse(matplotlib.__version__) < version.parse('3.3.0'):
         # Colored trajectory not available.
         b.add_points(points, meth='l')
+        if show:
+            b.make_sphere()
     else:
+        if show:
+            b.make_sphere()
+
         points = points.T.reshape(-1, 1, 3)
         # Qutip convention: -x at +y, +y at +x
         copy = points.copy()
@@ -269,9 +278,6 @@ def plot_bloch_vector_evolution(
             default_cbar_kwargs = dict(shrink=2/3, pad=0.05, label=r'$t$ ($\tau$)', ticks=[0, 1])
             cbar_kwargs = {**default_cbar_kwargs, **(cbar_kwargs or {})}
             b.fig.colorbar(cm.ScalarMappable(cmap=cmap), **cbar_kwargs)
-
-    if show:
-        b.make_sphere()
 
     if return_Bloch:
         return b
