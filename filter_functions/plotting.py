@@ -205,9 +205,12 @@ def plot_bloch_vector_evolution(
         Whether to show the sphere (by calling :code:`b.make_sphere()`).
     return_Bloch: bool, optional
         Whether to return the :class:`qutip.bloch.Bloch` instance
-    bloch_kwargs: dict, optional
+    cbar_kwargs: dict, optional
         A dictionary with keyword arguments to be fed into the
-        qutip.Bloch constructor (if *b* not given).
+        colorbar constructor (if ``add_cbar == True``).
+    **bloch_kwargs: optional
+        Keyword arguments to be fed into the qutip.Bloch constructor
+        (if *b* not given).
 
     Returns
     -------
