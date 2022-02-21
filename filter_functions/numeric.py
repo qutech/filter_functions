@@ -1979,9 +1979,11 @@ def infidelity(
 
     See Also
     --------
-    calculate_decay_amplitudes
+    calculate_decay_amplitudes: Calculate the full matrix of first order terms.
+    error_transfer_matrix: Calculate the full process matrix.
+    plotting.plot_infidelity_convergence: Convenience function to plot results.
     pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
-    calculate_pulse_correlation_filter_function
+    calculate_pulse_correlation_filter_function.
 
     References
     ----------
@@ -1997,11 +1999,6 @@ def infidelity(
         fidelity of a quantum dynamical operation. Physics Letters,
         Section A: General, Atomic and Solid State Physics, 303(4),
         249–252. https://doi.org/10.1016/S0375-9601(02)01272-0
-
-    See Also
-    --------
-    error_transfer_matrix: Calculate the full process matrix.
-    plotting.plot_infidelity_convergence: Convenience function to plot results.
     """
     # Noise operator indices
     idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
