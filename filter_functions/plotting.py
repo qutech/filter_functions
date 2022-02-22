@@ -205,9 +205,12 @@ def plot_bloch_vector_evolution(
         Whether to show the sphere (by calling :code:`b.make_sphere()`).
     return_Bloch: bool, optional
         Whether to return the :class:`qutip.bloch.Bloch` instance
-    bloch_kwargs: dict, optional
+    cbar_kwargs: dict, optional
         A dictionary with keyword arguments to be fed into the
-        qutip.Bloch constructor (if *b* not given).
+        colorbar constructor (if ``add_cbar == True``).
+    **bloch_kwargs: optional
+        Keyword arguments to be fed into the qutip.Bloch constructor
+        (if *b* not given).
 
     Returns
     -------
@@ -240,6 +243,9 @@ def plot_bloch_vector_evolution(
         if b.axes is None:
             b.axes = b.fig.add_subplot(projection='3d', azim=view[0], elev=view[1])
 
+    if show:
+        b.make_sphere()
+
     if n_samples is None:
         # At least 100, at most 5000 points, default 10 points per smallest
         # time interval
@@ -248,30 +254,31 @@ def plot_bloch_vector_evolution(
     times = np.linspace(pulse.t[0], pulse.tau, n_samples)
     propagators = pulse.propagator_at_arb_t(times)
     points = get_bloch_vector(get_states_from_prop(propagators, psi0))
+    # Qutip convention: -x at +y, +y at +x
+    copy = points.copy()
+    points[0] = copy[1]
+    points[1] = -copy[0]
 
+    # Check the matplotlib version to see if we can draw a color gradient line. If not, draw sphere
+    # after adding the points using the Bloch method. If yes, we apparently need to draw the sphere
+    # before manually adding the line collection, otherwise there is some strange thing going on in
+    # notebooks and the lines are not rendered.
     if version.parse(matplotlib.__version__) < version.parse('3.3.0'):
         # Colored trajectory not available.
-        b.add_points(points, meth='l')
+        b.axes.plot(*points, color='b', alpha=0.75)
     else:
         points = points.T.reshape(-1, 1, 3)
-        # Qutip convention: -x at +y, +y at +x
-        copy = points.copy()
-        points[:, :, 0] = copy[:, :, 1]
-        points[:, :, 1] = -copy[:, :, 0]
         segments = np.concatenate([points[:-1], points[1:]], axis=1)
 
         cmap = plt.get_cmap(cmap)
         segment_colors = cmap(np.linspace(0, 1, n_samples - 1))
-        lc = collections.LineCollection(segments[:, :, :2], colors=segment_colors)
+        lc = collections.LineCollection(segments[:, :, :2], colors=segment_colors, alpha=0.75)
         b.axes.add_collection3d(lc, zdir='z', zs=segments[:, :, 2])
 
         if add_cbar:
             default_cbar_kwargs = dict(shrink=2/3, pad=0.05, label=r'$t$ ($\tau$)', ticks=[0, 1])
             cbar_kwargs = {**default_cbar_kwargs, **(cbar_kwargs or {})}
             b.fig.colorbar(cm.ScalarMappable(cmap=cmap), **cbar_kwargs)
-
-    if show:
-        b.make_sphere()
 
     if return_Bloch:
         return b
