@@ -97,7 +97,7 @@ class PrecisionTest(testutil.TestCase):
 
         SE_pulse = ff.PulseSequence(H_c, H_n, dt)
         omega = util.get_sample_frequencies(SE_pulse, 100, spacing='linear',
-                                            omega_min=1e-2/dt.sum(), omega_max=1e2/dt.sum())
+                                            omega_max=2e2*np.pi/SE_pulse.tau)
         # Comparison to filter function defined with omega**2
         F = SE_pulse.get_filter_function(omega)[0, 0]*omega**2
 
@@ -125,7 +125,7 @@ class PrecisionTest(testutil.TestCase):
 
         CPMG_pulse = ff.PulseSequence(H_c, H_n, dt)
         omega = util.get_sample_frequencies(CPMG_pulse, 100, spacing='log',
-                                            omega_min=1e-2/dt.sum(), omega_max=1e2/dt.sum())
+                                            omega_max=2e2*np.pi/CPMG_pulse.tau)
         # Comparison to filter function defined with omega**2
         F = CPMG_pulse.get_filter_function(omega)[0, 0]*omega**2
 

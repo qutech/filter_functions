@@ -1000,11 +1000,11 @@ def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> Union[float
 
 @parse_optional_parameters(spacing=('log', 'linear'))
 def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing: str = 'log',
-                           include_quasistatic: bool = False, omega_min: Optional[float] = None,
-                           omega_max: Optional[float] = None) -> ndarray:
+                           omega_min: Optional[float] = None, omega_max: Optional[float] = None,
+                           include_quasistatic: bool = False) -> ndarray:
     r"""Get *n_samples* sample frequencies spaced 'linear' or 'log'.
 
-    The ultraviolet cutoff is taken to be two orders of magnitude larger
+    The ultraviolet cutoff is taken to be one order of magnitude larger
     than the timescale of the pulse tau. In the case of log spacing, the
     values are clipped in the infrared at two orders of magnitude below
     the timescale of the pulse.
@@ -1018,27 +1018,26 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing
     spacing: str, optional
         The spacing of the frequencies. Either 'log' or 'linear',
         default is 'log'.
+    omega_min, omega_max: float, optional
+        Minimum and maximum angular frequencies included (DC
+        notwithstanding). Default to :math:`2\pi\times 10^{-2}/\tau` and
+        :math:`2\pi/\Delta t_{\mathrm{min}}`.
     include_quasistatic: bool, optional
         Include zero frequency. Default is False.
 
     Returns
     -------
     omega: ndarray
-        The frequencies.
+        The angular frequencies.
     """
-    if spacing == 'linear':
-        xspace = np.linspace
-    else:
-        # spacing == 'log'
-        xspace = np.geomspace
+    xspace = np.geomspace if spacing == 'log' else np.linspace
+    omega_min = omega_min or 2*np.pi*1e-2/pulse.tau
+    omega_max = omega_max or 2*np.pi*1e+1/pulse.dt.min()
+    omega = xspace(omega_min, omega_max, n_samples - include_quasistatic)
 
     if include_quasistatic:
-        freqs = xspace(1e-2/pulse.tau, 1e2/pulse.tau, n_samples - 1)
-        freqs = np.insert(freqs, 0, 0)
-    else:
-        freqs = xspace(1e-2/pulse.tau, 1e2/pulse.tau, n_samples)
-
-    return 2*np.pi*freqs
+        return np.insert(omega, 0, 0)
+    return omega
 
 
 def hash_array_along_axis(arr: ndarray, axis: int = 0) -> List[int]:

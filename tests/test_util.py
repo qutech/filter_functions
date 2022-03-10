@@ -533,9 +533,11 @@ class UtilTest(testutil.TestCase):
 
         # custom args
         omega = util.get_sample_frequencies(pulse, spacing='linear',
-                                            n_samples=50, include_quasistatic=True)
+                                            n_samples=50, include_quasistatic=True,
+                                            omega_min=1.23, omega_max=3.41)
         self.assertAlmostEqual(omega[0], 0)
-        self.assertAlmostEqual(omega[-1], 2e1*np.pi/pulse.dt.min())
+        self.assertAlmostEqual(omega[1], 1.23)
+        self.assertAlmostEqual(omega[-1], 3.41)
         self.assertEqual(len(omega), 50)
         self.assertTrue((omega >= 0).all())
         self.assertLessEqual(np.var(np.diff(omega[1:])), 1e-16)
