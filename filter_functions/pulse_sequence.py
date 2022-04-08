@@ -196,7 +196,7 @@ class PulseSequence:
         Cumulative propagators :math:`Q_g`
     total_propagator: ndarray, shape (d, d)
         The total propagator :math:`Q` of the pulse alone. That is,
-        :math:`|\psi(\tau)\rangle = propagators|\psi(0)\rangle`.
+        :math:`|\psi(\tau)\rangle = Q|\psi(0)\rangle`.
     total_propagator_liouville: array_like, shape (d**2, d**2)
         The transfer matrix for the total propagator of the pulse. Given
         by
