@@ -342,17 +342,17 @@ def _get_integrand(
             # R is not None
             if which_pulse == 'correlations':
                 if which_FF == 'fidelity':
-                    einsum_str = 'gako,ao,hako->ghao'
+                    einsum_str = 'g...ko,...o,h...ko->gh...o'
                 else:
                     # which_FF == 'generalized'
-                    einsum_str = 'gako,ao,halo->ghaklo'
+                    einsum_str = 'g...ko,...o,h...lo->gh...klo'
             else:
                 # which_pulse == 'total'
                 if which_FF == 'fidelity':
-                    einsum_str = 'ako,ao,ako->ao'
+                    einsum_str = '...ko,...o,...ko->...o'
                 else:
                     # which_FF == 'generalized'
-                    einsum_str = 'ako,ao,alo->aklo'
+                    einsum_str = '...ko,...o,...lo->...klo'
 
             integrand = np.einsum(einsum_str,
                                   ctrl_left[..., idx, :, :], spectrum, ctrl_right[..., idx, :, :])
