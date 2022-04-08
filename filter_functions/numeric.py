@@ -690,7 +690,8 @@ def calculate_control_matrix_from_atomic(
         control_matrix = np.zeros(control_matrix_atomic.shape, dtype=complex)
         for g in util.progressbar_range(n, show_progressbar=show_progressbar,
                                         desc='Calculating control matrix'):
-            control_matrix[g] = expr(phases[g]*control_matrix_atomic[g], propagators_liouville[g])
+            control_matrix[g] = expr(phases[g]*control_matrix_atomic[g], propagators_liouville[g],
+                                     out=control_matrix[g])
 
     return control_matrix
 
