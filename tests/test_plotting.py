@@ -347,9 +347,13 @@ class BlochSphereVisualizationTest(testutil.TestCase):
             Q[i+1] = P[i] @ Q[i]
 
         psi0 = qutip.rand_ket(2)
-        states_piecewise = plotting.get_states_from_prop(P, psi0, 'piecewise')
-        states_total = plotting.get_states_from_prop(Q[1:], psi0, 'total')
-        self.assertArrayAlmostEqual(states_piecewise, states_total)
+        psi0_np = psi0.full()
+        states = plotting.get_states_from_prop(Q, psi0)
+        states_np = plotting.get_states_from_prop(Q, psi0_np)
+        states_0 = plotting.get_states_from_prop(Q)
+        self.assertArrayAlmostEqual(Q @ psi0_np, states)
+        self.assertArrayAlmostEqual(Q @ psi0_np, states_np)
+        self.assertArrayAlmostEqual(Q @ qutip.basis(2, 0).full(), states_0)
 
     def test_plot_bloch_vector_evolution(self):
         # Call with default args

@@ -129,9 +129,7 @@ def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
     return b
 
 
-@util.parse_optional_parameters(prop=('total', 'piecewise'))
-def get_states_from_prop(U: Sequence[Operator], psi0: Optional[State] = None,
-                         prop: str = 'total') -> ndarray:
+def get_states_from_prop(U: Sequence[Operator], psi0: Optional[State] = None) -> ndarray:
     r"""
     Get the the quantum state at time t from the propagator and the
     inital state:
@@ -140,31 +138,18 @@ def get_states_from_prop(U: Sequence[Operator], psi0: Optional[State] = None,
 
         |\psi(t)\rangle = U(t, 0)|\psi(0)\rangle
 
-    If *prop* is 'piecewise', then it is assumed that *U* is the
-    propagator of a piecewise-constant control:
-
-    .. math::
-        |\psi(t)\rangle = \prod_{l=1}^n U(t_l, t_{l-1})|\psi(0)\rangle
-
-    with :math:`t_0\equiv 0` and :math:`t_n\equiv t`.
-
     """
     if psi0 is None:
-        psi0 = np.c_[1:-1:-1]  # |0>
+        # default to |0>
+        psi0 = np.c_[1:-1:-1]
+    elif hasattr(psi0, 'full'):
+        # qutip.Qobj
+        psi0 = psi0.full()
 
-    psi0 = psi0.full() if hasattr(psi0, 'full') else psi0  # qutip.Qobj
-    d = max(psi0.shape)
-    states = np.empty((len(U), d, 1), dtype=complex)
-    if prop == 'total':
-        for j in range(len(U)):
-            states[j] = U[j] @ psi0
-    else:
-        # prop == 'piecewise'
-        states[0] = U[0] @ psi0
-        for j in range(1, len(U)):
-            states[j] = U[j] @ states[j-1]
+    if psi0.shape[-2:] != (2, 1):
+        raise ValueError('Initial state should be shape (..., 2, 1)')
 
-    return states
+    return U @ psi0
 
 
 def plot_bloch_vector_evolution(
