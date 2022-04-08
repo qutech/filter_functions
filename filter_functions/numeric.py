@@ -249,24 +249,6 @@ def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     return int_buf
 
 
-def _parse_spectrum(spectrum: Sequence, omega: Sequence, idx: Sequence) -> ndarray:
-    spectrum = np.asanyarray(spectrum)
-    error = 'Spectrum should be of shape {}, not {}.'
-    shape = (len(idx),)*(spectrum.ndim - 1) + (len(omega),)
-    if spectrum.shape != shape and spectrum.ndim <= 3:
-        raise ValueError(error.format(shape, spectrum.shape))
-
-    if spectrum.ndim == 1:
-        # As we broadcast over the noise operators
-        spectrum = spectrum[None, ...]
-    if spectrum.ndim == 3 and not np.allclose(spectrum, spectrum.conj().swapaxes(0, 1)):
-        raise ValueError('Cross-spectra given but not Hermitian along first two axes')
-    elif spectrum.ndim > 3:
-        raise ValueError(f'Expected spectrum to have < 4 dimensions, not {spectrum.ndim}')
-
-    return spectrum
-
-
 def _get_integrand(
         spectrum: ndarray,
         omega: ndarray,
@@ -330,7 +312,7 @@ def _get_integrand(
             # Everything simpler if noise operators always on 2nd-to-last axes
             filter_function = np.moveaxis(filter_function, source=[-5, -4], destination=[-3, -2])
 
-    spectrum = _parse_spectrum(spectrum, omega, idx)
+    spectrum = util.parse_spectrum(spectrum, omega, idx)
     if spectrum.ndim in (1, 2):
         if filter_function is not None:
             integrand = (filter_function[..., tuple(idx), tuple(idx), :]*spectrum)

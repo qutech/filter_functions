@@ -181,6 +181,22 @@ def parse_optional_parameters(**allowed_kwargs: Dict[str, Sequence]) -> Callable
     return decorator
 
 
+def parse_spectrum(spectrum: Sequence, omega: Sequence, idx: Sequence) -> ndarray:
+    error = 'Spectrum should be of shape {}, not {}.'
+    shape = (len(idx),)*(spectrum.ndim - 1) + (len(omega),)
+    try:
+        spectrum = np.broadcast_to(spectrum, shape)
+    except ValueError as broadcast_error:
+        raise ValueError(error.format(shape, spectrum.shape)) from broadcast_error
+
+    if spectrum.ndim == 3 and not np.allclose(spectrum, spectrum.conj().swapaxes(0, 1)):
+        raise ValueError('Cross-spectra given but not Hermitian along first two axes')
+    elif spectrum.ndim > 3:
+        raise ValueError(f'Expected spectrum to have < 4 dimensions, not {spectrum.ndim}')
+
+    return spectrum
+
+
 def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
     """Parse a sequence of operators and convert to ndarray.
 

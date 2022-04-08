@@ -657,7 +657,7 @@ def infidelity_derivative(
         Section A: General, Atomic and Solid State Physics, 303(4), 249–252.
         https://doi.org/10.1016/S0375-9601(02)01272-0
     """
-    spectrum = numeric._parse_spectrum(spectrum, omega, range(len(pulse.n_opers)))
+    spectrum = util.parse_spectrum(spectrum, omega, range(len(pulse.n_opers)))
     filter_function_deriv = pulse.get_filter_function_derivative(omega, control_identifiers,
                                                                  n_coeffs_deriv)
 
