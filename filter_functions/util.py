@@ -1031,8 +1031,8 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing
         The angular frequencies.
     """
     xspace = np.geomspace if spacing == 'log' else np.linspace
-    omega_min = omega_min or 2*np.pi*1e-2/pulse.tau
-    omega_max = omega_max or 2*np.pi*1e+1/pulse.dt.min()
+    omega_min = 2*np.pi*1e-2/pulse.tau if omega_min is None else omega_min
+    omega_max = 2*np.pi*1e+1/pulse.dt.min() if omega_max is None else omega_max
     omega = xspace(omega_min, omega_max, n_samples - include_quasistatic)
 
     if include_quasistatic:
