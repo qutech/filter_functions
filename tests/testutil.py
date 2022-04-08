@@ -157,7 +157,7 @@ def rand_unit(d: int, n: int = 1, local_rng=None) -> np.ndarray:
 
 
 def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
-                        btype: str = 'GGM', local_rng=None):
+                        btype: str = 'GGM', local_rng=None, commensurable_timesteps: bool = False):
     """Random pulse sequence instance"""
     if local_rng is None:
         local_rng = rng
@@ -172,7 +172,10 @@ def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
     c_identifiers = local_rng.choice(letters, n_cops, replace=False)
     n_identifiers = local_rng.choice(letters, n_nops, replace=False)
 
-    dt = 1 - local_rng.random(n_dt)  # (0, 1] instead of [0, 1)
+    if commensurable_timesteps:
+        dt = np.full(n_dt, 1 - local_rng.random())
+    else:
+        dt = 1 - local_rng.random(n_dt)  # (0, 1] instead of [0, 1)
     if btype == 'GGM':
         basis = Basis.ggm(d)
     else:
