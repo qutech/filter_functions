@@ -1064,10 +1064,8 @@ def progressbar_range(*args, show_progressbar: bool = True, **kwargs):
         Range iterator dressed with a progressbar if
         ``show_progressbar=True``.
     """
-    if show_progressbar:
-        return progressbar(range(*args), **kwargs)
-
-    return range(*args)
+    return progressbar(range(*args), disable=kwargs.pop('disable', not show_progressbar),
+                       **kwargs)
 
 
 class CalculationError(Exception):
