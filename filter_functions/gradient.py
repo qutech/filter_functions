@@ -384,8 +384,6 @@ def calculate_derivative_of_control_matrix_from_scratch(
         n_opers: Sequence[Operator],
         n_coeffs: Sequence[Coefficients],
         c_opers: Sequence[Operator],
-        all_identifiers: Sequence[str],
-        control_identifiers: Optional[Sequence[str]] = None,
         n_coeffs_deriv: Optional[Sequence[Coefficients]] = None,
         intermediates: Optional[Dict[str, ndarray]] = None
 ) -> ndarray:
@@ -421,27 +419,15 @@ def calculate_derivative_of_control_matrix_from_scratch(
     n_coeffs: array_like, shape (n_nops, n_dt)
         The sensitivities of the system to the noise operators given by
         *n_opers* at the given time step.
-    c_opers: array_like, shape (n_cops, d, d)
-        Control operators :math:`H_k`.
-    all_identifiers: array_like, shape (n_cops)
-        Identifiers of all control operators.
-    control_identifiers: Sequence[str], shape (n_ctrl), Optional
-        Sequence of strings with the control identifiers to distinguish
-        between accessible control and drift Hamiltonian. The default is
-        None.
+    c_opers: array_like, shape (n_ctrl, d, d)
+        Control operators :math:`H_k` with respect to which the
+        derivative is computed.
     n_coeffs_deriv: array_like, shape (n_nops, n_ctrl, n_dt)
         The derivatives of the noise susceptibilities by the control
         amplitudes. Defaults to None.
     intermediates: Dict[str, ndarray], optional
         Optional dictionary containing intermediate results of the
         calculation of the control matrix.
-
-    Raises
-    ------
-    ValueError
-        If the given identifiers *control_identifier* are not subset of
-        the total identifiers *all_identifiers* of all control
-        operators.
 
     Returns
     -------
@@ -470,24 +456,16 @@ def calculate_derivative_of_control_matrix_from_scratch(
     _liouville_derivative
     _control_matrix_at_timestep_derivative
     """
-    # Distinction between control and drift operators and only
-    # calculate the derivatives in control direction
-    try:
-        idx = util.get_indices_from_identifiers(all_identifiers, control_identifiers)
-    except ValueError as err:
-        raise ValueError('Given control identifiers have to be a subset of (drift+control) ' +
-                         'Hamiltonian!') from err
-
     d = eigvecs.shape[-1]
     n_dt = len(dt)
-    n_ctrl = len(idx)
+    n_ctrl = len(c_opers)
     n_nops = len(n_opers)
     n_omega = len(omega)
 
     # Precompute some transformations or grab from cache if possible
     basis_transformed = numeric._transform_by_unitary(eigvecs[:, None], basis[None],
                                                       out=np.empty((n_dt, d**2, d, d), complex))
-    c_opers_transformed = numeric._transform_hamiltonian(eigvecs, c_opers[idx]).swapaxes(0, 1)
+    c_opers_transformed = numeric._transform_hamiltonian(eigvecs, c_opers).swapaxes(0, 1)
     if not intermediates:
         # None or empty
         n_opers_transformed = numeric._transform_hamiltonian(eigvecs, n_opers,
