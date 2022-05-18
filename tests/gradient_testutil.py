@@ -84,18 +84,17 @@ def finite_diff_infid(u_ctrl_central, u_drift, d, pulse_sequence_builder,
 
     """
     pulse = pulse_sequence_builder(u_ctrl_central, u_drift, d)
-    all_id = pulse.c_oper_identifiers
     if c_id is None:
-        c_id = all_id[:len(u_ctrl_central)]
+        c_id = pulse.c_oper_identifiers[:len(u_ctrl_central)]
 
     # Make sure we test for zero frequency case (possible convergence issues)
     omega = ff.util.get_sample_frequencies(pulse=pulse, n_samples=n_freq_samples, spacing='log',
                                            include_quasistatic=True)
     spectrum = spectral_noise_density(omega)
 
-    gradient = np.empty((len(pulse.n_coeffs), len(pulse.dt), len(c_id)))
+    gradient = np.empty(pulse.n_coeffs.shape + (len(c_id),))
 
-    for g in range(len(pulse.dt)):
+    for g in range(len(pulse)):
         for k in range(len(c_id)):
             u_plus = u_ctrl_central.copy()
             u_plus[k, g] += delta_u

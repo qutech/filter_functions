@@ -553,6 +553,7 @@ def infidelity_derivative(
         spectrum: Coefficients,
         omega: Coefficients,
         control_identifiers: Optional[Sequence[str]] = None,
+        n_oper_identifiers: Optional[Sequence[str]] = None,
         n_coeffs_deriv: Optional[Sequence[Coefficients]] = None
 ) -> ndarray:
     r"""Calculate the entanglement infidelity derivative of the
@@ -577,11 +578,29 @@ def infidelity_derivative(
     omega: array_like, shape (n_omega,)
         The frequencies at which the integration is to be carried out.
     control_identifiers: Sequence[str], shape (n_ctrl,)
-        Sequence of strings with the control identifiern to distinguish
-        between accessible control and drift Hamiltonian.
+        Sequence of strings with the control identifiers to
+        distinguish between control and drift Hamiltonian. The
+        default is None, in which case the derivative is computed
+        for all known non-noise operators.
+    n_oper_identifiers: Sequence[str], shape (n_nops,)
+        Sequence of strings with the noise identifiers for which to
+        compute the derivative contribution. The default is None, in
+        which case it is computed for all known noise operators.
     n_coeffs_deriv: array_like, shape (n_nops, n_ctrl, n_dt)
         The derivatives of the noise susceptibilities by the control
-        amplitudes. Defaults to None.
+        amplitudes. The rows and columns should be in the same order
+        as the corresponding identifiers above. Defaults to None, in
+        which case the coefficients are assumed to be constant and
+        hence their derivative vanishing.
+
+        .. warning::
+
+            Internally, control and noise terms of the Hamiltonian
+            are stored alphanumerically sorted by their identifiers.
+            If the noise and/or control identifiers above are not
+            explicitly given, the rows and/or columns of this
+            parameter need to be sorted in the same fashion.
+
 
     Raises
     ------
@@ -636,7 +655,9 @@ def infidelity_derivative(
         https://doi.org/10.1016/S0375-9601(02)01272-0
     """
     spectrum = numeric._parse_spectrum(spectrum, omega, range(len(pulse.n_opers)))
-    filter_function_deriv = pulse.get_filter_function_derivative(omega, control_identifiers,
+    filter_function_deriv = pulse.get_filter_function_derivative(omega,
+                                                                 control_identifiers,
+                                                                 n_oper_identifiers,
                                                                  n_coeffs_deriv)
 
     integrand = np.einsum('ao,atho->atho', spectrum, filter_function_deriv)

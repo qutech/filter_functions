@@ -30,12 +30,9 @@ class GradientTest(testutil.TestCase):
 
     def test_gradient_calculation_variable_noise_coefficients(self):
 
-        initial_pulse = np.random.rand(gradient_testutil.n_time_steps)
-        initial_pulse = np.expand_dims(initial_pulse, 0)
-        u_drift = 1. * np.ones(gradient_testutil.n_time_steps)
-
-        n_coeffs_deriv = gradient_testutil.deriv_2_exchange_interaction(eps=initial_pulse)
-        n_coeffs_deriv = np.expand_dims(n_coeffs_deriv, 0)
+        initial_pulse = testutil.rng.uniform(size=(1, gradient_testutil.n_time_steps))
+        u_drift = np.full(gradient_testutil.n_time_steps, testutil.rng.standard_normal())
+        n_coeffs_deriv = gradient_testutil.deriv_2_exchange_interaction(eps=initial_pulse)[None]
 
         fin_diff_grad = gradient_testutil.finite_diff_infid(
             u_ctrl_central=initial_pulse, u_drift=u_drift, d=2,
@@ -47,7 +44,7 @@ class GradientTest(testutil.TestCase):
             u_ctrl=initial_pulse, u_drift=u_drift, d=2,
             pulse_sequence_builder=gradient_testutil.create_sing_trip_pulse_seq,
             spectral_noise_density=gradient_testutil.one_over_f_noise,
-            c_id=['control1'], n_coeffs_deriv=np.ones_like(n_coeffs_deriv),
+            c_id=['control1'], n_coeffs_deriv=n_coeffs_deriv,
             ctrl_amp_deriv=gradient_testutil.deriv_exchange_interaction
         )
         self.assertArrayAlmostEqual(ana_grad, fin_diff_grad, rtol=1e-6, atol=1e-10)
@@ -89,20 +86,18 @@ class GradientTest(testutil.TestCase):
 
             cm_nocache = ff.gradient.calculate_derivative_of_control_matrix_from_scratch(
                 omega, pulse.propagators, pulse.eigvals, pulse.eigvecs, pulse.basis, pulse.t,
-                pulse.dt, pulse.n_opers, pulse.n_coeffs, pulse.c_opers, pulse.c_oper_identifiers,
-                intermediates=dict()
+                pulse.dt, pulse.n_opers, pulse.n_coeffs, pulse.c_opers, intermediates=dict()
             )
 
             pulse.cleanup('frequency dependent')
             pulse.cache_control_matrix(omega, cache_intermediates=True)
             cm_cache = ff.gradient.calculate_derivative_of_control_matrix_from_scratch(
                 omega, pulse.propagators, pulse.eigvals, pulse.eigvecs, pulse.basis, pulse.t,
-                pulse.dt, pulse.n_opers, pulse.n_coeffs, pulse.c_opers, pulse.c_oper_identifiers,
+                pulse.dt, pulse.n_opers, pulse.n_coeffs, pulse.c_opers,
                 intermediates=pulse._intermediates
             )
 
             self.assertArrayAlmostEqual(cm_nocache, cm_cache)
-
 
     def test_raises(self):
         pulse = testutil.rand_pulse_sequence(2, 3)

@@ -177,12 +177,6 @@ class PulseSequence:
     n_coeffs: ndarray, shape (n_nops, n_dt)
         Noise sensitivities in units of :math:`\hbar`. Note that they
         are stored sorted by their corresponding identifiers.
-    c_oper_sort_idx: ndarray, shape (n_cops,)
-        The sorting indices used to sort the control operators as they
-        were given into the order they are stored in.
-    n_oper_sort_idx: ndarray, shape (n_nops,)
-        The sorting indices used to sort the noise operators as they
-        were given into the order they are stored in.
     dt: ndarray, shape (n_dt,)
         Time steps
     t: ndarray, shape (n_dt + 1,)
@@ -254,16 +248,14 @@ class PulseSequence:
         self.n_oper_identifiers = None
         self.c_coeffs = None
         self.n_coeffs = None
-        self.c_oper_sort_idx = None
-        self.n_oper_sort_idx = None
         self.dt = None
         self.d = None
         self.basis = None
 
         # Parse the input arguments and set attributes
         # TODO: Jesus, this is in need of refactoring.
-        attributes = ('c_opers', 'c_oper_identifiers', 'c_coeffs', 'c_oper_sort_idx',
-                      'n_opers', 'n_oper_identifiers', 'n_coeffs', 'n_oper_sort_idx',
+        attributes = ('c_opers', 'c_oper_identifiers', 'c_coeffs',
+                      'n_opers', 'n_oper_identifiers', 'n_coeffs',
                       'dt', 'd', 'basis')
         if not args:
             # Bypass args parsing and directly set necessary attributes
@@ -871,6 +863,7 @@ class PulseSequence:
             self,
             omega: Coefficients,
             control_identifiers: Optional[Sequence[str]] = None,
+            n_oper_identifiers: Optional[Sequence[str]] = None,
             n_coeffs_deriv: Optional[Sequence[Coefficients]] = None
     ) -> ndarray:
         r"""Calculate the pulse sequence's filter function derivative.
@@ -880,15 +873,29 @@ class PulseSequence:
         omega: array_like, shape (n_omega,)
             Frequencies at which the pulse control matrix is to be
             evaluated.
-        control_identifiers: Sequence[str]
-            Sequence of strings with the control identifiern to
+        control_identifiers: Sequence[str], shape (n_ctrl,)
+            Sequence of strings with the control identifiers to
             distinguish between control and drift Hamiltonian. The
-            default is None.
+            default is None, in which case the derivative is computed
+            for all known non-noise operators.
+        n_oper_identifiers: Sequence[str], shape (n_nops,)
+            Sequence of strings with the noise identifiers for which to
+            compute the derivative contribution. The default is None, in
+            which case it is computed for all known noise operators.
         n_coeffs_deriv: array_like, shape (n_nops, n_ctrl, n_dt)
             The derivatives of the noise susceptibilities by the control
             amplitudes. The rows and columns should be in the same order
-            that the corresponding control and noise terms were given
-            during the instantiation of this object. Defaults to None.
+            as the corresponding identifiers above. Defaults to None, in
+            which case the coefficients are assumed to be constant and
+            hence their derivative vanishing.
+
+            .. warning::
+
+                Internally, control and noise terms of the Hamiltonian
+                are stored alphanumerically sorted by their identifiers.
+                If the noise and/or control identifiers above are not
+                explicitly given, the rows and/or columns of this
+                parameter need to be sorted in the same fashion.
 
         Returns
         -------
@@ -898,18 +905,35 @@ class PulseSequence:
 
         """
         # Distinction between control and drift operators and only
-        # calculate the derivatives in control direction
+        # calculate the derivatives in control direction.
+        # TODO 05/22: Is the extended error message necessary?
         try:
-            idx = util.get_indices_from_identifiers(self.c_oper_identifiers, control_identifiers)
+            c_idx = util.get_indices_from_identifiers(self.c_oper_identifiers, control_identifiers)
         except ValueError as err:
             raise ValueError('Given control identifiers have to be a subset of (drift+control) '
                              + 'Hamiltonian!') from err
 
+        n_idx = util.get_indices_from_identifiers(self.n_oper_identifiers, n_oper_identifiers)
+        # Identifiers sorted the way they were passed (or as stored internally if not given)
+        control_identifiers = self.c_oper_identifiers[c_idx]
+        n_oper_identifiers = self.n_oper_identifiers[n_idx]
+
+        if n_coeffs_deriv is not None:
+            # TODO 05/22: walrus once support for 3.7 is dropped.
+            actual_shape = np.shape(n_coeffs_deriv)
+            required_shape = (len(n_idx), len(c_idx), len(self))
+            if actual_shape != required_shape:
+                raise ValueError(f'Expected n_coeffs_deriv to be of shape {required_shape}, '
+                                 f'not {actual_shape}')
+            else:
+                # This would be so much cleaner with xarray :(
+                n_coeffs_deriv = n_coeffs_deriv[np.argsort(n_oper_identifiers)[:, None],
+                                                np.argsort(control_identifiers)]
+
         control_matrix = self.get_control_matrix(omega, cache_intermediates=True)
         control_matrix_deriv = gradient.calculate_derivative_of_control_matrix_from_scratch(
             omega, self.propagators, self.eigvals, self.eigvecs, self.basis, self.t, self.dt,
-            self.n_opers, self.n_coeffs, self.c_opers[idx],
-            n_coeffs_deriv[self.n_oper_sort_idx[:, None], np.argsort(control_identifiers)],
+            self.n_opers[n_idx], self.n_coeffs[n_idx], self.c_opers[c_idx], n_coeffs_deriv,
             self._intermediates
         )
         return gradient.calculate_filter_function_derivative(control_matrix, control_matrix_deriv)
@@ -1199,8 +1223,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
 
 def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[Operator],
                                                                        Sequence[str],
-                                                                       Sequence[Coefficients],
-                                                                       Sequence[int]]:
+                                                                       Sequence[Coefficients]]:
     """Helper function to parse the Hamiltonian in QuTiP format."""
     # Check correct types of the various levels of nestedness
     if not isinstance(H, (list, tuple)):
@@ -1252,7 +1275,7 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[
 
     coeffs = np.asarray(coeffs)
     idx = np.argsort(identifiers)
-    return parsed_opers[idx], identifiers[idx], coeffs[idx], idx
+    return parsed_opers[idx], identifiers[idx], coeffs[idx]
 
 
 def _concatenate_Hamiltonian(
