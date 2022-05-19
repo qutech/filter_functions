@@ -32,7 +32,8 @@ class GradientTest(testutil.TestCase):
 
         initial_pulse = testutil.rng.uniform(size=(1, gradient_testutil.n_time_steps))
         u_drift = np.full(gradient_testutil.n_time_steps, testutil.rng.standard_normal())
-        n_coeffs_deriv = gradient_testutil.deriv_2_exchange_interaction(eps=initial_pulse)[None]
+        # dJ/dJ = 1
+        n_coeffs_deriv = np.ones((1, 1, gradient_testutil.n_time_steps))
 
         fin_diff_grad = gradient_testutil.finite_diff_infid(
             u_ctrl_central=initial_pulse, u_drift=u_drift, d=2,

@@ -21,10 +21,6 @@ def deriv_exchange_interaction(eps):
     return j_0 / eps_0 * np.exp(eps / eps_0)
 
 
-def deriv_2_exchange_interaction(eps):
-    return j_0 / eps_0 ** 2 * np.exp(eps / eps_0)
-
-
 def one_over_f_noise(f):
     spectrum = np.divide(S_0, f, where=(f != 0))
     spectrum[f == 0] = spectrum[np.abs(f).argmin()]
@@ -40,8 +36,6 @@ def create_sing_trip_pulse_seq(eps, dbz, *args):
 
     H_n = [
         [sigma_z, deriv_exchange_interaction(eps[0])]
-        # [sigma_z, np.ones_like(eps[0])]
-
     ]
 
     dt = time_step * np.ones(n_time_steps)
