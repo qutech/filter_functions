@@ -664,7 +664,7 @@ def infidelity_derivative(
     filter_function_deriv = pulse.get_filter_function_derivative(omega, control_identifiers,
                                                                  n_coeffs_deriv)
 
-    integrand = np.einsum('ao,atho->atho', spectrum, filter_function_deriv)
+    integrand = np.einsum('...o,...tho->...tho', spectrum, filter_function_deriv)
     infid_deriv = util.integrate(integrand, omega) / (2*np.pi*pulse.d)
 
     return infid_deriv
