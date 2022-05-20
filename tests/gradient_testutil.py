@@ -21,10 +21,6 @@ def deriv_exchange_interaction(eps):
     return j_0 / eps_0 * np.exp(eps / eps_0)
 
 
-def deriv_2_exchange_interaction(eps):
-    return j_0 / eps_0 ** 2 * np.exp(eps / eps_0)
-
-
 def one_over_f_noise(f):
     spectrum = np.divide(S_0, f, where=(f != 0))
     spectrum[f == 0] = spectrum[np.abs(f).argmin()]
@@ -40,8 +36,6 @@ def create_sing_trip_pulse_seq(eps, dbz, *args):
 
     H_n = [
         [sigma_z, deriv_exchange_interaction(eps[0])]
-        # [sigma_z, np.ones_like(eps[0])]
-
     ]
 
     dt = time_step * np.ones(n_time_steps)
@@ -84,18 +78,17 @@ def finite_diff_infid(u_ctrl_central, u_drift, d, pulse_sequence_builder,
 
     """
     pulse = pulse_sequence_builder(u_ctrl_central, u_drift, d)
-    all_id = pulse.c_oper_identifiers
     if c_id is None:
-        c_id = all_id[:len(u_ctrl_central)]
+        c_id = pulse.c_oper_identifiers[:len(u_ctrl_central)]
 
     # Make sure we test for zero frequency case (possible convergence issues)
     omega = ff.util.get_sample_frequencies(pulse=pulse, n_samples=n_freq_samples, spacing='log',
                                            include_quasistatic=True)
     spectrum = spectral_noise_density(omega)
 
-    gradient = np.empty((len(pulse.n_coeffs), len(pulse.dt), len(c_id)))
+    gradient = np.empty(pulse.n_coeffs.shape + (len(c_id),))
 
-    for g in range(len(pulse.dt)):
+    for g in range(len(pulse)):
         for k in range(len(c_id)):
             u_plus = u_ctrl_central.copy()
             u_plus[k, g] += delta_u
