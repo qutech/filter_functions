@@ -122,9 +122,8 @@ class SuperoperatorTest(testutil.TestCase):
                 basis = ff.Basis.ggm(d)
 
             U_sup = superoperator.liouville_representation(U, basis)
-            CP, D, V = superoperator.liouville_is_CP(U_sup, basis,
-                                                     return_eigvals=True,
-                                                     return_eigvecs=True)
+            CP, (D, V) = superoperator.liouville_is_CP(U_sup, basis, True)
+
             _CP = superoperator.liouville_is_CP(U_sup, basis, False)
 
             self.assertArrayEqual(CP, _CP)
@@ -160,9 +159,7 @@ class SuperoperatorTest(testutil.TestCase):
                                optimize=['einsum_path', (0, 1), (0, 1)])
                      - np.einsum('iab,jbc,...ca', basis, basis, H,
                                  optimize=['einsum_path', (0, 2), (0, 1)]))
-            cCP, D, V = superoperator.liouville_is_cCP(H_sup, basis,
-                                                       return_eigvals=True,
-                                                       return_eigvecs=True)
+            cCP, (D, V) = superoperator.liouville_is_cCP(H_sup, basis, True)
             _cCP = superoperator.liouville_is_cCP(H_sup, basis, False)
 
             self.assertArrayEqual(cCP, _cCP)
