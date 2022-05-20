@@ -262,7 +262,7 @@ def _control_matrix_at_timestep_derivative(
         The individual control matrices of all time steps
     ctrlmat_g_deriv: ndarray, shape (n_dt, n_nops, d**2, n_ctrl, n_omega)
         The corresponding derivative with respect to the control
-        strength :math:`\frac{\partial\mathcal{B}_{\alpha j}^{(g)}(\omega)}
+        strength :math:`\frac{\partial\mathcal{B}_{\alpha j}^{(g)}(\omega)}`
 
     Notes
     -----
@@ -613,7 +613,9 @@ def infidelity_derivative(
     infid_deriv: ndarray, shape (n_nops, n_dt, n_ctrl)
         Array with the derivative of the infidelity for each noise
         source taken for each control direction at each time step
-        :math:`\frac{\partial I_e}{\partial u_h(t_{g'})}`.
+        :math:`\frac{\partial I_e}{\partial u_h(t_{g'})}`. Sorted in
+        the same fashion as `n_coeffs_deriv` or, if not given,
+        alphanumerically by the identifiers.
 
     Notes
     -----

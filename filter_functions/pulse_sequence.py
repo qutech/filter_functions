@@ -901,22 +901,13 @@ class PulseSequence:
         -------
         filter_function_deriv: ndarray, shape (n_nops, n_t, n_ctrl, n_omega)
             The regular filter functions' derivatives for variation in
-            each control contribution.
+            each control contribution. Sorted in the same fashion as
+            `n_coeffs_deriv` or, if not given, alphanumerically by the
+            identifiers.
 
         """
-        # Distinction between control and drift operators and only
-        # calculate the derivatives in control direction.
-        # TODO 05/22: Is the extended error message necessary?
-        try:
-            c_idx = util.get_indices_from_identifiers(self.c_oper_identifiers, control_identifiers)
-        except ValueError as err:
-            raise ValueError('Given control identifiers have to be a subset of (drift+control) '
-                             + 'Hamiltonian!') from err
-
+        c_idx = util.get_indices_from_identifiers(self.c_oper_identifiers, control_identifiers)
         n_idx = util.get_indices_from_identifiers(self.n_oper_identifiers, n_oper_identifiers)
-        # Identifiers sorted the way they were passed (or as stored internally if not given)
-        control_identifiers = self.c_oper_identifiers[c_idx]
-        n_oper_identifiers = self.n_oper_identifiers[n_idx]
 
         if n_coeffs_deriv is not None:
             # TODO 05/22: walrus once support for 3.7 is dropped.
@@ -924,17 +915,28 @@ class PulseSequence:
             required_shape = (len(n_idx), len(c_idx), len(self))
             if actual_shape != required_shape:
                 raise ValueError(f'Expected n_coeffs_deriv to be of shape {required_shape}, '
-                                 f'not {actual_shape}')
+                                 f'not {actual_shape}. Did you forget to specify identifiers?')
             else:
-                # This would be so much cleaner with xarray :(
-                n_coeffs_deriv = n_coeffs_deriv[np.argsort(n_oper_identifiers)[:, None],
-                                                np.argsort(control_identifiers)]
+                # Do nothing; n_coeffs_deriv specifies the sorting order. If identifiers
+                # are given, we sort everything else by them. If not, n_coeffs_deriv is
+                # expected to be sorted in accordance with the opers and coeffs.
+                pass
 
-        control_matrix = self.get_control_matrix(omega, cache_intermediates=True)
+        # Check if we can pass on intermediates.
+        intermediates = dict()
+        # TODO 05/22: walrus once support for 3.7 is dropped.
+        n_opers_transformed = self._intermediates.get('n_opers_transformed')
+        first_order_integral = self._intermediates.get('first_order_integral')
+        if n_opers_transformed is not None:
+            intermediates['n_opers_transformed'] = n_opers_transformed[n_idx]
+        if first_order_integral is not None:
+            intermediates['first_order_integral'] = first_order_integral
+
+        control_matrix = self.get_control_matrix(omega, cache_intermediates=True)[n_idx]
         control_matrix_deriv = gradient.calculate_derivative_of_control_matrix_from_scratch(
             omega, self.propagators, self.eigvals, self.eigvecs, self.basis, self.t, self.dt,
             self.n_opers[n_idx], self.n_coeffs[n_idx], self.c_opers[c_idx], n_coeffs_deriv,
-            self._intermediates
+            intermediates
         )
         return gradient.calculate_filter_function_derivative(control_matrix, control_matrix_deriv)
 

@@ -50,6 +50,72 @@ class GradientTest(testutil.TestCase):
         )
         self.assertArrayAlmostEqual(ana_grad, fin_diff_grad, rtol=1e-6, atol=1e-10)
 
+    def test_n_coeffs_deriv_sorting(self):
+        for _ in range(5):
+            pulse = testutil.rand_pulse_sequence(testutil.rng.integers(2, 5),
+                                                 testutil.rng.integers(2, 11))
+            omega = ff.util.get_sample_frequencies(pulse, n_samples=37)
+
+            # Not the correct derivative, but irrelevant for comparison between analytics
+            n_coeffs_deriv = testutil.rng.normal(size=(len(pulse.n_opers),
+                                                       len(pulse.c_opers),
+                                                       len(pulse)))
+
+            # indices to sort sorted opers into a hypothetical unsorted original order.
+            n_oper_unsort_idx = np.random.permutation(np.arange(len(pulse.n_opers)))
+            c_oper_unsort_idx = np.random.permutation(np.arange(len(pulse.c_opers)))
+
+            # subset of c_opers and n_opers to compute the derivative for
+            n_choice = np.random.choice(np.arange(len(pulse.n_opers)),
+                                        testutil.rng.integers(1, len(pulse.n_opers) + 1),
+                                        replace=False)
+            c_choice = np.random.choice(np.arange(len(pulse.c_opers)),
+                                        testutil.rng.integers(1, len(pulse.c_opers) + 1),
+                                        replace=False)
+
+            grad = pulse.get_filter_function_derivative(
+                omega,
+                n_coeffs_deriv=n_coeffs_deriv
+            )
+            grad_as_given = pulse.get_filter_function_derivative(
+                omega,
+                n_oper_identifiers=pulse.n_oper_identifiers[n_oper_unsort_idx],
+                control_identifiers=pulse.c_oper_identifiers[c_oper_unsort_idx],
+                n_coeffs_deriv=n_coeffs_deriv[n_oper_unsort_idx[:, None], c_oper_unsort_idx]
+            )
+            grad_n_choice = pulse.get_filter_function_derivative(
+                omega,
+                n_oper_identifiers=pulse.n_oper_identifiers[n_choice],
+                n_coeffs_deriv=n_coeffs_deriv[n_choice]
+            )
+            grad_c_choice = pulse.get_filter_function_derivative(
+                omega,
+                control_identifiers=pulse.c_oper_identifiers[c_choice],
+                n_coeffs_deriv=n_coeffs_deriv[:, c_choice]
+            )
+            grad_nc_choice = pulse.get_filter_function_derivative(
+                omega,
+                control_identifiers=pulse.c_oper_identifiers[c_choice],
+                n_oper_identifiers=pulse.n_oper_identifiers[n_choice],
+                n_coeffs_deriv=n_coeffs_deriv[n_choice[:, None], c_choice]
+            )
+            self.assertArrayAlmostEqual(
+                grad[np.ix_(n_oper_unsort_idx, np.arange(len(pulse)), c_oper_unsort_idx)],
+                grad_as_given
+            )
+            self.assertArrayAlmostEqual(
+                grad[np.ix_(n_choice, np.arange(len(pulse)))],
+                grad_n_choice
+            )
+            self.assertArrayAlmostEqual(
+                grad[np.ix_(np.arange(len(pulse.n_opers)), np.arange(len(pulse)), c_choice)],
+                grad_c_choice
+            )
+            self.assertArrayAlmostEqual(
+                grad[np.ix_(n_choice, np.arange(len(pulse)), c_choice)],
+                grad_nc_choice
+            )
+
     def test_gradient_calculation_random_pulse(self):
 
         for d, n_dt in zip(testutil.rng.integers(2, 5, 5), testutil.rng.integers(2, 8, 5)):
@@ -105,3 +171,9 @@ class GradientTest(testutil.TestCase):
         omega = ff.util.get_sample_frequencies(pulse, n_samples=13)
         with self.assertRaises(ValueError):
             ff.infidelity_derivative(pulse, 1/omega, omega, control_identifiers=['long string'])
+
+        with self.assertRaises(ValueError):
+            pulse.get_filter_function_derivative(
+                omega,
+                n_coeffs_deriv=testutil.rng.normal(size=(2, 5, 10))
+            )
