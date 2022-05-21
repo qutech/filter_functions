@@ -160,17 +160,23 @@ class PulseSequence:
     Attributes
     ----------
     c_opers: ndarray, shape (n_cops, d, d)
-        Control operators
+        Control operators. Note that they are stored sorted by their
+        corresponding identifiers.
     n_opers: ndarray, shape (n_nops, d, d)
-        Noise operators
+        Noise operators. Note that they are stored sorted by their
+        corresponding identifiers.
     c_oper_identifers: sequence of str
-        Identifiers for the control operators of the system
+        Identifiers for the control operators of the system. Stored
+        sorted.
     n_oper_identifers: sequence of str
-        Identifiers for the noise operators of the system
+        Identifiers for the noise operators of the system. Stored
+        sorted.
     c_coeffs: ndarray, shape (n_cops, n_dt)
-        Control parameters in units of :math:`\hbar`
+        Control parameters in units of :math:`\hbar`. Note that they
+        are stored sorted by their corresponding identifiers.
     n_coeffs: ndarray, shape (n_nops, n_dt)
-        Noise sensitivities in units of :math:`\hbar`
+        Noise sensitivities in units of :math:`\hbar`. Note that they
+        are stored sorted by their corresponding identifiers.
     dt: ndarray, shape (n_dt,)
         Time steps
     t: ndarray, shape (n_dt + 1,)
@@ -247,8 +253,10 @@ class PulseSequence:
         self.basis = None
 
         # Parse the input arguments and set attributes
-        attributes = ('c_opers', 'c_oper_identifiers', 'c_coeffs', 'n_opers',
-                      'n_oper_identifiers', 'n_coeffs', 'dt', 'd', 'basis')
+        # TODO: Jesus, this is in need of refactoring.
+        attributes = ('c_opers', 'c_oper_identifiers', 'c_coeffs',
+                      'n_opers', 'n_oper_identifiers', 'n_coeffs',
+                      'dt', 'd', 'basis')
         if not args:
             # Bypass args parsing and directly set necessary attributes
             values = (kwargs[attr] for attr in attributes)
@@ -855,6 +863,7 @@ class PulseSequence:
             self,
             omega: Coefficients,
             control_identifiers: Optional[Sequence[str]] = None,
+            n_oper_identifiers: Optional[Sequence[str]] = None,
             n_coeffs_deriv: Optional[Sequence[Coefficients]] = None
     ) -> ndarray:
         r"""Calculate the pulse sequence's filter function derivative.
@@ -864,27 +873,70 @@ class PulseSequence:
         omega: array_like, shape (n_omega,)
             Frequencies at which the pulse control matrix is to be
             evaluated.
-        control_identifiers: Sequence[str]
-            Sequence of strings with the control identifiern to
+        control_identifiers: Sequence[str], shape (n_ctrl,)
+            Sequence of strings with the control identifiers to
             distinguish between control and drift Hamiltonian. The
-            default is None.
+            default is None, in which case the derivative is computed
+            for all known non-noise operators.
+        n_oper_identifiers: Sequence[str], shape (n_nops,)
+            Sequence of strings with the noise identifiers for which to
+            compute the derivative contribution. The default is None, in
+            which case it is computed for all known noise operators.
         n_coeffs_deriv: array_like, shape (n_nops, n_ctrl, n_dt)
             The derivatives of the noise susceptibilities by the control
-            amplitudes. Defaults to None.
+            amplitudes. The rows and columns should be in the same order
+            as the corresponding identifiers above. Defaults to None, in
+            which case the coefficients are assumed to be constant and
+            hence their derivative vanishing.
+
+            .. warning::
+
+                Internally, control and noise terms of the Hamiltonian
+                are stored alphanumerically sorted by their identifiers.
+                If the noise and/or control identifiers above are not
+                explicitly given, the rows and/or columns of this
+                parameter need to be sorted in the same fashion.
 
         Returns
         -------
         filter_function_deriv: ndarray, shape (n_nops, n_t, n_ctrl, n_omega)
             The regular filter functions' derivatives for variation in
-            each control contribution.
+            each control contribution. Sorted in the same fashion as
+            `n_coeffs_deriv` or, if not given, alphanumerically by the
+            identifiers.
 
         """
-        control_matrix = self.get_control_matrix(omega, cache_intermediates=True)
+        c_idx = util.get_indices_from_identifiers(self.c_oper_identifiers, control_identifiers)
+        n_idx = util.get_indices_from_identifiers(self.n_oper_identifiers, n_oper_identifiers)
 
+        if n_coeffs_deriv is not None:
+            # TODO 05/22: walrus once support for 3.7 is dropped.
+            actual_shape = np.shape(n_coeffs_deriv)
+            required_shape = (len(n_idx), len(c_idx), len(self))
+            if actual_shape != required_shape:
+                raise ValueError(f'Expected n_coeffs_deriv to be of shape {required_shape}, '
+                                 f'not {actual_shape}. Did you forget to specify identifiers?')
+            else:
+                # Do nothing; n_coeffs_deriv specifies the sorting order. If identifiers
+                # are given, we sort everything else by them. If not, n_coeffs_deriv is
+                # expected to be sorted in accordance with the opers and coeffs.
+                pass
+
+        # Check if we can pass on intermediates.
+        intermediates = dict()
+        # TODO 05/22: walrus once support for 3.7 is dropped.
+        n_opers_transformed = self._intermediates.get('n_opers_transformed')
+        first_order_integral = self._intermediates.get('first_order_integral')
+        if n_opers_transformed is not None:
+            intermediates['n_opers_transformed'] = n_opers_transformed[n_idx]
+        if first_order_integral is not None:
+            intermediates['first_order_integral'] = first_order_integral
+
+        control_matrix = self.get_control_matrix(omega, cache_intermediates=True)[n_idx]
         control_matrix_deriv = gradient.calculate_derivative_of_control_matrix_from_scratch(
             omega, self.propagators, self.eigvals, self.eigvecs, self.basis, self.t, self.dt,
-            self.n_opers, self.n_coeffs, self.c_opers, self.c_oper_identifiers,
-            control_identifiers, n_coeffs_deriv, self._intermediates
+            self.n_opers[n_idx], self.n_coeffs[n_idx], self.c_opers[c_idx], n_coeffs_deriv,
+            intermediates
         )
         return gradient.calculate_filter_function_derivative(control_matrix, control_matrix_deriv)
 

@@ -265,7 +265,7 @@ def _control_matrix_at_timestep_derivative(
         The individual control matrices of all time steps
     ctrlmat_g_deriv: ndarray, shape (n_dt, n_nops, d**2, n_ctrl, n_omega)
         The corresponding derivative with respect to the control
-        strength :math:`\frac{\partial\mathcal{B}_{\alpha j}^{(g)}(\omega)}
+        strength :math:`\frac{\partial\mathcal{B}_{\alpha j}^{(g)}(\omega)}`
 
     Notes
     -----
@@ -387,8 +387,6 @@ def calculate_derivative_of_control_matrix_from_scratch(
         n_opers: Sequence[Operator],
         n_coeffs: Sequence[Coefficients],
         c_opers: Sequence[Operator],
-        all_identifiers: Sequence[str],
-        control_identifiers: Optional[Sequence[str]] = None,
         n_coeffs_deriv: Optional[Sequence[Coefficients]] = None,
         intermediates: Optional[Dict[str, ndarray]] = None
 ) -> ndarray:
@@ -424,27 +422,15 @@ def calculate_derivative_of_control_matrix_from_scratch(
     n_coeffs: array_like, shape (n_nops, n_dt)
         The sensitivities of the system to the noise operators given by
         *n_opers* at the given time step.
-    c_opers: array_like, shape (n_cops, d, d)
-        Control operators :math:`H_k`.
-    all_identifiers: array_like, shape (n_cops)
-        Identifiers of all control operators.
-    control_identifiers: Sequence[str], shape (n_ctrl), Optional
-        Sequence of strings with the control identifiers to distinguish
-        between accessible control and drift Hamiltonian. The default is
-        None.
+    c_opers: array_like, shape (n_ctrl, d, d)
+        Control operators :math:`H_k` with respect to which the
+        derivative is computed.
     n_coeffs_deriv: array_like, shape (n_nops, n_ctrl, n_dt)
         The derivatives of the noise susceptibilities by the control
         amplitudes. Defaults to None.
     intermediates: Dict[str, ndarray], optional
         Optional dictionary containing intermediate results of the
         calculation of the control matrix.
-
-    Raises
-    ------
-    ValueError
-        If the given identifiers *control_identifier* are not subset of
-        the total identifiers *all_identifiers* of all control
-        operators.
 
     Returns
     -------
@@ -473,24 +459,16 @@ def calculate_derivative_of_control_matrix_from_scratch(
     _liouville_derivative
     _control_matrix_at_timestep_derivative
     """
-    # Distinction between control and drift operators and only
-    # calculate the derivatives in control direction
-    try:
-        idx = util.get_indices_from_identifiers(all_identifiers, control_identifiers)
-    except ValueError as err:
-        raise ValueError('Given control identifiers have to be a subset of (drift+control) '
-                         + 'Hamiltonian!') from err
-
     d = eigvecs.shape[-1]
     n_dt = len(dt)
-    n_ctrl = len(idx)
+    n_ctrl = len(c_opers)
     n_nops = len(n_opers)
     n_omega = len(omega)
 
     # Precompute some transformations or grab from cache if possible
     basis_transformed = numeric._transform_by_unitary(eigvecs[:, None], basis[None],
                                                       out=np.empty((n_dt, d**2, d, d), complex))
-    c_opers_transformed = numeric._transform_hamiltonian(eigvecs, c_opers[idx]).swapaxes(0, 1)
+    c_opers_transformed = numeric._transform_hamiltonian(eigvecs, c_opers).swapaxes(0, 1)
     if not intermediates:
         # None or empty
         n_opers_transformed = numeric._transform_hamiltonian(eigvecs, n_opers,
@@ -578,6 +556,7 @@ def infidelity_derivative(
         spectrum: Coefficients,
         omega: Coefficients,
         control_identifiers: Optional[Sequence[str]] = None,
+        n_oper_identifiers: Optional[Sequence[str]] = None,
         n_coeffs_deriv: Optional[Sequence[Coefficients]] = None
 ) -> ndarray:
     r"""Calculate the entanglement infidelity derivative of the
@@ -602,11 +581,29 @@ def infidelity_derivative(
     omega: array_like, shape (n_omega,)
         The frequencies at which the integration is to be carried out.
     control_identifiers: Sequence[str], shape (n_ctrl,)
-        Sequence of strings with the control identifiern to distinguish
-        between accessible control and drift Hamiltonian.
+        Sequence of strings with the control identifiers to
+        distinguish between control and drift Hamiltonian. The
+        default is None, in which case the derivative is computed
+        for all known non-noise operators.
+    n_oper_identifiers: Sequence[str], shape (n_nops,)
+        Sequence of strings with the noise identifiers for which to
+        compute the derivative contribution. The default is None, in
+        which case it is computed for all known noise operators.
     n_coeffs_deriv: array_like, shape (n_nops, n_ctrl, n_dt)
         The derivatives of the noise susceptibilities by the control
-        amplitudes. Defaults to None.
+        amplitudes. The rows and columns should be in the same order
+        as the corresponding identifiers above. Defaults to None, in
+        which case the coefficients are assumed to be constant and
+        hence their derivative vanishing.
+
+        .. warning::
+
+            Internally, control and noise terms of the Hamiltonian
+            are stored alphanumerically sorted by their identifiers.
+            If the noise and/or control identifiers above are not
+            explicitly given, the rows and/or columns of this
+            parameter need to be sorted in the same fashion.
+
 
     Raises
     ------
@@ -619,7 +616,9 @@ def infidelity_derivative(
     infid_deriv: ndarray, shape (n_nops, n_dt, n_ctrl)
         Array with the derivative of the infidelity for each noise
         source taken for each control direction at each time step
-        :math:`\frac{\partial I_e}{\partial u_h(t_{g'})}`.
+        :math:`\frac{\partial I_e}{\partial u_h(t_{g'})}`. Sorted in
+        the same fashion as `n_coeffs_deriv` or, if not given,
+        alphanumerically by the identifiers.
 
     Notes
     -----
@@ -661,7 +660,9 @@ def infidelity_derivative(
         https://doi.org/10.1016/S0375-9601(02)01272-0
     """
     spectrum = util.parse_spectrum(spectrum, omega, range(len(pulse.n_opers)))
-    filter_function_deriv = pulse.get_filter_function_derivative(omega, control_identifiers,
+    filter_function_deriv = pulse.get_filter_function_derivative(omega,
+                                                                 control_identifiers,
+                                                                 n_oper_identifiers,
                                                                  n_coeffs_deriv)
 
     integrand = np.einsum('...o,...tho->...tho', spectrum, filter_function_deriv)
