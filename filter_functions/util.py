@@ -1002,8 +1002,8 @@ def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> Union[float
 
 @parse_optional_parameters(spacing=('log', 'linear'))
 def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing: str = 'log',
-                           omega_min: Optional[float] = None, omega_max: Optional[float] = None,
-                           include_quasistatic: bool = False) -> ndarray:
+                           include_quasistatic: bool = False, omega_min: Optional[float] = None,
+                           omega_max: Optional[float] = None) -> ndarray:
     r"""Get *n_samples* sample frequencies spaced 'linear' or 'log'.
 
     The ultraviolet cutoff is taken to be one order of magnitude larger
@@ -1020,12 +1020,12 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing
     spacing: str, optional
         The spacing of the frequencies. Either 'log' or 'linear',
         default is 'log'.
+    include_quasistatic: bool, optional
+        Include zero frequency. Default is False.
     omega_min, omega_max: float, optional
         Minimum and maximum angular frequencies included (DC
         notwithstanding). Default to :math:`2\pi\times 10^{-2}/\tau` and
         :math:`2\pi\times 10^{+1}/\Delta t_{\mathrm{min}}`.
-    include_quasistatic: bool, optional
-        Include zero frequency. Default is False.
 
     Returns
     -------
