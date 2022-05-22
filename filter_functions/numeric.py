@@ -2047,14 +2047,9 @@ def infidelity(
                                                         cache_intermediates=cache_intermediates)
     else:
         # which == 'correlations'
-        if not pulse.basis.istraceless:
-            warn('Calculating pulse correlation fidelities with non-'
-                 + 'traceless basis. The results will be off.')
-
-        if pulse.is_cached('omega'):
-            if not np.array_equal(pulse.omega, omega):
-                raise ValueError('Pulse correlation infidelities requested '
-                                 + 'but omega not equal to cached frequencies.')
+        if pulse.is_cached('omega') and not np.array_equal(pulse.omega, omega):
+            raise ValueError('Pulse correlation infidelities requested '
+                             + 'but omega not equal to cached frequencies.')
 
         filter_function = pulse.get_pulse_correlation_filter_function()
 

@@ -21,6 +21,7 @@
 """
 This module tests if the package produces the correct results numerically.
 """
+from copy import copy
 
 import numpy as np
 from scipy import integrate
@@ -547,6 +548,31 @@ class PrecisionTest(testutil.TestCase):
             # smallness parameter for correlated noise source
             ff.infidelity(pulse, spectra[4](S0, omega), omega, n_oper_identifiers=['B_0', 'B_2'],
                           return_smallness=True)
+
+    def test_non_traceless_basis(self):
+        pulse_traceless = testutil.rand_pulse_sequence(3, *rng.integers(1, 4, size=3))
+        pulse_nontraceless = copy(pulse_traceless)
+        pulse_nontraceless.basis = ff.Basis.from_partial(np.diag([1., 1., 0.]))
+
+        self.assertFalse(pulse_nontraceless.basis.istraceless)
+
+        omega = util.get_sample_frequencies(pulse_traceless, 300)
+        spect = 1e-3/omega
+
+        infid_traceless = ff.infidelity(pulse_traceless, spect, omega)
+        infid_nontraceless = ff.infidelity(pulse_nontraceless, spect, omega)
+        self.assertArrayAlmostEqual(infid_traceless, infid_nontraceless)
+
+        pulse_traceless_concat = ff.concatenate([pulse_traceless, pulse_traceless],
+                                                calc_pulse_correlation_FF=True,
+                                                omega=omega)
+        pulse_nontraceless_concat = ff.concatenate([pulse_nontraceless, pulse_nontraceless],
+                                                   calc_pulse_correlation_FF=True,
+                                                   omega=omega)
+        infid_traceless = ff.infidelity(pulse_traceless_concat, spect, omega, which='correlations')
+        infid_nontraceless = ff.infidelity(pulse_nontraceless_concat, spect, omega,
+                                           which='correlations')
+        self.assertArrayAlmostEqual(infid_traceless, infid_nontraceless)
 
     def test_single_qubit_error_transfer_matrix(self):
         """Test the calculation of the single-qubit transfer matrix"""
