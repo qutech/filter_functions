@@ -80,9 +80,6 @@ from . import util
 from .basis import Basis
 from .types import Coefficients, Operator
 
-if False:
-    from .pulse_sequence import PulseSequence
-
 __all__ = ['calculate_control_matrix_from_atomic', 'calculate_control_matrix_from_scratch',
            'calculate_control_matrix_periodic', 'calculate_cumulant_function',
            'calculate_decay_amplitudes', 'calculate_filter_function', 'calculate_frequency_shifts',
@@ -918,7 +915,7 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
 
 @util.parse_optional_parameters(which=('total', 'correlations'))
 def calculate_cumulant_function(
-        pulse: PulseSequence,
+        pulse: 'PulseSequence',
         spectrum: Optional[ndarray] = None,
         omega: Optional[Coefficients] = None,
         n_oper_identifiers: Optional[Sequence[str]] = None,
@@ -1124,7 +1121,7 @@ def calculate_cumulant_function(
 
 @util.parse_optional_parameters(which=('total', 'correlations'))
 def calculate_decay_amplitudes(
-        pulse: PulseSequence,
+        pulse: 'PulseSequence',
         spectrum: ndarray,
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
@@ -1269,7 +1266,7 @@ def calculate_decay_amplitudes(
 
 
 def calculate_frequency_shifts(
-        pulse: PulseSequence,
+        pulse: 'PulseSequence',
         spectrum: ndarray,
         omega: Coefficients,
         n_oper_identifiers: Optional[Sequence[str]] = None,
@@ -1696,7 +1693,7 @@ def diagonalize(hamiltonian: ndarray, dt: Coefficients) -> Tuple[ndarray]:
 
 
 def error_transfer_matrix(
-        pulse: Optional[PulseSequence] = None,
+        pulse: Optional['PulseSequence'] = None,
         spectrum: Optional[ndarray] = None,
         omega: Optional[Coefficients] = None,
         n_oper_identifiers: Optional[Sequence[str]] = None,
@@ -1821,7 +1818,7 @@ def error_transfer_matrix(
 
 @util.parse_optional_parameters(which=('total', 'correlations'))
 def infidelity(
-        pulse: PulseSequence,
+        pulse: 'PulseSequence',
         spectrum: Union[Coefficients, Callable],
         omega: Union[Coefficients, Dict[str, Union[int, str]]],
         n_oper_identifiers: Optional[Sequence[str]] = None,
