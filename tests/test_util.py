@@ -589,6 +589,56 @@ class UtilTest(testutil.TestCase):
                              f"Invalid value for x: {4}."
                              + f" Should be one of {(2, 3)}")
 
+    def test_parse_operators(self):
+        opers = rng.random((7, 3, 3))
+        parsed_opers = util.parse_operators(opers, 'testing')
+
+        self.assertEqual(parsed_opers.dtype, complex)
+        self.assertEqual(parsed_opers.shape, (7, 3, 3))
+
+        class SupportedOper:
+            def __init__(self, data):
+                self.data = data
+            @property
+            def ndim(self):
+                return self.data.ndim
+            @property
+            def shape(self):
+                return self.data.shape
+
+        class DenseOperator(SupportedOper):
+            def dexp(self):
+                pass
+
+        class Qobj(SupportedOper):
+            def full(self):
+                return self.data
+
+        class Sparse(SupportedOper):
+            def todense(self):
+                return self.data
+
+        opers = [np.arange(4).reshape(2, 2), DenseOperator(np.arange(4).reshape(2, 2)),
+                 Qobj(np.arange(4).reshape(2, 2)), Sparse(np.arange(4).reshape(2, 2))]
+        parsed_opers = util.parse_operators(opers, 'testing')
+        self.assertArrayEqual(parsed_opers, np.tile(np.arange(4).reshape(2, 2), (4, 1, 1)))
+
+        # Unsupported oper
+        with self.assertRaises(TypeError):
+            util.parse_operators([((3, 2), (1, 0))], 'testing')
+
+        # Unsquare
+        with self.assertRaises(ValueError):
+            util.parse_operators([rng.random((3, 2))], 'testing')
+
+        # Bad dimensions
+        with self.assertRaises(ValueError):
+            util.parse_operators([rng.random((2, 3, 2))], 'testing')
+
+        # Not all same dimensions
+        with self.assertRaises(ValueError):
+            util.parse_operators([rng.random((3, 3)), rng.random((2, 2))], 'testing')
+
 
 @pytest.mark.skipif(
     qutip is None,

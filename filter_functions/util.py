@@ -239,14 +239,16 @@ def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
         else:
             raise TypeError(f'Expected operators in {err_loc} to be NumPy arrays or QuTiP Qobjs!')
 
-    # Check correct dimensions of the operators
-    if set(oper.ndim for oper in parsed_opers) != {2}:
-        raise ValueError(f'Expected all operators in {err_loc} to be two-dimensional!')
+    parsed_opers = np.asarray(parsed_opers, dtype=complex)
 
-    if len(set(*set(oper.shape for oper in parsed_opers))) != 1:
+    # Check correct dimensions of the operators
+    if parsed_opers.ndim > 3:
+        raise ValueError(f'Expected operators in {err_loc} to be two-dimensional!')
+
+    if len(set(parsed_opers.shape[-2:])) != 1:
         raise ValueError(f'Expected operators in {err_loc} to be square!')
 
-    return np.asarray(parsed_opers)
+    return parsed_opers
 
 
 def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int], rank: int):
