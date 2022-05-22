@@ -552,7 +552,7 @@ def calculate_filter_function_derivative(ctrlmat: ndarray, ctrlmat_deriv: ndarra
 
 
 def infidelity_derivative(
-        pulse: 'PulseSequence',
+        pulse: PulseSequence,
         spectrum: Coefficients,
         omega: Coefficients,
         control_identifiers: Optional[Sequence[str]] = None,
