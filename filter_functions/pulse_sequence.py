@@ -202,7 +202,7 @@ class PulseSequence:
         Cumulative propagators :math:`Q_g`
     total_propagator: ndarray, shape (d, d)
         The total propagator :math:`Q` of the pulse alone. That is,
-        :math:`|\psi(\tau)\rangle = propagators|\psi(0)\rangle`.
+        :math:`|\psi(\tau)\rangle = Q|\psi(0)\rangle`.
     total_propagator_liouville: array_like, shape (d**2, d**2)
         The transfer matrix for the total propagator of the pulse. Given
         by
@@ -266,8 +266,8 @@ class PulseSequence:
                 kwargs['basis'] = args[-1]
             elif len(args) < 3:
                 posargs = ['H_c', 'H_n', 'dt']
-                raise TypeError(f'Missing {3 - len(args)} required positional argument(s): ' +
-                                f'{posargs[len(args):]}')
+                raise TypeError(f'Missing {3 - len(args)} required positional argument(s): '
+                                + f'{posargs[len(args):]}')
 
             values = _parse_args(*args[:3], **kwargs)
 
@@ -594,10 +594,10 @@ class PulseSequence:
             return self._control_matrix_pc
 
         raise util.CalculationError(
-            "Could not get the pulse correlation control matrix since it " +
-            "was not computed during concatenation. Please run the " +
-            "concatenation again with 'calc_pulse_correlation_FF' set to " +
-            "True."
+            "Could not get the pulse correlation control matrix since it "
+            + "was not computed during concatenation. Please run the "
+            + "concatenation again with 'calc_pulse_correlation_FF' set to "
+            + "True."
         )
 
     @util.parse_optional_parameters(which=('fidelity', 'generalized'), order=(1, 2))
@@ -854,9 +854,9 @@ class PulseSequence:
             return F_pc
 
         raise util.CalculationError(
-            "Could not get the pulse correlation filter function since it " +
-            "was not computed during concatenation. Please run the " +
-            "concatenation again with 'calc_pulse_correlation_FF' set to True."
+            "Could not get the pulse correlation filter function since it "
+            + "was not computed during concatenation. Please run the "
+            + "concatenation again with 'calc_pulse_correlation_FF' set to True."
         )
 
     def get_filter_function_derivative(
@@ -1212,13 +1212,13 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
         basis = Basis.ggm(d)
     else:
         if not hasattr(basis, 'btype'):
-            raise ValueError("Expected basis to be an instance of the " +
-                             f"'filter_functions.basis.Basis' class, not {type(basis)}!")
+            raise ValueError("Expected basis to be an instance of the "
+                             + f"'filter_functions.basis.Basis' class, not {type(basis)}!")
         if basis.shape[1:] != (d, d):
             # Make sure the basis has the correct dimension (we allow an
             # incomplete set)
-            raise ValueError("Expected basis elements to be of shape " +
-                             f"({d}, {d}), not {basis.shape[1:]}!")
+            raise ValueError("Expected basis elements to be of shape "
+                             + f"({d}, {d}), not {basis.shape[1:]}!")
 
     return (*control_args, *noise_args, dt, d, basis)
 
@@ -1232,8 +1232,8 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[
         raise TypeError(f'Expected {H_str} to be a list of lists, not of type {type(H)}!')
 
     if not all(isinstance(item, (list, tuple)) for item in H):
-        raise TypeError(f'Expected {H_str} to be a list of lists but found at least one item ' +
-                        'of H not of type list or tuple!')
+        raise TypeError(f'Expected {H_str} to be a list of lists but found at least one item '
+                        + 'of H not of type list or tuple!')
 
     # Unzip the nested lists into operators and coefficient arrays. Since
     # identifiers are optional, we need to perform a check if they were given.
@@ -1366,8 +1366,8 @@ def _concatenate_Hamiltonian(
 
     if any(len(value) > 1 for value in oper_to_identifier_mapping.values()):
         # Clash: two different identifiers are assigned to the same operator
-        raise ValueError(f'Trying to concatenate pulses with equal {kind} operators but ' +
-                         f'different identifiers. Please choose unique {kind} identifiers!')
+        raise ValueError(f'Trying to concatenate pulses with equal {kind} operators but '
+                         + f'different identifiers. Please choose unique {kind} identifiers!')
 
     # A dict that maps the identifiers of each Hamiltonian to the identifiers
     # in the new Hamiltonian
@@ -1418,8 +1418,8 @@ def _concatenate_Hamiltonian(
                 # Constant value, use for empty segment
                 concat_coeffs[i, mask] = nonnan_coeff[0]
             else:
-                raise ValueError('Not all pulses have the same noise operators and ' +
-                                 'non-trivial noise sensitivities so I cannot infer them.')
+                raise ValueError('Not all pulses have the same noise operators and '
+                                 + 'non-trivial noise sensitivities so I cannot infer them.')
     else:
         concat_coeffs[np.isnan(concat_coeffs)] = 0
 
@@ -1582,8 +1582,8 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     # Check if the Hamiltonians' shapes are compatible, ie the set of all
     # shapes has length 1
     if len(set(pulse.c_opers.shape[1:] for pulse in pulses)) != 1:
-        raise ValueError('Trying to concatenate two PulseSequence ' +
-                         'instances with incompatible Hamiltonian shapes')
+        raise ValueError('Trying to concatenate two PulseSequence '
+                         + 'instances with incompatible Hamiltonian shapes')
 
     # Check if the bases are the same by hashing them and creating a set
     if not util.all_array_equal((pulse.basis for pulse in pulses)):
@@ -1727,11 +1727,11 @@ def concatenate(
 
         if not equal_omega:
             if calc_filter_function:
-                raise ValueError("Calculation of filter function forced  but not all pulses " +
-                                 "have the same frequencies cached and none were supplied!")
+                raise ValueError("Calculation of filter function forced  but not all pulses "
+                                 + "have the same frequencies cached and none were supplied!")
             if calc_pulse_correlation_FF:
-                raise ValueError("Cannot compute the pulse correlation filter functions; do not " +
-                                 "have the frequencies at which to evaluate.")
+                raise ValueError("Cannot compute the pulse correlation filter functions; do not "
+                                 + "have the frequencies at which to evaluate.")
 
             return newpulse
 
@@ -1759,8 +1759,8 @@ def concatenate(
     # Get the phase factors at the correct times (the individual gate
     # durations) which are just the total phase factors of the pulses cumprod'd
     phases = np.array(
-        [np.ones_like(omega)] +
-        [pls.get_total_phases(omega) for pls in pulses[:-1]]
+        [np.ones_like(omega)]
+        + [pls.get_total_phases(omega) for pls in pulses[:-1]]
     ).cumprod(axis=0)
 
     # Get the transfer matrices for the individual gates
@@ -1894,7 +1894,8 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     newpulse.cache_total_phases(pulse.omega)
 
     control_matrix_tot = numeric.calculate_control_matrix_periodic(phases_at, control_matrix_at,
-                                                                   total_propagator_liouville_at, repeats)
+                                                                   total_propagator_liouville_at,
+                                                                   repeats)
 
     newpulse.cache_filter_function(pulse.omega, control_matrix_tot)
 
@@ -2014,8 +2015,8 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
 
     if pulse.is_cached('total_propagator_liouville') or pulse.is_cached('control_matrix'):
         if pulse.basis.btype != 'Pauli':
-            warn('pulse does not have a separable basis which is needed to ' +
-                 'retain cached control matrices.')
+            warn('pulse does not have a separable basis which is needed to '
+                 + 'retain cached control matrices.')
 
             return remapped_pulse
 
@@ -2218,8 +2219,8 @@ def extend(
                     try:
                         sorted_pulse = remap(pulse, order, d_per_qubit)
                     except ValueError as err:
-                        raise ValueError(f'Could not remap {repr(pulse)} mapped ' +
-                                         f'to qubits {qubit}. Do the dimensions match?') from err
+                        raise ValueError(f'Could not remap {repr(pulse)} mapped '
+                                         + f'to qubits {qubit}. Do the dimensions match?') from err
 
                 multi_qubit_idx.append(list(sorted_qubit))
                 multi_qubit_pulses.append(sorted_pulse)
@@ -2232,8 +2233,8 @@ def extend(
             single_qubit_identifier_mappings.append(id_mapping)
 
     if not all(pulse.d == d_per_qubit for pulse in single_qubit_pulses):
-        raise ValueError('Not all single-qubit pulses have dimension ' +
-                         f'd_per_qubit = {d_per_qubit}.')
+        raise ValueError('Not all single-qubit pulses have dimension '
+                         + f'd_per_qubit = {d_per_qubit}.')
 
     if not all(pulse.d == d_per_qubit**len(qubits)
                for pulse, qubits in zip(multi_qubit_pulses, multi_qubit_idx)):
@@ -2255,20 +2256,20 @@ def extend(
         N = last_qubit + 1
     else:
         if last_qubit + 1 > N:
-            raise ValueError('Number of qubits N smaller than highest qubit ' +
-                             f'index + 1 = {last_qubit + 1}')
+            raise ValueError('Number of qubits N smaller than highest qubit '
+                             + f'index + 1 = {last_qubit + 1}')
 
     if len(pulse_to_qubit_mapping) == 1:
         # return input pulse if not mapped to another qubit
         if multi_qubit_idx:
             if N == len(multi_qubit_idx[0]):
-                warn('Single multi-qubit pulse given and mapped to its ' +
-                     'original qubits. Returning the same.')
+                warn('Single multi-qubit pulse given and mapped to its '
+                     + 'original qubits. Returning the same.')
                 return multi_qubit_pulses[0]
         if single_qubit_idx:
             if N == 1:
-                warn('Single single-qubit pulse given and mapped to its ' +
-                     'original qubit. Returning the same.')
+                warn('Single single-qubit pulse given and mapped to its '
+                     + 'original qubit. Returning the same.')
                 return single_qubit_pulses[0]
 
     if cache_filter_function is not False:
@@ -2290,8 +2291,8 @@ def extend(
             # cache_filter_function == True
             if omega is None:
                 if not equal_omega:
-                    raise ValueError('Filter function should be cached but omega was not ' +
-                                     'provided and could not be inferred.')
+                    raise ValueError('Filter function should be cached but omega was not '
+                                     + 'provided and could not be inferred.')
 
                 omega = pulses[0].omega
 
@@ -2305,10 +2306,10 @@ def extend(
             cache_diagonalization = all(pulse.is_cached(attr)
                                         for attr in attrs
                                         for pulse in pulses)
-    elif (cache_diagonalization is False and
-          additional_noise_Hamiltonian is not None):
-        raise ValueError('Additional noise Hamiltonian given and ' +
-                         'cache_diagonalization set to False but required.')
+    elif (cache_diagonalization is False
+          and additional_noise_Hamiltonian is not None):
+        raise ValueError('Additional noise Hamiltonian given and '
+                         + 'cache_diagonalization set to False but required.')
 
     # Multi-qubit opers and coeffs
     all_qubits = {q for q in range(N)}
@@ -2366,8 +2367,8 @@ def extend(
         add_n_opers, add_n_oper_id, add_n_coeffs = noise_args
 
         if add_n_opers.shape[1:] != (d, d):
-            raise ValueError(f'Expected additional noise operators to have dimensions {(d, d)}, ' +
-                             f'not {add_n_opers.shape[1:]}.')
+            raise ValueError(f'Expected additional noise operators to have dimensions {(d, d)}, '
+                             + f'not {add_n_opers.shape[1:]}.')
         if any(n_oper_id in n_oper_identifiers for n_oper_id in add_n_oper_id):
             identifiers = set(n_oper_identifiers).intersection(add_n_oper_id)
             raise ValueError(f'Found duplicate noise operator identifiers: {identifiers}')
@@ -2383,8 +2384,8 @@ def extend(
     else:
         btype = pulse_btypes[0]
         if btype == 'GGM':
-            warn('Original pulses had GGM basis which is not separable into ' +
-                 'a tensor product. Cannot retain cached control matrices.')
+            warn('Original pulses had GGM basis which is not separable into '
+                 + 'a tensor product. Cannot retain cached control matrices.')
             basis = Basis.ggm(d_per_qubit**N)
         elif btype == 'Pauli':
             basis = Basis.pauli(N)

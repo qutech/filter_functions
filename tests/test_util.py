@@ -214,10 +214,10 @@ class UtilTest(testutil.TestCase):
         with self.assertRaises(ValueError) as err:
             util.tensor_insert(util.tensor(*arrs), *args, pos=(1, 2), arr_dims=[[3, 3], [2, 2]])
 
-        err_msg = ('Could not insert arg 0 with shape (4, 9, 4) into the ' +
-                   'array with shape (2, 3, 4) at position 1.')
-        cause_msg = ('Incompatible shapes (2, 3, 4) and (4, 9, 4) for ' +
-                     'tensor product of rank 2.')
+        err_msg = ('Could not insert arg 0 with shape (4, 9, 4) into the '
+                   + 'array with shape (2, 3, 4) at position 1.')
+        cause_msg = ('Incompatible shapes (2, 3, 4) and (4, 9, 4) for '
+                     + 'tensor product of rank 2.')
 
         self.assertEqual(err_msg, str(err.exception))
         self.assertEqual(cause_msg, str(err.exception.__cause__))
@@ -317,8 +317,8 @@ class UtilTest(testutil.TestCase):
                               pos=(1, 2), arr_dims=[[3, 3], [2, 2]],
                               ins_dims=[[3, 3], [4, 4]])
 
-        msg = ('Incompatible shapes (2, 9, 16) and (4, 9, 4) for tensor ' +
-               'product of rank 2.')
+        msg = ('Incompatible shapes (2, 9, 16) and (4, 9, 4) for tensor '
+               + 'product of rank 2.')
 
         self.assertEqual(msg, str(err.exception))
 
@@ -526,16 +526,18 @@ class UtilTest(testutil.TestCase):
         # Default args
         omega = util.get_sample_frequencies(pulse)
         self.assertAlmostEqual(omega[0], 2e-2*np.pi/pulse.tau)
-        self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.tau)
+        self.assertAlmostEqual(omega[-1], 2e1*np.pi/pulse.dt.min())
         self.assertEqual(len(omega), 300)
         self.assertTrue((omega >= 0).all())
         self.assertLessEqual(np.var(np.diff(np.log(omega[150:]))), 1e-16)
 
         # custom args
         omega = util.get_sample_frequencies(pulse, spacing='linear',
-                                            n_samples=50, include_quasistatic=True)
+                                            n_samples=50, include_quasistatic=True,
+                                            omega_min=1.23, omega_max=3.41)
         self.assertAlmostEqual(omega[0], 0)
-        self.assertAlmostEqual(omega[-1], 2e2*np.pi/pulse.tau)
+        self.assertAlmostEqual(omega[1], 1.23)
+        self.assertAlmostEqual(omega[-1], 3.41)
         self.assertEqual(len(omega), 50)
         self.assertTrue((omega >= 0).all())
         self.assertLessEqual(np.var(np.diff(omega[1:])), 1e-16)
@@ -566,26 +568,127 @@ class UtilTest(testutil.TestCase):
         with self.assertRaises(ValueError) as err:
             foobar(1, 1, 2)
             self.assertEqual(str(err.exception),
-                             f"Invalid value for foo: {2}." +
-                             f" Should be one of {[1, 'bar', (2, 3)]}")
+                             f"Invalid value for foo: {2}."
+                             + f" Should be one of {[1, 'bar', (2, 3)]}")
 
         with self.assertRaises(ValueError):
             foobar(1, 1, 'x')
             self.assertEqual(str(err.exception),
-                             f"Invalid value for foo: {'x'}." +
-                             f" Should be one of {[1, 'bar', (2, 3)]}")
+                             f"Invalid value for foo: {'x'}."
+                             + f" Should be one of {[1, 'bar', (2, 3)]}")
 
         with self.assertRaises(ValueError):
             foobar(1, 1, [1, 2])
             self.assertEqual(str(err.exception),
-                             f"Invalid value for foo: {[1, 2]}." +
-                             f" Should be one of {[1, 'bar', (2, 3)]}")
+                             f"Invalid value for foo: {[1, 2]}."
+                             + f" Should be one of {[1, 'bar', (2, 3)]}")
 
         with self.assertRaises(ValueError):
             foobar(1, 1, [1, 2], 4)
             self.assertEqual(str(err.exception),
-                             f"Invalid value for x: {4}." +
-                             f" Should be one of {(2, 3)}")
+                             f"Invalid value for x: {4}."
+                             + f" Should be one of {(2, 3)}")
+
+    def test_parse_spectrum(self):
+        spectrum = rng.standard_normal(11)
+        omega = rng.standard_normal(11)
+        idx = rng.integers(0, 5, size=1)
+        parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        self.assertEqual(parsed.shape, (11,))
+
+        spectrum = rng.standard_normal((2, 11))
+        omega = rng.standard_normal(11)
+        idx = rng.integers(0, 5, size=2)
+        parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        self.assertEqual(parsed.shape, (2, 11))
+
+        spectrum = rng.standard_normal((2, 2, 11)) + rng.standard_normal((2, 2, 11))
+        spectrum += spectrum.conj().swapaxes(0, 1)
+        omega = rng.standard_normal(11)
+        idx = rng.integers(0, 5, size=2)
+        parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        self.assertEqual(parsed.shape, (2, 2, 11))
+
+        # Spectrum not matching idx
+        with self.assertRaises(ValueError):
+            spectrum = rng.standard_normal((2, 11))
+            omega = rng.standard_normal(11)
+            idx = rng.integers(0, 5, size=3)
+            parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        # Spectrum not matching omega
+        with self.assertRaises(ValueError):
+            spectrum = rng.standard_normal(11)
+            omega = rng.standard_normal(7)
+            idx = rng.integers(0, 5, size=1)
+            parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        # Spectrum not hermitian
+        with self.assertRaises(ValueError):
+            spectrum = rng.standard_normal((2, 2, 11))
+            omega = rng.standard_normal(11)
+            idx = rng.integers(0, 5, size=2)
+            parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        # Spectrum more than 3d
+        with self.assertRaises(ValueError):
+            spectrum = rng.standard_normal((2, 2, 2, 11))
+            omega = rng.standard_normal(11)
+            idx = rng.integers(0, 5, size=2)
+            parsed = util.parse_spectrum(spectrum, omega, idx)
+
+    def test_parse_operators(self):
+        opers = rng.random((7, 3, 3))
+        parsed_opers = util.parse_operators(opers, 'testing')
+
+        self.assertEqual(parsed_opers.dtype, complex)
+        self.assertEqual(parsed_opers.shape, (7, 3, 3))
+
+        class SupportedOper:
+            def __init__(self, data):
+                self.data = data
+            @property
+            def ndim(self):
+                return self.data.ndim
+            @property
+            def shape(self):
+                return self.data.shape
+
+        class DenseOperator(SupportedOper):
+            def dexp(self):
+                pass
+
+        class Qobj(SupportedOper):
+            def full(self):
+                return self.data
+
+        class Sparse(SupportedOper):
+            def todense(self):
+                return self.data
+
+        opers = [np.arange(4).reshape(2, 2), DenseOperator(np.arange(4).reshape(2, 2)),
+                 Qobj(np.arange(4).reshape(2, 2)), Sparse(np.arange(4).reshape(2, 2))]
+        parsed_opers = util.parse_operators(opers, 'testing')
+        self.assertArrayEqual(parsed_opers, np.tile(np.arange(4).reshape(2, 2), (4, 1, 1)))
+
+        # Unsupported oper
+        with self.assertRaises(TypeError):
+            util.parse_operators([((3, 2), (1, 0))], 'testing')
+
+        # Unsquare
+        with self.assertRaises(ValueError):
+            util.parse_operators([rng.random((3, 2))], 'testing')
+
+        # Bad dimensions
+        with self.assertRaises(ValueError):
+            util.parse_operators([rng.random((2, 3, 2))], 'testing')
+
+        # Not all same dimensions
+        with self.assertRaises(ValueError):
+            util.parse_operators([rng.random((3, 3)), rng.random((2, 2))], 'testing')
 
 
 @pytest.mark.skipif(

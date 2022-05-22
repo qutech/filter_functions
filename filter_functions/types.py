@@ -26,6 +26,7 @@ from typing import Mapping, Optional, Sequence, Tuple, Union
 from numpy import ndarray
 
 try:
+    import cycler
     from matplotlib import axes, colors, figure, legend
     from mpl_toolkits import axes_grid1
 
@@ -34,6 +35,7 @@ try:
     Figure = figure.Figure
     Grid = axes_grid1.ImageGrid
     Legend = legend.Legend
+    Cycler = cycler.Cycler
     FigureAxes = Tuple[Figure, Axes]
     FigureAxesLegend = Tuple[Figure, Axes, Legend]
     FigureGrid = Tuple[Figure, Grid]

@@ -21,6 +21,7 @@
 """
 This module tests if the package produces the correct results numerically.
 """
+from copy import copy
 
 import numpy as np
 from scipy import integrate
@@ -58,11 +59,11 @@ def _get_integrals_second_order(d, E, eigval, dt, t0):
     tspace = np.linspace(0, dt, 1001) + t0
     dE = np.subtract.outer(eigval, eigval)
 
-    ex = (np.multiply.outer(dE, tspace - t0) +
-          np.multiply.outer(E, tspace)[:, None, None])
+    ex = (np.multiply.outer(dE, tspace - t0)
+          + np.multiply.outer(E, tspace)[:, None, None])
     I1 = integrate.cumtrapz(util.cexp(ex), tspace, initial=0)
-    ex = (np.multiply.outer(dE, tspace - t0) -
-          np.multiply.outer(E, tspace)[:, None, None])
+    ex = (np.multiply.outer(dE, tspace - t0)
+          - np.multiply.outer(E, tspace)[:, None, None])
     integrand = util.cexp(ex)[:, :, :, None, None] * I1[:, None, None]
 
     integral_numeric = integrate.trapz(integrand, tspace)
@@ -96,7 +97,8 @@ class PrecisionTest(testutil.TestCase):
         H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         SE_pulse = ff.PulseSequence(H_c, H_n, dt)
-        omega = util.get_sample_frequencies(SE_pulse, 100, spacing='linear')
+        omega = util.get_sample_frequencies(SE_pulse, 100, spacing='linear',
+                                            omega_max=2e2*np.pi/SE_pulse.tau)
         # Comparison to filter function defined with omega**2
         F = SE_pulse.get_filter_function(omega)[0, 0]*omega**2
 
@@ -123,7 +125,8 @@ class PrecisionTest(testutil.TestCase):
         H_n = [[util.paulis[3]/2, np.ones_like(dt)]]
 
         CPMG_pulse = ff.PulseSequence(H_c, H_n, dt)
-        omega = util.get_sample_frequencies(CPMG_pulse, 100, spacing='log')
+        omega = util.get_sample_frequencies(CPMG_pulse, 100, spacing='log',
+                                            omega_max=2e2*np.pi/CPMG_pulse.tau)
         # Comparison to filter function defined with omega**2
         F = CPMG_pulse.get_filter_function(omega)[0, 0]*omega**2
 
@@ -414,7 +417,9 @@ class PrecisionTest(testutil.TestCase):
         d = 3
         pulse = testutil.rand_pulse_sequence(d, 5)
         # including zero
-        E = util.get_sample_frequencies(pulse, 51, include_quasistatic=True)
+        E = util.get_sample_frequencies(pulse, 51, include_quasistatic=True,
+                                        omega_min=1e-2/pulse.dt.sum(),
+                                        omega_max=1e+2/pulse.dt.sum())
 
         for i, (eigval, dt, t) in enumerate(zip(pulse.eigvals, pulse.dt, pulse.t)):
             integral, integral_numeric = _get_integrals_first_order(d, E, eigval, dt, t)
@@ -544,6 +549,31 @@ class PrecisionTest(testutil.TestCase):
             ff.infidelity(pulse, spectra[4](S0, omega), omega, n_oper_identifiers=['B_0', 'B_2'],
                           return_smallness=True)
 
+    def test_non_traceless_basis(self):
+        pulse_traceless = testutil.rand_pulse_sequence(3, *rng.integers(1, 4, size=3))
+        pulse_nontraceless = copy(pulse_traceless)
+        pulse_nontraceless.basis = ff.Basis.from_partial(np.diag([1., 1., 0.]))
+
+        self.assertFalse(pulse_nontraceless.basis.istraceless)
+
+        omega = util.get_sample_frequencies(pulse_traceless, 300)
+        spect = 1e-3/omega
+
+        infid_traceless = ff.infidelity(pulse_traceless, spect, omega)
+        infid_nontraceless = ff.infidelity(pulse_nontraceless, spect, omega)
+        self.assertArrayAlmostEqual(infid_traceless, infid_nontraceless)
+
+        pulse_traceless_concat = ff.concatenate([pulse_traceless, pulse_traceless],
+                                                calc_pulse_correlation_FF=True,
+                                                omega=omega)
+        pulse_nontraceless_concat = ff.concatenate([pulse_nontraceless, pulse_nontraceless],
+                                                   calc_pulse_correlation_FF=True,
+                                                   omega=omega)
+        infid_traceless = ff.infidelity(pulse_traceless_concat, spect, omega, which='correlations')
+        infid_nontraceless = ff.infidelity(pulse_nontraceless_concat, spect, omega,
+                                           which='correlations')
+        self.assertArrayAlmostEqual(infid_traceless, infid_nontraceless)
+
     def test_single_qubit_error_transfer_matrix(self):
         """Test the calculation of the single-qubit transfer matrix"""
         d = 2
@@ -574,10 +604,10 @@ class PrecisionTest(testutil.TestCase):
                 # Calculate on foot (multi-qubit way)
                 Gamma = numeric.calculate_decay_amplitudes(pulse, S, omega, n_oper_identifiers)
                 Delta = numeric.calculate_frequency_shifts(pulse, S, omega, n_oper_identifiers)
-                K = -(np.einsum('...kl,klji->...ij', Gamma, traces) -
-                      np.einsum('...kl,kjli->...ij', Gamma, traces) -
-                      np.einsum('...kl,kilj->...ij', Gamma, traces) +
-                      np.einsum('...kl,kijl->...ij', Gamma, traces))/2
+                K = -(np.einsum('...kl,klji->...ij', Gamma, traces)
+                      - np.einsum('...kl,kjli->...ij', Gamma, traces)
+                      - np.einsum('...kl,kilj->...ij', Gamma, traces)
+                      + np.einsum('...kl,kijl->...ij', Gamma, traces))/2
                 U_onfoot = sla.expm(K.sum(tuple(range(K.ndim - 2))))
                 U_from_K = ff.error_transfer_matrix(cumulant_function=K)
                 self.assertArrayAlmostEqual(Up, U)
@@ -589,13 +619,14 @@ class PrecisionTest(testutil.TestCase):
                     I_decayamps = -np.einsum('...ii', K)/d**2
                     I_transfer = 1 - np.einsum('...ii', U)/d**2
                     self.assertArrayAlmostEqual(I_fidelity, I_decayamps)
-                    self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4, atol=1e-10)
+                    self.assertArrayAlmostEqual(
+                        I_transfer, I_fidelity.sum(), rtol=1e-4, atol=1e-10)
 
                 # second order
-                K -= (np.einsum('...kl,klji->...ij', Delta, traces) -
-                      np.einsum('...kl,lkji->...ij', Delta, traces) -
-                      np.einsum('...kl,klij->...ij', Delta, traces) +
-                      np.einsum('...kl,lkij->...ij', Delta, traces))/2
+                K -= (np.einsum('...kl,klji->...ij', Delta, traces)
+                      - np.einsum('...kl,lkji->...ij', Delta, traces)
+                      - np.einsum('...kl,klij->...ij', Delta, traces)
+                      + np.einsum('...kl,lkij->...ij', Delta, traces))/2
                 U = ff.error_transfer_matrix(pulse, S, omega, second_order=True)
                 U_onfoot = sla.expm(K.sum(tuple(range(K.ndim - 2))))
                 U_from_K = ff.error_transfer_matrix(cumulant_function=K)
@@ -604,8 +635,8 @@ class PrecisionTest(testutil.TestCase):
                 if traceless:
                     # Simplified fidelity calculation relies on traceless n_opers
                     I_transfer = 1 - np.einsum('...ii', U)/d**2
-                    self.assertArrayAlmostEqual(I_transfer, I_fidelity.sum(), rtol=1e-4, atol=1e-10)
-
+                    self.assertArrayAlmostEqual(
+                        I_transfer, I_fidelity.sum(), rtol=1e-4, atol=1e-10)
 
     def test_multi_qubit_error_transfer_matrix(self):
         """Test the calculation of the multi-qubit transfer matrix"""

@@ -481,9 +481,9 @@ class ConcatenationTest(testutil.TestCase):
 
             # concatenate pulses with different n_opers and nontrivial sens.
             subset = (set.issubset(set(pulse_1.n_oper_identifiers),
-                                   set(pulse_4.n_oper_identifiers)) or
-                      set.issubset(set(pulse_4.n_oper_identifiers),
-                                   set(pulse_1.n_oper_identifiers)))
+                                   set(pulse_4.n_oper_identifiers))
+                      or set.issubset(set(pulse_4.n_oper_identifiers),
+                                      set(pulse_1.n_oper_identifiers)))
 
             if not subset and (len(pulse_1.dt) > 1 or len(pulse_4.dt) > 1):
                 with self.assertRaises(ValueError):
@@ -577,13 +577,14 @@ class ConcatenationTest(testutil.TestCase):
             self.assertArrayAlmostEqual(a._control_matrix, b._control_matrix)
             self.assertArrayAlmostEqual(a._filter_function, b._filter_function)
 
-            cm = ff.numeric.calculate_control_matrix_periodic(pulse.get_total_phases(pulse.omega),
-                                                              pulse.get_control_matrix(pulse.omega),
-                                                              pulse.total_propagator_liouville,
-                                                              G, check_invertible=False)
+            cm = ff.numeric.calculate_control_matrix_periodic(
+                pulse.get_total_phases(pulse.omega),
+                pulse.get_control_matrix(pulse.omega),
+                pulse.total_propagator_liouville,
+                G, check_invertible=False
+            )
             # Check mostly always equal
             self.assertGreater(np.isclose(cm, a._control_matrix).sum()/cm.size, 0.9)
-
 
     def test_pulse_correlations(self):
         """Test calculating pulse correlation quantities."""

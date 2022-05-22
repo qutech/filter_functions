@@ -71,10 +71,10 @@ class TestCase(unittest.TestCase):
         if actual is not None and desired is not None:
             assert_allclose(actual, desired, rtol, atol, equal_nan, err_msg,
                             verbose)
-        elif (actual is None and desired is not None or
-              actual is not None and desired is None):
-            raise AssertionError(f'One of {actual} or {desired} ' +
-                                 'is None but the other not!')
+        elif (actual is None and desired is not None
+              or actual is not None and desired is None):
+            raise AssertionError(f'One of {actual} or {desired} '
+                                 + 'is None but the other not!')
         else:
             assert_array_equal(actual, desired, err_msg, verbose)
 
@@ -157,7 +157,7 @@ def rand_unit(d: int, n: int = 1, local_rng=None) -> np.ndarray:
 
 
 def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
-                        btype: str = 'GGM', local_rng=None):
+                        btype: str = 'GGM', local_rng=None, commensurable_timesteps: bool = False):
     """Random pulse sequence instance"""
     if local_rng is None:
         local_rng = rng
@@ -172,7 +172,10 @@ def rand_pulse_sequence(d: int, n_dt: int, n_cops: int = 3, n_nops: int = 3,
     c_identifiers = local_rng.choice(letters, n_cops, replace=False)
     n_identifiers = local_rng.choice(letters, n_nops, replace=False)
 
-    dt = 1 - local_rng.random(n_dt)  # (0, 1] instead of [0, 1)
+    if commensurable_timesteps:
+        dt = np.full(n_dt, 1 - local_rng.random())
+    else:
+        dt = 1 - local_rng.random(n_dt)  # (0, 1] instead of [0, 1)
     if btype == 'GGM':
         basis = Basis.ggm(d)
     else:
@@ -207,18 +210,18 @@ H[0] = 1/4*sum(util.tensor(P, P, Id, Id) for P in (Px, Py, Pz)).real
 H[1] = 1/4*sum(util.tensor(Id, P, P, Id) for P in (Px, Py, Pz)).real
 H[2] = 1/4*sum(util.tensor(Id, Id, P, P) for P in (Px, Py, Pz)).real
 # Zeeman Hamiltonians
-H[3] = 1/8*(util.tensor(Pz, Id, Id, Id)*(-3) +
-            util.tensor(Id, Pz, Id, Id) +
-            util.tensor(Id, Id, Pz, Id) +
-            util.tensor(Id, Id, Id, Pz)).real
-H[4] = 1/4*(util.tensor(Pz, Id, Id, Id)*(-1) +
-            util.tensor(Id, Pz, Id, Id)*(-1) +
-            util.tensor(Id, Id, Pz, Id) +
-            util.tensor(Id, Id, Id, Pz)).real
-H[5] = 1/8*(util.tensor(Pz, Id, Id, Id)*(-1) +
-            util.tensor(Id, Pz, Id, Id)*(-1) +
-            util.tensor(Id, Id, Pz, Id)*(-1) +
-            util.tensor(Id, Id, Id, Pz)*3).real
+H[3] = 1/8*(util.tensor(Pz, Id, Id, Id)*(-3)
+            + util.tensor(Id, Pz, Id, Id)
+            + util.tensor(Id, Id, Pz, Id)
+            + util.tensor(Id, Id, Id, Pz)).real
+H[4] = 1/4*(util.tensor(Pz, Id, Id, Id)*(-1)
+            + util.tensor(Id, Pz, Id, Id)*(-1)
+            + util.tensor(Id, Id, Pz, Id)
+            + util.tensor(Id, Id, Id, Pz)).real
+H[5] = 1/8*(util.tensor(Pz, Id, Id, Id)*(-1)
+            + util.tensor(Id, Pz, Id, Id)*(-1)
+            + util.tensor(Id, Id, Pz, Id)*(-1)
+            + util.tensor(Id, Id, Id, Pz)*3).real
 # Mean Magnetic field
 H0 = B_avg/2*sum(util.tensor(*np.roll((Pz, Id, Id, Id), shift=i, axis=0))
                  for i in range(4)).real

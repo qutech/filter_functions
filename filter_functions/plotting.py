@@ -55,8 +55,8 @@ from mpl_toolkits import axes_grid1
 from numpy import ndarray
 
 from . import numeric, util
-from .types import (Axes, Coefficients, Colormap, Figure, FigureAxes, FigureAxesLegend, FigureGrid,
-                    Grid, Operator, State)
+from .types import (Axes, Coefficients, Colormap, Cycler, Figure, FigureAxes, FigureAxesLegend,
+                    FigureGrid, Grid, Operator, State)
 
 __all__ = ['plot_cumulant_function', 'plot_infidelity_convergence', 'plot_filter_function',
            'plot_pulse_correlation_filter_function', 'plot_pulse_train']
@@ -129,9 +129,7 @@ def init_bloch_sphere(**bloch_kwargs) -> qt.Bloch:
     return b
 
 
-@util.parse_optional_parameters(prop=('total', 'piecewise'))
-def get_states_from_prop(U: Sequence[Operator], psi0: Optional[State] = None,
-                         prop: str = 'total') -> ndarray:
+def get_states_from_prop(U: Sequence[Operator], psi0: Optional[State] = None) -> ndarray:
     r"""
     Get the the quantum state at time t from the propagator and the
     inital state:
@@ -140,31 +138,18 @@ def get_states_from_prop(U: Sequence[Operator], psi0: Optional[State] = None,
 
         |\psi(t)\rangle = U(t, 0)|\psi(0)\rangle
 
-    If *prop* is 'piecewise', then it is assumed that *U* is the
-    propagator of a piecewise-constant control:
-
-    .. math::
-        |\psi(t)\rangle = \prod_{l=1}^n U(t_l, t_{l-1})|\psi(0)\rangle
-
-    with :math:`t_0\equiv 0` and :math:`t_n\equiv t`.
-
     """
     if psi0 is None:
-        psi0 = np.c_[1:-1:-1]  # |0>
+        # default to |0>
+        psi0 = np.c_[1:-1:-1]
+    elif hasattr(psi0, 'full'):
+        # qutip.Qobj
+        psi0 = psi0.full()
 
-    psi0 = psi0.full() if hasattr(psi0, 'full') else psi0  # qutip.Qobj
-    d = max(psi0.shape)
-    states = np.empty((len(U), d, 1), dtype=complex)
-    if prop == 'total':
-        for j in range(len(U)):
-            states[j] = U[j] @ psi0
-    else:
-        # prop == 'piecewise'
-        states[0] = U[0] @ psi0
-        for j in range(1, len(U)):
-            states[j] = U[j] @ states[j-1]
+    if psi0.shape[-2:] != (2, 1):
+        raise ValueError('Initial state should be shape (..., 2, 1)')
 
-    return states
+    return U @ psi0
 
 
 def plot_bloch_vector_evolution(
@@ -289,7 +274,7 @@ def plot_pulse_train(
         c_oper_identifiers: Optional[Sequence[int]] = None,
         fig: Optional[Figure] = None,
         axes: Optional[Axes] = None,
-        cycler: Optional['cycler.Cycler'] = None,
+        cycler: Optional[Cycler] = None,
         plot_kw: Optional[dict] = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -380,7 +365,7 @@ def plot_filter_function(
         xscale: str = 'log',
         yscale: str = 'linear',
         omega_in_units_of_tau: bool = True,
-        cycler: Optional['cycler.Cycler'] = None,
+        cycler: Optional[Cycler] = None,
         plot_kw: dict = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -510,7 +495,7 @@ def plot_pulse_correlation_filter_function(
         xscale: str = 'log',
         yscale: str = 'linear',
         omega_in_units_of_tau: bool = True,
-        cycler: Optional['cycler.Cycler'] = None,
+        cycler: Optional[Cycler] = None,
         plot_kw: dict = {},
         subplot_kw: Optional[dict] = None,
         gridspec_kw: Optional[dict] = None,
@@ -731,7 +716,7 @@ def plot_cumulant_function(
 
     Parameters
     ----------
-    pulse: 'PulseSequence'
+    pulse: PulseSequence
         The pulse sequence.
     spectrum: ndarray
         The two-sided noise spectrum.
@@ -801,13 +786,15 @@ def plot_cumulant_function(
                 n_oper_identifiers = [f'$B_{{{i}}}$' for i in range(len(n_oper_inds))]
         else:
             if len(n_oper_identifiers) != len(K):
-                raise ValueError('Both precomputed cumulant function and n_oper_identifiers ' +
-                                 f'given but not same len: {len(K)} != {len(n_oper_identifiers)}')
+                raise ValueError(
+                    'Both precomputed cumulant function and n_oper_identifiers '
+                    + f'given but not same len: {len(K)} != {len(n_oper_identifiers)}'
+                )
 
     else:
         if pulse is None or spectrum is None or omega is None:
-            raise ValueError('Require either precomputed cumulant function ' +
-                             'or pulse, spectrum, and omega as arguments.')
+            raise ValueError('Require either precomputed cumulant function '
+                             + 'or pulse, spectrum, and omega as arguments.')
 
         n_oper_inds = util.get_indices_from_identifiers(pulse.n_oper_identifiers,
                                                         n_oper_identifiers)
@@ -852,8 +839,8 @@ def plot_cumulant_function(
         grid = axes_grid1.ImageGrid(fig, **grid_kw)
     else:
         if len(grid) != len(n_oper_inds):
-            raise ValueError('Size of supplied ImageGrid instance does not ' +
-                             'match the number of n_oper_identifiers given!')
+            raise ValueError('Size of supplied ImageGrid instance does not '
+                             + 'match the number of n_oper_identifiers given!')
 
         fig = grid[0].get_figure()
 

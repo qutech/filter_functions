@@ -52,7 +52,7 @@ class MissingExtrasTest(testutil.TestCase):
         reason='Skipping tests for missing plotting extra in build with matplotlib')
     def test_plotting_not_available(self):
         with self.assertRaises(ModuleNotFoundError):
-            from filter_functions import plotting
+            from filter_functions import plotting  # noqa
 
     @pytest.mark.skipif(
         ('bloch_sphere_visualization' in os.environ.get('INSTALL_EXTRAS', all_extras)
