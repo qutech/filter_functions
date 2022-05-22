@@ -25,9 +25,6 @@ from typing import Mapping, Optional, Sequence, Tuple, Union
 
 from numpy import ndarray
 
-if False:
-    from .pulse_sequence import PulseSequence
-
 try:
     import cycler
     from matplotlib import axes, colors, figure, legend
@@ -56,6 +53,6 @@ except ImportError:
 
 Coefficients = Sequence[float]
 Hamiltonian = Sequence[Sequence[Union[Operator, Coefficients]]]
-PulseMapping = Sequence[Sequence[Union[PulseSequence,
+PulseMapping = Sequence[Sequence[Union['PulseSequence',
                                        Union[Sequence[int], int],
                                        Optional[Mapping[str, str]]]]]
