@@ -591,8 +591,12 @@ def calculate_noise_operators_from_scratch(
     noise_operators = np.zeros((len(omega), len(n_opers), d, d), dtype=complex)
 
     if cache_intermediates:
+        phase_factors_cache = np.empty((len(dt), len(omega)), dtype=complex)
+        int_cache = np.empty((len(dt), len(omega), d, d), dtype=complex)
         sum_cache = np.empty((len(dt), len(omega), len(n_opers), d, d), dtype=complex)
     else:
+        phase_factors = np.empty((len(omega),), dtype=complex)
+        int_buf = np.empty((len(omega), d, d), dtype=complex)
         sum_buf = np.empty((len(omega), len(n_opers), d, d), dtype=complex)
 
     # Set up reusable expressions
@@ -607,10 +611,13 @@ def calculate_noise_operators_from_scratch(
         if cache_intermediates:
             # Assign references to the locations in the cache for the quantities
             # that should be stored
+            phase_factors = phase_factors_cache[g]
+            int_buf = int_cache[g]
             sum_buf = sum_cache[g]
 
+        phase_factors = util.cexp(omega*t[g], out=phase_factors)
         int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
-        sum_buf = expr_1(n_opers_transformed[:, g], util.cexp(omega*t[g])[:, None, None]*int_buf,
+        sum_buf = expr_1(n_opers_transformed[:, g], phase_factors[:, None, None]*int_buf,
                          out=sum_buf)
 
         noise_operators += expr_2(eigvecs_propagated[g].conj(), sum_buf, eigvecs_propagated[g],
@@ -618,6 +625,8 @@ def calculate_noise_operators_from_scratch(
 
     if cache_intermediates:
         intermediates = dict(n_opers_transformed=n_opers_transformed,
+                             first_order_integral=int_cache,
+                             phase_factors=phase_factors_cache,
                              noise_operators_step=sum_cache)
         return noise_operators, intermediates
 

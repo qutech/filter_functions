@@ -608,7 +608,7 @@ class CoreTest(testutil.TestCase):
         self.assertEqual(periodic_pulse._tau, pulse.tau * 7)
         self.assertArrayAlmostEqual(periodic_pulse.t, [0, *periodic_pulse.dt.cumsum()])
 
-    def test_cache_intermediates(self):
+    def test_cache_intermediates_liouville(self):
         """Test caching of intermediate elements"""
         pulse = testutil.rand_pulse_sequence(3, 4, 2, 3)
         omega = util.get_sample_frequencies(pulse, 33, spacing='linear')
@@ -627,6 +627,27 @@ class CoreTest(testutil.TestCase):
                                       eigvecs_prop.conj(), pulse.basis, eigvecs_prop)
         self.assertArrayAlmostEqual(pulse._intermediates['basis_transformed'], basis_transformed,
                                     atol=1e-14)
+        self.assertArrayAlmostEqual(pulse._intermediates['phase_factors'],
+                                    util.cexp(omega*pulse.t[:-1, None]))
+
+    def test_cache_intermediates_hilbert(self):
+        pulse = testutil.rand_pulse_sequence(3, 4, 2, 3)
+        omega = util.get_sample_frequencies(pulse, 33, spacing='linear')
+        unitary, intermediates = numeric.calculate_noise_operators_from_scratch(
+            pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.n_opers, pulse.n_coeffs,
+            pulse.dt, pulse.t, cache_intermediates=True
+        )
+
+        pulse._intermediates.update(**intermediates)
+
+        self.assertArrayAlmostEqual(pulse._intermediates['noise_operators_step'].sum(0), unitary)
+        self.assertArrayAlmostEqual(pulse._intermediates['n_opers_transformed'],
+                                    numeric._transform_hamiltonian(pulse.eigvecs,
+                                                                   pulse.n_opers,
+                                                                   pulse.n_coeffs))
+        self.assertArrayAlmostEqual(pulse._intermediates['phase_factors'],
+                                    util.cexp(omega*pulse.t[:-1, None]))
+
 
     def test_cache_filter_function(self):
         omega = rng.random(32)
