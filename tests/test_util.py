@@ -589,6 +589,57 @@ class UtilTest(testutil.TestCase):
                              f"Invalid value for x: {4}."
                              + f" Should be one of {(2, 3)}")
 
+    def test_parse_spectrum(self):
+        spectrum = rng.standard_normal(11)
+        omega = rng.standard_normal(11)
+        idx = rng.integers(0, 5, size=1)
+        parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        self.assertEqual(parsed.shape, (11,))
+
+        spectrum = rng.standard_normal((2, 11))
+        omega = rng.standard_normal(11)
+        idx = rng.integers(0, 5, size=2)
+        parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        self.assertEqual(parsed.shape, (2, 11))
+
+        spectrum = rng.standard_normal((2, 2, 11)) + rng.standard_normal((2, 2, 11))
+        spectrum += spectrum.conj().swapaxes(0, 1)
+        omega = rng.standard_normal(11)
+        idx = rng.integers(0, 5, size=2)
+        parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        self.assertEqual(parsed.shape, (2, 2, 11))
+
+        # Spectrum not matching idx
+        with self.assertRaises(ValueError):
+            spectrum = rng.standard_normal((2, 11))
+            omega = rng.standard_normal(11)
+            idx = rng.integers(0, 5, size=3)
+            parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        # Spectrum not matching omega
+        with self.assertRaises(ValueError):
+            spectrum = rng.standard_normal(11)
+            omega = rng.standard_normal(7)
+            idx = rng.integers(0, 5, size=1)
+            parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        # Spectrum not hermitian
+        with self.assertRaises(ValueError):
+            spectrum = rng.standard_normal((2, 2, 11))
+            omega = rng.standard_normal(11)
+            idx = rng.integers(0, 5, size=2)
+            parsed = util.parse_spectrum(spectrum, omega, idx)
+
+        # Spectrum more than 3d
+        with self.assertRaises(ValueError):
+            spectrum = rng.standard_normal((2, 2, 2, 11))
+            omega = rng.standard_normal(11)
+            idx = rng.integers(0, 5, size=2)
+            parsed = util.parse_spectrum(spectrum, omega, idx)
+
     def test_parse_operators(self):
         opers = rng.random((7, 3, 3))
         parsed_opers = util.parse_operators(opers, 'testing')

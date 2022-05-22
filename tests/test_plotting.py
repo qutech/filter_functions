@@ -355,6 +355,11 @@ class BlochSphereVisualizationTest(testutil.TestCase):
         self.assertArrayAlmostEqual(Q @ psi0_np, states_np)
         self.assertArrayAlmostEqual(Q @ qutip.basis(2, 0).full(), states_0)
 
+        with self.assertRaises(ValueError):
+            plotting.get_states_from_prop(Q, rng.standard_normal((3, 1, 2)))
+        with self.assertRaises(ValueError):
+            plotting.get_states_from_prop(Q, rng.standard_normal((3, 4)))
+
     def test_plot_bloch_vector_evolution(self):
         # Call with default args
         b = plotting.plot_bloch_vector_evolution(simple_pulse)
