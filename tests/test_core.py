@@ -1063,7 +1063,7 @@ class CoreTest(testutil.TestCase):
         with self.assertRaises(TypeError):
             ff.error_transfer_matrix(cumulant_function=[1, 2, 3])
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises((ValueError, np.linalg.LinAlgError)):
             ff.error_transfer_matrix(cumulant_function=testutil.rng.standard_normal((2, 3, 4)))
 
     def test_infidelity_convergence(self):
