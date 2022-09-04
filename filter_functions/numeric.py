@@ -169,8 +169,7 @@ def _first_order_integral(E: ndarray, eigvals: ndarray, dt: float,
 def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
                            int_buf: ndarray, frc_bufs: Tuple[ndarray, ndarray],
                            dE_bufs: Tuple[ndarray, ndarray, ndarray],
-                           exp_buf: ndarray, msk_bufs: Tuple[ndarray, ndarray]
-                           ) -> ndarray:
+                           msk_bufs: Tuple[ndarray, ndarray]) -> ndarray:
     r"""Calculate the nested integral of second order Magnus expansion.
 
     The integral is evaluated as
@@ -1596,8 +1595,8 @@ def calculate_second_order_filter_function(
             basis_transformed = basis_transformed_cache[g]
             ctrlmat_step = ctrlmat_step_cache[g]
 
-        int_buf = _second_order_integral(omega, eigvals[g], dt[g], int_buf,
-                                         frc_bufs, dE_bufs, exp_buf, msk_bufs)
+        int_buf = _second_order_integral(omega, eigvals[g], dt[g], int_buf, frc_bufs, dE_bufs,
+                                         msk_bufs)
         n_opers_basis = np.einsum('akl,ilk->aikl', n_opers_transformed[:, g], basis_transformed)
         # We use step_buf as a buffer for the last interval (with nested time
         # dependence) and afterwards the intervals up to the last (where the
