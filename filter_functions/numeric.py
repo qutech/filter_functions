@@ -197,54 +197,64 @@ def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     with :math:`\Omega_{mn}^{(g)} = \omega_m^{(g)} - \omega_n^{(g)}`.
 
     """
+    eps = 1e-8
     # frc_buf1 has shape (len(E), *dE.shape), frc_buf2 has shape dE.shape*2
     frc_buf1, frc_buf2 = frc_bufs
     dEdE, EdE, dEE = dE_bufs
-    mask_nEdE_dEE, mask_nEdE_ndEE = msk_bufs
+    mask_nE_dE_dE, mask_nE_ndE_dE, mask_nE_dE_ndE, mask_nEdE_ndEE, mask_nEdE_dEE = msk_bufs
 
     dE = np.subtract.outer(eigvals, eigvals)
     dEdE = np.add.outer(dE, dE, out=dEdE)
     EdE = np.add.outer(E, dE, out=EdE)
-    dEE = np.subtract.outer(-E, -dE, out=dEE)
-    mask_dEdE = np.not_equal(dEdE, 0)
-    mask_EdE = np.not_equal(EdE, 0)
-    mask_dEE = np.not_equal(dEE, 0)
+    dEE = np.add.outer(-E, dE, out=dEE)
+
+    mask_E = abs(E) > eps
+    mask_dE = dE != 0
+    mask_dEE = dEE != 0
+    mask_EdE = EdE != 0
+    mask_dEdE = dEdE != 0
+    mask_dE_dE = mask_dE[..., None, None] & mask_dE
+    mask_ndE_dE = ~mask_dE[..., None, None] & mask_dE
+    mask_dE_ndE = mask_dE[..., None, None] & ~mask_dE
+    mask_ndE_ndE = ~mask_dE[..., None, None] & ~mask_dE
+    mask_nE_dE_dE = np.logical_and(~mask_E[:, None, None, None, None], mask_dE_dE,
+                                   out=mask_nE_dE_dE)
+    mask_nE_ndE_dE = np.logical_and(~mask_E[:, None, None, None, None], mask_ndE_dE,
+                                    out=mask_nE_ndE_dE)
+    mask_nE_dE_ndE = np.logical_and(~mask_E[:, None, None, None, None], mask_dE_ndE,
+                                    out=mask_nE_dE_ndE)
+    mask_nEdE_ndEE = np.logical_and(~mask_E[:, None, None, None, None], mask_ndE_ndE,
+                                    out=mask_nEdE_ndEE)
     mask_nEdE_dEE = np.logical_and(~mask_EdE[:, None, None], mask_dEE[..., None, None],
                                    out=mask_nEdE_dEE)
-    mask_nEdE_ndEE = np.logical_and(~mask_EdE[:, None, None], ~mask_dEE[..., None, None],
-                                    out=mask_nEdE_ndEE)
     mask_EdE_dEE = np.broadcast_to(mask_EdE[:, None, None], int_buf.shape)
 
-    # First term in the brackets
-    exp_buf = util.cexp(dEE*dt, out=exp_buf, where=mask_dEE)
-    exp_buf = np.subtract(exp_buf, 1, out=exp_buf, where=mask_dEE)
-    frc_buf1 = np.divide(exp_buf, dEE, out=frc_buf1, where=mask_dEE)
+    frc_buf1 = util.cexpm1(dEE*dt, where=mask_dEE, out=frc_buf1)
+    frc_buf1 = np.divide(frc_buf1, dEE, where=mask_dEE, out=frc_buf1)
     frc_buf1[~mask_dEE] = 1j*dt
 
-    # Second term in the brackets
-    frc_buf2 = util.cexp(dEdE*dt, out=frc_buf2, where=mask_dEdE)
-    frc_buf2 = np.subtract(frc_buf2, 1, out=frc_buf2, where=mask_dEdE)
-    frc_buf2 = np.divide(frc_buf2, dEdE, out=frc_buf2, where=mask_dEdE)
+    frc_buf2 = util.cexpm1(dEdE*dt, where=mask_dEdE, out=frc_buf2)
+    frc_buf2 = np.divide(frc_buf2, dEdE, where=mask_dEdE, out=frc_buf2)
     frc_buf2[~mask_dEdE] = 1j*dt
 
-    # Broadcast to full (len(E), d, d, d, d) result
     int_buf = np.subtract(frc_buf1[..., None, None], frc_buf2[None, ...],
                           out=int_buf, where=mask_EdE_dEE)
-
-    # Prefactor
     int_buf = np.divide(int_buf, EdE[:, None, None], out=int_buf, where=mask_EdE_dEE)
 
-    # Case where omega + Omega_ij = 0, omega - Omega_mn != 0
-    exp_buf = np.add(exp_buf, 1, out=exp_buf, where=mask_dEE)
-    exp_buf = np.multiply(exp_buf, dt, out=exp_buf, where=mask_dEE)
-    frc_buf1.real = np.add(frc_buf1.real, exp_buf.imag, out=frc_buf1.real, where=mask_dEE)
-    frc_buf1.imag = np.subtract(frc_buf1.imag, exp_buf.real, out=frc_buf1.imag, where=mask_dEE)
-    frc_buf1 = np.divide(frc_buf1, dEE, out=frc_buf1, where=mask_dEE)
-
-    int_buf[mask_nEdE_dEE] = np.broadcast_to(frc_buf1[..., None, None],
-                                             int_buf.shape)[mask_nEdE_dEE]
-
-    # Case where omega + Omega_ij = 0, omega - Omega_mn = 0
+    # Limiting cases for ω -> 0
+    dEt = dE*dt
+    # Ω_ij == 0, Ω_mn != 0
+    int_buf = np.divide(1j*dt - np.divide(util.cexpm1(dEt), dE, where=mask_dE), dE,
+                        where=mask_nE_ndE_dE, out=int_buf)
+    # Ω_ij != 0, Ω_mn == 0
+    int_buf = np.divide((np.divide(util.cexpm1(dEt), dE, where=mask_dE)
+                         - 1j*dt*util.cexp(dEt))[..., None, None],
+                         dE[..., None, None], where=mask_nE_dE_ndE, out=int_buf)
+    # Ω_ij != 0, Ω_mn != 0
+    int_buf = np.subtract(np.divide(util.cexpm1(dEt), dE, where=mask_dE)[..., None, None],
+                          frc_buf2, where=mask_nE_dE_dE, out=int_buf)
+    int_buf = np.divide(int_buf, dE, where=mask_nE_dE_dE, out=int_buf)
+    # Ω_ij == 0, Ω_mn == 0
     int_buf[mask_nEdE_ndEE] = dt**2 / 2
     return int_buf
 
@@ -1533,11 +1543,9 @@ def calculate_second_order_filter_function(
     dE_bufs = (np.empty((d, d, d, d), dtype=float),
                np.empty((len(omega), d, d), dtype=float),
                np.empty((len(omega), d, d), dtype=float))
-    exp_buf = np.empty((len(omega), d, d), dtype=complex)
-    frc_bufs = (np.empty((len(omega), d, d), dtype=complex),
-                np.empty((d, d, d, d), dtype=complex))
+    frc_bufs = (np.empty((len(omega), d, d), dtype=complex), np.empty((d, d, d, d), dtype=complex))
     int_buf = np.empty((len(omega), d, d, d, d), dtype=complex)
-    msk_bufs = np.empty((2, len(omega), d, d, d, d), dtype=bool)
+    msk_bufs = np.empty((5, len(omega), d, d, d, d), dtype=bool)
     ctrlmat_step_cumulative = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
 
     shape = (len(n_coeffs), len(n_coeffs), len(basis), len(basis), len(omega))
