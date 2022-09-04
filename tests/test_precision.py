@@ -51,11 +51,10 @@ def _get_integrals_second_order(d, E, eigval, dt, t0):
     dE_bufs = (np.empty((d, d, d, d), dtype=float),
                np.empty((len(E), d, d), dtype=float),
                np.empty((len(E), d, d), dtype=float))
-    exp_buf = np.empty((len(E), d, d), dtype=complex)
     frc_bufs = (np.empty((len(E), d, d), dtype=complex),
                 np.empty((d, d, d, d), dtype=complex))
     int_buf = np.empty((len(E), d, d, d, d), dtype=complex)
-    msk_bufs = np.empty((2, len(E), d, d, d, d), dtype=bool)
+    msk_bufs = np.empty((5, len(E), d, d, d, d), dtype=bool)
     tspace = np.linspace(0, dt, 1001) + t0
     dE = np.subtract.outer(eigval, eigval)
 
@@ -67,8 +66,7 @@ def _get_integrals_second_order(d, E, eigval, dt, t0):
     integrand = util.cexp(ex)[:, :, :, None, None] * I1[:, None, None]
 
     integral_numeric = integrate.trapezoid(integrand, tspace)
-    integral = numeric._second_order_integral(E, eigval, dt, int_buf, frc_bufs, dE_bufs,
-                                              exp_buf, msk_bufs)
+    integral = numeric._second_order_integral(E, eigval, dt, int_buf, frc_bufs, dE_bufs, msk_bufs)
     return integral, integral_numeric
 
 
