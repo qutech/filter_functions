@@ -160,6 +160,26 @@ def cexp(x: ndarray, out=None, where=True) -> ndarray:
     return out
 
 
+def cexpm1(x: ndarray, out=None, where=True) -> ndarray:
+    r"""Fast complex exponential minus one.
+
+    Computes
+
+    .. math::
+
+        \exp(i x) = -2\sin^2(x/2) + i\sin(x)
+
+    for real x.
+    """
+    out = np.empty(x.shape, dtype=np.complex_) if out is None else out
+    tmp = np.divide(x, 2, where=where)
+    tmp = np.sin(tmp, out=tmp, where=where)
+    out.real = np.multiply(tmp, tmp, out=out.real, where=where)
+    out.real = np.multiply(-2, out.real, out.real, where=where)
+    out.imag = np.sin(x, out=out.imag, where=where)
+    return out
+
+
 def parse_optional_parameters(**allowed_kwargs: Sequence) -> Callable:
     """Decorator factory to parse optional parameter with certain legal
     values.
