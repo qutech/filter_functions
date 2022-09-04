@@ -217,6 +217,61 @@ class PrecisionTest(testutil.TestCase):
 
         self.assertTrue(phase_eq[0])
 
+    def test_FID_second_order(self):
+        def FF2(omega):
+            mask = omega == 0
+            res = np.empty(np.shape(omega), complex)
+            res[mask] = tau**2 / 2
+            res[~mask] = (tau + np.expm1(-1j*omega[~mask]*tau)/(1j*omega[~mask]))/(1j*omega[~mask])
+            return res
+
+        ix = rng.integers(1, 4)
+        tau = rng.random()
+        pulse_piecewise = ff.PulseSequence(
+            [[util.paulis[1]/np.sqrt(2), np.zeros(21)]],
+            [[util.paulis[ix]/np.sqrt(2), np.ones(21)]],
+            [tau/21]*21
+        )
+        pulse_single = ff.PulseSequence(
+            [[util.paulis[1]/np.sqrt(2), np.zeros(1)]],
+            [[util.paulis[ix]/np.sqrt(2), np.ones(1)]],
+            [tau]
+        )
+
+        sigma = rng.random()
+
+        # white noise limit
+        # Use two-sided spectrum to test imaginary part
+        omega = util.get_sample_frequencies(pulse_piecewise, 501, include_quasistatic=False)
+        omega = np.concatenate([-omega[::-1], [0], omega])
+        spect = np.full_like(omega, sigma**2)
+        delta_piecewise = numeric.calculate_frequency_shifts(pulse_piecewise, spect, omega)
+        delta_single = numeric.calculate_frequency_shifts(pulse_single, spect, omega)
+        filter_function = pulse_single.get_filter_function(omega, order=2)
+        mask = np.zeros_like(delta_single, dtype=bool)
+        mask[0, ix, ix] = True
+
+        self.assertArrayAlmostEqual(delta_single, delta_piecewise, atol=1e-14)
+        self.assertArrayAlmostEqual(delta_single[mask], sigma**2 * tau / 2, rtol=1e-3)
+        self.assertArrayAlmostEqual(delta_single[~mask], 0, atol=1e-12)
+        self.assertArrayAlmostEqual(filter_function[0, 0, ix, ix, 502:], FF2(omega[502:]))
+        self.assertArrayAlmostEqual(util.integrate(filter_function.imag, omega), 0, atol=1e-14)
+
+        # quasistatic noise limit
+        omega = np.array([-1e-15, 0, 1e-15])*tau
+        spect = 2*np.pi*sigma**2*np.array([0, 1/omega[-1], 0])
+        delta_piecewise = numeric.calculate_frequency_shifts(pulse_piecewise, spect, omega)
+        delta_single = numeric.calculate_frequency_shifts(pulse_single, spect, omega)
+        filter_function = pulse_single.get_filter_function(omega, order=2)
+        mask = np.zeros_like(delta_single, dtype=bool)
+        mask[0, ix, ix] = True
+
+        self.assertArrayAlmostEqual(delta_single, delta_piecewise, atol=1e-14)
+        self.assertArrayAlmostEqual(delta_single[mask], sigma**2 * tau**2 / 2, rtol=1e-10)
+        self.assertArrayAlmostEqual(delta_single[~mask], 0, atol=1e-12)
+        self.assertArrayAlmostEqual(filter_function[0, 0, ix, ix, 2], FF2(omega[2]))
+        self.assertArrayAlmostEqual(util.integrate(filter_function.imag, omega), 0, atol=1e-14)
+
     def test_infidelity_cnot(self):
         """Compare infidelity to monte carlo results"""
         c_opers = testutil.subspace_opers
