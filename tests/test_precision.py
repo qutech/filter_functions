@@ -217,7 +217,7 @@ class PrecisionTest(testutil.TestCase):
 
     def test_FID_second_order(self):
         def FF2(omega):
-            mask = omega == 0
+            mask = omega*tau < 1e-7
             res = np.empty(np.shape(omega), complex)
             res[mask] = tau**2 / 2
             res[~mask] = (tau + np.expm1(-1j*omega[~mask]*tau)/(1j*omega[~mask]))/(1j*omega[~mask])

@@ -196,7 +196,7 @@ def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     with :math:`\Omega_{mn}^{(g)} = \omega_m^{(g)} - \omega_n^{(g)}`.
 
     """
-    eps = 1e-8
+    eps = 1e-7
     # frc_buf1 has shape (len(E), *dE.shape), frc_buf2 has shape dE.shape*2
     frc_buf1, frc_buf2 = frc_bufs
     dEdE, EdE, dEE = dE_bufs
