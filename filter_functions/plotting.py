@@ -264,7 +264,7 @@ def plot_bloch_vector_evolution(
             default_cbar_kwargs = dict(shrink=2/3, pad=0.05, label=r'$t$ ($\tau$)', ticks=[0, 1],
                                        ax=b.axes)
             cbar_kwargs = {**default_cbar_kwargs, **(cbar_kwargs or {})}
-            b.fig.colorbar(cm.ScalarMappable(cmap=cmap), **cbar_kwargs)
+            b.fig.colorbar(cm.ScalarMappable(cmap=cmap), ax=b.axes, **cbar_kwargs)
 
     if return_Bloch:
         return b
