@@ -214,8 +214,8 @@ class CoreTest(testutil.TestCase):
             H_n[i][1] = np.concatenate((H_n[i][1], c))
         pulse = ff.PulseSequence(H_c, H_n, dt)
         # Hit __str__ and __repr__ methods
-        pulse
-        print(pulse)
+        repr(pulse)
+        str(pulse)
 
         # Fewer identifiers than opers
         pulse_2 = ff.PulseSequence(
@@ -648,7 +648,6 @@ class CoreTest(testutil.TestCase):
         self.assertArrayAlmostEqual(pulse.intermediates['phase_factors'],
                                     util.cexp(omega*pulse.t[:-1, None]))
 
-
     def test_cache_filter_function(self):
         omega = rng.random(32)
         pulse = testutil.rand_pulse_sequence(2, 3, n_nops=2)
@@ -960,10 +959,10 @@ class CoreTest(testutil.TestCase):
 
         spectrum = omega**0*1e-2
         with self.assertRaises(util.CalculationError):
-            infid_1 = ff.infidelity(pulse_1, spectrum, omega, which='correlations')
+            _ = ff.infidelity(pulse_1, spectrum, omega, which='correlations')
 
         with self.assertRaises(ValueError):
-            infid_1 = ff.infidelity(pulse_1, spectrum, omega, which='foobar')
+            _ = ff.infidelity(pulse_1, spectrum, omega, which='foobar')
 
         for _ in range(10):
             n_nops = rng.integers(1, 4)
