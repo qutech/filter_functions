@@ -573,9 +573,10 @@ class PulseSequence:
 
         # Make sure the Hamiltonian has been diagonalized
         self.diagonalize()
+        self.omega = omega
 
         control_matrix = numeric.calculate_control_matrix_from_scratch(
-            self.eigvals, self.eigvecs, self.propagators, omega, self.basis, self.n_opers,
+            self.eigvals, self.eigvecs, self.propagators, self.omega, self.basis, self.n_opers,
             self.n_coeffs, self.dt, self.t, show_progressbar=show_progressbar,
             cache_intermediates=cache_intermediates
         )
@@ -584,7 +585,7 @@ class PulseSequence:
             control_matrix, intermediates = control_matrix
             self._intermediates.update(intermediates)
 
-        self.cache_control_matrix(omega, control_matrix)
+        self.cache_control_matrix(self.omega, control_matrix)
 
         return self._control_matrix
 
@@ -614,7 +615,6 @@ class PulseSequence:
         if control_matrix is None:
             control_matrix = self.get_control_matrix(omega, show_progressbar, cache_intermediates)
 
-        self.omega = omega
         if control_matrix.ndim == 4:
             # Pulse correlation control matrix
             self._control_matrix_pc = control_matrix
@@ -723,13 +723,16 @@ class PulseSequence:
             # that are frequency-dependent
             self.cleanup('frequency dependent')
 
+        self.omega = omega
+
         if order == 1:
-            control_matrix = self.get_control_matrix(omega, show_progressbar, cache_intermediates)
+            control_matrix = self.get_control_matrix(self.omega, show_progressbar,
+                                                     cache_intermediates)
         else:
             # order == 2
             control_matrix = None
 
-        self.cache_filter_function(omega, control_matrix=control_matrix, which=which,
+        self.cache_filter_function(self.omega, control_matrix=control_matrix, which=which,
                                    order=order, show_progressbar=show_progressbar,
                                    cache_intermediates=cache_intermediates,
                                    cache_second_order_cumulative=cache_second_order_cumulative)
@@ -793,13 +796,15 @@ class PulseSequence:
         --------
         PulseSequence.get_filter_function : Getter method
         """
+        self.omega = omega
+
         if filter_function is None:
             if order == 1:
                 if control_matrix is None:
-                    control_matrix = self.get_control_matrix(omega, show_progressbar,
+                    control_matrix = self.get_control_matrix(self.omega, show_progressbar,
                                                              cache_intermediates)
 
-                self.cache_control_matrix(omega, control_matrix)
+                self.cache_control_matrix(self.omega, control_matrix)
                 if control_matrix.ndim == 4:
                     # Calculate pulse correlation FF and derive canonical FF
                     # from it
@@ -828,7 +833,6 @@ class PulseSequence:
                     filter_function, intermediates = filter_function
                     self._intermediates.update(intermediates)
 
-        self.omega = omega
         if order == 1:
             if which == 'fidelity':
                 self._filter_function = filter_function
@@ -980,9 +984,10 @@ class PulseSequence:
         if (first_order_integral := self._intermediates.get('first_order_integral')) is not None:
             intermediates['first_order_integral'] = first_order_integral
 
-        control_matrix = self.get_control_matrix(omega, cache_intermediates=True)[n_idx]
+        self.omega = omega
+        control_matrix = self.get_control_matrix(self.omega, cache_intermediates=True)[n_idx]
         control_matrix_deriv = gradient.calculate_derivative_of_control_matrix_from_scratch(
-            omega, self.propagators, self.eigvals, self.eigvecs, self.basis, self.t, self.dt,
+            self.omega, self.propagators, self.eigvals, self.eigvecs, self.basis, self.t, self.dt,
             self.n_opers[n_idx], self.n_coeffs[n_idx], self.c_opers[c_idx], n_coeffs_deriv,
             intermediates
         )
@@ -1015,10 +1020,11 @@ class PulseSequence:
             The total phase factors for the frequencies *omega*. If
             ``None``, they are computed.
         """
-        if total_phases is None:
-            total_phases = util.cexp(np.asarray(omega)*self.tau)
-
         self.omega = omega
+
+        if total_phases is None:
+            total_phases = util.cexp(self.omega*self.tau)
+
         self._total_phases = total_phases
 
     @property
