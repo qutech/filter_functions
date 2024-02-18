@@ -664,6 +664,29 @@ class CoreTest(testutil.TestCase):
         self.assertArrayEqual(pulse.get_filter_function(omega, which='generalized'), F_generalized)
         self.assertArrayEqual(pulse.get_filter_function(omega, which='fidelity'), F_fidelity)
 
+    def test_frequency_dependend_methods(self):
+        pulse = testutil.rand_pulse_sequence(2, 5, 2, 2)
+        omega_list = [1, 2, 3]
+        omega_array = np.array(omega_list)
+
+        control_matrix = pulse.get_control_matrix(omega_list)
+        self.assertArrayEqual(control_matrix, pulse.get_control_matrix(omega_array))
+        pulse.cleanup('all')
+        pulse.cache_control_matrix(omega_list, control_matrix)
+        self.assertArrayEqual(pulse._control_matrix, pulse.get_control_matrix(omega_array))
+
+        filter_function = pulse.get_filter_function(omega_list)
+        self.assertArrayEqual(filter_function, pulse.get_filter_function(omega_array))
+        pulse.cleanup('all')
+        pulse.cache_filter_function(omega_list, filter_function=filter_function)
+        self.assertArrayEqual(pulse._filter_function, pulse.get_filter_function(omega_array))
+
+        total_phases = pulse.get_total_phases(omega_list)
+        self.assertArrayEqual(total_phases, pulse.get_total_phases(omega_array))
+        pulse.cleanup('all')
+        pulse.cache_total_phases(omega_list, total_phases)
+        self.assertArrayEqual(pulse._total_phases, pulse.get_total_phases(omega_array))
+
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
         for d, n_dt in zip(rng.integers(2, 10, (3,)),
