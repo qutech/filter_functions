@@ -1251,8 +1251,8 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
     if (dt < 0).any():
         raise ValueError('Time steps are not (all) positive!')
 
-    control_args = _parse_Hamiltonian(H_c, len(dt), 'H_c')
-    noise_args = _parse_Hamiltonian(H_n, len(dt), 'H_n')
+    control_args = _parse_hamiltonian(H_c, len(dt), 'H_c')
+    noise_args = _parse_hamiltonian(H_n, len(dt), 'H_n')
 
     if control_args[0].shape[-2:] != noise_args[0].shape[-2:]:
         # Check operator shapes
@@ -1276,10 +1276,10 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
             raise ValueError("Expected basis elements to be of shape "
                              + f"({d}, {d}), not {basis.shape[1:]}!")
 
-    return (*control_args, *noise_args, dt, d, basis)
+    return *control_args, *noise_args, dt, d, basis
 
 
-def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[Operator],
+def _parse_hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[Operator],
                                                                        Sequence[str],
                                                                        Sequence[Coefficients]]:
     """Helper function to parse the Hamiltonian in QuTiP format."""
@@ -1336,7 +1336,7 @@ def _parse_Hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[
     return parsed_opers[idx], identifiers[idx], coeffs[idx]
 
 
-def _concatenate_Hamiltonian(
+def _concatenate_hamiltonian(
         opers: Sequence[Sequence[Operator]],
         identifiers: Sequence[Sequence[str]],
         coeffs: Sequence[Sequence[Coefficients]],
@@ -1438,8 +1438,8 @@ def _concatenate_Hamiltonian(
             pulse_pos = [bisect.bisect(pulse_idx, hashed_opers.index(op)) for op in oper]
             identifier_pos = [concat_hashed_opers.index(op) for op in oper]
             for i, p in zip(identifier_pos, pulse_pos):
-                concat_identifiers[i] = concat_identifiers[i] + f'_{p}'
-                pulse_identifier_mapping[p].update({identifier_str: concat_identifiers[i]})
+                concat_identifiers[i] = f'{concat_identifiers[i]}_{p}'
+                pulse_identifier_mapping[p][identifier_str] = concat_identifiers[i]
 
     # Sort everything by the identifiers
     sort_idx = np.argsort(concat_identifiers)
@@ -1483,7 +1483,7 @@ def _concatenate_Hamiltonian(
 
 
 def _merge_attrs(old_attrs: List[ndarray], new_attrs: List[ndarray], d_per_qubit: int,
-                 registers: List[int], qubits: List[int]) -> Tuple[ndarray, List[int]]:
+                 registers: List[int], qubits: List[int]) -> Tuple[List[ndarray], List[int]]:
     """
     For each array in new_attrs, merge into the tensor product array
     defined on the qubit registers in old_attrs at qubits.
@@ -1508,7 +1508,7 @@ def _merge_attrs(old_attrs: List[ndarray], new_attrs: List[ndarray], d_per_qubit
 
 
 def _insert_attrs(old_attrs: List[ndarray], new_attrs: List[ndarray], d_per_qubit: int,
-                  registers: List[int], qubit: int) -> Tuple[ndarray, List[int]]:
+                  registers: List[int], qubit: int) -> Tuple[List[ndarray], List[int]]:
     """
     For each array in new_attrs, insert into the tensor product array
     defined on the qubit registers in old_attrs at qubit.
@@ -1564,7 +1564,7 @@ def _default_extend_mapping(
         identifiers: Sequence[str],
         mapping: Union[None, Mapping[str, str]],
         qubits: Union[Sequence[int], int]
-) -> Tuple[Sequence[str], Dict[str, str]]:
+) -> Tuple[Sequence[str], Mapping[str, str]]:
     """
     Get a default identifier mapping for a pulse that was extended to
     *qubits* if *mapping* is None, else return mapping.
@@ -1650,12 +1650,12 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     noise_keys = ('n_opers', 'n_oper_identifiers', 'n_coeffs')
 
     # Compose new control Hamiltonian
-    control_values = _concatenate_Hamiltonian(
+    control_values = _concatenate_hamiltonian(
         *zip(*[[getattr(pulse, key) for key in control_keys] for pulse in pulses]),
         kind='control'
     )
     # Compose new control Hamiltonian
-    noise_values = _concatenate_Hamiltonian(
+    noise_values = _concatenate_hamiltonian(
         *zip(*[[getattr(pulse, key) for key in noise_keys] for pulse in pulses]),
         kind='noise'
     )
@@ -1760,7 +1760,7 @@ def concatenate(
     # matrix with pulses in rows and all noise operator identifier hashes in
     # columns. True if the noise operator is present in the pulse, False if
     # not. This will give us a boolean mask for indexing the pulses attributes
-    # when retriving the filter functions.
+    # when retrieving the filter functions.
     n_opers_present = np.zeros((len(pulses), len(unique_identifiers)), dtype=bool)
     for i, pulse_identifier in enumerate(pulse_identifiers):
         for j, identifier in enumerate(unique_identifiers):
@@ -2410,7 +2410,7 @@ def extend(
 
     # Add optional additional noise Hamiltonian
     if additional_noise_Hamiltonian is not None:
-        noise_args = _parse_Hamiltonian(
+        noise_args = _parse_hamiltonian(
             additional_noise_Hamiltonian, len(pulses[0].dt), 'H_n'
         )
         add_n_opers, add_n_oper_id, add_n_coeffs = noise_args

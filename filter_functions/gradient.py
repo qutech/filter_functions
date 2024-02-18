@@ -199,7 +199,7 @@ def _liouville_derivative(dt: Coefficients, propagators: ndarray, basis: Basis, 
 
 def _control_matrix_at_timestep_derivative(
         omega: Coefficients,
-        dt: Coefficients,
+        dt: float,
         eigvals: ndarray,
         eigvecs: ndarray,
         basis_transformed,
@@ -224,14 +224,14 @@ def _control_matrix_at_timestep_derivative(
     omega: array_like, shape (n_omega)
         Frequencies, at which the pulse control matrix is to be
         evaluated.
-    dt: array_like, shape (n_dt)
+    dt: float
         Sequence duration, i.e. for the :math:`g`-th pulse
         :math:`t_g - t_{g-1}`.
-    eigvals: array_like, shape (n_dt, d)
+    eigvals: array_like, shape (d,)
         Eigenvalue vectors for each time pulse segment *g* with the
         first axis counting the pulse segment, i.e.
         ``D == array([D_0, D_1, ...])``.
-    eigvecs: array_like, shape (n_dt, d, d)
+    eigvecs: array_like, shape (d, d)
         Eigenvector matrices for each time pulse segment *g* with the
         first axis counting the pulse segment, i.e.
         ``V == array([V_0, V_1, ...])``.
@@ -266,9 +266,9 @@ def _control_matrix_at_timestep_derivative(
 
     Returns
     -------
-    ctrlmat_g: ndarray, shape (n_dt, n_nops, d**2, n_omega)
+    ctrlmat_g: ndarray, shape (n_nops, d**2, n_omega)
         The individual control matrices of all time steps
-    ctrlmat_g_deriv: ndarray, shape (n_dt, n_nops, d**2, n_ctrl, n_omega)
+    ctrlmat_g_deriv: ndarray, shape (n_nops, d**2, n_ctrl, n_omega)
         The corresponding derivative with respect to the control
         strength :math:`\frac{\partial\mathcal{B}_{\alpha j}^{(g)}(\omega)}`
 

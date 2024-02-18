@@ -227,7 +227,7 @@ def parse_spectrum(spectrum: Sequence, omega: Sequence, idx: Sequence) -> ndarra
     return spectrum
 
 
-def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
+def parse_operators(opers: Sequence[Operator], err_loc: str) -> ndarray:
     """Parse a sequence of operators and convert to ndarray.
 
     Parameters
