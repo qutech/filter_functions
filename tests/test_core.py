@@ -84,30 +84,22 @@ class CoreTest(testutil.TestCase):
             ff.PulseSequence(H_c, H_n, dt, basis.reshape(4, 1, 4))
 
         with self.assertRaises(TypeError):
-            # Control Hamiltonian not list or tuple
-            ff.PulseSequence(np.array(H_c, dtype=object), H_n, dt)
+            # Control Hamiltonian not sequence
+            ff.PulseSequence(15, H_n, dt)
 
         with self.assertRaises(TypeError):
-            # Noise Hamiltonian not list or tuple
-            ff.PulseSequence(H_c, np.array(H_n, dtype=object), dt)
-
-        with self.assertRaises(TypeError):
-            # Element of control Hamiltonian not list or tuple
-            ff.PulseSequence([np.array(H_c[0], dtype=object)], H_n, dt)
-
-        with self.assertRaises(TypeError):
-            # Element of noise Hamiltonian not list or tuple
-            ff.PulseSequence(H_c, [np.array(H_n[0], dtype=object)], dt)
+            # Noise Hamiltonian not sequence
+            ff.PulseSequence(H_c, 15, dt)
 
         idx = rng.integers(0, 3)
         with self.assertRaises(TypeError):
-            # Control Hamiltonian element not list or tuple
+            # Control Hamiltonian element not sequence
             H_c[idx] = dict(H_c[idx])
             ff.PulseSequence(H_c, H_n, dt)
 
         H_c[idx] = list(H_c[idx])
         with self.assertRaises(TypeError):
-            # Noise Hamiltonian element not list or tuple
+            # Noise Hamiltonian element not sequence
             H_n[idx] = dict(H_n[idx])
             ff.PulseSequence(H_c, H_n, dt)
 

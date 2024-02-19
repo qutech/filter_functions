@@ -1247,7 +1247,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
     PulseSequence object.
     """
 
-    if not hasattr(dt, '__len__'):
+    if not util.is_sequence_like(dt):
         raise TypeError(f'Expected a sequence of time steps, not {type(dt)}')
 
     dt = np.asarray(dt)
@@ -1289,13 +1289,13 @@ def _parse_hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[
                                                                        Sequence[str],
                                                                        Sequence[Coefficients]]:
     """Helper function to parse the Hamiltonian in QuTiP format."""
-    # Check correct types of the various levels of nestedness
-    if not isinstance(H, (list, tuple)):
-        raise TypeError(f'Expected {H_str} to be a list of lists, not of type {type(H)}!')
+    # Cannot test for Sequence instance since ndarray is not.
+    if not util.is_sequence_like(H):
+        raise TypeError(f'Expected {H_str} to be a sequence, not of type {type(H)}!')
 
-    if not all(isinstance(item, (list, tuple)) for item in H):
-        raise TypeError(f'Expected {H_str} to be a list of lists but found at least one item '
-                        + 'of H not of type list or tuple!')
+    if not all(util.is_sequence_like(item) for item in H):
+        raise TypeError(f'Expected {H_str} to be a sequence of sequences but found at least one '
+                        'item of H not a sequence!')
 
     # Unzip the nested lists into operators and coefficient arrays. Since
     # identifiers are optional, we need to perform a check if they were given.

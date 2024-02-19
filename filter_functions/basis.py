@@ -159,7 +159,7 @@ class Basis(np.ndarray):
     def __new__(cls, basis_array: Sequence, traceless: Optional[bool] = None,
                 btype: Optional[str] = None, labels: Optional[Sequence[str]] = None) -> 'Basis':
         """Constructor."""
-        if not hasattr(basis_array, '__getitem__'):
+        if not util.is_sequence_like(basis_array):
             raise TypeError('Invalid data type. Must be array_like')
 
         if isinstance(basis_array, cls):
