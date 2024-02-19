@@ -1209,7 +1209,7 @@ class PulseSequence:
         # Index of the popagator Q(t_{l-1}) that evolves the state up to
         # the l-1-st step. Since control is piecewise constant, all we have to
         # do to get the state at an arbitrary time t_{l-1} <= t < t_l is
-        # propagate with a time-delta t - t_{l-1} and H_{l}
+        # propagated with a time-delta t - t_{l-1} and H_{l}
         self.diagonalize()
         idx = np.searchsorted(self.t, t) - 1
         # Manually set possible negative idx's to zero (happens for t = 0)
@@ -1251,7 +1251,6 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
         raise TypeError(f'Expected a sequence of time steps, not {type(dt)}')
 
     dt = np.asarray(dt)
-    # Check the time argument for data type and monotonicity (should be increasing)
     if not np.isreal(dt).all():
         raise ValueError('Times dt are not (all) real!')
     if (dt < 0).any():
@@ -1261,7 +1260,6 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
     noise_args = _parse_hamiltonian(H_n, len(dt), 'H_n')
 
     if control_args[0].shape[-2:] != noise_args[0].shape[-2:]:
-        # Check operator shapes
         raise ValueError('Control and noise Hamiltonian not same dimension!')
 
     # Dimension of the system
@@ -1307,13 +1305,9 @@ def _parse_hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[
         coeffs = args[0]
         identifiers = list(args[1])
 
-    # Parse opers and convert to ndarray
-    parsed_opers = util.parse_operators(opers, H_str)
-
-    if not all(hasattr(coeff, '__len__') for coeff in coeffs):
+    if not all(util.is_sequence_like(coeff) for coeff in coeffs):
         raise TypeError(f'Expected coefficients in {H_str} to be a sequence')
 
-    # parse the identifiers
     if identifiers is None:
         if H_str == 'H_c':
             identifiers = np.fromiter((f'A_{i}' for i in range(len(opers))), dtype='<U4')
@@ -1331,15 +1325,14 @@ def _parse_hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[
         if len(set(identifiers)) != len(identifiers):
             raise ValueError(f'{H_str} identifiers should be unique')
 
-        identifiers = np.asarray(identifiers)
-
-    # Check coeffs are all the same length as dt
     if not all(len(coeff) == n_dt for coeff in coeffs):
         raise ValueError(f'Expected all coefficients in {H_str} to be of len(dt) = {n_dt}!')
 
-    coeffs = np.asarray(coeffs)
     idx = np.argsort(identifiers)
-    return parsed_opers[idx], identifiers[idx], coeffs[idx]
+    opers = util.parse_operators(opers, H_str)
+    identifiers = np.asarray(identifiers)
+    coeffs = np.asarray(coeffs)
+    return opers[idx], identifiers[idx], coeffs[idx]
 
 
 def _concatenate_hamiltonian(
@@ -1643,30 +1636,23 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     if len(set(pulse.d for pulse in pulses)) != 1:
         raise ValueError('Trying to concatenate PulseSequence instances with different dimension!')
 
-    # Check if the bases are the same by hashing them and creating a set
     if not util.all_array_equal((pulse.basis for pulse in pulses)):
-        raise ValueError('Trying to concatenate two PulseSequence instances with different bases!')
+        raise ValueError('Trying to concatenate PulseSequence instances with different bases!')
 
-    basis = pulses[0].basis
     control_keys = ('c_opers', 'c_oper_identifiers', 'c_coeffs')
     noise_keys = ('n_opers', 'n_oper_identifiers', 'n_coeffs')
 
-    # Compose new control Hamiltonian
-    control_values = _concatenate_hamiltonian(
-        *zip(*[[getattr(pulse, key) for key in control_keys] for pulse in pulses]),
-        kind='control'
-    )
-    # Compose new control Hamiltonian
-    noise_values = _concatenate_hamiltonian(
-        *zip(*[[getattr(pulse, key) for key in noise_keys] for pulse in pulses]),
-        kind='noise'
-    )
+    control_values = _concatenate_hamiltonian(*[[getattr(pulse, key) for pulse in pulses]
+                                                for key in control_keys],
+                                              kind='control')
+    noise_values = _concatenate_hamiltonian(*[[getattr(pulse, key) for pulse in pulses]
+                                              for key in noise_keys],
+                                            kind='noise')
 
-    dt = np.concatenate(tuple(pulse.dt for pulse in pulses))
-
-    attributes = {'dt': dt, 'd': pulses[0].d, 'basis': basis}
-    attributes.update({key: value for key, value in zip(control_keys, control_values)})
-    attributes.update({key: value for key, value in zip(noise_keys, noise_values)})
+    attributes = {'dt': np.concatenate(tuple(pulse.dt for pulse in pulses)),
+                  'd': pulses[0].d, 'basis': pulses[0].basis}
+    attributes.update(zip(control_keys, control_values))
+    attributes.update(zip(noise_keys, noise_values))
 
     newpulse = PulseSequence(**attributes)
     # Only cache total duration (whole array of times might be large
@@ -1793,11 +1779,10 @@ def concatenate(
 
             return newpulse
 
-        if calc_filter_function is None:
+        if calc_filter_function is None and (not equal_n_opers or not any(cached_ctrl_mat)):
             # compute filter function only if at least one pulse has a control
             # matrix cached
-            if not equal_n_opers or not any(cached_ctrl_mat):
-                return newpulse
+            return newpulse
 
         # Can reuse cached filter functions or calculation explicitly asked
         # for; run calculation. Get the index of the first pulse with cached FF
@@ -2259,23 +2244,24 @@ def extend(
                 single_qubit_idx.extend(qubit)
                 single_qubit_pulses.append(pulse)
                 single_qubit_identifier_mappings.append(id_mapping)
-            else:
-                # sort the qubit tuple and get the sorting indices
-                sorted_qubit, order = zip(*sorted(zip(qubit, range(len(qubit)))))
-                if qubit == sorted_qubit:
-                    # No need to remap
-                    sorted_pulse = pulse
-                else:
-                    # remap the pulse in the given order
-                    try:
-                        sorted_pulse = remap(pulse, order, d_per_qubit)
-                    except ValueError as err:
-                        raise ValueError(f'Could not remap {repr(pulse)} mapped '
-                                         + f'to qubits {qubit}. Do the dimensions match?') from err
+                continue
 
-                multi_qubit_idx.append(list(sorted_qubit))
-                multi_qubit_pulses.append(sorted_pulse)
-                multi_qubit_identifier_mappings.append(id_mapping)
+            # multi-qubit; sort the qubit tuple
+            sorted_qubit, order = zip(*sorted(zip(qubit, range(len(qubit)))))
+            if qubit == sorted_qubit:
+                # No need to remap
+                sorted_pulse = pulse
+            else:
+                # remap the pulse in the given order
+                try:
+                    sorted_pulse = remap(pulse, order, d_per_qubit)
+                except ValueError as err:
+                    raise ValueError(f'Could not remap {repr(pulse)} mapped '
+                                     + f'to qubits {qubit}. Do the dimensions match?') from err
+
+            multi_qubit_idx.append(list(sorted_qubit))
+            multi_qubit_pulses.append(sorted_pulse)
+            multi_qubit_identifier_mappings.append(id_mapping)
         except TypeError:
             # qubit is not iterable, ie single qubit
             active_qubits_list.append(int(qubit))
@@ -2305,23 +2291,20 @@ def extend(
     last_qubit = max(active_qubits)
     if N is None:
         N = last_qubit + 1
-    else:
-        if last_qubit + 1 > N:
-            raise ValueError('Number of qubits N smaller than highest qubit '
-                             + f'index + 1 = {last_qubit + 1}')
+    elif last_qubit + 1 > N:
+        raise ValueError('Number of qubits N smaller than highest qubit '
+                         + f'index + 1 = {last_qubit + 1}')
 
     if len(pulse_to_qubit_mapping) == 1:
         # return input pulse if not mapped to another qubit
-        if multi_qubit_idx:
-            if N == len(multi_qubit_idx[0]):
-                warn('Single multi-qubit pulse given and mapped to its '
-                     + 'original qubits. Returning the same.')
-                return multi_qubit_pulses[0]
-        if single_qubit_idx:
-            if N == 1:
-                warn('Single single-qubit pulse given and mapped to its '
-                     + 'original qubit. Returning the same.')
-                return single_qubit_pulses[0]
+        if multi_qubit_idx and N == len(multi_qubit_idx[0]):
+            warn('Single multi-qubit pulse given and mapped to its '
+                 + 'original qubits. Returning the same.')
+            return multi_qubit_pulses[0]
+        if single_qubit_idx and N == 1:
+            warn('Single single-qubit pulse given and mapped to its '
+                 + 'original qubit. Returning the same.')
+            return single_qubit_pulses[0]
 
     if cache_filter_function is not False:
         # Cache filter function of extended pulse if cached before for the same
@@ -2338,14 +2321,13 @@ def extend(
             cache_filter_function = is_cached and equal_omega
             if cache_filter_function:
                 omega = pulses[0].omega
-        else:
+        elif omega is None:
             # cache_filter_function == True
-            if omega is None:
-                if not equal_omega:
-                    raise ValueError('Filter function should be cached but omega was not '
-                                     + 'provided and could not be inferred.')
+            if not equal_omega:
+                raise ValueError('Filter function should be cached but omega was not '
+                                 + 'provided and could not be inferred.')
 
-                omega = pulses[0].omega
+            omega = pulses[0].omega
 
     if cache_diagonalization is None:
         if cache_filter_function and additional_noise_Hamiltonian is not None:
@@ -2357,8 +2339,7 @@ def extend(
             cache_diagonalization = all(pulse.is_cached(attr)
                                         for attr in attrs
                                         for pulse in pulses)
-    elif (cache_diagonalization is False
-          and additional_noise_Hamiltonian is not None):
+    elif not cache_diagonalization and additional_noise_Hamiltonian is not None:
         raise ValueError('Additional noise Hamiltonian given and '
                          + 'cache_diagonalization set to False but required.')
 
@@ -2584,8 +2565,7 @@ def extend(
         newpulse.total_propagator_liouville = liouville_representation(newpulse.total_propagator,
                                                                        newpulse.basis)
         newpulse.cache_control_matrix(omega, control_matrix[n_sort_idx])
-        newpulse.cache_filter_function(omega,
-                                       filter_function=filter_function[n_sort_idx[:, None],
-                                                                       n_sort_idx[None, :]])
+        newpulse.cache_filter_function(omega, filter_function=filter_function[n_sort_idx[:, None],
+                                                                              n_sort_idx[None, :]])
 
     return newpulse
