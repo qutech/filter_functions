@@ -448,8 +448,8 @@ class PulseSequence:
 
     def __matmul__(self, other: 'PulseSequence') -> 'PulseSequence':
         """Concatenation of PulseSequences."""
-        # Make sure other is a PulseSequence instance (awkward check for type)
-        if not hasattr(other, 'c_opers'):
+        # Make sure other is a PulseSequence instance
+        if not isinstance(other, self.__class__):
             raise TypeError(f'Incompatible type for concatenation: {type(other)}')
 
         return concatenate((self, other))
@@ -1273,7 +1273,7 @@ def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) 
         # expression for a basis expansion
         basis = Basis.ggm(d)
     else:
-        if not hasattr(basis, 'btype'):
+        if not isinstance(basis, Basis):
             raise ValueError("Expected basis to be an instance of the "
                              + f"'filter_functions.basis.Basis' class, not {type(basis)}!")
         if basis.shape[1:] != (d, d):
@@ -1637,15 +1637,11 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     except TypeError:
         raise TypeError(f'Expected pulses to be iterable, not {type(pulses)}')
 
-    if not all(hasattr(pls, 'c_opers') for pls in pulses):
-        # Do awkward checking for type
+    if not all(isinstance(pulse, PulseSequence) for pulse in pulses):
         raise TypeError('Can only concatenate PulseSequences!')
 
-    # Check if the Hamiltonians' shapes are compatible, ie the set of all
-    # shapes has length 1
-    if len(set(pulse.c_opers.shape[1:] for pulse in pulses)) != 1:
-        raise ValueError('Trying to concatenate two PulseSequence '
-                         + 'instances with incompatible Hamiltonian shapes')
+    if len(set(pulse.d for pulse in pulses)) != 1:
+        raise ValueError('Trying to concatenate PulseSequence instances with different dimension!')
 
     # Check if the bases are the same by hashing them and creating a set
     if not util.all_array_equal((pulse.basis for pulse in pulses)):
