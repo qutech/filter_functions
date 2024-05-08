@@ -1108,9 +1108,20 @@ def calculate_cumulant_function(
             cumulant_function[..., 1:, 1:] -= frequency_shifts[..., 1:, 1:]
             cumulant_function[..., 1:, 1:] += frequency_shifts[..., 1:, 1:].swapaxes(-1, -2)
     else:
-        # Multi qubit case. Use general expression. Drop imaginary part since
-        # result is guaranteed to be real (if we didn't do anything wrong)
+        # Multi qubit case. Use general expression.
         traces = pulse.basis.four_element_traces
+        # g_iklj = (
+        #     + traces.transpose(0, 1, 2, 3)
+        #     - traces.transpose(0, 1, 3, 2)
+        #     - traces.transpose(0, 3, 1, 2)
+        #     + traces.transpose(0, 3, 2, 1)
+        # )
+        # g_jikl = (
+        #     + traces.transpose(3, 0, 1, 2)
+        #     - traces.transpose(2, 0, 1, 3)
+        #     - traces.transpose(2, 0, 3, 1)
+        #     + traces.transpose(1, 0, 3, 2)
+        # )
         cumulant_function = - (
             + oe.contract('...kl,klji->...ij', decay_amplitudes, traces, backend='sparse')
             - oe.contract('...kl,kjli->...ij', decay_amplitudes, traces, backend='sparse')
@@ -1118,6 +1129,22 @@ def calculate_cumulant_function(
             + oe.contract('...kl,kijl->...ij', decay_amplitudes, traces, backend='sparse')
         ) / 2
         if second_order:
+            # f_iklj = (
+            #     + traces.transpose(0, 1, 2, 3)
+            #     - traces.transpose(0, 2, 1, 3)
+            #     - traces.transpose(0, 2, 3, 1)
+            #     + traces.transpose(0, 3, 2, 1)
+            # )
+            #
+            # f_iklj = -g_iljk:
+            # f = -g.transpose(0, 2, 3, 1)
+            #
+            # f_jikl = (
+            #     + traces.transpose(3, 0, 1, 2)
+            #     - traces.transpose(3, 0, 2, 1)
+            #     - traces.transpose(1, 0, 2, 3)
+            #     + traces.transpose(1, 0, 3, 2)
+            # )
             cumulant_function -= (
                 + oe.contract('...kl,klji->...ij', frequency_shifts, traces, backend='sparse')
                 - oe.contract('...kl,lkji->...ij', frequency_shifts, traces, backend='sparse')
@@ -1125,6 +1152,7 @@ def calculate_cumulant_function(
                 + oe.contract('...kl,lkij->...ij', frequency_shifts, traces, backend='sparse')
             ) / 2
 
+    # Drop imaginary part since result is guaranteed to be real (if we didn't do anything wrong)
     return cumulant_function.real
 
 
