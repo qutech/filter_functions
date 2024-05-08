@@ -318,11 +318,8 @@ class Basis(ndarray):
     @property
     def T(self) -> 'Basis':
         """Return the basis transposed element-wise."""
-        if self.ndim == 3:
-            return self.transpose(0, 2, 1)
-
-        if self.ndim == 2:
-            return self.transpose(1, 0)
+        if self.ndim >= 2:
+            return self.swapaxes(-1, -2)
 
         return self
 
