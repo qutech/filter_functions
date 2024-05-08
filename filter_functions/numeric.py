@@ -1851,16 +1851,19 @@ def infidelity(
         The ``PulseSequence`` instance for which to calculate the
         infidelity for.
     spectrum: array_like, shape ([[n_nops,] n_nops,] omega) or callable
-        The two-sided noise power spectral density in units of inverse
-        frequencies as an array of shape (n_omega,), (n_nops, n_omega),
-        or (n_nops, n_nops, n_omega). In the first case, the same
-        spectrum is taken for all noise operators, in the second, it is
-        assumed that there are no correlations between different noise
-        sources and thus there is one spectrum for each noise operator.
+        The noise power spectral density in units of inverse frequencies
+        as an array of shape (n_omega,), (n_nops, n_omega), or
+        (n_nops, n_nops, n_omega). In the first case, the same spectrum
+        is taken for all noise operators, in the second, it is assumed
+        that there are no correlations between different noise sources
+        and thus there is one spectrum for each noise operator.
         In the third and most general case, there may be a spectrum for
         each pair of noise operators corresponding to the correlations
         between them. n_nops is the number of noise operators considered
         and should be equal to ``len(n_oper_identifiers)``.
+
+        See :ref:`Notes <notes>` for a discussion on one- and two-sided
+        power spectral densities.
 
         If *test_convergence* is ``True``, a function handle to
         compute the power spectral density from a sequence of
@@ -1946,14 +1949,33 @@ def infidelity(
     infidelities that can be computed by setting
     ``which='correlations'``.
 
+    **One- and two-sided spectral densities**
 
-    To convert to the average gate infidelity, use the
-    following relation given by Horodecki et al. [Hor99]_ and
-    Nielsen [Nie02]_:
+    Since the real (imaginary) part of filter function :math:`F(\omega)`
+    is even (odd), it does not matter for integral whether
+    :math:`S(\omega)` is taken to be the one- or two-sided spectral
+    density. However, care should be taken that, if it is one or the
+    other, the frequencies :math:`\omega` are positive or symmetric
+    about zero, respectively.
+
+    To convert between one- and two-sided PSDs, use the following
+    relationship:
+
+    .. math::
+
+        S_\mathrm{onesided}(\omega) = 2 S_\mathrm{twosided}(\omega).
+
+    **Conversion to the Average Gate Infidelity (AGI)**
+
+    To convert the entanglement infidelity to the average gate
+    infidelity, use the following relation given by Horodecki et al.
+    [Hor99]_ and Nielsen [Nie02]_:
 
     .. math::
 
         \mathcal{I}_\mathrm{avg} = \frac{d}{d+1}\mathcal{I}.
+
+    **Goodness of approximation**
 
     The smallness parameter is given by
 
