@@ -846,7 +846,7 @@ def integrate(f: ndarray, x: Optional[ndarray] = None, dx: float = 1.0) -> Union
 
     See Also
     --------
-    numpy.trapz
+    scipy.integrate.trapezoid
 
     """
     dx = np.diff(x) if x is not None else dx
