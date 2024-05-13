@@ -174,7 +174,7 @@ class Basis(ndarray):
                 pass
 
             basis = util.parse_operators(basis_array, 'basis_array')
-            if basis.shape[0] > np.product(basis.shape[1:]):
+            if basis.shape[0] > np.prod(basis.shape[1:]):
                 raise ValueError('Given overcomplete set of basis matrices. '
                                  'Not linearly independent.')
 
