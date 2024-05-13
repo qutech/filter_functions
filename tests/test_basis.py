@@ -156,6 +156,25 @@ class BasisTest(testutil.TestCase):
         self.assertTrue(basis.isorthonorm)
         self.assertArrayEqual(basis.T, basis.view(np.ndarray).T)
 
+    def test_transpose(self):
+        arr = rng.normal(size=(2, 3, 3))
+        b = arr.view(ff.Basis)
+        self.assertArrayEqual(b.T, arr.transpose(0, 2, 1))
+
+        arr = rng.normal(size=(2, 2))
+        b = arr.view(ff.Basis)
+        self.assertArrayEqual(b.T, arr.transpose(1, 0))
+
+        # Edge cases for not officially intended usage
+        arr = rng.normal(size=2)
+        b = arr.view(ff.Basis)
+        self.assertArrayEqual(b.T, arr)
+
+        arr = rng.normal(size=(2, 3, 4, 4))
+        b = arr.view(ff.Basis)
+        self.assertArrayEqual(b.T, arr.transpose(0, 1, 3, 2))
+
+
     def test_basis_expansion_and_normalization(self):
         """Correct expansion of operators and normalization of bases"""
         # dtype
