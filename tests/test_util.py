@@ -23,6 +23,7 @@ This module tests the utility functions in util.py
 """
 import numpy as np
 import pytest
+from scipy import integrate
 
 from filter_functions import PulseSequence, util
 from tests import testutil
@@ -415,11 +416,11 @@ class UtilTest(testutil.TestCase):
     def test_integrate(self):
         f = rng.standard_normal(32)
         x = rng.random(32)
-        self.assertEqual(util.integrate(f, x), np.trapz(f, x))
+        self.assertEqual(util.integrate(f, x), integrate.trapezoid(f, x))
 
         f = rng.standard_normal((2, 32)).astype(complex)
         x = rng.random(32)
-        self.assertArrayEqual(util.integrate(f, x), np.trapz(f, x))
+        self.assertArrayEqual(util.integrate(f, x), integrate.trapezoid(f, x))
 
         f = rng.standard_normal(32)
         x = np.linspace(0, 1, 32)

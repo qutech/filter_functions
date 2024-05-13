@@ -41,7 +41,7 @@ def _get_integrals_first_order(d, E, eigval, dt, t0):
     EdE = np.add.outer(E, dE)
     integrand = np.exp(1j*np.multiply.outer(EdE, tspace - t0))
 
-    integral_numeric = integrate.trapz(integrand, tspace)
+    integral_numeric = integrate.trapezoid(integrand, tspace)
     integral = numeric._first_order_integral(E, eigval, dt, exp_buf, int_buf)
     return integral, integral_numeric
 
@@ -61,12 +61,12 @@ def _get_integrals_second_order(d, E, eigval, dt, t0):
 
     ex = (np.multiply.outer(dE, tspace - t0)
           + np.multiply.outer(E, tspace)[:, None, None])
-    I1 = integrate.cumtrapz(util.cexp(ex), tspace, initial=0)
+    I1 = integrate.cumulative_trapezoid(util.cexp(ex), tspace, initial=0)
     ex = (np.multiply.outer(dE, tspace - t0)
           - np.multiply.outer(E, tspace)[:, None, None])
     integrand = util.cexp(ex)[:, :, :, None, None] * I1[:, None, None]
 
-    integral_numeric = integrate.trapz(integrand, tspace)
+    integral_numeric = integrate.trapezoid(integrand, tspace)
     integral = numeric._second_order_integral(E, eigval, dt, int_buf, frc_bufs, dE_bufs,
                                               exp_buf, msk_bufs)
     return integral, integral_numeric
