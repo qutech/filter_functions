@@ -227,6 +227,9 @@ def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
         elif hasattr(oper, 'full'):
             # qutip.Qobj
             parsed_opers.append(oper.full())
+        elif hasattr(oper, 'to_array'):
+            # qutip.Dia object
+            parsed_opers.append(oper.to_array())
         elif hasattr(oper, 'todense'):
             # sparse object
             parsed_opers.append(oper.todense())
@@ -843,7 +846,7 @@ def integrate(f: ndarray, x: Optional[ndarray] = None, dx: float = 1.0) -> Union
 
     See Also
     --------
-    numpy.trapz
+    scipy.integrate.trapezoid
 
     """
     dx = np.diff(x) if x is not None else dx

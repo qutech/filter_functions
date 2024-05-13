@@ -261,7 +261,8 @@ def plot_bloch_vector_evolution(
         b.axes.add_collection3d(lc, zdir='z', zs=segments[:, :, 2])
 
         if add_cbar:
-            default_cbar_kwargs = dict(shrink=2/3, pad=0.05, label=r'$t$ ($\tau$)', ticks=[0, 1])
+            default_cbar_kwargs = dict(shrink=2/3, pad=0.05, label=r'$t$ ($\tau$)', ticks=[0, 1],
+                                       ax=b.axes)
             cbar_kwargs = {**default_cbar_kwargs, **(cbar_kwargs or {})}
             b.fig.colorbar(cm.ScalarMappable(cmap=cmap), **cbar_kwargs)
 

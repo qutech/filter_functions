@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import re
-import sys
 
 from setuptools import setup
 
@@ -16,11 +15,6 @@ def extract_version(version_file):
         return version_match.group(1)
 
     raise RuntimeError("Unable to find version string.")
-
-
-if sys.version_info < (3, 7):
-    sys.stderr.write('ERROR: You need Python 3.7 or later to install this package.\n')
-    exit(1)
 
 extras_require = {'plotting': ['matplotlib'],
                   'bloch_sphere_visualization': ['qutip', 'matplotlib'],
@@ -40,6 +34,7 @@ setup(name='filter_functions',
       author_email='tobias.hangleiter@rwth-aachen.de',
       packages=['filter_functions'],
       package_dir={'filter_functions': 'filter_functions'},
+      python_requires='>=3.8',
       install_requires=['numpy', 'scipy', 'opt_einsum', 'sparse', 'tqdm'],
       extras_require=extras_require,
       test_suite='tests',

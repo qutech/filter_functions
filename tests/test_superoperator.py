@@ -129,7 +129,7 @@ class SuperoperatorTest(testutil.TestCase):
             self.assertArrayEqual(CP, _CP)
             self.assertTrue(np.all(CP))
             if U_sup.ndim == 2:
-                self.assertIsInstance(CP, (bool, np.bool8))
+                self.assertIsInstance(CP, (bool, np.bool_))
             else:
                 self.assertEqual(CP.shape[0], U_sup.shape[0])
             # Only one nonzero eigenvalue
@@ -143,7 +143,7 @@ class SuperoperatorTest(testutil.TestCase):
             CP = superoperator.liouville_is_CP(U_sup, pulse.basis)
 
             self.assertTrue(np.all(CP))
-            self.assertIsInstance(CP, (bool, np.bool8))
+            self.assertIsInstance(CP, (bool, np.bool_))
 
     def test_liouville_is_cCP(self):
         for d in rng.integers(2, 9, (15,)):
@@ -165,7 +165,7 @@ class SuperoperatorTest(testutil.TestCase):
             self.assertArrayEqual(cCP, _cCP)
             self.assertTrue(np.all(cCP))
             if H_sup.ndim == 2:
-                self.assertIsInstance(cCP, (bool, np.bool8))
+                self.assertIsInstance(cCP, (bool, np.bool_))
             else:
                 self.assertEqual(cCP.shape[0], H_sup.shape[0])
             self.assertArrayAlmostEqual(D, 0, atol=1e-14)
@@ -182,6 +182,6 @@ class SuperoperatorTest(testutil.TestCase):
 
             self.assertTrue(np.all(cCP))
             if K_sup.ndim == 2:
-                self.assertIsInstance(cCP, (bool, np.bool8))
+                self.assertIsInstance(cCP, (bool, np.bool_))
             else:
                 self.assertEqual(cCP.shape[0], K_sup.shape[0])
