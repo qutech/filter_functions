@@ -60,9 +60,6 @@ extensions = [
     #'sphinx.ext.doctest',
 ]
 
-# Autosummary
-autosummary_generate = True
-
 # Apidoc config
 apidoc_module_dir = '../../filter_functions'
 apidoc_excluded_paths = ['../tests']
