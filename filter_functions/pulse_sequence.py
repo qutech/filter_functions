@@ -636,7 +636,7 @@ class PulseSequence:
             The filter function for each combination of noise operators
             as a function of omega.
 
-        .. _notes
+        .. _notes:
 
         Notes
         -----
