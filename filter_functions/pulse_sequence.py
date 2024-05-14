@@ -1950,6 +1950,7 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
     True
 
     Caching of attributes is automatically handled
+
     >>> remapped_pulse.is_cached('filter_function')
     False
     >>> pulse.cache_filter_function(util.get_sample_frequencies(pulse))
