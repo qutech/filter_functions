@@ -19,10 +19,11 @@ def extract_version(version_file):
 extras_require = {'plotting': ['matplotlib'],
                   'bloch_sphere_visualization': ['qutip', 'matplotlib'],
                   'fancy_progressbar': ['ipynbname', 'jupyter'],
-                  'doc': ['jupyter', 'nbsphinx', 'numpydoc', 'sphinx', 'sphinx_rtd_theme'],
+                  'doc': ['jupyter', 'nbsphinx', 'numpydoc', 'sphinx', 'sphinx_rtd_theme',
+                          'ipympl', 'qutip-qip', 'qutip-qtrl'],
                   'tests': ['pytest>=4.6', 'pytest-cov', 'codecov']}
 
-extras_require['all'] = [dep for deps in extras_require.values() for dep in deps]
+extras_require['all'] = list({dep for deps in extras_require.values() for dep in deps})
 
 setup(name='filter_functions',
       version=extract_version(read('filter_functions', '__init__.py')),

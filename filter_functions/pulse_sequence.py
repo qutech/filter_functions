@@ -636,7 +636,7 @@ class PulseSequence:
             The filter function for each combination of noise operators
             as a function of omega.
 
-        .. _notes
+        .. _notes:
 
         Notes
         -----
@@ -1411,12 +1411,12 @@ def _concatenate_Hamiltonian(
         # cannot do this, we have to raise an exception since we cannot know
         # the sensitivities at other moments in time if they are non-trivial.
         nan_mask = np.isnan(concat_coeffs)
-        test = nan_mask.any(axis=1)
-        for i, (concat_coeff, mask) in enumerate(zip(concat_coeffs[test], nan_mask[test])):
-            nonnan_coeff = concat_coeff[~mask]
+        nan_idxs, = nan_mask.any(axis=1).nonzero()
+        for nan_idx in nan_idxs:
+            nonnan_coeff = concat_coeffs[nan_idx][~nan_mask[nan_idx]]
             if (nonnan_coeff == nonnan_coeff[0]).all():
                 # Constant value, use for empty segment
-                concat_coeffs[i, mask] = nonnan_coeff[0]
+                concat_coeffs[nan_idx, nan_mask[nan_idx]] = nonnan_coeff[0]
             else:
                 raise ValueError('Not all pulses have the same noise operators and '
                                  + 'non-trivial noise sensitivities so I cannot infer them.')
@@ -1950,6 +1950,7 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
     True
 
     Caching of attributes is automatically handled
+
     >>> remapped_pulse.is_cached('filter_function')
     False
     >>> pulse.cache_filter_function(util.get_sample_frequencies(pulse))

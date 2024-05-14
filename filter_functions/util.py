@@ -1044,7 +1044,9 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing
 
 def hash_array_along_axis(arr: ndarray, axis: int = 0) -> List[int]:
     """Return the hashes of arr along the first axis"""
-    return [hash(arr.tobytes()) for arr in np.swapaxes(arr, 0, axis)]
+    # Adding 0.0 converts -0.0 to 0.0, which sanitizes arrays that compare as equal element-wise
+    # but result in different hashes
+    return [hash((arr + 0.0).tobytes()) for arr in np.swapaxes(arr, 0, axis)]
 
 
 def all_array_equal(it: Iterable) -> bool:

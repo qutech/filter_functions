@@ -442,6 +442,12 @@ class UtilTest(testutil.TestCase):
                 arr = util.remove_float_errors(arr, eps_scale)
                 self.assertArrayEqual(arr, np.zeros(arr.shape, dtype=dtype))
 
+    def test_hash_array_along_axis(self):
+        x = y = np.random.randn(5, 6)
+        x[3, 4] = 0.0
+        y[3, 4] = -0.0
+        self.assertEqual(*util.hash_array_along_axis([x, y], axis=0))
+
     def test_oper_equiv(self):
         with self.assertRaises(ValueError):
             util.oper_equiv(rng.standard_normal((2, 2)), rng.standard_normal((3, 3)))

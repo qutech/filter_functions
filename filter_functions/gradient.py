@@ -46,7 +46,7 @@ Functions
 ---------
 :func:`calculate_derivative_of_control_matrix_from_scratch`
     Calculate the derivative of the control matrix from scratch.
-:func:`calculate_canonical_filter_function_derivative`
+:func:`calculate_filter_function_derivative`
     Compute the filter function derivative from the control matrix.
 :func:`infidelity_derivative`
     Calculate the infidelity derivative.

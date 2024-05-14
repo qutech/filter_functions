@@ -146,8 +146,8 @@ QFT = QFT_pulse(N)
 swaps = [qip.operations.swap(N, [i, j]).full()
          for i, j in zip(range(N//2), range(N-1, N//2-1, -1))]
 prop = ff.util.mdot(swaps) @ QFT.total_propagator
-qt.matrix_histogram_complex(prop)
-print('Correct action: ', ff.util.oper_equiv(prop, qt_qft(N), eps=1e-14))
+qt.matrix_histogram(prop, bar_style='abs', color_style='phase')
+print('Correct action: ', ff.util.oper_equiv(prop, qt_qft(N), eps=1e-13))
 
 fig, ax, _ = plotting.plot_filter_function(QFT, omega)
 # Move the legend to the side because of many entries

@@ -1,14 +1,14 @@
 version: 2
 
 build:
-  image: stable
-  python: "3.10"
+  os: ubuntu-22.04
+  tools:
+    python: mambaforge-latest
 
 conda:
   environment: environment.yml
 
 python:
-  system_packages: true
   install:
     - method: pip
       path: .
@@ -17,3 +17,7 @@ python:
          - plotting
          - bloch_sphere_visualization
          - fancy_progressbar
+
+sphinx:
+  builder: html
+  configuration: doc/source/conf.py

@@ -20,6 +20,14 @@ filter\_functions.basis module
    :undoc-members:
    :show-inheritance:
 
+filter\_functions.gradient module
+---------------------------------
+
+.. automodule:: filter_functions.gradient
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 filter\_functions.numeric module
 --------------------------------
 
@@ -40,14 +48,6 @@ filter\_functions.pulse\_sequence module
 ----------------------------------------
 
 .. automodule:: filter_functions.pulse_sequence
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-filter\_functions.gradient module
-----------------------------------------
-
-.. automodule:: filter_functions.gradient
    :members:
    :undoc-members:
    :show-inheritance:
