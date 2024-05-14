@@ -277,9 +277,9 @@ epub_exclude_files = ['search.html']
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
-    'matplotlib': ('https://matplotlib.org/', None),
-    'qutip': ('http://qutip.org/docs/latest/', None)
+    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
+    'matplotlib': ('https://matplotlib.org/stable/', None),
+    'qutip': ('https://qutip.readthedocs.io/en/latest/', None)
 }
 
 # -- Options for todo extension ----------------------------------------------
