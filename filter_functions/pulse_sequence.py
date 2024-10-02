@@ -237,6 +237,17 @@ class PulseSequence:
     Due to the heavy use of NumPy's :func:`~numpy.einsum` function,
     results have a floating point error of ~1e-13.
     """
+    __array_interface__ = {
+        'shape': (),
+        'typestr': '|O',
+        'version': 3
+    }
+    """Describes to NumPy how to convert this object into an array.
+
+    Since :class:`PulseSequence` is iterable (through
+    :meth:`__getitem__`), NumPy would otherwise try to create an
+    ndarray of single-segment :class:`PulseSequence` s.
+    """
 
     def __init__(self, *args, **kwargs) -> None:
         """Initialize a PulseSequence instance."""
