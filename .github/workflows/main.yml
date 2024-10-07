@@ -27,11 +27,11 @@ jobs:
     - name: Install
       run: |
         python -m pip install --upgrade pip
-        pip install .[${{ matrix.install_extras }}]
+        python -m pip install .[${{ matrix.install_extras }}]
 
     - name: Test with pytest
       run: |
-        pytest
+        python -m hatch run tests:run
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
@@ -60,11 +60,11 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install setuptools wheel twine
+        pip install hatch
 
     - name: Build package
       run: |
-        python setup.py sdist bdist_wheel
+        python -m hatch build
 
     - name: Publish package
       env:
