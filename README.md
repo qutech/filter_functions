@@ -3,7 +3,7 @@
 [![Build status](https://github.com/qutech/filter_functions/actions/workflows/main.yml/badge.svg)](https://github.com/qutech/filter_functions/actions/workflows/main.yml)
 [![Documentation Status](https://readthedocs.org/projects/filter-functions/badge/?version=latest)](https://filter-functions.readthedocs.io/en/latest/?badge=latest)
 [![PyPI version](https://img.shields.io/pypi/v/filter-functions.svg)](https://pypi.org/project/filter-functions/)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4575001.svg)](https://doi.org/10.5281/zenodo.4575001)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4575000.svg)](https://doi.org/10.5281/zenodo.4575000)
 
 ## Introduction
 Simply put, filter functions characterize a quantum system's susceptibility to noise at a given frequency during a control operation and can thus be used to gain insight into its decoherence. The formalism allows for efficient calculation of several quantities of interest such as average gate fidelity and even the entire quantum process up to a unitary rotation. Moreover, the filter function of a composite pulse can be easily derived from those of the constituent pulses, allowing for efficient assembly and characterization of pulse sequences.
@@ -84,8 +84,7 @@ If this software has benefited your research, please consider citing:
 [3]: I. N. M. Le, J. D. Teske, T. Hangleiter, P. Cerfontaine, and Hendrik Bluhm. Analytic Filter Function Derivatives for Quantum Optimal Control. Phys. Rev. Applied **17**, 024006 (2022). [10.1103/PhysRevApplied.17.024006](https://doi.org/10.1103/PhysRevApplied.17.024006). [arXiv:2103.09126](https://arxiv.org/abs/2103.09126).
 
 ### Software
-[4]: T. Hangleiter, I. N. M. Le, and J. D. Teske, "filter_functions: A package for efficient numerical calculation of generalized filter functions to describe the effect of noise on quantum gate operations," (2021). [10.5281/zenodo.4575001](http://doi.org/10.5281/zenodo.4575001).
-
+[4]: T. Hangleiter, I. N. M. Le, and J. D. Teske, "filter_functions: A package for efficient numerical calculation of generalized filter functions to describe the effect of noise on quantum gate operations," (2021). [10.5281/zenodo.4575000](http://doi.org/10.5281/zenodo.4575000).
 
 ## Additional References
 [5]: L. Cywinski, R. M. Lutchyn, C. P. Nave, and S. Das Sarma. How to enhance dephasing time in superconducting qubits. Phys. Rev. B **77**, 174509 (2008). [10.1103/PhysRevB.77.174509](https://doi.org/10.1103/PhysRevB.77.174509).

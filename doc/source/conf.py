@@ -12,11 +12,6 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
-import sys
-sys.path.insert(0, os.path.abspath('.'))
-#sys.path.insert(1, os.path.abspath('../../'))
-
 import filter_functions
 
 # -- Project information -----------------------------------------------------
@@ -93,7 +88,7 @@ master_doc = 'index'
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -277,9 +272,9 @@ epub_exclude_files = ['search.html']
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
-    'matplotlib': ('https://matplotlib.org/', None),
-    'qutip': ('http://qutip.org/docs/latest/', None)
+    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
+    'matplotlib': ('https://matplotlib.org/stable/', None),
+    'qutip': ('https://qutip.readthedocs.io/en/latest/', None)
 }
 
 # -- Options for todo extension ----------------------------------------------

@@ -32,7 +32,7 @@ import numpy as np
 import qutip as qt
 from numpy import ndarray
 from numpy.random import permutation
-from scipy import io, optimize
+from scipy import io, optimize, integrate
 
 # %%
 
@@ -46,7 +46,7 @@ def state_infidelity(pulse: ff.PulseSequence, S: ndarray, omega: ndarray,
     """Compute state infidelity for input state eigenstate of pauli *ind*"""
     R = pulse.get_control_matrix(omega)
     F = np.einsum('jko->jo', ff.util.abs2(R[:, np.delete([0, 1, 2, 3], ind)]))
-    return np.trapz(F*S, omega)/(2*np.pi*pulse.d)
+    return integrate.trapezoid(F*S, omega)/(2*np.pi*pulse.d)
 
 
 def find_inverse(U: ndarray, cliffords: Sequence[ff.PulseSequence]) -> ndarray:

@@ -1,0 +1,101 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: >-
+  filter_functions
+message: >-
+  If this software has benefited your research, please 
+  consider citing it as below.
+type: software
+doi: 10.5281/zenodo.4575000
+authors:
+  - given-names: Tobias
+    family-names: Hangleiter
+    email: tobias.hangleiter@rwth-aachen.de
+    affiliation: >-
+      JARA-FIT Institute for Quantum Information,
+      Forschungszentrum Jülich GmbH and RWTH Aachen
+      University, 52074 Aachen, Germany
+    orcid: 'https://orcid.org/0000-0002-5177-6162'
+  - given-names: Isabel
+    family-names: Nha Minh Le
+    email: isabel.le@rwth-aachen.de
+    affiliation: >-
+      JARA-FIT Institute for Quantum Information,
+      Forschungszentrum Jülich GmbH and RWTH Aachen
+      University, 52074 Aachen, Germany
+    orcid: 'https://orcid.org/0000-0001-6707-044X'
+  - given-names: Julian D.
+    family-names: Teske
+    email: julian.teske@rwth-aachen.de
+    affiliation: >-
+      JARA-FIT Institute for Quantum Information,
+      Forschungszentrum Jülich GmbH and RWTH Aachen
+      University, 52074 Aachen, Germany
+    orcid: 'https://orcid.org/0000-0002-7590-7876'
+preferred-citation:
+  type: article
+  authors:
+  - given-names: Tobias
+    family-names: Hangleiter
+    email: tobias.hangleiter@rwth-aachen.de
+    affiliation: >-
+      JARA-FIT Institute for Quantum Information,
+      Forschungszentrum Jülich GmbH and RWTH Aachen
+      University, 52074 Aachen, Germany
+    orcid: 'https://orcid.org/0000-0002-5177-6162'
+  - given-names: Pascal
+    family-names: Cerfontaine
+    email: pascal.cerfontaine@rwth-aachen.de
+    affiliation: >-
+      JARA-FIT Institute for Quantum Information,
+      Forschungszentrum Jülich GmbH and RWTH Aachen
+      University, 52074 Aachen, Germany
+    orcid: 'https://orcid.org/0000-0002-8227-4018'
+  - given-names: Hendrik
+    family-names: Bluhm
+    email: bluhm@physik.rwth-aachen.de
+    affiliation: >-
+      JARA-FIT Institute for Quantum Information,
+      Forschungszentrum Jülich GmbH and RWTH Aachen
+      University, 52074 Aachen, Germany
+    orcid: 'https://orcid.org/0000-0002-5224-7254'
+  doi: 10.1103/PhysRevResearch.3.043047
+  journal: Physical Review Research
+  month: 10
+  year: 2021
+  start: 043047
+  title: >-
+    Filter-function formalism and software package 
+    to compute quantum processes of gate sequences 
+    for classical non-Markovian noise
+  issue: 4
+  volume: 3
+identifiers:
+  - type: doi
+    value: 10.1103/PhysRevResearch.3.043047
+    description: >-
+      Article on the formalism and software
+      implementation
+  - type: doi
+    value: 10.5281/zenodo.4575000
+    description: Zenodo DOI for the software package
+  - type: doi
+    value: 10.1103/PhysRevLett.127.170403
+    description: Letter introducing parts of the formalism
+  - type: doi
+    value: 10.1103/PhysRevApplied.17.024006
+    description: Article on analytic derivatives
+repository-code: 'https://github.com/qutech/filter_functions'
+url: >-
+  https://www.quantuminfo.physik.rwth-aachen.de/cms/Quantuminfo/Forschung/Quantum-Technology-Group/~zcsx/code/lidx/1/
+keywords:
+  - python
+  - physics
+  - quantum computing
+  - quantum information
+  - qutip
+  - filter functions
+  - quantum control
+license: GPL-3.0

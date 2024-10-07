@@ -5,9 +5,8 @@ channels:
   - conda-forge
 
 dependencies:
-  - python < 3.9
+  - python >= 3.9
   - qutip
   - pip
 
 prefix: /home/docs/.conda/envs/filter_functions
-

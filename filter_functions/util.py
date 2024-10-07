@@ -72,7 +72,7 @@ import inspect
 import operator
 import string
 from itertools import zip_longest
-from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from numpy import ndarray
@@ -152,7 +152,7 @@ def cexp(x: ndarray, out=None, where=True) -> ndarray:
     return out
 
 
-def parse_optional_parameters(**allowed_kwargs: Dict[str, Sequence]) -> Callable:
+def parse_optional_parameters(**allowed_kwargs: Sequence) -> Callable:
     """Decorator factory to parse optional parameter with certain legal
     values.
 
@@ -173,12 +173,28 @@ def parse_optional_parameters(**allowed_kwargs: Dict[str, Sequence]) -> Callable
                     value = kwargs.get(name, parameters[name].default)
 
                 if value not in allowed:
-                    raise ValueError(f"Invalid value for {name}: {value}. " +
-                                     f"Should be one of {allowed}.")
+                    raise ValueError(f"Invalid value for {name}: {value}. "
+                                     + f"Should be one of {allowed}.")
 
             return func(*args, **kwargs)
         return wrapper
     return decorator
+
+
+def parse_spectrum(spectrum: Sequence, omega: Sequence, idx: Sequence) -> ndarray:
+    error = 'Spectrum should be of shape {}, not {}.'
+    shape = (len(idx),)*(spectrum.ndim - 1) + (len(omega),)
+    try:
+        spectrum = np.broadcast_to(spectrum, shape)
+    except ValueError as broadcast_error:
+        raise ValueError(error.format(shape, spectrum.shape)) from broadcast_error
+
+    if spectrum.ndim == 3 and not np.allclose(spectrum, spectrum.conj().swapaxes(0, 1)):
+        raise ValueError('Cross-spectra given but not Hermitian along first two axes')
+    elif spectrum.ndim > 3:
+        raise ValueError(f'Expected spectrum to have < 4 dimensions, not {spectrum.ndim}')
+
+    return spectrum
 
 
 def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
@@ -211,6 +227,9 @@ def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
         elif hasattr(oper, 'full'):
             # qutip.Qobj
             parsed_opers.append(oper.full())
+        elif hasattr(oper, 'to_array'):
+            # qutip.Dia object
+            parsed_opers.append(oper.to_array())
         elif hasattr(oper, 'todense'):
             # sparse object
             parsed_opers.append(oper.todense())
@@ -220,14 +239,16 @@ def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
         else:
             raise TypeError(f'Expected operators in {err_loc} to be NumPy arrays or QuTiP Qobjs!')
 
-    # Check correct dimensions of the operators
-    if set(oper.ndim for oper in parsed_opers) != {2}:
-        raise ValueError(f'Expected all operators in {err_loc} to be two-dimensional!')
+    parsed_opers = np.asarray(parsed_opers, dtype=complex)
 
-    if len(set(*set(oper.shape for oper in parsed_opers))) != 1:
+    # Check correct dimensions of the operators
+    if parsed_opers.ndim > 3:
+        raise ValueError(f'Expected operators in {err_loc} to be two-dimensional!')
+
+    if len(set(parsed_opers.shape[-2:])) != 1:
         raise ValueError(f'Expected operators in {err_loc} to be square!')
 
-    return np.asarray(parsed_opers)
+    return parsed_opers
 
 
 def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int], rank: int):
@@ -243,8 +264,8 @@ def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int], rank: 
             # Both arguments have same dimension on axis.
             broadcast_shape = dims[:1] + broadcast_shape
         else:
-            raise ValueError(f'Incompatible shapes {shape_A} and {shape_B} ' +
-                             f'for tensor product of rank {rank}.')
+            raise ValueError(f'Incompatible shapes {shape_A} and {shape_B} '
+                             + f'for tensor product of rank {rank}.')
 
     # Shape of the actual tensor product is product of each dimension,
     # again broadcasting if need be
@@ -291,8 +312,8 @@ def get_indices_from_identifiers(all_identifiers: Sequence[str],
                 inds = np.array([identifier_to_index_table[identifier]
                                  for identifier in identifiers])
         except KeyError:
-            raise ValueError('Invalid identifiers given. All available ones ' +
-                             f'are: {all_identifiers}')
+            raise ValueError('Invalid identifiers given. All available ones '
+                             + f'are: {all_identifiers}')
 
     return inds
 
@@ -514,8 +535,8 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
             args = (tensor(*args, rank=rank, optimize=optimize),)
     else:
         if not len(pos) == len(args):
-            raise ValueError('Expected pos to be either an int or a sequence of the same length ' +
-                             f'as the number of args, not length {len(pos)}')
+            raise ValueError('Expected pos to be either an int or a sequence of the same length '
+                             + f'as the number of args, not length {len(pos)}')
 
     _parse_dims_arg('arr', arr_dims, rank)
 
@@ -559,16 +580,16 @@ def tensor_insert(arr: ndarray, *args, pos: Union[int, Sequence[int]],
             key=operator.itemgetter(0))):
 
         if div not in (-1, 0):
-            raise IndexError(f'Invalid position {cpos[i]} specified. Must ' +
-                             f'be between -{ndim} and {ndim}.')
+            raise IndexError(f'Invalid position {cpos[i]} specified. Must '
+                             + f'be between -{ndim} and {ndim}.')
 
         # Insert argument arg at position p+i (since every iteration the index
         # shifts by 1)
         try:
             result = single_tensor_insert(result, arg, carr_dims, p+i)
         except ValueError as err:
-            raise ValueError(f'Could not insert arg {arg_counter} with shape {result.shape} ' +
-                             f'into the array with shape {arg.shape} at position {p}.') from err
+            raise ValueError(f'Could not insert arg {arg_counter} with shape {result.shape} '
+                             + f'into the array with shape {arg.shape} at position {p}.') from err
 
         # Update arr_dims
         for axis, d in zip(carr_dims, arg.shape[-rank:]):
@@ -689,8 +710,8 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
             if p != arr_ndim:
                 div, p = divmod(p, arr_ndim)
                 if div not in (-1, 0):
-                    raise IndexError(f'Invalid position {pos[i]} specified. Must be between ' +
-                                     f'-{arr_ndim} and {arr_ndim}.')
+                    raise IndexError(f'Invalid position {pos[i]} specified. Must be between '
+                                     + f'-{arr_ndim} and {arr_ndim}.')
             arr_part = arr_part[:p+i] + ins_p + arr_part[p+i:]
 
         out_chars += arr_part
@@ -707,13 +728,13 @@ def tensor_merge(arr: ndarray, ins: ndarray, pos: Sequence[int],
     try:
         ins_reshaped = ins.reshape(*ins.shape[:-rank], *flat_ins_dims)
     except ValueError as err:
-        raise ValueError('ins_dims not compatible with ins.shape[-rank:] = ' +
-                         f'{ins.shape[-rank:]}') from err
+        raise ValueError('ins_dims not compatible with ins.shape[-rank:] = '
+                         + f'{ins.shape[-rank:]}') from err
     try:
         arr_reshaped = arr.reshape(*arr.shape[:-rank], *flat_arr_dims)
     except ValueError as err:
-        raise ValueError('arr_dims not compatible with arr.shape[-rank:] = ' +
-                         f'{arr.shape[-rank:]}') from err
+        raise ValueError('arr_dims not compatible with arr.shape[-rank:] = '
+                         + f'{arr.shape[-rank:]}') from err
 
     result = np.einsum(subscripts, ins_reshaped, arr_reshaped, optimize=optimize).reshape(outshape)
 
@@ -774,8 +795,8 @@ def tensor_transpose(arr: ndarray, order: Sequence[int], arr_dims: Sequence[Sequ
     ndim = len(arr_dims[0])
     # Number of axes that are broadcast over
     n_broadcast = len(arr.shape[:-rank])
-    transpose_axes = ([i for i in range(n_broadcast)] +
-                      [n_broadcast + r*ndim + o for r in range(rank) for o in order])
+    transpose_axes = ([i for i in range(n_broadcast)]
+                      + [n_broadcast + r*ndim + o for r in range(rank) for o in order])
 
     # Need to reshape arr to the rank*ndim-dimensional shape that's the
     # output of the regular tensor einsum call
@@ -785,17 +806,17 @@ def tensor_transpose(arr: ndarray, order: Sequence[int], arr_dims: Sequence[Sequ
     try:
         arr_reshaped = arr.reshape(*arr.shape[:-rank], *flat_arr_dims)
     except ValueError as err:
-        raise ValueError('arr_dims not compatible with arr.shape[-rank:] = ' +
-                         f'{arr.shape[-rank:]}') from err
+        raise ValueError('arr_dims not compatible with arr.shape[-rank:] = '
+                         + f'{arr.shape[-rank:]}') from err
 
     try:
         result = arr_reshaped.transpose(*transpose_axes).reshape(arr.shape)
     except TypeError as type_err:
-        raise TypeError("Could not transpose the order. Are all elements of " +
-                        "'order' integers?") from type_err
+        raise TypeError("Could not transpose the order. Are all elements of "
+                        + "'order' integers?") from type_err
     except ValueError as val_err:
-        raise ValueError("Could not transpose the order. Are all elements " +
-                         "of 'order' unique and match the array?") from val_err
+        raise ValueError("Could not transpose the order. Are all elements "
+                         + "of 'order' unique and match the array?") from val_err
 
     return result
 
@@ -825,7 +846,7 @@ def integrate(f: ndarray, x: Optional[ndarray] = None, dx: float = 1.0) -> Union
 
     See Also
     --------
-    numpy.trapz
+    scipy.integrate.trapezoid
 
     """
     dx = np.diff(x) if x is not None else dx
@@ -905,8 +926,8 @@ def oper_equiv(psi: Union[Operator, State], phi: Union[Operator, State],
     if eps is None:
         # Tolerance the floating point eps times the # of flops for the matrix
         # multiplication, i.e. for psi and phi n x m matrices 2*n**2*m
-        eps = (max(np.finfo(psi.dtype).eps, np.finfo(phi.dtype).eps) *
-               np.prod(psi.shape)*phi.shape[-1]*2)
+        eps = (max(np.finfo(psi.dtype).eps, np.finfo(phi.dtype).eps)
+               * np.prod(psi.shape)*phi.shape[-1]*2)
         if not normalized:
             # normalization introduces more floating point error
             eps *= (np.prod(psi.shape[-2:])*phi.shape[-1]*2)**2
@@ -928,7 +949,8 @@ def oper_equiv(psi: Union[Operator, State], phi: Union[Operator, State],
     return abs(norm - modulus) <= eps, phase
 
 
-def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> float:
+def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> Union[float, complex,
+                                                                           ndarray]:
     r"""Return the Hilbert-Schmidt inner product of U and V,
 
     .. math::
@@ -980,10 +1002,11 @@ def dot_HS(U: Operator, V: Operator, eps: Optional[float] = None) -> float:
 
 @parse_optional_parameters(spacing=('log', 'linear'))
 def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing: str = 'log',
-                           include_quasistatic: bool = False) -> ndarray:
-    """Get *n_samples* sample frequencies spaced 'linear' or 'log'.
+                           include_quasistatic: bool = False, omega_min: Optional[float] = None,
+                           omega_max: Optional[float] = None) -> ndarray:
+    r"""Get *n_samples* sample frequencies spaced 'linear' or 'log'.
 
-    The ultraviolet cutoff is taken to be two orders of magnitude larger
+    The ultraviolet cutoff is taken to be one order of magnitude larger
     than the timescale of the pulse tau. In the case of log spacing, the
     values are clipped in the infrared at two orders of magnitude below
     the timescale of the pulse.
@@ -999,30 +1022,31 @@ def get_sample_frequencies(pulse: 'PulseSequence', n_samples: int = 300, spacing
         default is 'log'.
     include_quasistatic: bool, optional
         Include zero frequency. Default is False.
+    omega_min, omega_max: float, optional
+        Minimum and maximum angular frequencies included (DC
+        notwithstanding). Default to :math:`2\pi\times 10^{-2}/\tau` and
+        :math:`2\pi\times 10^{+1}/\Delta t_{\mathrm{min}}`.
 
     Returns
     -------
     omega: ndarray
-        The frequencies.
+        The angular frequencies.
     """
-    if spacing == 'linear':
-        xspace = np.linspace
-    else:
-        # spacing == 'log'
-        xspace = np.geomspace
+    xspace = np.geomspace if spacing == 'log' else np.linspace
+    omega_min = 2*np.pi*1e-2/pulse.tau if omega_min is None else omega_min
+    omega_max = 2*np.pi*1e+1/pulse.dt.min() if omega_max is None else omega_max
+    omega = xspace(omega_min, omega_max, n_samples - include_quasistatic)
 
     if include_quasistatic:
-        freqs = xspace(1e-2/pulse.tau, 1e2/pulse.tau, n_samples - 1)
-        freqs = np.insert(freqs, 0, 0)
-    else:
-        freqs = xspace(1e-2/pulse.tau, 1e2/pulse.tau, n_samples)
-
-    return 2*np.pi*freqs
+        return np.insert(omega, 0, 0)
+    return omega
 
 
 def hash_array_along_axis(arr: ndarray, axis: int = 0) -> List[int]:
     """Return the hashes of arr along the first axis"""
-    return [hash(arr.tobytes()) for arr in np.swapaxes(arr, 0, axis)]
+    # Adding 0.0 converts -0.0 to 0.0, which sanitizes arrays that compare as equal element-wise
+    # but result in different hashes
+    return [hash((arr + 0.0).tobytes()) for arr in np.swapaxes(arr, 0, axis)]
 
 
 def all_array_equal(it: Iterable) -> bool:
@@ -1064,10 +1088,8 @@ def progressbar_range(*args, show_progressbar: bool = True, **kwargs):
         Range iterator dressed with a progressbar if
         ``show_progressbar=True``.
     """
-    if show_progressbar:
-        return progressbar(range(*args), **kwargs)
-
-    return range(*args)
+    return progressbar(range(*args), disable=kwargs.pop('disable', not show_progressbar),
+                       **kwargs)
 
 
 class CalculationError(Exception):

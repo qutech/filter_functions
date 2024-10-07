@@ -249,24 +249,6 @@ def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     return int_buf
 
 
-def _parse_spectrum(spectrum: Sequence, omega: Sequence, idx: Sequence) -> ndarray:
-    spectrum = np.asanyarray(spectrum)
-    error = 'Spectrum should be of shape {}, not {}.'
-    shape = (len(idx),)*(spectrum.ndim - 1) + (len(omega),)
-    if spectrum.shape != shape and spectrum.ndim <= 3:
-        raise ValueError(error.format(shape, spectrum.shape))
-
-    if spectrum.ndim == 1:
-        # As we broadcast over the noise operators
-        spectrum = spectrum[None, ...]
-    if spectrum.ndim == 3 and not np.allclose(spectrum, spectrum.conj().swapaxes(0, 1)):
-        raise ValueError('Cross-spectra given but not Hermitian along first two axes')
-    elif spectrum.ndim > 3:
-        raise ValueError(f'Expected spectrum to have < 4 dimensions, not {spectrum.ndim}')
-
-    return spectrum
-
-
 def _get_integrand(
         spectrum: ndarray,
         omega: ndarray,
@@ -330,7 +312,7 @@ def _get_integrand(
             # Everything simpler if noise operators always on 2nd-to-last axes
             filter_function = np.moveaxis(filter_function, source=[-5, -4], destination=[-3, -2])
 
-    spectrum = _parse_spectrum(spectrum, omega, idx)
+    spectrum = util.parse_spectrum(spectrum, omega, idx)
     if spectrum.ndim in (1, 2):
         if filter_function is not None:
             integrand = (filter_function[..., tuple(idx), tuple(idx), :]*spectrum)
@@ -342,17 +324,17 @@ def _get_integrand(
             # R is not None
             if which_pulse == 'correlations':
                 if which_FF == 'fidelity':
-                    einsum_str = 'gako,ao,hako->ghao'
+                    einsum_str = 'g...ko,...o,h...ko->gh...o'
                 else:
                     # which_FF == 'generalized'
-                    einsum_str = 'gako,ao,halo->ghaklo'
+                    einsum_str = 'g...ko,...o,h...lo->gh...klo'
             else:
                 # which_pulse == 'total'
                 if which_FF == 'fidelity':
-                    einsum_str = 'ako,ao,ako->ao'
+                    einsum_str = '...ko,...o,...ko->...o'
                 else:
                     # which_FF == 'generalized'
-                    einsum_str = 'ako,ao,alo->aklo'
+                    einsum_str = '...ko,...o,...lo->...klo'
 
             integrand = np.einsum(einsum_str,
                                   ctrl_left[..., idx, :, :], spectrum, ctrl_right[..., idx, :, :])
@@ -591,8 +573,12 @@ def calculate_noise_operators_from_scratch(
     noise_operators = np.zeros((len(omega), len(n_opers), d, d), dtype=complex)
 
     if cache_intermediates:
+        phase_factors_cache = np.empty((len(dt), len(omega)), dtype=complex)
+        int_cache = np.empty((len(dt), len(omega), d, d), dtype=complex)
         sum_cache = np.empty((len(dt), len(omega), len(n_opers), d, d), dtype=complex)
     else:
+        phase_factors = np.empty((len(omega),), dtype=complex)
+        int_buf = np.empty((len(omega), d, d), dtype=complex)
         sum_buf = np.empty((len(omega), len(n_opers), d, d), dtype=complex)
 
     # Set up reusable expressions
@@ -607,10 +593,13 @@ def calculate_noise_operators_from_scratch(
         if cache_intermediates:
             # Assign references to the locations in the cache for the quantities
             # that should be stored
+            phase_factors = phase_factors_cache[g]
+            int_buf = int_cache[g]
             sum_buf = sum_cache[g]
 
+        phase_factors = util.cexp(omega*t[g], out=phase_factors)
         int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
-        sum_buf = expr_1(n_opers_transformed[:, g], util.cexp(omega*t[g])[:, None, None]*int_buf,
+        sum_buf = expr_1(n_opers_transformed[:, g], phase_factors[:, None, None]*int_buf,
                          out=sum_buf)
 
         noise_operators += expr_2(eigvecs_propagated[g].conj(), sum_buf, eigvecs_propagated[g],
@@ -618,6 +607,8 @@ def calculate_noise_operators_from_scratch(
 
     if cache_intermediates:
         intermediates = dict(n_opers_transformed=n_opers_transformed,
+                             first_order_integral=int_cache,
+                             phase_factors=phase_factors_cache,
                              noise_operators_step=sum_cache)
         return noise_operators, intermediates
 
@@ -690,7 +681,8 @@ def calculate_control_matrix_from_atomic(
         control_matrix = np.zeros(control_matrix_atomic.shape, dtype=complex)
         for g in util.progressbar_range(n, show_progressbar=show_progressbar,
                                         desc='Calculating control matrix'):
-            control_matrix[g] = expr(phases[g]*control_matrix_atomic[g], propagators_liouville[g])
+            control_matrix[g] = expr(phases[g]*control_matrix_atomic[g], propagators_liouville[g],
+                                     out=control_matrix[g])
 
     return control_matrix
 
@@ -1068,8 +1060,8 @@ def calculate_cumulant_function(
     N, d = pulse.basis.shape[:2]
     if spectrum is None and omega is None:
         if decay_amplitudes is None or (frequency_shifts is None and second_order):
-            raise ValueError('Require either spectrum and frequencies or precomputed ' +
-                             'decay amplitudes (frequency shifts)')
+            raise ValueError('Require either spectrum and frequencies or precomputed '
+                             + 'decay amplitudes (frequency shifts)')
 
     if which == 'correlations' and second_order:
         raise ValueError('Cannot compute correlation cumulant function for second order terms')
@@ -1116,9 +1108,20 @@ def calculate_cumulant_function(
             cumulant_function[..., 1:, 1:] -= frequency_shifts[..., 1:, 1:]
             cumulant_function[..., 1:, 1:] += frequency_shifts[..., 1:, 1:].swapaxes(-1, -2)
     else:
-        # Multi qubit case. Use general expression. Drop imaginary part since
-        # result is guaranteed to be real (if we didn't do anything wrong)
+        # Multi qubit case. Use general expression.
         traces = pulse.basis.four_element_traces
+        # g_iklj = (
+        #     + traces.transpose(0, 1, 2, 3)
+        #     - traces.transpose(0, 1, 3, 2)
+        #     - traces.transpose(0, 3, 1, 2)
+        #     + traces.transpose(0, 3, 2, 1)
+        # )
+        # g_jikl = (
+        #     + traces.transpose(3, 0, 1, 2)
+        #     - traces.transpose(2, 0, 1, 3)
+        #     - traces.transpose(2, 0, 3, 1)
+        #     + traces.transpose(1, 0, 3, 2)
+        # )
         cumulant_function = - (
             + oe.contract('...kl,klji->...ij', decay_amplitudes, traces, backend='sparse')
             - oe.contract('...kl,kjli->...ij', decay_amplitudes, traces, backend='sparse')
@@ -1126,6 +1129,22 @@ def calculate_cumulant_function(
             + oe.contract('...kl,kijl->...ij', decay_amplitudes, traces, backend='sparse')
         ) / 2
         if second_order:
+            # f_iklj = (
+            #     + traces.transpose(0, 1, 2, 3)
+            #     - traces.transpose(0, 2, 1, 3)
+            #     - traces.transpose(0, 2, 3, 1)
+            #     + traces.transpose(0, 3, 2, 1)
+            # )
+            #
+            # f_iklj = -g_iljk:
+            # f = -g.transpose(0, 2, 3, 1)
+            #
+            # f_jikl = (
+            #     + traces.transpose(3, 0, 1, 2)
+            #     - traces.transpose(3, 0, 2, 1)
+            #     - traces.transpose(1, 0, 2, 3)
+            #     + traces.transpose(1, 0, 3, 2)
+            # )
             cumulant_function -= (
                 + oe.contract('...kl,klji->...ij', frequency_shifts, traces, backend='sparse')
                 - oe.contract('...kl,lkji->...ij', frequency_shifts, traces, backend='sparse')
@@ -1133,6 +1152,7 @@ def calculate_cumulant_function(
                 + oe.contract('...kl,lkij->...ij', frequency_shifts, traces, backend='sparse')
             ) / 2
 
+    # Drop imaginary part since result is guaranteed to be real (if we didn't do anything wrong)
     return cumulant_function.real
 
 
@@ -1242,8 +1262,8 @@ def calculate_decay_amplitudes(
         # which == 'correlations'
         if pulse.is_cached('omega'):
             if not np.array_equal(pulse.omega, omega):
-                raise ValueError('Pulse correlation decay amplitudes requested but omega not ' +
-                                 'equal to cached frequencies.')
+                raise ValueError('Pulse correlation decay amplitudes requested but omega not '
+                                 + 'equal to cached frequencies.')
 
         if pulse.is_cached('filter_function_pc_gen'):
             control_matrix = None
@@ -1810,8 +1830,8 @@ def error_transfer_matrix(
     """
     if cumulant_function is None:
         if pulse is None or spectrum is None or omega is None:
-            raise ValueError('Require either precomputed cumulant function ' +
-                             'or pulse, spectrum, and omega as arguments.')
+            raise ValueError('Require either precomputed cumulant function '
+                             + 'or pulse, spectrum, and omega as arguments.')
 
         cumulant_function = calculate_cumulant_function(pulse, spectrum, omega,
                                                         n_oper_identifiers, 'total', second_order,
@@ -1859,16 +1879,19 @@ def infidelity(
         The ``PulseSequence`` instance for which to calculate the
         infidelity for.
     spectrum: array_like, shape ([[n_nops,] n_nops,] omega) or callable
-        The two-sided noise power spectral density in units of inverse
-        frequencies as an array of shape (n_omega,), (n_nops, n_omega),
-        or (n_nops, n_nops, n_omega). In the first case, the same
-        spectrum is taken for all noise operators, in the second, it is
-        assumed that there are no correlations between different noise
-        sources and thus there is one spectrum for each noise operator.
+        The noise power spectral density in units of inverse frequencies
+        as an array of shape (n_omega,), (n_nops, n_omega), or
+        (n_nops, n_nops, n_omega). In the first case, the same spectrum
+        is taken for all noise operators, in the second, it is assumed
+        that there are no correlations between different noise sources
+        and thus there is one spectrum for each noise operator.
         In the third and most general case, there may be a spectrum for
         each pair of noise operators corresponding to the correlations
         between them. n_nops is the number of noise operators considered
         and should be equal to ``len(n_oper_identifiers)``.
+
+        See :ref:`Notes <notes>` for a discussion on one- and two-sided
+        power spectral densities.
 
         If *test_convergence* is ``True``, a function handle to
         compute the power spectral density from a sequence of
@@ -1954,14 +1977,33 @@ def infidelity(
     infidelities that can be computed by setting
     ``which='correlations'``.
 
+    **One- and two-sided spectral densities**
 
-    To convert to the average gate infidelity, use the
-    following relation given by Horodecki et al. [Hor99]_ and
-    Nielsen [Nie02]_:
+    Since the real (imaginary) part of filter function :math:`F(\omega)`
+    is even (odd), it does not matter for integral whether
+    :math:`S(\omega)` is taken to be the one- or two-sided spectral
+    density. However, care should be taken that, if it is one or the
+    other, the frequencies :math:`\omega` are positive or symmetric
+    about zero, respectively.
+
+    To convert between one- and two-sided PSDs, use the following
+    relationship:
+
+    .. math::
+
+        S_\mathrm{onesided}(\omega) = 2 S_\mathrm{twosided}(\omega).
+
+    **Conversion to the Average Gate Infidelity (AGI)**
+
+    To convert the entanglement infidelity to the average gate
+    infidelity, use the following relation given by Horodecki et al.
+    [Hor99]_ and Nielsen [Nie02]_:
 
     .. math::
 
         \mathcal{I}_\mathrm{avg} = \frac{d}{d+1}\mathcal{I}.
+
+    **Goodness of approximation**
 
     The smallness parameter is given by
 
@@ -1979,9 +2021,11 @@ def infidelity(
 
     See Also
     --------
-    calculate_decay_amplitudes
+    calculate_decay_amplitudes: Calculate the full matrix of first order terms.
+    error_transfer_matrix: Calculate the full process matrix.
+    plotting.plot_infidelity_convergence: Convenience function to plot results.
     pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
-    calculate_pulse_correlation_filter_function
+    calculate_pulse_correlation_filter_function.
 
     References
     ----------
@@ -1997,11 +2041,6 @@ def infidelity(
         fidelity of a quantum dynamical operation. Physics Letters,
         Section A: General, Atomic and Solid State Physics, 303(4),
         249–252. https://doi.org/10.1016/S0375-9601(02)01272-0
-
-    See Also
-    --------
-    error_transfer_matrix: Calculate the full process matrix.
-    plotting.plot_infidelity_convergence: Convenience function to plot results.
     """
     # Noise operator indices
     idx = util.get_indices_from_identifiers(pulse.n_oper_identifiers, n_oper_identifiers)
@@ -2014,8 +2053,8 @@ def infidelity(
         try:
             omega_IR = omega.get('omega_IR', 2*np.pi/pulse.tau*1e-2)
         except AttributeError:
-            raise TypeError('omega should be dictionary with parameters ' +
-                            'when test_convergence == True.')
+            raise TypeError('omega should be dictionary with parameters '
+                            + 'when test_convergence == True.')
 
         omega_UV = omega.get('omega_UV', 2*np.pi/pulse.tau*1e+2)
         spacing = omega.get('spacing', 'linear')
@@ -2052,8 +2091,8 @@ def infidelity(
             # but trace tensor plays a role, cf eq. (39). For traceless bases,
             # the trace tensor term reduces to delta_ij.
             traces = pulse.basis.four_element_traces
-            traces_diag = (sparse.diagonal(traces, axis1=2, axis2=3).sum(-1) -
-                           sparse.diagonal(traces, axis1=1, axis2=3).sum(-1)).todense()
+            traces_diag = (sparse.diagonal(traces, axis1=2, axis2=3).sum(-1)
+                           - sparse.diagonal(traces, axis1=1, axis2=3).sum(-1)).todense()
 
             control_matrix = pulse.get_control_matrix(omega, show_progressbar, cache_intermediates)
             filter_function = np.einsum('ako,blo,kl->abo',
@@ -2064,14 +2103,9 @@ def infidelity(
                                                         cache_intermediates=cache_intermediates)
     else:
         # which == 'correlations'
-        if not pulse.basis.istraceless:
-            warn('Calculating pulse correlation fidelities with non-' +
-                 'traceless basis. The results will be off.')
-
-        if pulse.is_cached('omega'):
-            if not np.array_equal(pulse.omega, omega):
-                raise ValueError('Pulse correlation infidelities requested ' +
-                                 'but omega not equal to cached frequencies.')
+        if pulse.is_cached('omega') and not np.array_equal(pulse.omega, omega):
+            raise ValueError('Pulse correlation infidelities requested '
+                             + 'but omega not equal to cached frequencies.')
 
         filter_function = pulse.get_pulse_correlation_filter_function()
 
@@ -2081,8 +2115,8 @@ def infidelity(
 
     if return_smallness:
         if spectrum.ndim > 2:
-            raise NotImplementedError('Smallness parameter only implemented ' +
-                                      'for uncorrelated noise sources')
+            raise NotImplementedError('Smallness parameter only implemented '
+                                      + 'for uncorrelated noise sources')
 
         T1 = util.integrate(spectrum, omega)/(2*np.pi)
         T2 = (pulse.dt*pulse.n_coeffs[idx]).sum(axis=-1)**2

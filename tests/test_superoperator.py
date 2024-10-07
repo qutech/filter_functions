@@ -104,8 +104,7 @@ class SuperoperatorTest(testutil.TestCase):
         def partial_transpose(A):
             d = A.shape[-1]
             sqd = int(np.sqrt(d))
-            return A.reshape(-1, sqd, sqd, sqd, sqd).swapaxes(-1, -3).reshape(
-                A.shape)
+            return A.reshape(-1, sqd, sqd, sqd, sqd).swapaxes(-1, -3).reshape(A.shape)
 
         # Partial transpose map should be non-CP
         basis = ff.Basis.pauli(2)
@@ -124,12 +123,13 @@ class SuperoperatorTest(testutil.TestCase):
 
             U_sup = superoperator.liouville_representation(U, basis)
             CP, (D, V) = superoperator.liouville_is_CP(U_sup, basis, True)
+
             _CP = superoperator.liouville_is_CP(U_sup, basis, False)
 
             self.assertArrayEqual(CP, _CP)
             self.assertTrue(np.all(CP))
             if U_sup.ndim == 2:
-                self.assertIsInstance(CP, (bool, np.bool8))
+                self.assertIsInstance(CP, (bool, np.bool_))
             else:
                 self.assertEqual(CP.shape[0], U_sup.shape[0])
             # Only one nonzero eigenvalue
@@ -143,7 +143,7 @@ class SuperoperatorTest(testutil.TestCase):
             CP = superoperator.liouville_is_CP(U_sup, pulse.basis)
 
             self.assertTrue(np.all(CP))
-            self.assertIsInstance(CP, (bool, np.bool8))
+            self.assertIsInstance(CP, (bool, np.bool_))
 
     def test_liouville_is_cCP(self):
         for d in rng.integers(2, 9, (15,)):
@@ -156,16 +156,16 @@ class SuperoperatorTest(testutil.TestCase):
                 basis = ff.Basis.ggm(d)
 
             H_sup = (np.einsum('iab,...bc,jca', basis, H, basis,
-                               optimize=['einsum_path', (0, 1), (0, 1)]) -
-                     np.einsum('iab,jbc,...ca', basis, basis, H,
-                               optimize=['einsum_path', (0, 2), (0, 1)]))
+                               optimize=['einsum_path', (0, 1), (0, 1)])
+                     - np.einsum('iab,jbc,...ca', basis, basis, H,
+                                 optimize=['einsum_path', (0, 2), (0, 1)]))
             cCP, (D, V) = superoperator.liouville_is_cCP(H_sup, basis, True)
             _cCP = superoperator.liouville_is_cCP(H_sup, basis, False)
 
             self.assertArrayEqual(cCP, _cCP)
             self.assertTrue(np.all(cCP))
             if H_sup.ndim == 2:
-                self.assertIsInstance(cCP, (bool, np.bool8))
+                self.assertIsInstance(cCP, (bool, np.bool_))
             else:
                 self.assertEqual(cCP.shape[0], H_sup.shape[0])
             self.assertArrayAlmostEqual(D, 0, atol=1e-14)
@@ -182,6 +182,6 @@ class SuperoperatorTest(testutil.TestCase):
 
             self.assertTrue(np.all(cCP))
             if K_sup.ndim == 2:
-                self.assertIsInstance(cCP, (bool, np.bool8))
+                self.assertIsInstance(cCP, (bool, np.bool_))
             else:
                 self.assertEqual(cCP.shape[0], K_sup.shape[0])

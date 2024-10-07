@@ -11,16 +11,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python_version: ['3.7', '3.8', '3.9', '3.10']
+        python_version: ['3.9', '3.10', '3.11', '3.12']
         install_extras: ['tests', 'plotting,fancy_progressbar,tests', 'plotting,bloch_sphere_visualization,fancy_progressbar,doc,tests']
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python_version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python_version }}
+        cache: pip
+        check-latest: true
 
     - name: Install
       run: |
@@ -32,12 +34,14 @@ jobs:
         pytest
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
         name: ${{ matrix.python }} - ${{ matrix.install_extras }}
         env_vars: OS,PYTHON
         fail_ci_if_error: true
+        token: ${{ secrets.CODECOV_TOKEN }} # required
+        verbose: true
 
   release:
     name: Publish to PyPi
@@ -46,11 +50,12 @@ jobs:
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
-    - uses: actions/setup-python@v2
+    - uses: actions/setup-python@v5
       with:
-        python-version: 3.9
+        python-version: '3.12'
+        cache: pip
 
     - name: Install dependencies
       run: |

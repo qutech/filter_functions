@@ -174,7 +174,7 @@ class Basis(ndarray):
                 pass
 
             basis = util.parse_operators(basis_array, 'basis_array')
-            if basis.shape[0] > np.product(basis.shape[1:]):
+            if basis.shape[0] > np.prod(basis.shape[1:]):
                 raise ValueError('Given overcomplete set of basis matrices. '
                                  'Not linearly independent.')
 
@@ -318,11 +318,8 @@ class Basis(ndarray):
     @property
     def T(self) -> 'Basis':
         """Return the basis transposed element-wise."""
-        if self.ndim == 3:
-            return self.transpose(0, 2, 1)
-
-        if self.ndim == 2:
-            return self.transpose(1, 0)
+        if self.ndim >= 2:
+            return self.swapaxes(-1, -2)
 
         return self
 
@@ -553,8 +550,8 @@ def _full_from_partial(elems: Sequence, traceless: bool, labels: Sequence[str]) 
         traceless = elems.istraceless
     else:
         if traceless and not elems.istraceless:
-            raise ValueError("The basis elements are not traceless (up to an identity element) " +
-                             "but a traceless basis was requested!")
+            raise ValueError("The basis elements are not traceless (up to an identity element) "
+                             + "but a traceless basis was requested!")
 
     if labels is not None and len(labels) not in (len(elems), elems.d**2):
         raise ValueError(f'Got {len(labels)} labels but expected {len(elems)} or {elems.d**2}')
@@ -677,7 +674,8 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
 
     """
 
-    def cast(arr): return arr.real if hermitian and basis.isherm else arr
+    def cast(arr):
+        return arr.real if hermitian and basis.isherm else arr
 
     coefficients = cast(np.tensordot(M, basis, axes=[(-2, -1), (-1, -2)]))
     if not normalized:
@@ -724,7 +722,8 @@ def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False,
     if M.shape[-1] != M.shape[-2]:
         raise ValueError('M should be square in its last two axes')
 
-    def cast(arr): return arr.real if hermitian else arr
+    def cast(arr):
+        return arr.real if hermitian else arr
 
     # Squeeze out an extra dimension to be shape agnostic
     square = M.ndim < 3

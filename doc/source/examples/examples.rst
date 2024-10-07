@@ -1,7 +1,7 @@
 .. _examples:
 
-Examples
---------
+User Guide
+----------
 This directory contains static examples that can also be run interactively from *doc/source/examples* using `jupyter notebook`. There are more examples as Python scripts in the top level folder *examples*.
 
 .. toctree::
