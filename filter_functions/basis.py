@@ -47,7 +47,6 @@ from warnings import warn
 import numpy as np
 import opt_einsum as oe
 from numpy import linalg as nla
-from numpy.core import ndarray
 from scipy import linalg as sla
 from sparse import COO
 
@@ -56,7 +55,7 @@ from . import util
 __all__ = ['Basis', 'expand', 'ggm_expand', 'normalize']
 
 
-class Basis(ndarray):
+class Basis(np.ndarray):
     r"""
     Class for operator bases. There are several ways to instantiate a
     Basis object:
@@ -217,12 +216,12 @@ class Basis(ndarray):
             # Not ndarray
             return np.equal(self, other)
 
-        return np.allclose(self.view(ndarray), other.view(ndarray),
+        return np.allclose(self.view(np.ndarray), other.view(np.ndarray),
                            atol=self._atol, rtol=self._rtol)
 
-    def __contains__(self, item: ndarray) -> bool:
+    def __contains__(self, item: np.ndarray) -> bool:
         """Implement 'in' operator."""
-        return any(np.isclose(item.view(ndarray), self.view(ndarray),
+        return any(np.isclose(item.view(np.ndarray), self.view(np.ndarray),
                               rtol=self._rtol, atol=self._atol).all(axis=(1, 2)))
 
     def __array_wrap__(self, out_arr, context=None):
@@ -232,7 +231,7 @@ class Basis(ndarray):
         https://github.com/numpy/numpy/issues/5819#issue-72454838
         """
         if out_arr.ndim:
-            return ndarray.__array_wrap__(self, out_arr, context)
+            return np.ndarray.__array_wrap__(self, out_arr, context)
 
     def _print_checks(self) -> None:
         """Print checks for debug purposes."""
@@ -265,7 +264,7 @@ class Basis(ndarray):
                 actual = U.conj() @ U.T
                 target = np.identity(dim)
                 atol = self._eps*(self.d**2)**3
-                self._isorthonorm = np.allclose(actual.view(ndarray), target,
+                self._isorthonorm = np.allclose(actual.view(np.ndarray), target,
                                                 atol=atol, rtol=self._rtol)
 
         return self._isorthonorm
@@ -284,7 +283,10 @@ class Basis(ndarray):
             elif nonzero[0].size == 1:
                 # Single element has nonzero trace, check if (proportional to)
                 # identity
-                elem = self[nonzero][0].view(ndarray) if self.ndim == 3 else self.view(ndarray)
+                if self.ndim == 3:
+                    elem = self[nonzero][0].view(np.ndarray)
+                else:
+                    elem = self.view(np.ndarray)
                 offdiag_nonzero = elem[~np.eye(self.d, dtype=bool)].nonzero()
                 diag_equal = np.diag(elem) == elem[0, 0]
                 if diag_equal.all() and not offdiag_nonzero[0].any():
@@ -597,7 +599,7 @@ def _full_from_partial(elems: Sequence, traceless: bool, labels: Sequence[str]) 
             # sort Identity label to the front, default to first if not found
             # (should not happen since traceless checks that it is present)
             id_idx = next((i for i, elem in enumerate(elems)
-                           if np.allclose(Id.view(ndarray), elem.view(ndarray),
+                           if np.allclose(Id.view(np.ndarray), elem.view(np.ndarray),
                                           rtol=elems._rtol, atol=elems._atol)), 0)
             labels.insert(0, labels.pop(id_idx))
 
@@ -606,7 +608,7 @@ def _full_from_partial(elems: Sequence, traceless: bool, labels: Sequence[str]) 
     return basis, labels
 
 
-def _norm(b: Sequence) -> ndarray:
+def _norm(b: Sequence) -> np.ndarray:
     """Frobenius norm with two singleton dimensions inserted at the end."""
     b = np.asanyarray(b)
     norm = nla.norm(b, axis=(-1, -2))
@@ -633,8 +635,8 @@ def normalize(b: Basis) -> Basis:
     return (b/_norm(b)).squeeze().view(Basis)
 
 
-def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
-           normalized: bool = True, hermitian: bool = False, tidyup: bool = False) -> ndarray:
+def expand(M: Union[np.ndarray, Basis], basis: Union[np.ndarray, Basis],
+           normalized: bool = True, hermitian: bool = False, tidyup: bool = False) -> np.ndarray:
     r"""
     Expand the array *M* in the basis given by *basis*.
 
@@ -684,8 +686,8 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
     return util.remove_float_errors(coefficients) if tidyup else coefficients
 
 
-def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False,
-               hermitian: bool = False) -> ndarray:
+def ggm_expand(M: Union[np.ndarray, Basis], traceless: bool = False,
+               hermitian: bool = False) -> np.ndarray:
     r"""
     Expand the matrix *M* in a Generalized Gell-Mann basis [Bert08]_.
     This function makes use of the explicit construction prescription of
@@ -767,7 +769,7 @@ def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False,
     return coeffs.squeeze() if square else coeffs
 
 
-def equivalent_pauli_basis_elements(idx: Union[Sequence[int], int], N: int) -> ndarray:
+def equivalent_pauli_basis_elements(idx: Union[Sequence[int], int], N: int) -> np.ndarray:
     """
     Get the indices of the equivalent (up to identities tensored to it)
     basis elements of Pauli bases of qubits at position idx in the total
@@ -780,7 +782,7 @@ def equivalent_pauli_basis_elements(idx: Union[Sequence[int], int], N: int) -> n
     return elem_idx
 
 
-def remap_pauli_basis_elements(order: Sequence[int], N: int) -> ndarray:
+def remap_pauli_basis_elements(order: Sequence[int], N: int) -> np.ndarray:
     """
     For a N-qubit Pauli basis, transpose the order of the subsystems and
     return the indices that permute the old basis to the new.
