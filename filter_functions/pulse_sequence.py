@@ -395,8 +395,6 @@ class PulseSequence:
         new_dt = np.atleast_1d(self.dt[key])
         if not new_dt.size:
             raise IndexError('Cannot create empty PulseSequence')
-        if len(self) == 1:
-            raise IndexError('invalid index to scalar (single-segment) PulseSequence')
 
         new = self.__class__(
             c_opers=self.c_opers,
