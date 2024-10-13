@@ -152,15 +152,21 @@ class BasisTest(testutil.TestCase):
 
             base._print_checks()
 
-        orthonorm = stats.ortho_group(d).rvs()
+        # single element always considered orthonormal
+        orthonorm = rng.normal(size=(d, d))
         self.assertTrue(orthonorm.view(ff.Basis).isorthonorm)
 
-        herm = 1j * linalg.logm(stats.unitary_group(d).rvs())
+        herm = testutil.rand_herm(d).squeeze()
         self.assertTrue(herm.view(ff.Basis).isherm)
 
-        traceless = stats.multivariate_normal().rvs((d, d))
-        traceless -= traceless.trace() / d
+        herm[0, 1] += 1
+        self.assertFalse(herm.view(ff.Basis).isherm)
+
+        traceless = testutil.rand_herm_traceless(d).squeeze()
         self.assertTrue(traceless.view(ff.Basis).istraceless)
+
+        traceless[0, 0] += 1
+        self.assertFalse(traceless.view(ff.Basis).istraceless)
 
     def test_transpose(self):
         arr = rng.normal(size=(2, 3, 3))
