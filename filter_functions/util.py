@@ -26,8 +26,7 @@ Functions
 :func:`abs2`
     Absolute value squared
 :func:`get_indices_from_identifiers`
-    The the indices of a subset of identifiers within a list of
-    identifiers.
+    The indices of a subset of identifiers within a list of identifiers.
 :func:`tensor`
     Fast, flexible tensor product of an arbitrary number of inputs using
     :func:`~numpy.einsum`
@@ -70,6 +69,7 @@ Exceptions
 import functools
 import inspect
 import operator
+import os
 import string
 from itertools import zip_longest
 from typing import Callable, Iterable, List, Optional, Sequence, Tuple, Union
@@ -79,17 +79,25 @@ from numpy import ndarray
 
 from .types import Operator, State
 
-try:
-    import ipynbname
-    _NOTEBOOK_NAME = ipynbname.name()
-except (ImportError, IndexError, FileNotFoundError):
-    _NOTEBOOK_NAME = ''
 
-if _NOTEBOOK_NAME:
-    from tqdm.notebook import tqdm as _tqdm
+def _in_notebook_kernel():
+    # https://github.com/jupyterlab/jupyterlab/issues/16282
+    return 'JPY_SESSION_NAME' in os.environ and os.environ['JPY_SESSION_NAME'].endswith('.ipynb')
+
+
+def _in_jupyter_kernel():
+    # https://discourse.jupyter.org/t/how-to-know-from-python-script-if-we-are-in-jupyterlab/23993
+    return 'JPY_PARENT_PID' in os.environ
+
+
+if not _in_notebook_kernel():
+    if _in_jupyter_kernel():
+        # (10/24) Autonotebook gets confused in jupyter consoles
+        from tqdm.std import tqdm
+    else:
+        from tqdm.autonotebook import tqdm
 else:
-    # Either not running notebook or not able to determine
-    from tqdm import tqdm as _tqdm
+    from tqdm.notebook import tqdm
 
 __all__ = ['paulis', 'abs2', 'all_array_equal', 'dot_HS', 'get_sample_frequencies',
            'hash_array_along_axis', 'mdot', 'oper_equiv', 'progressbar', 'remove_float_errors',
@@ -1067,7 +1075,7 @@ def progressbar(iterable: Iterable, *args, **kwargs):
         for i in progressbar(range(10)):
             do_something()
     """
-    return _tqdm(iterable, *args, **kwargs)
+    return tqdm(iterable, *args, **kwargs)
 
 
 def progressbar_range(*args, show_progressbar: bool = True, **kwargs):
