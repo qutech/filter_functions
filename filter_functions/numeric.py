@@ -157,9 +157,8 @@ def _first_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     int_buf.imag = np.add.outer(E, dE, out=int_buf.imag)
 
     # Catch zero-division
-    mask = (np.abs(int_buf.imag) > 1e-7)
-    exp_buf = util.cexp(int_buf.imag*dt, out=exp_buf, where=mask)
-    exp_buf = np.subtract(exp_buf, 1, out=exp_buf, where=mask)
+    mask = int_buf.imag != 0
+    exp_buf = util.cexpm1(int_buf.imag*dt, out=exp_buf, where=mask)
     int_buf = np.divide(exp_buf, int_buf, out=int_buf, where=mask)
     int_buf[~mask] = dt
 
