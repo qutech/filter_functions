@@ -408,6 +408,21 @@ class PulseSequence:
             d=self.d,
             basis=self.basis
         )
+
+        # An edge use case: key is a slice of the form slice(n), e.g.,
+        # pulse[:n], in which case the control matrix might already have
+        # been cached in the form of an intermediate
+        is_valid_slice = (
+                isinstance(key, slice)
+                and key.start in (None, 0)
+                and key.step in (None, 1)
+        )
+        if is_valid_slice and 'control_matrix_step_cumulative' in self._intermediates:
+            new.cache_control_matrix(
+                self.omega,
+                self._intermediates['control_matrix_step_cumulative'][key.stop]
+            )
+
         return new
 
     def __copy__(self) -> 'PulseSequence':
