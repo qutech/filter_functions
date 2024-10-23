@@ -167,14 +167,14 @@ def cexpm1(x: ndarray, out=None, where=True) -> ndarray:
 
     .. math::
 
-        \exp(i x) = -2\sin^2(x/2) + i\sin(x)
+        \exp(i x) - 1 = -2\sin^2(x/2) + i\sin(x)
 
     for real x.
     """
-    out = np.empty(x.shape, dtype=np.complex_) if out is None else out
+    out = np.empty(x.shape, dtype=np.complex128) if out is None else out
     tmp = np.divide(x, 2, where=where)
     tmp = np.sin(tmp, out=tmp, where=where)
-    out.real = np.multiply(tmp, tmp, out=out.real, where=where)
+    out.real = np.square(tmp, out=out.real, where=where)
     out.real = np.multiply(-2, out.real, out.real, where=where)
     out.imag = np.sin(x, out=out.imag, where=where)
     return out

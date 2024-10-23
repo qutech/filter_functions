@@ -49,6 +49,22 @@ class UtilTest(testutil.TestCase):
         b = np.exp(-1j*x)
         self.assertArrayAlmostEqual(a, b)
 
+    def test_cexpm1(self):
+        x = rng.standard_normal((50, 100))
+        out = np.empty(x.shape, dtype=np.complex128)
+
+        a = util.cexpm1(x)
+        b = np.expm1(1j*x)
+        c = util.cexpm1(x, out=out)
+        self.assertArrayAlmostEqual(a, b)
+        self.assertArrayEqual(a, c)
+
+        a = util.cexpm1(-x)
+        b = np.expm1(-1j*x)
+        c = util.cexpm1(-x, out=out)
+        self.assertArrayAlmostEqual(a, b)
+        self.assertArrayEqual(a, c)
+
     def test_get_indices_from_identifiers(self):
         pulse = PulseSequence(
             [[util.paulis[3], [2], 'Z'],
