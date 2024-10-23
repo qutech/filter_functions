@@ -810,6 +810,8 @@ def calculate_control_matrix_from_scratch(
     exp_buf = np.empty((len(omega), d, d), dtype=complex)
     if out is None:
         out = np.zeros((len(n_opers), len(basis), len(omega)), dtype=complex)
+    else:
+        out[:] = 0
 
     if cache_intermediates:
         basis_transformed_cache = np.empty((len(dt), *basis.shape), dtype=complex)
@@ -1461,8 +1463,9 @@ def calculate_second_order_filter_function(
         n_coeffs: Sequence[Coefficients],
         dt: Coefficients,
         intermediates: Optional[Dict[str, ndarray]] = None,
-        show_progressbar: bool = False
-) -> ndarray:
+        show_progressbar: bool = False,
+        cache_intermediates: bool = False
+) -> Union[ndarray, tuple[ndarray, Dict[str, ndarray]]]:
     r"""Calculate the second order filter function for frequency shifts.
 
     Parameters
@@ -1498,6 +1501,8 @@ def calculate_second_order_filter_function(
         scratch.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
+    cache_intermediates: bool, optional
+        Return a cache with intermediate results.
 
     Returns
     -------
@@ -1542,7 +1547,6 @@ def calculate_second_order_filter_function(
     calculate_pulse_correlation_filter_function
     """
     d = eigvals.shape[-1]
-    # We're lazy
     n_coeffs = np.asarray(n_coeffs)
 
     # Allocate result and buffers for intermediate arrays
@@ -1550,8 +1554,8 @@ def calculate_second_order_filter_function(
                np.empty((len(omega), d, d), dtype=float),
                np.empty((len(omega), d, d), dtype=float))
     frc_bufs = (np.empty((len(omega), d, d), dtype=complex), np.empty((d, d, d, d), dtype=complex))
-    int_buf = np.empty((len(omega), d, d, d, d), dtype=complex)
     msk_bufs = np.empty((5, len(omega), d, d, d, d), dtype=bool)
+    n_opers_basis_buf = np.empty((len(n_coeffs), len(basis), d, d), dtype=complex)
     ctrlmat_step_cumulative = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
 
     shape = (len(n_coeffs), len(n_coeffs), len(basis), len(basis), len(omega))
@@ -1562,14 +1566,11 @@ def calculate_second_order_filter_function(
     if intermediates is None:
         intermediates = dict()
 
-    # Work around possibly populated intermediates dict with missing keys
-    n_opers_transformed = intermediates.get('n_opers_transformed')
-    if n_opers_transformed is None:
-        n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
-
     try:
+        n_opers_transformed = intermediates['n_opers_transformed']
         basis_transformed_cache = intermediates['basis_transformed']
         ctrlmat_step_cache = intermediates['control_matrix_step']
+        ctrlmat_step_cumulative_cache = intermediates['control_matrix_step_cumulative']
         have_intermediates = True
     except KeyError:
         have_intermediates = False
@@ -1577,51 +1578,64 @@ def calculate_second_order_filter_function(
         # during each loop iteration below
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
         eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
+        n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
         basis_transformed = np.empty(basis.shape, dtype=complex)
         ctrlmat_step = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
+        ctrlmat_step_cumulative = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
+    if cache_intermediates:
+        int_cache = np.empty((len(dt), len(omega), d, d, d, d), dtype=complex)
+    else:
+        int_buf = np.empty((len(omega), d, d, d, d), dtype=complex)
 
-    step_expr = oe.contract_expression('oijmn,akij,blmn->abklo', int_buf.shape,
+    step_expr = oe.contract_expression('oijmn,akij,blmn->abklo',
+                                       (len(omega), d, d, d, d),
                                        *[(len(n_coeffs), len(basis), d, d)]*2,
                                        optimize=[(0, 1), (0, 1)])
+
+    def _incomplete_time_step(g):
+        _second_order_integral(omega, eigvals[g], dt[g], int_buf, frc_bufs, dE_bufs, msk_bufs)
+        np.einsum('akl,ilk->aikl', n_opers_transformed[:, g], basis_transformed,
+                  out=n_opers_basis_buf)
+        return step_expr(int_buf, n_opers_basis_buf, n_opers_basis_buf, out=step_buf)
+
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating second order FF'):
+
         if not have_intermediates:
+            if g > 0:
+                # Accumulate with ctrlmat_step from previous g
+                ctrlmat_step_cumulative += ctrlmat_step
+
             basis_transformed = _transform_by_unitary(eigvecs_propagated[g], basis,
                                                       out=basis_transformed)
-            # Need to compute G^(g) since no cache given. First initialize
-            # buffer to zero. There is a probably lots of overhead computing
-            # this individually for every time step.
-            ctrlmat_step[:] = 0
+            # Need to compute G^(g) since no cache given. There is a probably
+            # lots of overhead computing this individually for every time
+            # step.
             ctrlmat_step = calculate_control_matrix_from_scratch(
                 eigvals[g:g+1], eigvecs[g:g+1], propagators[g:g+2], omega, basis, n_opers,
                 n_coeffs[:, g:g+1], dt[g:g+1], t=t[g:g+1], show_progressbar=False,
                 cache_intermediates=False, out=ctrlmat_step
             )
         else:
-            # grab both from cache
             basis_transformed = basis_transformed_cache[g]
             ctrlmat_step = ctrlmat_step_cache[g]
+            ctrlmat_step_cumulative = ctrlmat_step_cumulative_cache[g]
+        if cache_intermediates:
+            int_buf = int_cache[g]
 
-        int_buf = _second_order_integral(omega, eigvals[g], dt[g], int_buf, frc_bufs, dE_bufs,
-                                         msk_bufs)
-        n_opers_basis = np.einsum('akl,ilk->aikl', n_opers_transformed[:, g], basis_transformed)
         # We use step_buf as a buffer for the last interval (with nested time
         # dependence) and afterwards the intervals up to the last (where the
         # time dependence separates and we can use previous result for the
         # control matrix). opt_einsum seems to be faster than numpy here.
-        step_buf = step_expr(int_buf, n_opers_basis, n_opers_basis, out=step_buf)
-
-        result += step_buf  # last interval
         if g > 0:
-            step_buf = np.einsum('ako,blo->abklo', ctrlmat_step.conj(), ctrlmat_step_cumulative,
-                                 out=step_buf)
+            result += np.einsum('ako,blo->abklo', ctrlmat_step.conj(), ctrlmat_step_cumulative,
+                                out=step_buf)  # all (complete) intervals up to last
 
-            result += step_buf  # all intervals up to last
+        result += _incomplete_time_step(g)  # last (incomplete) interval
 
-        if g < len(dt) - 1:
-            # Add G^(g-1) to cumulative sum for 1 < g < G, for g=0 it's
-            # zero, for G it's not required as the loop terminates
-            ctrlmat_step_cumulative += ctrlmat_step
+    if cache_intermediates:
+        intermediates['second_order_integral'] = int_cache
+        return result, intermediates
 
     return result
 

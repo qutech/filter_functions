@@ -784,8 +784,12 @@ class PulseSequence:
                 # order == 2
                 filter_function = numeric.calculate_second_order_filter_function(
                     self.eigvals, self.eigvecs, self.propagators, omega, self.basis,
-                    self.n_opers, self.n_coeffs, self.dt, self._intermediates, show_progressbar
+                    self.n_opers, self.n_coeffs, self.dt, self._intermediates, show_progressbar,
+                    cache_intermediates
                 )
+                if cache_intermediates:
+                    filter_function, intermediates = filter_function
+                    self._intermediates.update(intermediates)
 
         self.omega = omega
         if order == 1:
