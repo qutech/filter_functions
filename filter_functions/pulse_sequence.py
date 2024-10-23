@@ -1872,12 +1872,8 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int,
     concatenate: Concatenate arbitrary PulseSequences.
     """
 
-    try:
-        # Do awkward checking for type
-        if not hasattr(pulse, 'c_opers'):
-            raise TypeError('Can only concatenate PulseSequences!')
-    except TypeError:
-        raise TypeError(f'Expected pulses to be iterable, not {type(pulse)}')
+    if not isinstance(pulse, PulseSequence):
+        raise TypeError('Can only concatenate PulseSequences!')
 
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
@@ -1896,9 +1892,6 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int,
     newpulse.tau = repeats*pulse.tau
 
     if not pulse.is_cached('control_matrix'):
-        # No cached filter functions to reuse and pulse correlation FFs not
-        # requested. If they were, continue even if there are no cached FF
-        # they cannot be computed anymore afterwards.
         return newpulse
 
     phases_at = pulse.get_total_phases(pulse.omega)
