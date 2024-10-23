@@ -437,15 +437,14 @@ def calculate_noise_operators_from_atomic(
     calculate_noise_operators_from_scratch: Compute the operators from scratch.
     calculate_control_matrix_from_atomic: Same calculation in Liouville space.
     """
-    n = len(noise_operators_atomic)
-    # Allocate memory
+    G = len(noise_operators_atomic)
     noise_operators = np.zeros(noise_operators_atomic.shape[1:], dtype=complex)
 
     expr = oe.contract_expression('ji,...jk,kl->...il',
                                   propagators.shape[1:], noise_operators_atomic.shape[1:],
                                   propagators.shape[1:], optimize=[(0, 1), (0, 1)])
 
-    for g in util.progressbar_range(n, show_progressbar=show_progressbar,
+    for g in util.progressbar_range(G, show_progressbar=show_progressbar,
                                     desc='Calculating noise operators'):
         noise_operators += expr(propagators[g].conj(),
                                 noise_operators_atomic[g]*phases[g, :, None, None, None],
@@ -1707,7 +1706,7 @@ def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
     return np.einsum(subscripts, control_matrix.conj(), control_matrix)
 
 
-def diagonalize(hamiltonian: ndarray, dt: Coefficients) -> Tuple[ndarray]:
+def diagonalize(hamiltonian: ndarray, dt: Coefficients) -> Tuple[ndarray, ndarray, ndarray]:
     r"""Diagonalize a Hamiltonian.
 
     Diagonalize the Hamiltonian which is piecewise constant during the

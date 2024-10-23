@@ -554,7 +554,7 @@ class PulseSequence:
 
         if cache_intermediates:
             control_matrix, intermediates = control_matrix
-            self._intermediates.update(**intermediates)
+            self._intermediates.update(intermediates)
 
         self.cache_control_matrix(omega, control_matrix)
 
@@ -1624,8 +1624,8 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     dt = np.concatenate(tuple(pulse.dt for pulse in pulses))
 
     attributes = {'dt': dt, 'd': pulses[0].d, 'basis': basis}
-    attributes.update(**{key: value for key, value in zip(control_keys, control_values)})
-    attributes.update(**{key: value for key, value in zip(noise_keys, noise_values)})
+    attributes.update({key: value for key, value in zip(control_keys, control_values)})
+    attributes.update({key: value for key, value in zip(noise_keys, noise_values)})
 
     newpulse = PulseSequence(**attributes)
     # Only cache total duration (whole array of times might be large
