@@ -1108,7 +1108,11 @@ class PulseSequence:
                 - _filter_function_pc
                 - _filter_function_pc_gen
                 - _filter_function_2
+                - _intermediates['phase_factors']
+                - _intermediates['first_order_integral']
+                - _intermediates['second_order_integral']
                 - _intermediates['control_matrix_step']
+                - _intermediates['control_matrix_step_cumulative']
 
             If set to 'frequency dependent' only attributes that are
             functions of frequency are initalized to ``None``.
@@ -1133,8 +1137,10 @@ class PulseSequence:
                                                  '_total_phases'})
             # Remove frequency dependent terms from intermediates
             self._intermediates.pop('control_matrix_step', None)
+            self._intermediates.pop('control_matrix_step_cumulative', None)
             self._intermediates.pop('phase_factors', None)
             self._intermediates.pop('first_order_integral', None)
+            self._intermediates.pop('second_order_integral', None)
         else:
             # method == all
             attrs = filter_function_attrs.union(default_attrs, concatenation_attrs)

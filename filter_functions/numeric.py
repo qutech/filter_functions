@@ -796,6 +796,7 @@ def calculate_control_matrix_from_scratch(
     calculate_control_matrix_periodic: Control matrix for periodic system.
     """
     d = eigvecs.shape[-1]
+    omega = np.asanyarray(omega)
 
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
@@ -814,12 +815,14 @@ def calculate_control_matrix_from_scratch(
         basis_transformed_cache = np.empty((len(dt), *basis.shape), dtype=complex)
         phase_factors_cache = np.empty((len(dt), len(omega)), dtype=complex)
         int_cache = np.empty((len(dt), len(omega), d, d), dtype=complex)
-        sum_cache = np.empty((len(dt), len(n_opers), len(basis), len(omega)), dtype=complex)
+        step_cache = np.empty((len(dt), len(n_opers), len(basis), len(omega)), dtype=complex)
+        cumulative_cache = np.zeros((len(dt), len(n_opers), len(basis), len(omega)), dtype=complex)
     else:
         basis_transformed = np.empty(basis.shape, dtype=complex)
         phase_factors = np.empty(len(omega), dtype=complex)
         int_buf = np.empty((len(omega), d, d), dtype=complex)
-        sum_buf = np.empty((len(n_opers), len(basis), len(omega)), dtype=complex)
+        step_buf = np.empty((len(n_opers), len(basis), len(omega)), dtype=complex)
+        # cumulative_buf = out
 
     # Optimize the contraction path dynamically since it differs for different
     # values of d
@@ -835,23 +838,28 @@ def calculate_control_matrix_from_scratch(
             basis_transformed = basis_transformed_cache[g]
             phase_factors = phase_factors_cache[g]
             int_buf = int_cache[g]
-            sum_buf = sum_cache[g]
+            step_buf = step_cache[g]
+            # cumulative_cache contains each iteration of the sum over g from 0
+            # to G-1 (the last term would be the same as the result of this
+            # function). Hence, we can assign it at the beginning of the loop.
+            cumulative_cache[g] = out
 
         basis_transformed = _transform_by_unitary(eigvecs_propagated[g], basis,
                                                   out=basis_transformed)
         phase_factors = util.cexp(omega*t[g], out=phase_factors)
         int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
-        sum_buf = expr(phase_factors, n_opers_transformed[:, g], int_buf,
-                       basis_transformed, out=sum_buf)
-
-        out += sum_buf
+        step_buf = expr(phase_factors, n_opers_transformed[:, g], int_buf,
+                       basis_transformed, out=step_buf)
+        out += step_buf
 
     if cache_intermediates:
         intermediates = dict(n_opers_transformed=n_opers_transformed,
+                             eigvecs_propagated=eigvecs_propagated,
                              basis_transformed=basis_transformed_cache,
                              phase_factors=phase_factors_cache,
                              first_order_integral=int_cache,
-                             control_matrix_step=sum_cache)
+                             control_matrix_step=step_cache,
+                             control_matrix_step_cumulative=cumulative_cache)
         return out, intermediates
 
     return out
