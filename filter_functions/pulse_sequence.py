@@ -1819,7 +1819,8 @@ def concatenate(
     return newpulse
 
 
-def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
+def concatenate_periodic(pulse: PulseSequence, repeats: int,
+                         check_invertible: bool = True) -> PulseSequence:
     r"""
     Concatenate a pulse sequence *pulse* whose Hamiltonian is periodic
     *repeats* times. Although performing the same task, this function is
@@ -1837,6 +1838,9 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
         will also be computed.
     repeats: int
         The number of repetitions
+    check_invertible : bool
+        Test if the matrix inversion was successful and, where not,
+        calculate the result 'on foot'.
 
     Returns
     -------
@@ -1906,7 +1910,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     control_matrix_tot = numeric.calculate_control_matrix_periodic(phases_at, control_matrix_at,
                                                                    total_propagator_liouville_at,
-                                                                   repeats)
+                                                                   repeats, check_invertible)
 
     newpulse.cache_filter_function(pulse.omega, control_matrix_tot)
 
