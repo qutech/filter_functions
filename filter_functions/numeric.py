@@ -670,7 +670,7 @@ def calculate_control_matrix_from_atomic(
     calculate_control_matrix_from_scratch: Control matrix from scratch.
     liouville_representation: Liouville representation for a given basis.
     """
-    n = len(control_matrix_atomic)
+    G = len(control_matrix_atomic)
     # Set up a reusable contraction expression. In some cases it is faster to
     # also contract the time dimension in the same expression instead of
     # looping over it, but we don't distinguish here for readability.
@@ -678,19 +678,21 @@ def calculate_control_matrix_from_atomic(
                                   control_matrix_atomic.shape[1:],
                                   propagators_liouville.shape[1:])
 
-    # Allocate memory
-    if which == 'total':
-        control_matrix = np.zeros(control_matrix_atomic.shape[1:], dtype=complex)
-        for g in util.progressbar_range(n, show_progressbar=show_progressbar,
-                                        desc='Calculating control matrix'):
-            control_matrix += expr(phases[g]*control_matrix_atomic[g], propagators_liouville[g])
+    if which == 'correlations':
+        control_matrix = np.empty_like(control_matrix_atomic)
     else:
-        # which == 'correlations'
-        control_matrix = np.zeros(control_matrix_atomic.shape, dtype=complex)
-        for g in util.progressbar_range(n, show_progressbar=show_progressbar,
-                                        desc='Calculating control matrix'):
-            control_matrix[g] = expr(phases[g]*control_matrix_atomic[g], propagators_liouville[g],
-                                     out=control_matrix[g])
+        control_matrix, tmp = np.zeros((2,) + control_matrix_atomic.shape[1:], dtype=complex)
+
+    for g in util.progressbar_range(G, show_progressbar=show_progressbar,
+                                    desc='Calculating control matrix'):
+        if which == 'correlations':
+            tmp = control_matrix[g]
+
+        tmp = np.multiply(phases[g], control_matrix_atomic[g], out=tmp)
+        tmp = expr(tmp, propagators_liouville[g], out=tmp)
+
+        if which == 'total':
+            control_matrix += tmp
 
     return control_matrix
 
