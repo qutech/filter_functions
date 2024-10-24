@@ -281,7 +281,7 @@ class Basis(np.ndarray):
         if self._istraceless is None:
             trace = np.einsum('...jj', self)
             trace = util.remove_float_errors(trace, self.d**2)
-            nonzero = trace.nonzero()
+            nonzero = np.atleast_1d(trace).nonzero()
             if nonzero[0].size == 0:
                 self._istraceless = True
             elif nonzero[0].size == 1:

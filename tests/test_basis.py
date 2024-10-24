@@ -28,7 +28,6 @@ import filter_functions as ff
 import numpy as np
 import pytest
 from filter_functions import util
-from scipy import stats, linalg
 from sparse import COO
 from tests import testutil
 from tests.testutil import rng
