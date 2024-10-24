@@ -224,14 +224,18 @@ class Basis(np.ndarray):
         return any(np.isclose(item.view(np.ndarray), self.view(np.ndarray),
                               rtol=self._rtol, atol=self._atol).all(axis=(1, 2)))
 
-    def __array_wrap__(self, out_arr, context=None):
+    def __array_wrap__(self, arr, context=None, return_scalar=False):
         """
         Fixes problem that ufuncs return 0-d arrays instead of scalars.
 
         https://github.com/numpy/numpy/issues/5819#issue-72454838
         """
-        if out_arr.ndim:
-            return np.ndarray.__array_wrap__(self, out_arr, context)
+        try:
+            return super().__array_wrap__(arr, context, return_scalar=True)
+        except TypeError:
+            if arr.ndim:
+                # Numpy < 2
+                return np.ndarray.__array_wrap__(self, arr, context)
 
     def _print_checks(self) -> None:
         """Print checks for debug purposes."""
