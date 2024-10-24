@@ -24,12 +24,11 @@ This module tests the operator basis module.
 from copy import copy
 from itertools import product
 
+import filter_functions as ff
 import numpy as np
 import pytest
-from sparse import COO
-
-import filter_functions as ff
 from filter_functions import util
+from sparse import COO
 from tests import testutil
 from tests.testutil import rng
 
@@ -152,9 +151,21 @@ class BasisTest(testutil.TestCase):
 
             base._print_checks()
 
-        basis = util.paulis[1].view(ff.Basis)
-        self.assertTrue(basis.isorthonorm)
-        self.assertArrayEqual(basis.T, basis.view(np.ndarray).T)
+        # single element always considered orthonormal
+        orthonorm = rng.normal(size=(d, d))
+        self.assertTrue(orthonorm.view(ff.Basis).isorthonorm)
+
+        herm = testutil.rand_herm(d).squeeze()
+        self.assertTrue(herm.view(ff.Basis).isherm)
+
+        herm[0, 1] += 1
+        self.assertFalse(herm.view(ff.Basis).isherm)
+
+        traceless = testutil.rand_herm_traceless(d).squeeze()
+        self.assertTrue(traceless.view(ff.Basis).istraceless)
+
+        traceless[0, 0] += 1
+        self.assertFalse(traceless.view(ff.Basis).istraceless)
 
     def test_transpose(self):
         arr = rng.normal(size=(2, 3, 3))
