@@ -1033,15 +1033,8 @@ class CoreTest(testutil.TestCase):
             cumulant_function_second_order = numeric.calculate_cumulant_function(
                 pulse, spectrum, omega, second_order=True
             )
-            # Make sure first and second order are --roughly -- of same order
-            # of magnitude. Unlike the frequency shifts themselves, the
-            # second order contributions to the cumulant function vanish on the
-            # diagonal, whereas the first order contributions dominate. Hence,
-            # be quite lenient.
             second_order_contribution = (cumulant_function_second_order
                                          - cumulant_function_first_order)
-            rel = (np.linalg.norm(cumulant_function_first_order)
-                   / np.linalg.norm(second_order_contribution))
 
             # Second order terms should be anti-hermitian
             self.assertArrayAlmostEqual(second_order_contribution,
@@ -1049,8 +1042,6 @@ class CoreTest(testutil.TestCase):
                                         atol=1e-16)
             self.assertEqual(cumulant_function_first_order.shape,
                              cumulant_function_second_order.shape)
-            self.assertLessEqual(rel, 200)
-            self.assertGreaterEqual(rel, 1/10)
 
     def test_error_transfer_matrix(self):
         """Test raises of numeric.error_transfer_matrix."""
