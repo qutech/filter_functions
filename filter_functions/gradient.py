@@ -70,33 +70,41 @@ def _derivative_integral(E: Coefficients, eigvals: Coefficients, dt: float,
                          out: ndarray) -> ndarray:
     """
     Compute the integral appearing in the derivative of the control
-    matrix. Result (out) has shape (len(E), d, d, d, d).
+    matrix. Result (out) has shape (len(E), d, d, d, d) corresponding
+    to indices (o, p, q, m, n).
     """
     # Precompute masks and energy differences
     dE = np.subtract.outer(eigvals, eigvals)
-    mask_dE = np.abs(dE) < 1e-7
+    mask_dE = dE == 0
     EdE = np.add.outer(E, dE)
-    mask_EdE = np.abs(EdE) < 1e-7
+    mask_EdE = EdE == 0
     EdEdE = np.add.outer(EdE, dE[~mask_dE])
-    mask_EdEdE = np.abs(EdEdE) < 1e-7
+    mask_EdEdE = EdEdE == 0
 
     # Case Omega_pq == 0
-    tmp1 = np.divide(util.cexp(EdE*dt), EdE, where=~mask_EdE)
-    tmp2 = tmp1 - np.divide(1, EdE, where=~mask_EdE)
-    tmp2[mask_EdE] = 1j * dt
+    tmp1 = util.cexpm1(EdE*dt)
+    tmp2 = np.divide(tmp1, EdE, where=~mask_EdE)
 
+    tmp1 += 1
     tmp1 *= -1j * dt
-    tmp1 += np.divide(tmp2, EdE, where=~mask_EdE)
+
+    tmp1 += tmp2
+    tmp1 = np.divide(tmp1, EdE, out=tmp1, where=~mask_EdE)
     tmp1[mask_EdE] = dt**2 / 2
 
     out[:, mask_dE] = tmp1[:, None]
 
     # Case Omega_pq != 0
-    tmp1 = np.divide(1 - util.cexp(EdEdE*dt, where=~mask_EdEdE), EdEdE, where=~mask_EdEdE)
-    tmp1[mask_EdEdE] = -1j * dt
-    tmp1 += tmp2[..., None]
+    tmp1 = util.cexpm1(EdEdE*dt)
+    tmp1 = np.divide(tmp1, EdEdE, out=tmp1, where=~mask_EdEdE)
+    tmp1[mask_EdEdE] = 1j * dt
+    tmp2[mask_EdE] = 1j * dt
 
-    out[:, ~mask_dE] = (tmp1 / dE[~mask_dE]).transpose(0, 3, 1, 2)
+    tmp1 = np.subtract(tmp2[..., None], tmp1, out=tmp1)
+    tmp1 /= dE[~mask_dE]
+
+    out[:, ~mask_dE] = tmp1.transpose(0, 3, 1, 2)
+
     return out
 
 
