@@ -628,8 +628,9 @@ def calculate_control_matrix_from_atomic(
         control_matrix_atomic: ndarray,
         propagators_liouville: ndarray,
         show_progressbar: bool = False,
-        which: str = 'total'
-) -> ndarray:
+        which: str = 'total',
+        return_accumulated: bool = False
+) -> Union[ndarray, Tuple[ndarray, ndarray]]:
     r"""
     Calculate the control matrix from the control matrices of atomic
     segments.
@@ -649,6 +650,11 @@ def calculate_control_matrix_from_atomic(
         Compute the total control matrix (the sum of all time steps) or
         the correlation control matrix (first axis holds each pulses'
         contribution)
+    return_accumulated: bool, optional
+        Also return the accumulated sum, that is, an array that holds
+        the control matrix of the sequence up to position *g* in element
+        *g* of its first axis. Only if *which* is 'total' (otherwise
+        corresponds to ``control_matrix.cumsum(axis=0)``).
 
     Returns
     -------
@@ -680,18 +686,36 @@ def calculate_control_matrix_from_atomic(
     if which == 'correlations':
         control_matrix = np.empty_like(control_matrix_atomic)
     else:
-        control_matrix, tmp = np.zeros((2,) + control_matrix_atomic.shape[1:], dtype=complex)
+        # which == 'total'
+        control_matrix = np.zeros(control_matrix_atomic.shape[1:], dtype=complex)
+        if return_accumulated:
+            control_matrix_accumulated = np.empty_like(control_matrix_atomic)
+        else:
+            # A buffer for intermediate terms in the calculation.
+            tmp = np.empty_like(control_matrix)
 
     for g in util.progressbar_range(G, show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
         if which == 'correlations':
             tmp = control_matrix[g]
+        elif return_accumulated:
+            tmp = control_matrix_accumulated[g]
+        # else: defined outside the loop
 
-        tmp = np.multiply(phases[g], control_matrix_atomic[g], out=tmp)
-        tmp = expr(tmp, propagators_liouville[g], out=tmp)
+        if g > 0:
+            # For the first time step phases and propagators are 1
+            tmp = np.multiply(phases[g-1], control_matrix_atomic[g], out=tmp)
+            tmp = expr(tmp, propagators_liouville[g-1], out=tmp)
+        else:
+            tmp[:] = control_matrix_atomic[g]
 
         if which == 'total':
             control_matrix += tmp
+            if return_accumulated:
+                control_matrix_accumulated[g] = control_matrix
+
+    if return_accumulated:
+        return control_matrix, control_matrix_accumulated
 
     return control_matrix
 
@@ -1561,6 +1585,7 @@ def calculate_second_order_filter_function(
 
     shape = (len(n_coeffs), len(n_coeffs), len(basis), len(basis), len(omega))
     step_buf = np.empty(shape, dtype=complex)
+    complete_step_buf = np.zeros(shape, dtype=complex)
     result = np.zeros(shape, dtype=complex)
 
     # intermediate results from calculation of control matrix
@@ -1593,11 +1618,12 @@ def calculate_second_order_filter_function(
                                        *[(len(n_coeffs), len(basis), d, d)]*2,
                                        optimize=[(0, 1), (0, 1)])
 
-    def _incomplete_time_step(g):
+    def _incomplete_time_step(g, out):
         _second_order_integral(omega, eigvals[g], dt[g], int_buf, frc_bufs, dE_bufs, msk_bufs)
-        np.einsum('akl,ilk->aikl', n_opers_transformed[:, g], basis_transformed,
-                  out=n_opers_basis_buf)
-        return step_expr(int_buf, n_opers_basis_buf, n_opers_basis_buf, out=step_buf)
+        # αij,kji->αkij
+        np.multiply(n_opers_transformed[:, g, None], basis_transformed.swapaxes(-1, -2),
+                    out=n_opers_basis_buf)
+        return step_expr(int_buf, n_opers_basis_buf, n_opers_basis_buf, out=out)
 
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating second order FF'):
@@ -1629,13 +1655,18 @@ def calculate_second_order_filter_function(
         # time dependence separates and we can use previous result for the
         # control matrix). opt_einsum seems to be faster than numpy here.
         if g > 0:
-            result += np.einsum('ako,blo->abklo', ctrlmat_step.conj(), ctrlmat_step_cumulative,
-                                out=step_buf)  # all (complete) intervals up to last
+            # αko,βlo->αβklo
+            complete_step_buf += np.multiply(ctrlmat_step[:, None, :, None].conj(),
+                                             ctrlmat_step_cumulative[None, :, None],
+                                             out=step_buf)  # all (complete) intervals up to last
 
-        result += _incomplete_time_step(g)  # last (incomplete) interval
+        result += _incomplete_time_step(g, out=step_buf)  # last (incomplete) interval
+
+    result += complete_step_buf
 
     if cache_intermediates:
         intermediates['second_order_integral'] = int_cache
+        intermediates['second_order_complete_steps'] = complete_step_buf
         return result, intermediates
 
     return result
