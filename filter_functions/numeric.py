@@ -1777,10 +1777,7 @@ def diagonalize(hamiltonian: ndarray, dt: Coefficients) -> Tuple[ndarray, ndarra
     # The cumulative propagator Q with the identity operator as first
     # element (Q_0 = P_0 = I), i.e.
     # Q = [Q_0, Q_1, ..., Q_n] = [P_0, P_1 @ P_0, ..., P_n @ ... @ P_0]
-    cumulative = np.empty((len(dt)+1, d, d), dtype=complex)
-    cumulative[0] = np.identity(d)
-    for i in range(len(dt)):
-        cumulative[i+1] = piecewise[i] @ cumulative[i]
+    cumulative = np.concatenate([np.identity(d, dtype=complex)[None], util.adot(piecewise)])
 
     return eigvals, eigvecs, cumulative
 
