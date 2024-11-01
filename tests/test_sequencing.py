@@ -448,6 +448,23 @@ class ConcatenationTest(testutil.TestCase):
                                         cnot_concatenated.frequency_data['filter_function'],
                                         rtol, atol)
 
+    def test_second_order(self):
+        for d, n_dt in zip(rng.integers(2, 5, 10), rng.integers(1, 11, 10)):
+            pulse = testutil.rand_pulse_sequence(d, n_dt)
+            omega = util.get_sample_frequencies(pulse, 11)
+            pulses = list(pulse)
+            pulse.cache_filter_function(omega, order=1, cache_intermediates=True)
+            pulse.cache_filter_function(omega, order=2, cache_intermediates=True)
+            for pls in pulses:
+                pls.cache_filter_function(omega, order=1, cache_intermediates=True)
+                pls.cache_filter_function(omega, order=2, cache_intermediates=True)
+
+            concat_pulse = ff.concatenate(pulses, calc_second_order_FF=True)
+            self.assertArrayAlmostEqual(concat_pulse.get_filter_function(omega, order=2),
+                                        pulse.get_filter_function(omega, order=2),
+                                        atol=1e-13)
+
+
     def test_different_n_opers(self):
         """Test behavior when concatenating with different n_opers."""
         for d, n_dt in zip(rng.integers(2, 5, 20),
@@ -540,6 +557,11 @@ class ConcatenationTest(testutil.TestCase):
 
             # Test forcibly caching
             self.assertTrue(pulse_13_2.is_cached('filter_function'))
+
+            with self.assertWarns(UserWarning):
+                # Issues a warning and disables second order calculation if unequal nopers
+                result = ff.concatenate([pulse_1, pulse_3], calc_second_order_FF=True)
+                self.assertFalse(result.is_cached('filter_function_2'))
 
     def test_concatenate_periodic(self):
         """Test concatenation for periodic Hamiltonians"""

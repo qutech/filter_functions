@@ -1773,6 +1773,67 @@ def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
     return np.einsum(subscripts, control_matrix.conj(), control_matrix)
 
 
+def calculate_second_order_from_atomic(
+        basis: Basis,
+        filter_function_atomic: ndarray,
+        control_matrix_atomic: ndarray,
+        control_matrix_accumulated: ndarray,
+        phases: ndarray,
+        propagators: ndarray,
+        propagators_liouville: ndarray,
+        intermediates: Sequence[Mapping[str, ndarray]]
+):
+    G, n_nops, n_basis, n_omega = control_matrix_atomic.shape
+    d = propagators.shape[-1]
+
+    tmp_1 = np.empty((n_nops, n_basis, n_omega), dtype=complex)
+    tmp_2 = np.empty((n_nops, n_nops, n_basis, n_basis, n_omega), dtype=complex)
+    basis_transformed = np.empty((n_basis, d, d), dtype=complex)
+    n_opers_basis = np.empty((n_nops, n_basis, d, d), dtype=complex)
+
+    expr_1 = oe.contract_expression('ajo,jk->ako', (n_nops, n_basis, n_omega), (n_basis, n_basis))
+    expr_2 = oe.contract_expression('abpqo,pk,ql->abklo',
+                                    (n_nops, n_nops, n_basis, n_basis, n_omega),
+                                    (n_basis, n_basis), (n_basis, n_basis))
+    expr_3 = oe.contract_expression('oijmn,akij,blmn->abklo', (n_omega, d, d, d, d),
+                                    (n_nops, n_basis, d, d), (n_nops, n_basis, d, d))
+
+    def _incomplete_time_step(h, out):
+        _transform_by_unitary(eigvecs_propagated[h], basis, out=basis_transformed)
+        np.multiply(n_opers_transformed[:, h, None], basis_transformed.swapaxes(-1, -2),
+                    out=n_opers_basis)
+        return expr_3(second_order_integral[h], n_opers_basis, n_opers_basis, out=out)
+
+    result = filter_function_atomic.copy()
+
+    for g in range(1, G):
+        eigvecs_propagated = _propagate_eigenvectors(propagators[g-1:g],
+                                                     intermediates[g]['eigvecs_propagated'])
+        n_opers_transformed = intermediates[g]['n_opers_transformed']
+        second_order_integral = intermediates[g]['second_order_integral']
+        second_order_complete_steps = intermediates[g]['second_order_complete_steps']
+
+        # B'_(g-1)(ω)
+        tmp_1[:] = control_matrix_accumulated[g-1]
+        tmp_1 *= phases[g-1].conj()
+        tmp_1 = expr_1(tmp_1, propagators_liouville[g-1].T, out=tmp_1)
+
+        # B^(g)*(ω) B'_(g-1)(ω)
+        tmp_2 = np.multiply(control_matrix_atomic[g, :, None, :, None].conj(),
+                            tmp_1[None, :, None, :], out=tmp_2)
+
+        # N_(g)(ω)
+        tmp_2 += second_order_complete_steps
+
+        result += expr_2(tmp_2, propagators_liouville[g-1], propagators_liouville[g-1], out=tmp_2)
+
+        for h in range(len(eigvecs_propagated)):
+            # J'_(g)(ω)
+            result += _incomplete_time_step(h, out=tmp_2)
+
+    return result
+
+
 def diagonalize(hamiltonian: ndarray, dt: Coefficients) -> Tuple[ndarray, ndarray, ndarray]:
     r"""Diagonalize a Hamiltonian.
 

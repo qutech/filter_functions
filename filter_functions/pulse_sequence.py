@@ -1657,6 +1657,7 @@ def concatenate(
         pulses: Iterable[PulseSequence],
         calc_pulse_correlation_FF: bool = False,
         calc_filter_function: Optional[bool] = None,
+        calc_second_order_FF: Optional[bool] = None,
         which: str = 'fidelity',
         omega: Optional[Coefficients] = None,
         show_progressbar: bool = False
@@ -1691,7 +1692,9 @@ def concatenate(
         carried out or not. Overrides the automatic behavior of
         calculating it if at least one pulse has a cached control
         matrix. If ``True`` and no pulse has a cached control matrix, a
-        list of frequencies must be supplied as *omega*.
+        list of frequencies must be supplied as *omega*. Overridden if
+        either *calc_pulse_correlation_FF* or *calc_second_order_FF* are
+        true.
     which: str, optional
         Which filter function to compute. Either 'fidelity' (default) or
         'generalized' (see :meth:`PulseSequence.get_filter_function` and
@@ -1720,7 +1723,10 @@ def concatenate(
     if all(pls.is_cached('total_propagator') for pls in pulses):
         newpulse.total_propagator = util.mdot([pls.total_propagator for pls in pulses][::-1])
 
-    if calc_filter_function is False and not calc_pulse_correlation_FF:
+    if calc_pulse_correlation_FF or calc_second_order_FF is True:
+        calc_filter_function = True
+
+    if calc_filter_function is False:
         return newpulse
 
     # If the pulses have different noise operators, we cannot reuse cached
@@ -1741,6 +1747,11 @@ def concatenate(
         for j, identifier in enumerate(unique_identifiers):
             if identifier in pulse_identifier:
                 n_opers_present[i, j] = True
+
+    if calc_second_order_FF and not n_opers_present.all():
+        warn('Second order FF requested but not all pulses have the same n_opers. '
+             'Not implemented.', UserWarning)
+        calc_second_order_FF = False
 
     # If at least two pulses have the same noise operators, we gain an
     # advantage when concatenating the filter functions over calculating them
@@ -1826,6 +1837,21 @@ def concatenate(
         which='correlations' if calc_pulse_correlation_FF else 'total',
         return_accumulated=calc_second_order_FF
     )
+
+    if calc_second_order_FF:
+        control_matrix, control_matrix_accumulated = control_matrix
+        filter_function = numeric.calculate_second_order_from_atomic(
+            basis=newpulse.basis,
+            filter_function_atomic=pulses[0].get_filter_function(omega, order=2),
+            control_matrix_atomic=control_matrix_atomic,
+            control_matrix_accumulated=control_matrix_accumulated,
+            phases=phases,
+            propagators=util.adot([pulse.total_propagator for pulse in pulses[:-1]]),
+            propagators_liouville=propagators_liouville,
+            intermediates=[pulse.intermediates for pulse in pulses]
+        )
+
+        newpulse.cache_filter_function(omega, filter_function=filter_function, order=2)
 
     # Set the attribute and calculate filter function (if the pulse correlation
     # FF has been calculated, this is a little overhead but negligible)
