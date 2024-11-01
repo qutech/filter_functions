@@ -122,6 +122,16 @@ class ConcatenationTest(testutil.TestCase):
             slc.cleanup('all')
             self.assertArrayEqual(sliced, slc.get_control_matrix(omega))
 
+        _, ctrlmat_cumulative = numeric.calculate_control_matrix_from_atomic(
+            np.array([pulse[:i].get_total_phases(omega) for i in range(1, len(pulse))]),
+            np.array([p.get_control_matrix(omega) for p in pulse]),
+            np.array([pulse[:i].total_propagator_liouville for i in range(1, len(pulse))]),
+            return_accumulated=True
+        )
+        self.assertArrayAlmostEqual(ctrlmat_cumulative[:-1],
+                                    pulse.intermediates['control_matrix_step_cumulative'],
+                                    atol=1e-15)
+
     def test_concatenate_without_filter_function(self):
         """Concatenate two Spin Echos without filter functions."""
         tau = 10
