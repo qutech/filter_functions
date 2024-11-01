@@ -54,7 +54,7 @@ def _get_integrals_second_order(d, E, eigval, dt, t0):
     frc_bufs = (np.empty((len(E), d, d), dtype=complex),
                 np.empty((d, d, d, d), dtype=complex))
     int_buf = np.empty((len(E), d, d, d, d), dtype=complex)
-    msk_bufs = np.empty((5, len(E), d, d, d, d), dtype=bool)
+    msk_bufs = np.empty((4, len(E), d, d, d, d), dtype=bool)
     tspace = np.linspace(0, dt, 1001) + t0
     dE = np.subtract.outer(eigval, eigval)
 
@@ -481,8 +481,8 @@ class PrecisionTest(testutil.TestCase):
             integral, integral_numeric = _get_integrals_second_order(d, E, eigval, dt, t)
             self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
 
-        # excluding (most likely) zero
-        E = testutil.rng.standard_normal(51)
+        # excluding (most likely) zero but including a very small frequency
+        E = np.insert(testutil.rng.standard_normal(51), 0, 1e-10)
 
         for i, (eigval, dt, t) in enumerate(zip(pulse.eigvals, pulse.dt, pulse.t)):
             integral, integral_numeric = _get_integrals_first_order(d, E, eigval, dt, t)

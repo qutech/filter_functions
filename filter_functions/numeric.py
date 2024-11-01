@@ -66,7 +66,7 @@ Functions
 """
 from collections import deque
 from itertools import accumulate, repeat, zip_longest
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union
 from warnings import warn
 
 import numpy as np
@@ -128,11 +128,11 @@ def _transform_by_unitary(unitary, oper, out=None):
 
     .. math::
 
-        C_k\rightarrow  U C_k U^\dagger.
+        C_k\rightarrow  U^\dagger C_k U.
 
     """
     if out is None:
-        out = np.empty(oper.shape, dtype=oper.dtype)
+        out = np.empty(np.broadcast_shapes(unitary.shape, oper.shape), dtype=oper.dtype)
 
     out = np.matmul(oper, unitary, out=out)
     out = np.matmul(unitary.conj().swapaxes(-1, -2), out, out=out)
@@ -168,7 +168,7 @@ def _first_order_integral(E: ndarray, eigvals: ndarray, dt: float,
 def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
                            int_buf: ndarray, frc_bufs: Tuple[ndarray, ndarray],
                            dE_bufs: Tuple[ndarray, ndarray, ndarray],
-                           msk_bufs: Tuple[ndarray, ndarray]) -> ndarray:
+                           msk_bufs: Tuple[ndarray, ndarray, ndarray, ndarray]) -> ndarray:
     r"""Calculate the nested integral of second order Magnus expansion.
 
     The integral is evaluated as
@@ -195,18 +195,17 @@ def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     with :math:`\Omega_{mn}^{(g)} = \omega_m^{(g)} - \omega_n^{(g)}`.
 
     """
-    eps = 1e-7
     # frc_buf1 has shape (len(E), *dE.shape), frc_buf2 has shape dE.shape*2
     frc_buf1, frc_buf2 = frc_bufs
     dEdE, EdE, dEE = dE_bufs
-    mask_nE_dE_dE, mask_nE_ndE_dE, mask_nE_dE_ndE, mask_nEdE_ndEE, mask_nEdE_dEE = msk_bufs
+    mask_nE_dE_dE, mask_nE_ndE_dE, mask_nE_dE_ndE, mask_nEdE_ndEE = msk_bufs
 
     dE = np.subtract.outer(eigvals, eigvals)
     dEdE = np.add.outer(dE, dE, out=dEdE)
     EdE = np.add.outer(E, dE, out=EdE)
     dEE = np.add.outer(-E, dE, out=dEE)
 
-    mask_E = abs(E) > eps
+    mask_E = E != 0
     mask_dE = dE != 0
     mask_dEE = dEE != 0
     mask_EdE = EdE != 0
@@ -223,8 +222,6 @@ def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
                                     out=mask_nE_dE_ndE)
     mask_nEdE_ndEE = np.logical_and(~mask_E[:, None, None, None, None], mask_ndE_ndE,
                                     out=mask_nEdE_ndEE)
-    mask_nEdE_dEE = np.logical_and(~mask_EdE[:, None, None], mask_dEE[..., None, None],
-                                   out=mask_nEdE_dEE)
     mask_EdE_dEE = np.broadcast_to(mask_EdE[:, None, None], int_buf.shape)
 
     frc_buf1 = util.cexpm1(dEE*dt, where=mask_dEE, out=frc_buf1)
@@ -439,16 +436,18 @@ def calculate_noise_operators_from_atomic(
     """
     G = len(noise_operators_atomic)
     noise_operators = np.zeros(noise_operators_atomic.shape[1:], dtype=complex)
-
-    expr = oe.contract_expression('ji,...jk,kl->...il',
-                                  propagators.shape[1:], noise_operators_atomic.shape[1:],
-                                  propagators.shape[1:], optimize=[(0, 1), (0, 1)])
+    tmp = np.empty_like(noise_operators)
 
     for g in util.progressbar_range(G, show_progressbar=show_progressbar,
                                     desc='Calculating noise operators'):
-        noise_operators += expr(propagators[g].conj(),
-                                noise_operators_atomic[g]*phases[g, :, None, None, None],
-                                propagators[g])
+
+        if g > 0:
+            tmp = np.multiply(noise_operators_atomic[g], phases[g-1, :, None, None, None], out=tmp)
+            tmp = _transform_by_unitary(propagators[g-1], tmp, out=tmp)
+        else:
+            tmp = noise_operators_atomic[g]
+
+        noise_operators += tmp
 
     return noise_operators
 
@@ -583,17 +582,12 @@ def calculate_noise_operators_from_scratch(
         phase_factors_cache = np.empty((len(dt), len(omega)), dtype=complex)
         int_cache = np.empty((len(dt), len(omega), d, d), dtype=complex)
         sum_cache = np.empty((len(dt), len(omega), len(n_opers), d, d), dtype=complex)
+        tmp_buf = np.empty((len(omega), d, d), dtype=complex)
     else:
         phase_factors = np.empty((len(omega),), dtype=complex)
         int_buf = np.empty((len(omega), d, d), dtype=complex)
         sum_buf = np.empty((len(omega), len(n_opers), d, d), dtype=complex)
-
-    # Set up reusable expressions
-    expr_1 = oe.contract_expression('akl,okl->oakl',
-                                    n_opers_transformed[:, 0].shape, int_buf.shape)
-    expr_2 = oe.contract_expression('ji,...jk,kl',
-                                    eigvecs_propagated[0].shape, (len(omega), len(n_opers), d, d),
-                                    eigvecs_propagated[0].shape, optimize=[(0, 1), (0, 1)])
+        tmp_buf = int_buf
 
     for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
                                     desc='Calculating noise operators'):
@@ -606,11 +600,10 @@ def calculate_noise_operators_from_scratch(
 
         phase_factors = util.cexp(omega*t[g], out=phase_factors)
         int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
-        sum_buf = expr_1(n_opers_transformed[:, g], phase_factors[:, None, None]*int_buf,
-                         out=sum_buf)
+        tmp_buf = np.multiply(phase_factors[:, None, None], int_buf, out=tmp_buf)
+        sum_buf = np.multiply(n_opers_transformed[:, g], tmp_buf[:, None], out=sum_buf)
 
-        noise_operators += expr_2(eigvecs_propagated[g].conj(), sum_buf, eigvecs_propagated[g],
-                                  out=sum_buf)
+        noise_operators += _transform_by_unitary(eigvecs_propagated[g], sum_buf, out=sum_buf)
 
     if cache_intermediates:
         intermediates = dict(n_opers_transformed=n_opers_transformed,
@@ -1579,7 +1572,7 @@ def calculate_second_order_filter_function(
                np.empty((len(omega), d, d), dtype=float),
                np.empty((len(omega), d, d), dtype=float))
     frc_bufs = (np.empty((len(omega), d, d), dtype=complex), np.empty((d, d, d, d), dtype=complex))
-    msk_bufs = np.empty((5, len(omega), d, d, d, d), dtype=bool)
+    msk_bufs = np.empty((4, len(omega), d, d, d, d), dtype=bool)
     n_opers_basis_buf = np.empty((len(n_coeffs), len(basis), d, d), dtype=complex)
     ctrlmat_step_cumulative = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
 
