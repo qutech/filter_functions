@@ -1781,7 +1781,8 @@ def calculate_second_order_from_atomic(
         phases: ndarray,
         propagators: ndarray,
         propagators_liouville: ndarray,
-        intermediates: Sequence[Mapping[str, ndarray]]
+        intermediates: Sequence[Mapping[str, ndarray]],
+        show_progressbar: bool = False,
 ):
     G, n_nops, n_basis, n_omega = control_matrix_atomic.shape
     d = propagators.shape[-1]
@@ -1806,7 +1807,8 @@ def calculate_second_order_from_atomic(
 
     result = filter_function_atomic.copy()
 
-    for g in range(1, G):
+    for g in util.progressbar_range(1, G, disable=not show_progressbar,
+                                    desc='Calculating second order FF'):
         eigvecs_propagated = _propagate_eigenvectors(propagators[g-1:g],
                                                      intermediates[g]['eigvecs_propagated'])
         n_opers_transformed = intermediates[g]['n_opers_transformed']
