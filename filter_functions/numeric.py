@@ -1497,7 +1497,8 @@ def calculate_second_order_filter_function(
         dt: Coefficients,
         intermediates: Optional[Dict[str, ndarray]] = None,
         show_progressbar: bool = False,
-        cache_intermediates: bool = False
+        cache_intermediates: bool = False,
+        cache_cumulative: bool = False
 ) -> Union[ndarray, tuple[ndarray, Dict[str, ndarray]]]:
     r"""Calculate the second order filter function for frequency shifts.
 
@@ -1536,11 +1537,21 @@ def calculate_second_order_filter_function(
         Show a progress bar for the calculation.
     cache_intermediates: bool, optional
         Return a cache with intermediate results.
+    cache_cumulative : bool, optional
+        Additionally cache the accumulated filter function for each step
+        :math:`g`, that is, an array that holds the filter function of
+        the sequence up to position *g* in element *g* of its first
+        axis. Only if *cache_intermediates* is True.
+
+        .. note::
+            This might be an extremely large array.
 
     Returns
     -------
-    second_order_filter_function: ndarray, shape (n_nops, n_nops, d**2, d**2, n_omega)
+    second_order_filter_function : ndarray, shape (n_nops, n_nops, d**2, d**2, n_omega)
         The second order filter function.
+    filter_function_cumulative_step : ndarray, shape (n_dt, n_nops, n_nops, d**2, d**2, n_omega)
+        The accumulated filter function.
 
     .. _notes:
 
@@ -1593,10 +1604,8 @@ def calculate_second_order_filter_function(
     frc_bufs = (np.empty((n_omega, d, d), dtype=complex), np.empty((d, d, d, d), dtype=complex))
     msk_bufs = np.empty((4, n_omega, d, d, d, d), dtype=bool)
     n_opers_basis_buf = np.empty((n_nops, n_basis, d, d), dtype=complex)
-
-    result = np.zeros((n_nops, n_nops, n_basis, n_basis, n_omega), dtype=complex)
-    complete_step_buf = np.zeros_like(result)
-    step_buf = np.empty_like(result)
+    complete_step_buf = np.zeros((n_nops, n_nops, n_basis, n_basis, n_omega), dtype=complex)
+    result = np.zeros_like(complete_step_buf)
 
     # intermediate results from calculation of control matrix
     if intermediates is None:
@@ -1622,6 +1631,12 @@ def calculate_second_order_filter_function(
         int_cache = np.empty((G, n_omega, d, d, d, d), dtype=complex)
     else:
         int_buf = np.empty((n_omega, d, d, d, d), dtype=complex)
+
+    if cache_cumulative := cache_intermediates and cache_cumulative:
+        filter_function_step_cumulative = np.empty((G,) + (n_nops,)*2 + (n_basis,)*2 + (n_omega,),
+                                                   dtype=complex)
+    else:
+        step_buf = np.empty_like(complete_step_buf)
 
     step_expr = oe.contract_expression('oijmn,akij,blmn->abklo',
                                        (n_omega, d, d, d, d), *[(n_nops, n_basis, d, d)]*2,
@@ -1659,6 +1674,8 @@ def calculate_second_order_filter_function(
                 ctrlmat_step_cumulative = ctrlmat_step_cumulative_cache[g-1]
         if cache_intermediates:
             int_buf = int_cache[g]
+        if cache_cumulative:
+            step_buf = filter_function_step_cumulative[g]
 
         # We use step_buf as a buffer for the last interval (with nested time
         # dependence) and afterwards the intervals up to the last (where the
@@ -1672,11 +1689,18 @@ def calculate_second_order_filter_function(
 
         result += _incomplete_time_step(g, out=step_buf)  # last (incomplete) interval
 
-    result += complete_step_buf
+        if cache_cumulative:
+            filter_function_step_cumulative[g] = result + complete_step_buf
+
+    if not cache_cumulative:
+        # if True, already done above
+        result += complete_step_buf
 
     if cache_intermediates:
         intermediates['second_order_integral'] = int_cache
         intermediates['second_order_complete_steps'] = complete_step_buf
+        if cache_cumulative:
+            intermediates['filter_function_step_cumulative'] = filter_function_step_cumulative
         return result, intermediates
 
     return result
