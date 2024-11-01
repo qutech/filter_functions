@@ -41,6 +41,8 @@ Functions
     product chain
 :func:`mdot`
     Multiple matrix product
+:func:`adot`
+    Accumulated matrix product
 :func:`remove_float_errors`
     Set entries whose absolute value is below a certain threshold to
     zero
@@ -71,7 +73,7 @@ import inspect
 import operator
 import os
 import string
-from itertools import zip_longest
+from itertools import accumulate, zip_longest
 from typing import Callable, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -849,9 +851,21 @@ def tensor_transpose(arr: ndarray, order: Sequence[int], arr_dims: Sequence[Sequ
     return result
 
 
-def mdot(arr: Sequence, axis: int = 0) -> ndarray:
-    """Multiple matrix products along axis"""
+def mdot(arr: Sequence[ndarray], axis: int = 0) -> ndarray:
+    """Multiple matrix products along axis."""
     return functools.reduce(np.matmul, np.swapaxes(arr, 0, axis))
+
+
+def adot(arr: Sequence[ndarray], axis: int = 0) -> ndarray:
+    """Accumulate matrix products along axis."""
+    arr = np.swapaxes(arr, 0, axis)
+    # result[i] = arr[i] @ arr[i-1] @ ... @ arr[0], but accumulate does
+    # total = function(total, element), so flip args
+    return np.fromiter(
+        accumulate(arr, lambda x1, x2: np.matmul(x2, x1)),
+        dtype=np.dtype((arr[0].dtype, arr[0].shape)),
+        count=arr.shape[0]
+    ).swapaxes(0, axis)
 
 
 def integrate(f: ndarray, x: Optional[ndarray] = None, dx: float = 1.0) -> Union[ndarray, float,

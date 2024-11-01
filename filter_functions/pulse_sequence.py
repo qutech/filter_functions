@@ -1782,23 +1782,18 @@ def concatenate(
 
     # Get the phase factors at the correct times (the individual gate
     # durations) which are just the total phase factors of the pulses cumprod'd
-    phases = np.array(
-        [np.ones_like(omega)]
-        + [pls.get_total_phases(omega) for pls in pulses[:-1]]
-    ).cumprod(axis=0)
+    phases = np.array([pls.get_total_phases(omega) for pls in pulses[:-1]]).cumprod(axis=0)
 
     # Get the transfer matrices for the individual gates
-    N = len(newpulse.basis)
-    L = np.empty((len(pulses), N, N))
-    L[0] = np.identity(N)
-    for i in range(1, len(pulses)):
-        L[i] = pulses[i-1].total_propagator_liouville @ L[i-1]
+    propagators_liouville = util.adot([pulse.total_propagator_liouville for pulse in pulses[:-1]])
 
     # Get the control matrices for each pulse (agnostic of if it was cached or
     # not). Those are the 'new' pulse control matrices. Sort them along the
     # axis belonging to the noise operators
-    control_matrix_atomic = np.empty((len(pulses), len(newpulse.n_opers), N, len(omega)),
-                                     dtype=complex)
+    control_matrix_atomic = np.empty(
+        (len(pulses), len(newpulse.n_opers), len(newpulse.basis), len(omega)),
+        dtype=complex
+    )
     n_dt_segs = [len(pulse.dt) for pulse in pulses]
     seg_idx = [0] + list(accumulate(n_dt_segs))
     for i, (pulse, idx) in enumerate(zip(pulses, n_opers_present)):
@@ -1821,8 +1816,9 @@ def concatenate(
     newpulse.total_propagator_liouville = liouville_representation(newpulse.total_propagator,
                                                                    newpulse.basis)
     control_matrix = numeric.calculate_control_matrix_from_atomic(
-        phases, control_matrix_atomic, L, show_progressbar,
-        'correlations' if calc_pulse_correlation_FF else 'total'
+        phases, control_matrix_atomic, propagators_liouville, show_progressbar,
+        which='correlations' if calc_pulse_correlation_FF else 'total',
+        return_accumulated=calc_second_order_FF
     )
 
     # Set the attribute and calculate filter function (if the pulse correlation

@@ -693,18 +693,19 @@ class CoreTest(testutil.TestCase):
                       for i in range(n_dt)]
 
             phases = np.empty((n_dt, len(omega)), dtype=complex)
-            L = np.empty((n_dt, d**2, d**2))
+            propagator_liouville = np.empty((n_dt, d**2, d**2))
             control_matrix_g = np.empty((n_dt, 6, d**2, len(omega)),
                                         dtype=complex)
             for g, pulse in enumerate(pulses):
-                phases[g] = np.exp(1j*total_pulse.t[g]*omega)
-                L[g] = ff.superoperator.liouville_representation(total_pulse.propagators[g],
-                                                                 total_pulse.basis)
+                phases[g] = np.exp(1j*total_pulse.t[g+1]*omega)
+                propagator_liouville[g] = ff.superoperator.liouville_representation(
+                    total_pulse.propagators[g+1], total_pulse.basis
+                )
                 control_matrix_g[g] = pulse.get_control_matrix(omega)
 
             # Check that both methods of calculating the control are the same
             control_matrix_from_atomic = numeric.calculate_control_matrix_from_atomic(
-                phases, control_matrix_g, L
+                phases, control_matrix_g, propagator_liouville
             )
             control_matrix_from_scratch = numeric.calculate_control_matrix_from_scratch(
                 eigvals=total_eigvals,

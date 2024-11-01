@@ -429,6 +429,15 @@ class UtilTest(testutil.TestCase):
         self.assertArrayEqual(util.mdot(arr, 0), arr[0] @ arr[1] @ arr[2])
         self.assertArrayEqual(util.mdot(arr, 1), arr[:, 0] @ arr[:, 1])
 
+    def test_adot(self):
+        arr = rng.standard_normal((3, 2, 4, 4))
+        dot = util.adot(arr, 0)
+        self.assertEqual(dot.shape, arr.shape)
+        self.assertArrayAlmostEqual(dot, [arr[0], arr[1] @ arr[0], arr[2] @ arr[1] @ arr[0]])
+        dot = util.adot(arr, 1)
+        self.assertEqual(dot.shape, arr.shape)
+        self.assertArrayAlmostEqual(dot, np.swapaxes([arr[:, 0], arr[:, 1] @ arr[:, 0]], 0, 1))
+
     def test_integrate(self):
         f = rng.standard_normal(32)
         x = rng.random(32)
