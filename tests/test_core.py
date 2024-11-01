@@ -638,7 +638,7 @@ class CoreTest(testutil.TestCase):
             pulse.dt, pulse.t, cache_intermediates=True
         )
 
-        pulse.intermediates.update(**intermediates)
+        pulse._intermediates.update(**intermediates)
 
         self.assertArrayAlmostEqual(pulse.intermediates['noise_operators_step'].sum(0), unitary)
         self.assertArrayAlmostEqual(pulse.intermediates['n_opers_transformed'],
