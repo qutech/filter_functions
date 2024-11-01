@@ -383,14 +383,16 @@ def calculate_noise_operators_from_atomic(
 
     Parameters
     ----------
-    phases: array_like, shape (n_dt, n_omega)
-        The phase factors for :math:`g\in\{0, 1, \dots, G-1\}`.
+    phases: array_like, shape (n_dt-1, n_omega)
+        The phase factors for :math:`g\in\{1, 2, \dots, G-1\}`. For
+        :math:`g=0` they are unity.
     noise_operators_atomic: array_like, shape (n_dt, n_nops, d, d, n_omega)
         The noise operators in the interaction picture of the g-th
         pulse, i.e. for :math:`g\in\{1, 2, \dots, G\}`.
-    propagators: array_like, shape (n_dt, d, d)
+    propagators: array_like, shape (n_dt-1, d, d)
         The cumulative propagators of the pulses
-        :math:`g\in\{0, 1, \dots, G-1\}`.
+        :math:`g\in\{1, 2, \dots, G-1\}`. For :math:`g=0` it is the
+        identity.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
 
@@ -630,13 +632,15 @@ def calculate_control_matrix_from_atomic(
 
     Parameters
     ----------
-    phases: array_like, shape (n_dt, n_omega)
-        The phase factors for :math:`g\in\{0, 1, \dots, G-1\}`.
+    phases: array_like, shape (n_dt-1, n_omega)
+        The phase factors for :math:`g\in\{1, 2, \dots, G-1\}`. For
+        :math:`g=0`, they are unity.
     control_matrix_atomic: array_like, shape (n_dt, n_nops, d**2, n_omega)
         The pulse control matrices for :math:`g\in\{1, 2, \dots, G\}`.
-    propagators_liouville: array_like, shape (n_dt, n_nops, d**2, d**2)
+    propagators_liouville: array_like, shape (n_dt-1, n_nops, d**2, d**2)
         The transfer matrices of the cumulative propagators for
-        :math:`g\in\{0, 1, \dots, G-1\}`.
+        :math:`g\in\{1, 2, \dots, G-1\}`. For :math:`g=0` it is the
+        identity.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
     which: str, ('total', 'correlations')
@@ -646,8 +650,12 @@ def calculate_control_matrix_from_atomic(
     return_accumulated: bool, optional
         Also return the accumulated sum, that is, an array that holds
         the control matrix of the sequence up to position *g* in element
-        *g* of its first axis. Only if *which* is 'total' (otherwise
-        corresponds to ``control_matrix.cumsum(axis=0)``).
+        *g* of its first axis. If each atomic unit is a single segment,
+        corresponds to the intermediate 'control_matrix_step_cumulative'
+        returned by :func:`calculate_control_matrix_from_scratch` if
+        *cache_intermediates* is True.
+        Only if *which* is 'total' (otherwise corresponds to
+        ``control_matrix.cumsum(axis=0)``).
 
     Returns
     -------
@@ -836,7 +844,8 @@ def calculate_control_matrix_from_scratch(
         phase_factors_cache = np.empty((len(dt), len(omega)), dtype=complex)
         int_cache = np.empty((len(dt), len(omega), d, d), dtype=complex)
         step_cache = np.empty((len(dt), len(n_opers), len(basis), len(omega)), dtype=complex)
-        cumulative_cache = np.zeros((len(dt), len(n_opers), len(basis), len(omega)), dtype=complex)
+        cumulative_cache = np.zeros((len(dt)-1, len(n_opers), len(basis), len(omega)),
+                                    dtype=complex)
     else:
         basis_transformed = np.empty(basis.shape, dtype=complex)
         phase_factors = np.empty(len(omega), dtype=complex)
@@ -859,10 +868,12 @@ def calculate_control_matrix_from_scratch(
             phase_factors = phase_factors_cache[g]
             int_buf = int_cache[g]
             step_buf = step_cache[g]
-            # cumulative_cache contains each iteration of the sum over g from 0
-            # to G-1 (the last term would be the same as the result of this
-            # function). Hence, we can assign it at the beginning of the loop.
-            cumulative_cache[g] = out
+            # cumulative_cache contains each iteration of the sum over g from 1
+            # to G-1 (the first term would be zero, the last would be the same
+            # as the result of this function). Hence, we can assign a reference
+            # at the beginning of the loop.
+            if g > 0:
+                cumulative_cache[g-1] = out
 
         basis_transformed = _transform_by_unitary(eigvecs_propagated[g], basis,
                                                   out=basis_transformed)
@@ -1638,8 +1649,9 @@ def calculate_second_order_filter_function(
             )
         else:
             basis_transformed = basis_transformed_cache[g]
-            ctrlmat_step = ctrlmat_step_cache[g]
-            ctrlmat_step_cumulative = ctrlmat_step_cumulative_cache[g]
+            if g > 0:
+                ctrlmat_step = ctrlmat_step_cache[g]
+                ctrlmat_step_cumulative = ctrlmat_step_cumulative_cache[g-1]
         if cache_intermediates:
             int_buf = int_cache[g]
 

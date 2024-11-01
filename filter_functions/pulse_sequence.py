@@ -420,7 +420,7 @@ class PulseSequence:
         if is_valid_slice and 'control_matrix_step_cumulative' in self._intermediates:
             new.cache_control_matrix(
                 self.omega,
-                self._intermediates['control_matrix_step_cumulative'][key.stop]
+                self._intermediates['control_matrix_step_cumulative'][key.stop-1]
             )
 
         return new
