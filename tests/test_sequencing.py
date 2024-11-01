@@ -131,7 +131,7 @@ class ConcatenationTest(testutil.TestCase):
             np.array([pulse[:i].get_total_phases(omega) for i in range(1, len(pulse))]),
             np.array([p.get_control_matrix(omega) for p in pulse]),
             np.array([pulse[:i].total_propagator_liouville for i in range(1, len(pulse))]),
-            return_accumulated=True
+            return_cumulative=True
         )
         self.assertArrayAlmostEqual(ctrlmat_cumulative[:-1],
                                     pulse.intermediates['control_matrix_step_cumulative'],

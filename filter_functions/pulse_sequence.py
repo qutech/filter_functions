@@ -1835,16 +1835,16 @@ def concatenate(
     control_matrix = numeric.calculate_control_matrix_from_atomic(
         phases, control_matrix_atomic, propagators_liouville, show_progressbar,
         which='correlations' if calc_pulse_correlation_FF else 'total',
-        return_accumulated=calc_second_order_FF
+        return_cumulative=calc_second_order_FF
     )
 
     if calc_second_order_FF:
-        control_matrix, control_matrix_accumulated = control_matrix
+        control_matrix, control_matrix_atomic_cumulative = control_matrix
         filter_function = numeric.calculate_second_order_from_atomic(
             basis=newpulse.basis,
             filter_function_atomic=pulses[0].get_filter_function(omega, order=2),
             control_matrix_atomic=control_matrix_atomic,
-            control_matrix_accumulated=control_matrix_accumulated[:-1],
+            control_matrix_atomic_cumulative=control_matrix_atomic_cumulative[:-1],
             phases=phases,
             propagators=util.adot([pulse.total_propagator for pulse in pulses[:-1]]),
             propagators_liouville=propagators_liouville,

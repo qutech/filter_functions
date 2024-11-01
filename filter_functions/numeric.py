@@ -626,7 +626,7 @@ def calculate_control_matrix_from_atomic(
         propagators_liouville: ndarray,
         show_progressbar: bool = False,
         which: str = 'total',
-        return_accumulated: bool = False
+        return_cumulative: bool = False
 ) -> Union[ndarray, Tuple[ndarray, ndarray]]:
     r"""
     Calculate the control matrix from the control matrices of atomic
@@ -649,7 +649,7 @@ def calculate_control_matrix_from_atomic(
         Compute the total control matrix (the sum of all time steps) or
         the correlation control matrix (first axis holds each pulses'
         contribution)
-    return_accumulated: bool, optional
+    return_cumulative: bool, optional
         Also return the accumulated sum, that is, an array that holds
         the control matrix of the sequence up to position *g* in element
         *g* of its first axis. If each atomic unit is a single segment,
@@ -691,8 +691,8 @@ def calculate_control_matrix_from_atomic(
     else:
         # which == 'total'
         control_matrix = np.zeros(control_matrix_atomic.shape[1:], dtype=complex)
-        if return_accumulated:
-            control_matrix_accumulated = np.empty_like(control_matrix_atomic)
+        if return_cumulative:
+            control_matrix_atomic_cumulative = np.empty_like(control_matrix_atomic)
         else:
             # A buffer for intermediate terms in the calculation.
             tmp = np.empty_like(control_matrix)
@@ -701,8 +701,8 @@ def calculate_control_matrix_from_atomic(
                                     desc='Calculating control matrix'):
         if which == 'correlations':
             tmp = control_matrix[g]
-        elif return_accumulated:
-            tmp = control_matrix_accumulated[g]
+        elif return_cumulative:
+            tmp = control_matrix_atomic_cumulative[g]
         # else: defined outside the loop
 
         if g > 0:
@@ -714,11 +714,11 @@ def calculate_control_matrix_from_atomic(
 
         if which == 'total':
             control_matrix += tmp
-            if return_accumulated:
-                control_matrix_accumulated[g] = control_matrix
+            if return_cumulative:
+                control_matrix_atomic_cumulative[g] = control_matrix
 
-    if return_accumulated:
-        return control_matrix, control_matrix_accumulated
+    if return_cumulative:
+        return control_matrix, control_matrix_atomic_cumulative
 
     return control_matrix
 
@@ -1777,7 +1777,7 @@ def calculate_second_order_from_atomic(
         basis: Basis,
         filter_function_atomic: ndarray,
         control_matrix_atomic: ndarray,
-        control_matrix_accumulated: ndarray,
+        control_matrix_atomic_cumulative: ndarray,
         phases: ndarray,
         propagators: ndarray,
         propagators_liouville: ndarray,
@@ -1816,7 +1816,7 @@ def calculate_second_order_from_atomic(
         second_order_complete_steps = intermediates[g]['second_order_complete_steps']
 
         # B'_(g-1)(ω)
-        tmp_1[:] = control_matrix_accumulated[g-1]
+        tmp_1[:] = control_matrix_atomic_cumulative[g - 1]
         tmp_1 *= phases[g-1].conj()
         tmp_1 = expr_1(tmp_1, propagators_liouville[g-1].T, out=tmp_1)
 
