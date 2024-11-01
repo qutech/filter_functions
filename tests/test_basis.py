@@ -26,6 +26,7 @@ from itertools import product
 
 import numpy as np
 import pytest
+from opt_einsum import contract
 from sparse import COO
 
 import filter_functions as ff
@@ -142,7 +143,7 @@ class BasisTest(testutil.TestCase):
 
             if base.d < 8:
                 # Test very resource intense
-                ref = np.einsum('iab,jbc,kcd,lda', *(base,)*4)
+                ref = contract('iab,jbc,kcd,lda', *(base,)*4)
                 self.assertArrayAlmostEqual(base.four_element_traces.todense(), ref, atol=1e-16)
 
                 # Test setter
