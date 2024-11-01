@@ -615,19 +615,19 @@ class CoreTest(testutil.TestCase):
         ctrlmat = pulse.get_control_matrix(omega, cache_intermediates=True)
         filtfun = pulse.get_filter_function(omega, cache_intermediates=True)
 
-        self.assertIsNotNone(pulse._intermediates)
-        self.assertArrayAlmostEqual(pulse._intermediates['control_matrix_step'].sum(0), ctrlmat)
+        self.assertIsNotNone(pulse.intermediates)
+        self.assertArrayAlmostEqual(pulse.intermediates['control_matrix_step'].sum(0), ctrlmat)
         self.assertArrayAlmostEqual(numeric.calculate_filter_function(ctrlmat), filtfun)
-        self.assertArrayAlmostEqual(pulse._intermediates['n_opers_transformed'],
+        self.assertArrayAlmostEqual(pulse.intermediates['n_opers_transformed'],
                                     numeric._transform_hamiltonian(pulse.eigvecs,
                                                                    pulse.n_opers,
                                                                    pulse.n_coeffs))
         eigvecs_prop = numeric._propagate_eigenvectors(pulse.propagators[:-1], pulse.eigvecs)
         basis_transformed = np.einsum('gba,kbc,gcd->gkad',
                                       eigvecs_prop.conj(), pulse.basis, eigvecs_prop)
-        self.assertArrayAlmostEqual(pulse._intermediates['basis_transformed'], basis_transformed,
+        self.assertArrayAlmostEqual(pulse.intermediates['basis_transformed'], basis_transformed,
                                     atol=1e-14)
-        self.assertArrayAlmostEqual(pulse._intermediates['phase_factors'],
+        self.assertArrayAlmostEqual(pulse.intermediates['phase_factors'],
                                     util.cexp(omega*pulse.t[:-1, None]))
 
     def test_cache_intermediates_hilbert(self):
@@ -638,14 +638,14 @@ class CoreTest(testutil.TestCase):
             pulse.dt, pulse.t, cache_intermediates=True
         )
 
-        pulse._intermediates.update(**intermediates)
+        pulse.intermediates.update(**intermediates)
 
-        self.assertArrayAlmostEqual(pulse._intermediates['noise_operators_step'].sum(0), unitary)
-        self.assertArrayAlmostEqual(pulse._intermediates['n_opers_transformed'],
+        self.assertArrayAlmostEqual(pulse.intermediates['noise_operators_step'].sum(0), unitary)
+        self.assertArrayAlmostEqual(pulse.intermediates['n_opers_transformed'],
                                     numeric._transform_hamiltonian(pulse.eigvecs,
                                                                    pulse.n_opers,
                                                                    pulse.n_coeffs))
-        self.assertArrayAlmostEqual(pulse._intermediates['phase_factors'],
+        self.assertArrayAlmostEqual(pulse.intermediates['phase_factors'],
                                     util.cexp(omega*pulse.t[:-1, None]))
 
 

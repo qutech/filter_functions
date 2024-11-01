@@ -42,6 +42,7 @@ Functions
 import bisect
 import copy
 from itertools import accumulate, compress, zip_longest
+from types import MappingProxyType
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 from warnings import warn
 
@@ -495,6 +496,10 @@ class PulseSequence:
     def duration(self) -> float:
         """The duration of the pulse. Alias of tau."""
         return self.tau
+
+    @property
+    def intermediates(self) -> MappingProxyType[str, ndarray]:
+        return MappingProxyType(self._intermediates)
 
     def diagonalize(self) -> None:
         r"""Diagonalize the Hamiltonian defining the pulse sequence."""
@@ -1073,6 +1078,8 @@ class PulseSequence:
                 _nbytes.append(val.nbytes)
             except AttributeError:
                 pass
+
+        _nbytes.extend(val.nbytes for val in self._intermediates.values())
 
         return sum(_nbytes)
 

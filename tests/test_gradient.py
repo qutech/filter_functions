@@ -200,7 +200,7 @@ class GradientTest(testutil.TestCase):
             cm_cache = ff.gradient.calculate_derivative_of_control_matrix_from_scratch(
                 omega, pulse.propagators, pulse.eigvals, pulse.eigvecs, pulse.basis, pulse.t,
                 pulse.dt, pulse.n_opers, pulse.n_coeffs, pulse.c_opers,
-                intermediates=pulse._intermediates
+                intermediates=pulse.intermediates
             )
 
             self.assertArrayAlmostEqual(cm_nocache, cm_cache)
