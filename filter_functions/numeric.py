@@ -567,9 +567,11 @@ def calculate_noise_operators_from_scratch(
     """
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
-
-    d = eigvecs.shape[-1]
     n_coeffs = np.asarray(n_coeffs)
+
+    G, d = eigvals.shape
+    n_nops = len(n_opers)
+    n_omega = len(omega)
 
     # Precompute noise opers transformed to eigenbasis of each pulse
     # segment and V^\dagger @ Q
@@ -577,21 +579,21 @@ def calculate_noise_operators_from_scratch(
     n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
 
     # Allocate memory
-    exp_buf, int_buf = np.empty((2, len(omega), d, d), dtype=complex)
-    noise_operators = np.zeros((len(omega), len(n_opers), d, d), dtype=complex)
+    exp_buf, int_buf = np.empty((2, n_omega, d, d), dtype=complex)
+    noise_operators = np.zeros((n_omega, n_nops, d, d), dtype=complex)
 
     if cache_intermediates:
-        phase_factors_cache = np.empty((len(dt), len(omega)), dtype=complex)
-        int_cache = np.empty((len(dt), len(omega), d, d), dtype=complex)
-        sum_cache = np.empty((len(dt), len(omega), len(n_opers), d, d), dtype=complex)
-        tmp_buf = np.empty((len(omega), d, d), dtype=complex)
+        phase_factors_cache = np.empty((G, n_omega), dtype=complex)
+        int_cache = np.empty((G, n_omega, d, d), dtype=complex)
+        sum_cache = np.empty((G, n_omega, n_nops, d, d), dtype=complex)
+        tmp_buf = np.empty((n_omega, d, d), dtype=complex)
     else:
-        phase_factors = np.empty((len(omega),), dtype=complex)
-        int_buf = np.empty((len(omega), d, d), dtype=complex)
-        sum_buf = np.empty((len(omega), len(n_opers), d, d), dtype=complex)
+        phase_factors = np.empty(n_omega, dtype=complex)
+        int_buf = np.empty((n_omega, d, d), dtype=complex)
+        sum_buf = np.empty((n_omega, n_nops, d, d), dtype=complex)
         tmp_buf = int_buf
 
-    for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
+    for g in util.progressbar_range(G, show_progressbar=show_progressbar,
                                     desc='Calculating noise operators'):
         if cache_intermediates:
             # Assign references to the locations in the cache for the quantities
@@ -821,11 +823,14 @@ def calculate_control_matrix_from_scratch(
     calculate_control_matrix_from_atomic: Control matrix from concatenation.
     calculate_control_matrix_periodic: Control matrix for periodic system.
     """
-    d = eigvecs.shape[-1]
-    omega = np.asanyarray(omega)
-
     if t is None:
         t = np.concatenate(([0], np.asarray(dt).cumsum()))
+    omega = np.asanyarray(omega)
+
+    G, d = eigvals.shape
+    n_nops = len(n_opers)
+    n_omega = len(omega)
+    n_basis = len(basis)
 
     # Precompute noise opers transformed to eigenbasis of each pulse segment
     # and Q^\dagger @ V
@@ -833,24 +838,23 @@ def calculate_control_matrix_from_scratch(
     n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
 
     # Allocate result and buffers for intermediate arrays
-    exp_buf = np.empty((len(omega), d, d), dtype=complex)
+    exp_buf = np.empty((n_omega, d, d), dtype=complex)
     if out is None:
-        out = np.zeros((len(n_opers), len(basis), len(omega)), dtype=complex)
+        out = np.zeros((n_nops, n_basis, n_omega), dtype=complex)
     else:
         out[:] = 0
 
     if cache_intermediates:
-        basis_transformed_cache = np.empty((len(dt), *basis.shape), dtype=complex)
-        phase_factors_cache = np.empty((len(dt), len(omega)), dtype=complex)
-        int_cache = np.empty((len(dt), len(omega), d, d), dtype=complex)
-        step_cache = np.empty((len(dt), len(n_opers), len(basis), len(omega)), dtype=complex)
-        cumulative_cache = np.zeros((len(dt)-1, len(n_opers), len(basis), len(omega)),
-                                    dtype=complex)
+        basis_transformed_cache = np.empty((G, *basis.shape), dtype=complex)
+        phase_factors_cache = np.empty((G, n_omega), dtype=complex)
+        int_cache = np.empty((G, n_omega, d, d), dtype=complex)
+        step_cache = np.empty((G, n_nops, n_basis, n_omega), dtype=complex)
+        cumulative_cache = np.zeros((G-1, n_nops, n_basis, n_omega), dtype=complex)
     else:
         basis_transformed = np.empty(basis.shape, dtype=complex)
-        phase_factors = np.empty(len(omega), dtype=complex)
-        int_buf = np.empty((len(omega), d, d), dtype=complex)
-        step_buf = np.empty((len(n_opers), len(basis), len(omega)), dtype=complex)
+        phase_factors = np.empty(n_omega, dtype=complex)
+        int_buf = np.empty((n_omega, d, d), dtype=complex)
+        step_buf = np.empty((n_nops, n_basis, n_omega), dtype=complex)
         # cumulative_buf = out
 
     # Optimize the contraction path dynamically since it differs for different
@@ -858,7 +862,7 @@ def calculate_control_matrix_from_scratch(
     expr = oe.contract_expression('o,jmn,omn,knm->jko',
                                   omega.shape, n_opers_transformed[:, 0].shape,
                                   exp_buf.shape, basis.shape, optimize=True)
-    for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
+    for g in util.progressbar_range(G, show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
 
         if cache_intermediates:
@@ -1575,22 +1579,24 @@ def calculate_second_order_filter_function(
     pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
     calculate_pulse_correlation_filter_function
     """
-    d = eigvals.shape[-1]
+    G, d = eigvals.shape
+    n_nops = len(n_coeffs)
+    n_omega = len(omega)
+    n_basis = len(basis)
+
     n_coeffs = np.asarray(n_coeffs)
 
     # Allocate result and buffers for intermediate arrays
     dE_bufs = (np.empty((d, d, d, d), dtype=float),
-               np.empty((len(omega), d, d), dtype=float),
-               np.empty((len(omega), d, d), dtype=float))
-    frc_bufs = (np.empty((len(omega), d, d), dtype=complex), np.empty((d, d, d, d), dtype=complex))
-    msk_bufs = np.empty((4, len(omega), d, d, d, d), dtype=bool)
-    n_opers_basis_buf = np.empty((len(n_coeffs), len(basis), d, d), dtype=complex)
-    ctrlmat_step_cumulative = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
+               np.empty((n_omega, d, d), dtype=float),
+               np.empty((n_omega, d, d), dtype=float))
+    frc_bufs = (np.empty((n_omega, d, d), dtype=complex), np.empty((d, d, d, d), dtype=complex))
+    msk_bufs = np.empty((4, n_omega, d, d, d, d), dtype=bool)
+    n_opers_basis_buf = np.empty((n_nops, n_basis, d, d), dtype=complex)
 
-    shape = (len(n_coeffs), len(n_coeffs), len(basis), len(basis), len(omega))
-    step_buf = np.empty(shape, dtype=complex)
-    complete_step_buf = np.zeros(shape, dtype=complex)
-    result = np.zeros(shape, dtype=complex)
+    result = np.zeros((n_nops, n_nops, n_basis, n_basis, n_omega), dtype=complex)
+    complete_step_buf = np.zeros_like(result)
+    step_buf = np.empty_like(result)
 
     # intermediate results from calculation of control matrix
     if intermediates is None:
@@ -1610,16 +1616,15 @@ def calculate_second_order_filter_function(
         eigvecs_propagated = _propagate_eigenvectors(propagators[:-1], eigvecs)
         n_opers_transformed = _transform_hamiltonian(eigvecs, n_opers, n_coeffs)
         basis_transformed = np.empty(basis.shape, dtype=complex)
-        ctrlmat_step = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
-        ctrlmat_step_cumulative = np.zeros((len(n_coeffs), len(basis), len(omega)), dtype=complex)
+        ctrlmat_step = np.zeros((n_nops, n_basis, n_omega), dtype=complex)
+        ctrlmat_step_cumulative = np.zeros((n_nops, n_basis, n_omega), dtype=complex)
     if cache_intermediates:
-        int_cache = np.empty((len(dt), len(omega), d, d, d, d), dtype=complex)
+        int_cache = np.empty((G, n_omega, d, d, d, d), dtype=complex)
     else:
-        int_buf = np.empty((len(omega), d, d, d, d), dtype=complex)
+        int_buf = np.empty((n_omega, d, d, d, d), dtype=complex)
 
     step_expr = oe.contract_expression('oijmn,akij,blmn->abklo',
-                                       (len(omega), d, d, d, d),
-                                       *[(len(n_coeffs), len(basis), d, d)]*2,
+                                       (n_omega, d, d, d, d), *[(n_nops, n_basis, d, d)]*2,
                                        optimize=[(0, 1), (0, 1)])
 
     def _incomplete_time_step(g, out):
@@ -1629,7 +1634,7 @@ def calculate_second_order_filter_function(
                     out=n_opers_basis_buf)
         return step_expr(int_buf, n_opers_basis_buf, n_opers_basis_buf, out=out)
 
-    for g in util.progressbar_range(len(dt), show_progressbar=show_progressbar,
+    for g in util.progressbar_range(G, show_progressbar=show_progressbar,
                                     desc='Calculating second order FF'):
 
         if not have_intermediates:
