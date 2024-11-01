@@ -108,6 +108,20 @@ class ConcatenationTest(testutil.TestCase):
         self.assertIs(array.dtype, np.dtype('O'))
         self.assertEqual(array.shape, (8,))
 
+    def test_caching(self):
+        pulse = testutil.rand_pulse_sequence(rng.integers(2, 6), rng.integers(5, 11),
+                                             rng.integers(1, 4), rng.integers(1, 4))
+
+        # getitem access caches control matrix
+        omega = util.get_sample_frequencies(pulse, 11)
+        pulse.cache_control_matrix(omega, cache_intermediates=True)
+        for i in range(1, len(pulse)):
+            slc = pulse[:i]
+            self.assertTrue(slc.is_cached('control_matrix'))
+            sliced = slc.get_control_matrix(omega)
+            slc.cleanup('all')
+            self.assertArrayEqual(sliced, slc.get_control_matrix(omega))
+
     def test_concatenate_without_filter_function(self):
         """Concatenate two Spin Echos without filter functions."""
         tau = 10
