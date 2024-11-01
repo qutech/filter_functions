@@ -217,10 +217,11 @@ class PrecisionTest(testutil.TestCase):
 
     def test_FID_second_order(self):
         def FF2(omega):
-            mask = omega*tau < 1e-7
             res = np.empty(np.shape(omega), complex)
+            mask = omega == 0
             res[mask] = tau**2 / 2
-            res[~mask] = (tau + np.expm1(-1j*omega[~mask]*tau)/(1j*omega[~mask]))/(1j*omega[~mask])
+            res[~mask] = (util.cexpm1(-omega[~mask]*tau) / (1j*omega[~mask])
+                          + tau) / (1j*omega[~mask])
             return res
 
         ix = rng.integers(1, 4)
@@ -256,7 +257,7 @@ class PrecisionTest(testutil.TestCase):
         self.assertArrayAlmostEqual(util.integrate(filter_function.imag, omega), 0, atol=1e-14)
 
         # quasistatic noise limit
-        omega = np.array([-1e-15, 0, 1e-15])*tau
+        omega = np.array([-1e-15, 0, 1e-15])/tau
         spect = 2*np.pi*sigma**2*np.array([0, 1/omega[-1], 0])
         delta_piecewise = numeric.calculate_frequency_shifts(pulse_piecewise, spect, omega)
         delta_single = numeric.calculate_frequency_shifts(pulse_single, spect, omega)
