@@ -546,10 +546,9 @@ def _full_from_partial(elems: Sequence, traceless: bool, labels: Sequence[str]) 
 
     if traceless is None:
         traceless = elems.istraceless
-    else:
-        if traceless and not elems.istraceless:
-            raise ValueError("The basis elements are not traceless (up to an identity element) "
-                             + "but a traceless basis was requested!")
+    elif traceless and not elems.istraceless:
+        raise ValueError("The basis elements are not traceless (up to an identity element) "
+                         + "but a traceless basis was requested!")
 
     if labels is not None and len(labels) not in (len(elems), elems.d**2):
         raise ValueError(f'Got {len(labels)} labels but expected {len(elems)} or {elems.d**2}')
