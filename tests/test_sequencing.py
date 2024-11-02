@@ -464,7 +464,6 @@ class ConcatenationTest(testutil.TestCase):
                                         pulse.get_filter_function(omega, order=2),
                                         atol=1e-13)
 
-
     def test_different_n_opers(self):
         """Test behavior when concatenating with different n_opers."""
         for d, n_dt in zip(rng.integers(2, 5, 20),

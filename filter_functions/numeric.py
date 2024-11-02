@@ -1816,7 +1816,7 @@ def calculate_second_order_from_atomic(
         second_order_complete_steps = intermediates[g]['second_order_complete_steps']
 
         # B'_(g-1)(ω)
-        tmp_1[:] = control_matrix_atomic_cumulative[g - 1]
+        tmp_1[:] = control_matrix_atomic_cumulative[g-1]
         tmp_1 *= phases[g-1].conj()
         tmp_1 = expr_1(tmp_1, propagators_liouville[g-1].T, out=tmp_1)
 
