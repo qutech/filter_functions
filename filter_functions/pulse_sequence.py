@@ -1833,7 +1833,6 @@ def concatenate(
     control_matrix = numeric.calculate_control_matrix_from_atomic(
         phases, control_matrix_atomic, propagators_liouville, show_progressbar,
         which='correlations' if calc_pulse_correlation_FF else 'total',
-        return_accumulated=calc_second_order_FF
     )
 
     # Set the attribute and calculate filter function (if the pulse correlation
