@@ -115,12 +115,17 @@ class ConcatenationTest(testutil.TestCase):
         # getitem access caches control matrix
         omega = util.get_sample_frequencies(pulse, 11)
         pulse.cache_control_matrix(omega, cache_intermediates=True)
+        pulse.cache_filter_function(omega, order=2, cache_intermediates=True,
+                                    cache_second_order_cumulative=True)
         for i in range(1, len(pulse)):
             slc = pulse[:i]
             self.assertTrue(slc.is_cached('control_matrix'))
-            sliced = slc.get_control_matrix(omega)
+            self.assertTrue(slc.is_cached('filter_function_2'))
+            ctrlmat = slc.get_control_matrix(omega)
+            ff = slc.get_filter_function(omega, order=2)
             slc.cleanup('all')
-            self.assertArrayEqual(sliced, slc.get_control_matrix(omega))
+            self.assertArrayEqual(ctrlmat, slc.get_control_matrix(omega))
+            self.assertArrayEqual(ff, slc.get_filter_function(omega, order=2))
 
         _, ctrlmat_cumulative = numeric.calculate_control_matrix_from_atomic(
             np.array([pulse[:i].get_total_phases(omega) for i in range(1, len(pulse))]),

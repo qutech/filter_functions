@@ -1536,7 +1536,8 @@ def calculate_second_order_filter_function(
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
     cache_intermediates: bool, optional
-        Return a cache with intermediate results.
+        Return a cache with intermediate results that can be recycled
+        during concatenation.
     cache_cumulative : bool, optional
         Additionally cache the accumulated filter function for each step
         :math:`g`, that is, an array that holds the filter function of
@@ -1682,12 +1683,13 @@ def calculate_second_order_filter_function(
         # time dependence separates and we can use previous result for the
         # control matrix). opt_einsum seems to be faster than numpy here.
         if g > 0:
+            # all (complete) intervals up to last
             # αko,βlo->αβklo
             complete_step_buf += np.multiply(ctrlmat_step[:, None, :, None].conj(),
                                              ctrlmat_step_cumulative[None, :, None],
-                                             out=step_buf)  # all (complete) intervals up to last
-
-        result += _incomplete_time_step(g, out=step_buf)  # last (incomplete) interval
+                                             out=step_buf)
+        # last (incomplete) interval
+        result += _incomplete_time_step(g, out=step_buf)
 
         if cache_cumulative:
             filter_function_step_cumulative[g] = result + complete_step_buf
@@ -1700,7 +1702,7 @@ def calculate_second_order_filter_function(
         intermediates['second_order_integral'] = int_cache
         intermediates['second_order_complete_steps'] = complete_step_buf
         if cache_cumulative:
-            intermediates['filter_function_step_cumulative'] = filter_function_step_cumulative
+            intermediates['filter_function_2_step_cumulative'] = filter_function_step_cumulative
         return result, intermediates
 
     return result

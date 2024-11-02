@@ -417,11 +417,19 @@ class PulseSequence:
                 and key.start in (None, 0)
                 and key.step in (None, 1)
         )
-        if is_valid_slice and 'control_matrix_step_cumulative' in self._intermediates:
-            new.cache_control_matrix(
-                self.omega,
-                self._intermediates['control_matrix_step_cumulative'][key.stop-1]
-            )
+        if is_valid_slice:
+            if 'control_matrix_step_cumulative' in self._intermediates:
+                new.cache_control_matrix(
+                    self.omega,
+                    self._intermediates['control_matrix_step_cumulative'][key.stop-1]
+                )
+            if 'filter_function_2_step_cumulative' in self._intermediates:
+                new.cache_filter_function(
+                    self.omega,
+                    None,
+                    self._intermediates['filter_function_2_step_cumulative'][key.stop-1],
+                    order=2
+                )
 
         return new
 
@@ -637,7 +645,8 @@ class PulseSequence:
             which: str = 'fidelity',
             order: int = 1,
             show_progressbar: bool = False,
-            cache_intermediates: bool = False
+            cache_intermediates: bool = False,
+            cache_second_order_cumulative: bool = False
     ) -> ndarray:
         r"""Get the first or second order filter function.
 
@@ -660,6 +669,9 @@ class PulseSequence:
         cache_intermediates: bool, optional
             Keep intermediate terms of the calculation that are also
             required by other computations.
+        cache_second_order_cumulative: bool, optional
+            Also cache the accumulated filter function for each time
+            step. Only if order is 2.
 
         Returns
         -------
@@ -719,7 +731,8 @@ class PulseSequence:
 
         self.cache_filter_function(omega, control_matrix=control_matrix, which=which,
                                    order=order, show_progressbar=show_progressbar,
-                                   cache_intermediates=cache_intermediates)
+                                   cache_intermediates=cache_intermediates,
+                                   cache_second_order_cumulative=cache_second_order_cumulative)
 
         if order == 1:
             if which == 'fidelity':
@@ -739,7 +752,8 @@ class PulseSequence:
             which: str = 'fidelity',
             order: int = 1,
             show_progressbar: bool = False,
-            cache_intermediates: bool = False
+            cache_intermediates: bool = False,
+            cache_second_order_cumulative: bool = False
     ) -> None:
         r"""
         Cache the filter function. If control_matrix.ndim == 4, it is
@@ -771,6 +785,9 @@ class PulseSequence:
         cache_intermediates: bool, optional
             Keep intermediate terms of the calculation that are also
             required by other computations.
+        cache_second_order_cumulative: bool, optional
+            Also cache the accumulated filter function for each time
+            step. Only if order is 2.
 
         See Also
         --------
@@ -805,7 +822,7 @@ class PulseSequence:
                 filter_function = numeric.calculate_second_order_filter_function(
                     self.eigvals, self.eigvecs, self.propagators, omega, self.basis,
                     self.n_opers, self.n_coeffs, self.dt, self._intermediates, show_progressbar,
-                    cache_intermediates
+                    cache_intermediates, cache_second_order_cumulative
                 )
                 if cache_intermediates:
                     filter_function, intermediates = filter_function
