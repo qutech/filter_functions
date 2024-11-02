@@ -184,7 +184,7 @@ class BasisTest(testutil.TestCase):
         self.assertTrue(r.dtype == 'complex128')
         r = ff.basis.expand(testutil.rand_herm(3), b, hermitian=True)
         self.assertTrue(r.dtype == 'float64')
-        b._isherm = False
+        b.isherm = False
         r = ff.basis.expand(testutil.rand_herm(3), b, hermitian=True)
         self.assertTrue(r.dtype == 'complex128')
 
