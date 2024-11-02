@@ -334,7 +334,28 @@ class Basis(ndarray):
             return oe.contract('iab,jbc,kcd,lda->ijkl', *(self.sparse,)*4, backend='sparse',
                                optimize=path)
 
+    def expand(self, M: ndarray, hermitian: bool = False, traceless: bool = False,
+               tidyup: bool = False) -> ndarray:
+        """Expand matrices M in this basis.
 
+        Parameters
+        ----------
+        M: array_like
+            The square matrix (d, d) or array of square matrices (..., d, d)
+            to be expanded in *basis*
+        hermitian: bool (default: False)
+            If M is hermitian along its last two axes, the result will be
+            real.
+        tidyup: bool {False}
+            Whether to set values below the floating point eps to zero.
+
+        See Also
+        --------
+        expand : The function corresponding to this method.
+        """
+        if self.btype == 'GGM' and self.iscomplete:
+            return ggm_expand(M, traceless, hermitian, tidyup)
+        return expand(M, self, self.isnorm, hermitian, tidyup)
 
     def normalize(self, copy: bool = False) -> Union[None, 'Basis']:
         """Normalize the basis."""
@@ -537,12 +558,13 @@ def _full_from_partial(elems: Sequence, traceless: bool, labels: Sequence[str]) 
     # properties hermiticity and orthonormality, and therefore also linear
     # combinations, ie basis expansions, of it will). Split off the identity so
     # that for traceless bases we can put it in the front.
-    if traceless:
-        Id, ggm = np.split(Basis.ggm(elems.d), [1])
-    else:
-        ggm = Basis.ggm(elems.d)
+    ggm = Basis.ggm(elems.d)
+    coeffs = ggm.expand(elems, traceless=traceless, hermitian=elems.isherm, tidyup=True)
 
-    coeffs = expand(elems, ggm, hermitian=elems.isherm, tidyup=True)
+    if traceless:
+        Id, ggm = np.split(ggm, [1])
+        coeffs = coeffs[..., 1:]
+
     # Throw out coefficient vectors that are all zero (should only happen for
     # the identity)
     coeffs = coeffs[(coeffs != 0).any(axis=-1)]
@@ -662,7 +684,7 @@ def expand(M: Union[ndarray, Basis], basis: Union[ndarray, Basis],
 
 
 def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False,
-               hermitian: bool = False) -> ndarray:
+               hermitian: bool = False, tidyup: bool = False) -> ndarray:
     r"""
     Expand the matrix *M* in a Generalized Gell-Mann basis [Bert08]_.
     This function makes use of the explicit construction prescription of
@@ -683,6 +705,8 @@ def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False,
     hermitian: bool (default: False)
         If M is hermitian along its last two axes, the result will be
         real.
+    tidyup: bool {False}
+        Whether to set values below the floating point eps to zero.
 
     Returns
     -------
@@ -730,7 +754,7 @@ def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False,
     coeffs = np.zeros((*M.shape[:-2], d**2), dtype=float if hermitian else complex)
     if not traceless:
         # First element is proportional to the trace of M
-        coeffs[..., 0] = cast(np.einsum('...jj', M))/np.sqrt(d)
+        coeffs[..., 0] = cast(M.trace(0, -1, -2))/np.sqrt(d)
 
     # Elements proportional to the symmetric GGMs
     coeffs[..., sym_rng] = cast(M[triu_idx] + M[tril_idx])/np.sqrt(2)
@@ -741,7 +765,11 @@ def ggm_expand(M: Union[ndarray, Basis], traceless: bool = False,
                                            - diag_rng*M[diag_idx_shifted])
     coeffs[..., diag_rng + 2*n_sym] /= cast(np.sqrt(diag_rng*(diag_rng + 1)))
 
-    return coeffs.squeeze() if square else coeffs
+    if square:
+        coeffs = coeffs.squeeze()
+    if tidyup:
+        coeffs = util.remove_float_errors(coeffs)
+    return coeffs
 
 
 def equivalent_pauli_basis_elements(idx: Union[Sequence[int], int], N: int) -> ndarray:
