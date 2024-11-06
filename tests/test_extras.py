@@ -31,20 +31,10 @@ from tests import testutil
 
 from . import matplotlib
 
-all_extras = ['fancy_progressbar', 'plotting', 'bloch_sphere_visualization']
+all_extras = ['plotting', 'bloch_sphere_visualization']
 
 
 class MissingExtrasTest(testutil.TestCase):
-
-    @pytest.mark.skipif(
-        'fancy_progressbar' in os.environ.get('INSTALL_EXTRAS', all_extras),
-        reason='Skipping tests for missing fancy progressbar extra in build with ipynbname')
-    def test_fancy_progressbar_not_available(self):
-        from tqdm import tqdm
-
-        from filter_functions import util
-        self.assertEqual(util._NOTEBOOK_NAME, '')
-        self.assertIs(tqdm, util._tqdm)
 
     @pytest.mark.skipif(
         any(extra in os.environ.get('INSTALL_EXTRAS', all_extras)
