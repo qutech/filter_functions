@@ -1,12 +1,12 @@
 name: filter_functions
 
 channels:
-  - defaults
   - conda-forge
 
 dependencies:
   - python >= 3.9
   - qutip
+  - pandoc
   - pip
 
 prefix: /home/docs/.conda/envs/filter_functions

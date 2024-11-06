@@ -16,7 +16,6 @@ python:
          - doc
          - plotting
          - bloch_sphere_visualization
-         - fancy_progressbar
 
 sphinx:
   builder: html
