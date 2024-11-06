@@ -20,7 +20,7 @@ extras_require = {'plotting': ['matplotlib'],
                   'bloch_sphere_visualization': ['qutip', 'matplotlib'],
                   'fancy_progressbar': ['ipynbname', 'jupyter'],
                   'doc': ['jupyter', 'nbsphinx', 'numpydoc', 'sphinx', 'sphinx_rtd_theme',
-                          'ipympl', 'qutip-qip', 'qutip-qtrl'],
+                          'ipympl', 'qutip-qip', 'qutip-qtrl', 'numpy<2'],
                   'tests': ['pytest>=4.6', 'pytest-cov', 'codecov']}
 
 extras_require['all'] = list({dep for deps in extras_require.values() for dep in deps})
