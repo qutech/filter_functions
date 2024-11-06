@@ -23,7 +23,7 @@ Documentation
    :numbered:
 
    examples/examples
-   filter_functions API Documentation <filter_functions>
+   filter_functions API Documentation <api>
 
 Indices and tables
 ==================
