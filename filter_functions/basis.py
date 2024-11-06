@@ -263,7 +263,7 @@ class Basis(np.ndarray):
             actual = U.conj() @ U.T
             target = np.identity(dim)
             atol = self._eps*(self.d**2)**3
-            return np.allclose(actual.view(ndarray), target, atol=atol, rtol=self._rtol)
+            return np.allclose(actual.view(np.ndarray), target, atol=atol, rtol=self._rtol)
 
     @cached_property
     def istraceless(self) -> bool:
@@ -278,7 +278,7 @@ class Basis(np.ndarray):
         elif nonzero[0].size == 1:
             # Single element has nonzero trace, check if (proportional to)
             # identity
-            elem = self[nonzero][0].view(ndarray) if self.ndim == 3 else self.view(ndarray)
+            elem = self[nonzero][0].view(np.ndarray) if self.ndim == 3 else self.view(np.ndarray)
             offdiag_nonzero = elem[~np.eye(self.d, dtype=bool)].nonzero()
             diag_equal = np.diag(elem) == elem[0, 0]
             if diag_equal.all() and not offdiag_nonzero[0].any():
@@ -337,8 +337,8 @@ class Basis(np.ndarray):
             return oe.contract('iab,jbc,kcd,lda->ijkl', *(self.sparse,)*4, backend='sparse',
                                optimize=path)
 
-    def expand(self, M: ndarray, hermitian: bool = False, traceless: bool = False,
-               tidyup: bool = False) -> ndarray:
+    def expand(self, M: np.ndarray, hermitian: bool = False, traceless: bool = False,
+               tidyup: bool = False) -> np.ndarray:
         """Expand matrices M in this basis.
 
         Parameters
@@ -686,7 +686,7 @@ def expand(M: Union[np.ndarray, Basis], basis: Union[np.ndarray, Basis],
 
 
 def ggm_expand(M: Union[np.ndarray, Basis], traceless: bool = False,
-               hermitian: bool = False, tidyup: bool = False) -> ndarray:
+               hermitian: bool = False, tidyup: bool = False) -> np.ndarray:
     r"""
     Expand the matrix *M* in a Generalized Gell-Mann basis [Bert08]_.
     This function makes use of the explicit construction prescription of
