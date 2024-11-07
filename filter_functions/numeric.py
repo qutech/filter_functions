@@ -420,7 +420,7 @@ def calculate_noise_operators_from_atomic(
     >>> noiseops = calculate_noise_operators_from_atomic(...)
     >>> noiseops.shape
     (n_omega, n_nops, d, d)
-    >>> ctrlmat_from_noiseops = ff.basis.expand(noiseops, basis)
+    >>> ctrlmat_from_noiseops = basis.expand(noiseops)
     >>> np.allclose(ctrlmat, ctrlmat_from_noiseops.transpose(1, 2, 0))
     True
 
@@ -548,7 +548,7 @@ def calculate_noise_operators_from_scratch(
     >>> noiseops = calculate_noise_operators_from_scratch(...)
     >>> noiseops.shape
     (n_omega, n_nops, d, d)
-    >>> ctrlmat_from_noiseops = ff.basis.expand(noiseops, basis)
+    >>> ctrlmat_from_noiseops = basis.expand(noiseops)
     >>> np.allclose(ctrlmat, ctrlmat_from_noiseops.transpose(1, 2, 0))
     True
 
