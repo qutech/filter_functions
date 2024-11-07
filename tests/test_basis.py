@@ -24,7 +24,6 @@ This module tests the operator basis module.
 from copy import copy
 from itertools import product
 
-import filter_functions as ff
 import numpy as np
 import pytest
 from opt_einsum import contract
@@ -109,6 +108,7 @@ class BasisTest(testutil.TestCase):
         pauli_basis = ff.Basis.pauli(n)
         from_partial_basis = ff.Basis.from_partial(testutil.rand_herm(d), traceless=False)
         custom_basis = ff.Basis(testutil.rand_herm_traceless(d))
+        custom_basis /= np.linalg.norm(custom_basis, ord='fro', axis=(-1, -2))
 
         btypes = ('Pauli', 'GGM', 'From partial', 'Custom')
         bases = (pauli_basis, ggm_basis, from_partial_basis, custom_basis)
@@ -127,6 +127,8 @@ class BasisTest(testutil.TestCase):
                 self.assertTrue(base[rng.integers(0, len(base))] in base)
             # Check if all elements of each basis are orthonormal and hermitian
             self.assertArrayEqual(base.T, base.view(np.ndarray).swapaxes(-1, -2))
+            self.assertTrue(base.isnorm)
+            self.assertTrue(base.isorthogonal)
             self.assertTrue(base.isorthonorm)
             self.assertTrue(base.isherm)
             # Check if basis spans the whole space and all elems are traceless
@@ -137,6 +139,9 @@ class BasisTest(testutil.TestCase):
 
             if not btype == 'Custom':
                 self.assertTrue(base.iscomplete)
+            else:
+                self.assertFalse(base.iscomplete)
+
             # Check sparse representation
             self.assertArrayEqual(base.sparse.todense(), base)
             # Test sparse cache
@@ -154,9 +159,17 @@ class BasisTest(testutil.TestCase):
 
             base._print_checks()
 
-        # single element always considered orthonormal
-        orthonorm = rng.normal(size=(d, d))
-        self.assertTrue(orthonorm.view(ff.Basis).isorthonorm)
+        # single element always considered orthogonal
+        orthogonal = rng.normal(size=(d, d))
+        self.assertTrue(orthogonal.view(ff.Basis).isorthogonal)
+
+        orthogonal /= np.linalg.norm(orthogonal, 'fro', axis=(-1, -2))
+        self.assertTrue(orthogonal.view(ff.Basis).isorthonorm)
+
+        nonorthogonal = rng.normal(size=(3, d, d)).view(ff.Basis)
+        self.assertFalse(nonorthogonal.isnorm)
+        nonorthogonal.normalize()
+        self.assertTrue(nonorthogonal.isnorm)
 
         herm = testutil.rand_herm(d).squeeze()
         self.assertTrue(herm.view(ff.Basis).isherm)
@@ -205,6 +218,22 @@ class BasisTest(testutil.TestCase):
         self.assertTrue(r.dtype == 'float64')
         r = ff.basis.ggm_expand(rng.standard_normal((3, 3)), hermitian=False)
         self.assertTrue(r.dtype == 'complex128')
+
+        # test the method
+        pauli = ff.Basis.pauli(1)
+        ggm = ff.Basis.ggm(2)
+
+        M = testutil.rand_herm(2, 3)
+        self.assertArrayAlmostEqual(pauli.expand(M, hermitian=True, traceless=False, tidyup=True),
+                                    ggm.expand(M, hermitian=True, traceless=False, tidyup=True))
+
+        M = testutil.rand_herm_traceless(2, 3)
+        self.assertArrayAlmostEqual(pauli.expand(M, hermitian=True, traceless=True, tidyup=True),
+                                    ggm.expand(M, hermitian=True, traceless=True, tidyup=True))
+
+        M = testutil.rand_unit(2, 3)
+        self.assertArrayAlmostEqual(pauli.expand(M, hermitian=False, traceless=False, tidyup=True),
+                                    ggm.expand(M, hermitian=False, traceless=False, tidyup=True))
 
         for _ in range(10):
             d = rng.integers(2, 16)

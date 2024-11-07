@@ -237,6 +237,13 @@ class Basis(np.ndarray):
         for check in checks:
             print(check, ':\t', getattr(self, check))
 
+    def _invalidate_cached_properties(self):
+        for attr in {'isherm', 'isnorm', 'isorthogonal', 'istraceless', 'iscomplete'}:
+            try:
+                delattr(self, attr)
+            except AttributeError:
+                pass
+
     @cached_property
     def isherm(self) -> bool:
         """Returns True if all basis elements are hermitian."""
@@ -248,22 +255,25 @@ class Basis(np.ndarray):
         return self.normalize(copy=True) == self
 
     @cached_property
+    def isorthogonal(self) -> bool:
+        """Returns True if all basis elements are mutually orthogonal."""
+        if self.ndim == 2 or len(self) == 1:
+            return True
+
+        # The basis is orthogonal iff the matrix consisting of all d**2
+        # elements written as d**2-dimensional column vectors is
+        # orthogonal.
+        dim = self.shape[0]
+        U = self.reshape((dim, -1))
+        actual = U.conj() @ U.T
+        atol = self._eps*(self.d**2)**3
+        mask = np.identity(dim, dtype=bool)
+        return np.allclose(actual[..., ~mask].view(np.ndarray), 0, atol=atol, rtol=self._rtol)
+
+    @property
     def isorthonorm(self) -> bool:
         """Returns True if basis is orthonormal."""
-        # All the basis is orthonormal iff the matrix consisting of all
-        # d**2 elements written as d**2-dimensional column vectors is
-        # unitary.
-        if self.ndim == 2 or len(self) == 1:
-            # Only one basis element
-            return True
-        else:
-            # Size of the result after multiplication
-            dim = self.shape[0]
-            U = self.reshape((dim, -1))
-            actual = U.conj() @ U.T
-            target = np.identity(dim)
-            atol = self._eps*(self.d**2)**3
-            return np.allclose(actual.view(np.ndarray), target, atol=atol, rtol=self._rtol)
+        return self.isorthogonal and self.isnorm
 
     @cached_property
     def istraceless(self) -> bool:
@@ -366,6 +376,7 @@ class Basis(np.ndarray):
             return normalize(self)
 
         self /= _norm(self)
+        self._invalidate_cached_properties()
 
     def tidyup(self, eps_scale: Optional[float] = None) -> None:
         """Wraps util.remove_float_errors."""
@@ -376,6 +387,8 @@ class Basis(np.ndarray):
 
         self.real[np.abs(self.real) <= atol] = 0
         self.imag[np.abs(self.imag) <= atol] = 0
+
+        self._invalidate_cached_properties()
 
     @classmethod
     def pauli(cls, n: int) -> 'Basis':
@@ -544,8 +557,8 @@ def _full_from_partial(elems: Sequence, traceless: bool, labels: Sequence[str]) 
     if not elems.isherm:
         warn("(Some) elems not hermitian! The resulting basis also won't be.")
 
-    if not elems.isorthonorm:
-        raise ValueError("The basis elements are not orthonormal!")
+    if not elems.isorthogonal:
+        raise ValueError("The basis elements are not orthogonal!")
 
     if traceless is None:
         traceless = elems.istraceless
@@ -631,7 +644,7 @@ def normalize(b: Basis) -> Basis:
         Baltimore, MD, Johns Hopkins University Press, 1985, pg. 15
 
     """
-    return (b/_norm(b)).squeeze().view(Basis)
+    return (b/_norm(b)).squeeze().reshape(b.shape).view(Basis)
 
 
 def expand(M: Union[np.ndarray, Basis], basis: Union[np.ndarray, Basis],
