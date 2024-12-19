@@ -84,7 +84,7 @@ class PlottingTest(testutil.TestCase):
         subplot_kw = {'facecolor': 'r'}
         gridspec_kw = {'hspace': 0.2,
                        'wspace': 0.1}
-        figure_kw = {'num': 1}
+        figure_kw = {'num': rng.integers(1, 10000)}
 
         fig, ax, leg = plotting.plot_pulse_train(simple_pulse, plot_kw=plot_kw,
                                                  subplot_kw=subplot_kw,
@@ -142,7 +142,7 @@ class PlottingTest(testutil.TestCase):
         subplot_kw = {'facecolor': 'r'}
         gridspec_kw = {'hspace': 0.2,
                        'wspace': 0.1}
-        figure_kw = {'num': 1}
+        figure_kw = {'num': rng.integers(1, 10000)}
         fig, ax, leg = plotting.plot_filter_function(simple_pulse,
                                                      plot_kw=plot_kw,
                                                      subplot_kw=subplot_kw,
@@ -212,7 +212,7 @@ class PlottingTest(testutil.TestCase):
         subplot_kw = {'facecolor': 'r'}
         gridspec_kw = {'hspace': 0.2,
                        'wspace': 0.1}
-        figure_kw = {'num': 1}
+        figure_kw = {'num': rng.integers(1, 10000)}
         fig, ax, leg = plotting.plot_pulse_correlation_filter_function(
             concatenated_simple_pulse, plot_kw=plot_kw, subplot_kw=subplot_kw,
             gridspec_kw=gridspec_kw, **figure_kw
@@ -298,7 +298,7 @@ class PlottingTest(testutil.TestCase):
         grid_kw = {'axes_pad': 0.1}
         cbar_kw = {'orientation': 'horizontal'}
         imshow_kw = {'interpolation': 'bilinear'}
-        figure_kw = {'num': 1}
+        figure_kw = {'num': rng.integers(1, 10000)}
         fig, ax = plotting.plot_cumulant_function(two_qubit_pulse, spectrum, omega,
                                                   imshow_kw=imshow_kw, grid_kw=grid_kw,
                                                   cbar_kw=cbar_kw, **figure_kw)

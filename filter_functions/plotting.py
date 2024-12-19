@@ -365,7 +365,7 @@ def plot_filter_function(
         axes: Optional[Axes] = None,
         xscale: str = 'log',
         yscale: str = 'linear',
-        omega_in_units_of_tau: bool = True,
+        omega_in_units_of_tau: bool = False,
         cycler: Optional[Cycler] = None,
         plot_kw: dict = {},
         subplot_kw: Optional[dict] = None,

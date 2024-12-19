@@ -921,7 +921,6 @@ class PulseSequence:
         n_idx = util.get_indices_from_identifiers(self.n_oper_identifiers, n_oper_identifiers)
 
         if n_coeffs_deriv is not None:
-            # TODO 05/22: walrus once support for 3.7 is dropped.
             actual_shape = np.shape(n_coeffs_deriv)
             required_shape = (len(n_idx), len(c_idx), len(self))
             if actual_shape != required_shape:
@@ -935,12 +934,9 @@ class PulseSequence:
 
         # Check if we can pass on intermediates.
         intermediates = dict()
-        # TODO 05/22: walrus once support for 3.7 is dropped.
-        n_opers_transformed = self._intermediates.get('n_opers_transformed')
-        first_order_integral = self._intermediates.get('first_order_integral')
-        if n_opers_transformed is not None:
+        if (n_opers_transformed := self._intermediates.get('n_opers_transformed')) is not None:
             intermediates['n_opers_transformed'] = n_opers_transformed[n_idx]
-        if first_order_integral is not None:
+        if (first_order_integral := self._intermediates.get('first_order_integral')) is not None:
             intermediates['first_order_integral'] = first_order_integral
 
         control_matrix = self.get_control_matrix(omega, cache_intermediates=True)[n_idx]
@@ -1819,7 +1815,8 @@ def concatenate(
     return newpulse
 
 
-def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
+def concatenate_periodic(pulse: PulseSequence, repeats: int,
+                         check_invertible: bool = True) -> PulseSequence:
     r"""
     Concatenate a pulse sequence *pulse* whose Hamiltonian is periodic
     *repeats* times. Although performing the same task, this function is
@@ -1837,6 +1834,9 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
         will also be computed.
     repeats: int
         The number of repetitions
+    check_invertible : bool
+        Test if the matrix inversion was successful and, where not,
+        calculate the result 'on foot'.
 
     Returns
     -------
@@ -1868,12 +1868,8 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     concatenate: Concatenate arbitrary PulseSequences.
     """
 
-    try:
-        # Do awkward checking for type
-        if not hasattr(pulse, 'c_opers'):
-            raise TypeError('Can only concatenate PulseSequences!')
-    except TypeError:
-        raise TypeError(f'Expected pulses to be iterable, not {type(pulse)}')
+    if not isinstance(pulse, PulseSequence):
+        raise TypeError('Can only concatenate PulseSequences!')
 
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
@@ -1892,9 +1888,6 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
     newpulse.tau = repeats*pulse.tau
 
     if not pulse.is_cached('control_matrix'):
-        # No cached filter functions to reuse and pulse correlation FFs not
-        # requested. If they were, continue even if there are no cached FF
-        # they cannot be computed anymore afterwards.
         return newpulse
 
     phases_at = pulse.get_total_phases(pulse.omega)
@@ -1906,7 +1899,7 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int) -> PulseSequence:
 
     control_matrix_tot = numeric.calculate_control_matrix_periodic(phases_at, control_matrix_at,
                                                                    total_propagator_liouville_at,
-                                                                   repeats)
+                                                                   repeats, check_invertible)
 
     newpulse.cache_filter_function(pulse.omega, control_matrix_tot)
 
