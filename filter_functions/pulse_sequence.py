@@ -1769,7 +1769,7 @@ def concatenate(
 
         if not equal_omega:
             if calc_filter_function:
-                raise ValueError("Calculation of filter function forced  but not all pulses "
+                raise ValueError("Calculation of filter function forced but not all pulses "
                                  + "have the same frequencies cached and none were supplied!")
             if calc_pulse_correlation_FF:
                 raise ValueError("Cannot compute the pulse correlation filter functions; do not "

@@ -639,7 +639,7 @@ def calculate_control_matrix_from_atomic(
         :math:`g=0`, they are unity.
     control_matrix_atomic: array_like, shape (n_dt, n_nops, d**2, n_omega)
         The pulse control matrices for :math:`g\in\{1, 2, \dots, G\}`.
-    propagators_liouville: array_like, shape (n_dt-1, n_nops, d**2, d**2)
+    propagators_liouville: array_like, shape (n_dt-1, d**2, d**2)
         The transfer matrices of the cumulative propagators for
         :math:`g\in\{1, 2, \dots, G-1\}`. For :math:`g=0` it is the
         identity.
@@ -1551,8 +1551,9 @@ def calculate_second_order_filter_function(
     -------
     second_order_filter_function : ndarray, shape (n_nops, n_nops, d**2, d**2, n_omega)
         The second order filter function.
-    filter_function_cumulative_step : ndarray, shape (n_dt, n_nops, n_nops, d**2, d**2, n_omega)
-        The accumulated filter function.
+    intermediates : dict[str, ndarray]
+        Intermediate results of the calculation. Only if
+        cache_intermediates is True.
 
     .. _notes:
 
@@ -1784,6 +1785,63 @@ def calculate_second_order_from_atomic(
         intermediates: Sequence[Mapping[str, ndarray]],
         show_progressbar: bool = False,
 ):
+    r"""Calculate the second-order filter function from those of atomic
+    segments.
+
+    Parameters
+    ----------
+    basis: Basis, shape (d**2, d, d)
+        The operator basis for the filter function.
+    filter_function_atomic: ndarray, shape (n_dt, n_nops, n_nops, d**2,  d**2, n_omega)
+        The filter functions for segments :math:`g\in\{1, 2, \dots, G\}`.
+    control_matrix_atomic: ndarray, shape (n_dt, n_nops, d**2, n_omega)
+        The pulse control matrices for :math:`g\in\{1, 2, \dots, G\}`.
+    control_matrix_atomic_cumulative: ndarray, shape (n_dt, n_nops, d**2, n_omega)
+        The accumulated sum of atomic control matrices as returned by
+        :func:`calculate_control_matrix_from_atomic` with
+        ``return_cumulative=True``.
+    phases: ndarray, shape (n_dt-1, n_omega)
+        The phase factors for :math:`g\in\{1, 2, \dots, G-1\}`. For
+        :math:`g=0`, they are unity.
+    propagators: ndarray, shape (n_dt-1, d, d)
+    propagators_liouville: ndarray, shape (n_dt-1, d**2, d**2)
+        The transfer matrices of the cumulative propagators for
+        :math:`g\in\{1, 2, \dots, G-1\}`. For :math:`g=0` it is the
+        identity.
+    intermediates: Sequence[Dict[str, ndarray]}
+        Intermediate terms of the calculation of the control matrix and
+        second-order filter function that can be reused here. Each entry
+        of the sequence of length `n_pls` should be a dictionary with
+        the following required keys:
+         - 'eigvecs_propagated'
+         - 'n_opers_transformed'
+         - 'second_order_integral'
+         - 'second_order_complete_steps'
+        The first two are populated by
+        :func:`calculate_control_matrix_from_scratch`, the last two by
+        :func:`calculate_second_order_filter_function`.
+    show_progressbar: bool, optional
+        Show a progress bar for the calculation.
+
+    Returns
+    -------
+    second_order_FF: ndarray, shape (n_nops, n_nops, d**2, d**2, n_omega)
+        The second-order filter function
+        :math:`\mathcal{F}^{(2)}(\omega)`.
+
+    See Also
+    --------
+    calculate_control_matrix_from_scratch: Control matrix from scratch.
+    calculate_control_matrix_from_atomic: Similar function for the first order FF.
+    calculate_second_order_filter_function: Second-order FF from scratch.
+    """
+    required_intermediates = {'eigvecs_propagated', 'n_opers_transformed',
+                              'second_order_integral', 'second_order_complete_steps'}
+    for required_key in required_intermediates:
+        if not all(required_key in intermediate for intermediate in intermediates):
+            raise ValueError(f"Required intermediate term {required_key} not found in all "
+                             "intermediates.")
+
     G, n_nops, n_basis, n_omega = control_matrix_atomic.shape
     d = propagators.shape[-1]
 
@@ -1827,6 +1885,7 @@ def calculate_second_order_from_atomic(
         # N_(g)(ω)
         tmp_2 += second_order_complete_steps
 
+        # Q^(g-1) N_(g)(ω) Q^(g-1)
         result += expr_2(tmp_2, propagators_liouville[g-1], propagators_liouville[g-1], out=tmp_2)
 
         for h in range(len(eigvecs_propagated)):
