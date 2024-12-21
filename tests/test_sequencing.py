@@ -100,6 +100,14 @@ class ConcatenationTest(testutil.TestCase):
         with self.assertRaises(IndexError):
             pulse['a']
 
+    def test_array(self):
+        """Test array of PulseSequences."""
+        pulses = list(testutil.rand_pulse_sequence(2, 24)[::3])
+        array = np.array(pulses)
+
+        self.assertIs(array.dtype, np.dtype('O'))
+        self.assertEqual(array.shape, (8,))
+
     def test_concatenate_without_filter_function(self):
         """Concatenate two Spin Echos without filter functions."""
         tau = 10

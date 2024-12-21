@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "filter_functions"
 description = "Package for efficient calculation of generalized filter functions"
 readme = "README.md"
-requires_python = ">= 3.8"
+requires_python = ">= 3.9"
 license = {file = "LICENSE"}
 dynamic = ["version"]
 authors = [
@@ -15,7 +15,6 @@ authors = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -39,19 +38,17 @@ bloch_sphere_visualization = [
     "filter_functions[plotting]",
     "qutip",
 ]
-fancy_progressbar = [
-    "ipynbname",
-    "jupyter"
-]
 doc = [
     "jupyter",
     "nbsphinx",
     "numpydoc",
     "sphinx",
     "sphinx_rtd_theme",
+    "sphinxcontrib-apidoc",
     "ipympl",
     "qutip-qip",
-    "qutip-qtrl"
+    "qutip-qtrl",
+    "numpy<2"
 ]
 tests = [
     "pytest >= 4.6",
@@ -61,7 +58,6 @@ tests = [
 all = [
     "filter_functions[plotting]",
     "filter_functions[bloch_sphere_visualization]",
-    "filter_functions[fancy_progressbar]",
     "filter_functions[doc]",
     "filter_functions[tests]",
 ]

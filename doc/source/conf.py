@@ -38,6 +38,7 @@ extensions = [
     'nbsphinx',
     'sphinx.ext.mathjax',
     'sphinx.ext.todo',
+    'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'numpydoc',
     'sphinx.ext.extlinks',
@@ -45,13 +46,12 @@ extensions = [
     'sphinx.ext.ifconfig',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
-    #'sphinxcontrib.apidoc',
+    'sphinxcontrib.apidoc',
     #'IPython.sphinxext.ipython_console_highlighting',
     #'IPython.sphinxext.ipython_directive',
     #'matplotlib.sphinxext.only_directives',
     #'matplotlib.sphinxext.plot_directive',
     #'matplotlib.sphinxext.mathmpl',
-    #'sphinx.ext.autodoc',
     #'sphinx.ext.doctest',
 ]
 
@@ -59,6 +59,7 @@ extensions = [
 apidoc_module_dir = '../../filter_functions'
 apidoc_excluded_paths = ['../tests']
 apidoc_separate_modules = True
+apidoc_module_first = True
 
 # Numpydoc settings
 numpydoc_show_inherited_class_members = False
