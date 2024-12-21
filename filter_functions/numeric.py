@@ -84,7 +84,9 @@ __all__ = ['calculate_control_matrix_from_atomic', 'calculate_control_matrix_fro
            'calculate_control_matrix_periodic', 'calculate_cumulant_function',
            'calculate_decay_amplitudes', 'calculate_filter_function', 'calculate_frequency_shifts',
            'calculate_noise_operators_from_atomic', 'calculate_noise_operators_from_scratch',
-           'calculate_pulse_correlation_filter_function', 'calculate_second_order_filter_function',
+           'calculate_pulse_correlation_filter_function',
+           'calculate_second_order_filter_function_from_scratch',
+           'calculate_second_order_filter_function_from_atomic',
            'diagonalize', 'error_transfer_matrix', 'infidelity']
 
 
@@ -1486,7 +1488,7 @@ def calculate_filter_function(control_matrix: ndarray, which: str = 'fidelity') 
     return np.einsum(subscripts, control_matrix.conj(), control_matrix)
 
 
-def calculate_second_order_filter_function(
+def calculate_second_order_filter_function_from_scratch(
         eigvals: ndarray,
         eigvecs: ndarray,
         propagators: ndarray,
@@ -1591,6 +1593,7 @@ def calculate_second_order_filter_function(
     infidelity: Compute the infidelity directly.
     pulse_sequence.concatenate: Concatenate ``PulseSequence`` objects.
     calculate_pulse_correlation_filter_function
+    calculate_second_order_filter_function_from_atomic: Second-order FF from atomic.
     """
     G, d = eigvals.shape
     n_nops = len(n_coeffs)
@@ -1774,7 +1777,7 @@ def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
     return np.einsum(subscripts, control_matrix.conj(), control_matrix)
 
 
-def calculate_second_order_from_atomic(
+def calculate_second_order_filter_function_from_atomic(
         basis: Basis,
         filter_function_atomic: ndarray,
         control_matrix_atomic: ndarray,
@@ -1833,7 +1836,7 @@ def calculate_second_order_from_atomic(
     --------
     calculate_control_matrix_from_scratch: Control matrix from scratch.
     calculate_control_matrix_from_atomic: Similar function for the first order FF.
-    calculate_second_order_filter_function: Second-order FF from scratch.
+    calculate_second_order_filter_function_from_scratch: Second-order FF from scratch.
     """
     required_intermediates = {'eigvecs_propagated', 'n_opers_transformed',
                               'second_order_integral', 'second_order_complete_steps'}

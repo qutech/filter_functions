@@ -868,7 +868,7 @@ class PulseSequence:
                     filter_function = numeric.calculate_filter_function(control_matrix, which)
             else:
                 # order == 2
-                filter_function = numeric.calculate_second_order_filter_function(
+                filter_function = numeric.calculate_second_order_filter_function_from_scratch(
                     self.eigvals, self.eigvecs, self.propagators, self.omega, self.basis,
                     self.n_opers, self.n_coeffs, self.dt, self._intermediates, show_progressbar,
                     cache_intermediates, cache_second_order_cumulative
@@ -1840,7 +1840,7 @@ def concatenate(
 
     if calc_second_order_FF:
         control_matrix, control_matrix_atomic_cumulative = control_matrix
-        filter_function = numeric.calculate_second_order_from_atomic(
+        filter_function = numeric.calculate_second_order_filter_function_from_atomic(
             basis=newpulse.basis,
             filter_function_atomic=pulses[0].get_filter_function(omega, order=2),
             control_matrix_atomic=control_matrix_atomic,

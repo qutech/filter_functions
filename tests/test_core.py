@@ -792,7 +792,7 @@ class CoreTest(testutil.TestCase):
             F_1 = pulse.get_filter_function(omega, order=2)
             # Test caching
             F_2 = pulse.get_filter_function(omega, order=2)
-            F_3 = numeric.calculate_second_order_filter_function(
+            F_3 = numeric.calculate_second_order_filter_function_from_scratch(
                 pulse.eigvals, pulse.eigvecs, pulse.propagators, omega, pulse.basis, pulse.n_opers,
                 pulse.n_coeffs, pulse.dt, show_progressbar=False, intermediates=None
             )
