@@ -1712,71 +1712,6 @@ def calculate_second_order_filter_function_from_scratch(
     return result
 
 
-@util.parse_optional_parameters(which=('fidelity', 'generalized'))
-def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
-                                                which: str = 'fidelity') -> ndarray:
-    r"""Compute pulse correlation filter function from control matrix.
-
-    Parameters
-    ----------
-    control_matrix: array_like, shape (n_pulses, n_nops, d**2, n_omega)
-        The control matrix.
-    which : str, optional
-        Which filter function to return. Either 'fidelity' (default) or
-        'generalized' (see :ref:`Notes <notes>`).
-
-    Returns
-    -------
-    filter_function_pc: ndarray, shape (n_pls, n_pls, n_nops, n_nops, [d**2, d**2,] n_omega)
-        The pulse correlation filter functions for each pulse and noise
-        operator correlations. The first two axes hold the pulse
-        correlations, the second two the noise correlations.
-    which : str, optional
-        Which filter function to return. Either 'fidelity' (default) or
-        'generalized' (see :ref:`Notes <notes>`).
-
-    .. _notes:
-
-    Notes
-    -----
-    The generalized pulse correlation filter function is given by
-
-    .. math::
-
-        F_{\alpha\beta,kl}^{(gg')}(\omega) = \bigl[
-            \mathcal{Q}^{(g'-1)\dagger}
-            \tilde{\mathcal{B}}^{(g')\dagger}(\omega)
-        \bigr]_{k\alpha} \bigl[
-            \tilde{\mathcal{B}}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
-        \bigr]_{\beta l} e^{i\omega(t_{g-1} - t_{g'-1})},
-
-    with :math:`\tilde{\mathcal{B}}^{(g)}` the control matrix of the
-    :math:`g`-th pulse. The fidelity pulse correlation function is
-    obtained by tracing out the basis indices,
-
-    .. math::
-
-        F_{\alpha\beta}^{(gg')}(\omega) =
-          \sum_{k} F_{\alpha\beta,kk}^{(gg')}(\omega)
-
-    See Also
-    --------
-    calculate_control_matrix_from_scratch: Control matrix from scratch.
-    calculate_control_matrix_from_atomic: Control matrix from concatenation.
-    calculate_filter_function: Regular filter function.
-    """
-    if control_matrix.ndim != 4:
-        raise ValueError('Expected control_matrix.ndim == 4.')
-
-    if which == 'fidelity':
-        subscripts = 'gako,hbko->ghabo'
-    else:
-        # which == 'generalized'
-        subscripts = 'gako,hblo->ghabklo'
-
-    return np.einsum(subscripts, control_matrix.conj(), control_matrix)
-
-
 def calculate_second_order_filter_function_from_atomic(
         basis: Basis,
         filter_function_atomic: ndarray,
@@ -1896,6 +1831,71 @@ def calculate_second_order_filter_function_from_atomic(
             result += _incomplete_time_step(h, out=tmp_2)
 
     return result
+
+
+@util.parse_optional_parameters(which=('fidelity', 'generalized'))
+def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
+                                                which: str = 'fidelity') -> ndarray:
+    r"""Compute pulse correlation filter function from control matrix.
+
+    Parameters
+    ----------
+    control_matrix: array_like, shape (n_pulses, n_nops, d**2, n_omega)
+        The control matrix.
+    which : str, optional
+        Which filter function to return. Either 'fidelity' (default) or
+        'generalized' (see :ref:`Notes <notes>`).
+
+    Returns
+    -------
+    filter_function_pc: ndarray, shape (n_pls, n_pls, n_nops, n_nops, [d**2, d**2,] n_omega)
+        The pulse correlation filter functions for each pulse and noise
+        operator correlations. The first two axes hold the pulse
+        correlations, the second two the noise correlations.
+    which : str, optional
+        Which filter function to return. Either 'fidelity' (default) or
+        'generalized' (see :ref:`Notes <notes>`).
+
+    .. _notes:
+
+    Notes
+    -----
+    The generalized pulse correlation filter function is given by
+
+    .. math::
+
+        F_{\alpha\beta,kl}^{(gg')}(\omega) = \bigl[
+            \mathcal{Q}^{(g'-1)\dagger}
+            \tilde{\mathcal{B}}^{(g')\dagger}(\omega)
+        \bigr]_{k\alpha} \bigl[
+            \tilde{\mathcal{B}}^{(g)}(\omega)\mathcal{Q}^{(g-1)}
+        \bigr]_{\beta l} e^{i\omega(t_{g-1} - t_{g'-1})},
+
+    with :math:`\tilde{\mathcal{B}}^{(g)}` the control matrix of the
+    :math:`g`-th pulse. The fidelity pulse correlation function is
+    obtained by tracing out the basis indices,
+
+    .. math::
+
+        F_{\alpha\beta}^{(gg')}(\omega) =
+          \sum_{k} F_{\alpha\beta,kk}^{(gg')}(\omega)
+
+    See Also
+    --------
+    calculate_control_matrix_from_scratch: Control matrix from scratch.
+    calculate_control_matrix_from_atomic: Control matrix from concatenation.
+    calculate_filter_function: Regular filter function.
+    """
+    if control_matrix.ndim != 4:
+        raise ValueError('Expected control_matrix.ndim == 4.')
+
+    if which == 'fidelity':
+        subscripts = 'gako,hbko->ghabo'
+    else:
+        # which == 'generalized'
+        subscripts = 'gako,hblo->ghabklo'
+
+    return np.einsum(subscripts, control_matrix.conj(), control_matrix)
 
 
 def diagonalize(hamiltonian: ndarray, dt: Coefficients) -> Tuple[ndarray, ndarray, ndarray]:
