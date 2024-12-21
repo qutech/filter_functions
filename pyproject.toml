@@ -1,0 +1,103 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "filter_functions"
+description = "Package for efficient calculation of generalized filter functions"
+readme = "README.md"
+requires_python = ">= 3.9"
+license = {file = "LICENSE"}
+dynamic = ["version"]
+authors = [
+    {name = "Tobias Hangleiter", email = "tobias.hangleiter@rwth-aachen.de"},
+    {name = "Quantum Technology Group, RWTH Aachen University"},
+]
+classifiers = [
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+keywords = ["physics", "numerics", "quantum information", "quantum computing", "noise"]
+dependencies = [
+    "numpy",
+    "scipy",
+    "opt_einsum",
+    "sparse",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+plotting = ["matplotlib"]
+bloch_sphere_visualization = [
+    "filter_functions[plotting]",
+    "qutip",
+]
+doc = [
+    "jupyter",
+    "nbsphinx",
+    "numpydoc",
+    "sphinx",
+    "sphinx_rtd_theme",
+    "sphinxcontrib-apidoc",
+    "ipympl",
+    "qutip-qip",
+    "qutip-qtrl",
+    "numpy<2"
+]
+tests = [
+    "pytest >= 4.6",
+    "pytest-cov",
+    "codecov"
+]
+all = [
+    "filter_functions[plotting]",
+    "filter_functions[bloch_sphere_visualization]",
+    "filter_functions[doc]",
+    "filter_functions[tests]",
+]
+
+[project.urls]
+Source = "https://github.com/qutech/filter_functions"
+Documentation = "https://filter-functions.readthedocs.io/en/latest/"
+Homepage = "https://www.quantuminfo.physik.rwth-aachen.de/cms/Quantuminfo/Forschung/Quantum-Technology-Group/~zcsx/code/lidx/1/"
+
+[tool.hatch.version]
+path = "filter_functions/__init__.py"
+
+[tool.hatch.envs.tests]
+features = ["tests"]
+[tool.hatch.envs.tests.scripts]
+run = ["python -m pytest"]
+
+[tool.hatch.envs.doc]
+features = [
+    "doc",
+]
+[tool.hatch.envs.doc.scripts]
+build = [
+    "sphinx-build -b html doc/source public"
+]
+
+[tool.pytest.ini_options]
+minversion = "4.6"
+addopts = "-ra --verbose --cov=filter_functions --cov-report=xml"
+testpaths = [
+    "tests"
+]
+
+[tool.coverage.run]
+branch = true
+omit = ["tests/*", "*/__init__.py"]
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = "E123,E226,W504"
+
+[tool.pylint.FORMAT]
+# Maximum number of characters on a single line.
+max-line-length = 99
