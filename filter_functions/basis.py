@@ -39,7 +39,7 @@ Functions
     Gell-Mann basis
 
 """
-
+from functools import cached_property
 from itertools import product
 from typing import Optional, Sequence, Union
 from warnings import warn
@@ -197,12 +197,6 @@ class Basis(np.ndarray):
         self.btype = getattr(basis, 'btype', 'Custom')
         self.labels = getattr(basis, 'labels', [f'$C_{{{i}}}$' for i in range(len(basis))])
         self.d = getattr(basis, 'd', basis.shape[-1])
-        self._sparse = None
-        self._four_element_traces = None
-        self._isherm = None
-        self._isorthonorm = None
-        self._istraceless = None
-        self._iscomplete = None
         self._eps = np.finfo(complex).eps
         self._atol = self._eps*self.d**3
         self._rtol = 0
@@ -243,78 +237,77 @@ class Basis(np.ndarray):
         for check in checks:
             print(check, ':\t', getattr(self, check))
 
-    @property
+    def _invalidate_cached_properties(self):
+        for attr in {'isherm', 'isnorm', 'isorthogonal', 'istraceless', 'iscomplete'}:
+            try:
+                delattr(self, attr)
+            except AttributeError:
+                pass
+
+    @cached_property
     def isherm(self) -> bool:
         """Returns True if all basis elements are hermitian."""
-        if self._isherm is None:
-            self._isherm = (self.H == self)
+        return self.H == self
 
-        return self._isherm
+    @cached_property
+    def isnorm(self) -> bool:
+        """Returns True if all basis elements are normalized."""
+        return self.normalize(copy=True) == self
+
+    @cached_property
+    def isorthogonal(self) -> bool:
+        """Returns True if all basis elements are mutually orthogonal."""
+        if self.ndim == 2 or len(self) == 1:
+            return True
+
+        # The basis is orthogonal iff the matrix consisting of all d**2
+        # elements written as d**2-dimensional column vectors is
+        # orthogonal.
+        dim = self.shape[0]
+        U = self.reshape((dim, -1))
+        actual = U.conj() @ U.T
+        atol = self._eps*(self.d**2)**3
+        mask = np.identity(dim, dtype=bool)
+        return np.allclose(actual[..., ~mask].view(np.ndarray), 0, atol=atol, rtol=self._rtol)
 
     @property
     def isorthonorm(self) -> bool:
         """Returns True if basis is orthonormal."""
-        if self._isorthonorm is None:
-            # All the basis is orthonormal iff the matrix consisting of all
-            # d**2 elements written as d**2-dimensional column vectors is
-            # unitary.
-            if self.ndim == 2 or len(self) == 1:
-                # Only one basis element
-                self._isorthonorm = True
-            else:
-                # Size of the result after multiplication
-                dim = self.shape[0]
-                U = self.reshape((dim, -1))
-                actual = U.conj() @ U.T
-                target = np.identity(dim)
-                atol = self._eps*(self.d**2)**3
-                self._isorthonorm = np.allclose(actual.view(np.ndarray), target,
-                                                atol=atol, rtol=self._rtol)
+        return self.isorthogonal and self.isnorm
 
-        return self._isorthonorm
-
-    @property
+    @cached_property
     def istraceless(self) -> bool:
         """
         Returns True if basis is traceless except for possibly the identity.
         """
-        if self._istraceless is None:
-            trace = np.einsum('...jj', self)
-            trace = util.remove_float_errors(trace, self.d**2)
-            nonzero = np.atleast_1d(trace).nonzero()
-            if nonzero[0].size == 0:
-                self._istraceless = True
-            elif nonzero[0].size == 1:
-                # Single element has nonzero trace, check if (proportional to)
-                # identity
-                if self.ndim == 3:
-                    elem = self[nonzero][0].view(np.ndarray)
-                else:
-                    elem = self.view(np.ndarray)
-                offdiag_nonzero = elem[~np.eye(self.d, dtype=bool)].nonzero()
-                diag_equal = np.diag(elem) == elem[0, 0]
-                if diag_equal.all() and not offdiag_nonzero[0].any():
-                    # Element is (proportional to) the identity, this we define
-                    # as 'traceless' since a complete basis cannot have only
-                    # traceless elems.
-                    self._istraceless = True
-                else:
-                    # Element not the identity, therefore not traceless
-                    self._istraceless = False
+        trace = np.einsum('...jj', self)
+        trace = util.remove_float_errors(trace, self.d**2)
+        nonzero = np.atleast_1d(trace).nonzero()
+        if nonzero[0].size == 0:
+            return True
+        elif nonzero[0].size == 1:
+            # Single element has nonzero trace, check if (proportional to)
+            # identity
+            elem = self[nonzero][0].view(np.ndarray) if self.ndim == 3 else self.view(np.ndarray)
+            offdiag_nonzero = elem[~np.eye(self.d, dtype=bool)].nonzero()
+            diag_equal = np.diag(elem) == elem[0, 0]
+            if diag_equal.all() and not offdiag_nonzero[0].any():
+                # Element is (proportional to) the identity, this we define
+                # as 'traceless' since a complete basis cannot have only
+                # traceless elems.
+                return True
             else:
-                self._istraceless = False
+                # Element not the identity, therefore not traceless
+                return False
+        else:
+            return False
 
-        return self._istraceless
-
-    @property
+    @cached_property
     def iscomplete(self) -> bool:
         """Returns True if basis is complete."""
-        if self._iscomplete is None:
-            A = self.reshape(self.shape[0], -1)
-            rank = np.linalg.matrix_rank(A)
-            self._iscomplete = rank == self.d**2
-
-        return self._iscomplete
+        A = self.reshape(self.shape[0], -1)
+        rank = np.linalg.matrix_rank(A)
+        return rank == self.d**2
 
     @property
     def H(self) -> 'Basis':
@@ -329,41 +322,53 @@ class Basis(np.ndarray):
 
         return self
 
-    @property
+    @cached_property
     def sparse(self) -> COO:
         """Return the basis as a sparse COO array"""
-        if self._sparse is None:
-            self._sparse = COO.from_numpy(self)
+        return COO.from_numpy(self)
 
-        return self._sparse
-
-    @property
+    @cached_property
     def four_element_traces(self) -> COO:
         r"""
         Return all traces of the form
         :math:`\mathrm{tr}(C_i C_j C_k C_l)` as a sparse COO array for
         :math:`i,j,k,l > 0` (i.e. excluding the identity).
         """
-        if self._four_element_traces is None:
-            # Most of the traces are zero, therefore store the result in a
-            # sparse array. For GGM bases, which are inherently sparse, it
-            # makes sense for any dimension to also calculate with sparse
-            # arrays. For Pauli bases, which are very dense, this is not so
-            # efficient but unavoidable for d > 12.
-            path = [(0, 1), (0, 1), (0, 1)]
-            if self.btype == 'Pauli' and self.d <= 12:
-                # For d == 12, the result is ~270 MB.
-                self._four_element_traces = COO.from_numpy(oe.contract('iab,jbc,kcd,lda->ijkl',
-                                                                       *(self,)*4, optimize=path))
-            else:
-                self._four_element_traces = oe.contract('iab,jbc,kcd,lda->ijkl', *(self.sparse,)*4,
-                                                        backend='sparse', optimize=path)
+        # Most of the traces are zero, therefore store the result in a
+        # sparse array. For GGM bases, which are inherently sparse, it
+        # makes sense for any dimension to also calculate with sparse
+        # arrays. For Pauli bases, which are very dense, this is not so
+        # efficient but unavoidable for d > 12.
+        path = [(0, 1), (0, 1), (0, 1)]
+        if self.btype == 'Pauli' and self.d <= 12:
+            # For d == 12, the result is ~270 MB.
+            return COO.from_numpy(oe.contract('iab,jbc,kcd,lda->ijkl', *(self,)*4, optimize=path))
+        else:
+            return oe.contract('iab,jbc,kcd,lda->ijkl', *(self.sparse,)*4, backend='sparse',
+                               optimize=path)
 
-        return self._four_element_traces
+    def expand(self, M: np.ndarray, hermitian: bool = False, traceless: bool = False,
+               tidyup: bool = False) -> np.ndarray:
+        """Expand matrices M in this basis.
 
-    @four_element_traces.setter
-    def four_element_traces(self, traces):
-        self._four_element_traces = traces
+        Parameters
+        ----------
+        M: array_like
+            The square matrix (d, d) or array of square matrices (..., d, d)
+            to be expanded in *basis*
+        hermitian: bool (default: False)
+            If M is hermitian along its last two axes, the result will be
+            real.
+        tidyup: bool {False}
+            Whether to set values below the floating point eps to zero.
+
+        See Also
+        --------
+        expand : The function corresponding to this method.
+        """
+        if self.btype == 'GGM' and self.iscomplete:
+            return ggm_expand(M, traceless, hermitian, tidyup)
+        return expand(M, self, self.isnorm, hermitian, tidyup)
 
     def normalize(self, copy: bool = False) -> Union[None, 'Basis']:
         """Normalize the basis."""
@@ -371,6 +376,7 @@ class Basis(np.ndarray):
             return normalize(self)
 
         self /= _norm(self)
+        self._invalidate_cached_properties()
 
     def tidyup(self, eps_scale: Optional[float] = None) -> None:
         """Wraps util.remove_float_errors."""
@@ -381,6 +387,8 @@ class Basis(np.ndarray):
 
         self.real[np.abs(self.real) <= atol] = 0
         self.imag[np.abs(self.imag) <= atol] = 0
+
+        self._invalidate_cached_properties()
 
     @classmethod
     def pauli(cls, n: int) -> 'Basis':
@@ -549,15 +557,14 @@ def _full_from_partial(elems: Sequence, traceless: bool, labels: Sequence[str]) 
     if not elems.isherm:
         warn("(Some) elems not hermitian! The resulting basis also won't be.")
 
-    if not elems.isorthonorm:
-        raise ValueError("The basis elements are not orthonormal!")
+    if not elems.isorthogonal:
+        raise ValueError("The basis elements are not orthogonal!")
 
     if traceless is None:
         traceless = elems.istraceless
-    else:
-        if traceless and not elems.istraceless:
-            raise ValueError("The basis elements are not traceless (up to an identity element) "
-                             + "but a traceless basis was requested!")
+    elif traceless and not elems.istraceless:
+        raise ValueError("The basis elements are not traceless (up to an identity element) "
+                         + "but a traceless basis was requested!")
 
     if labels is not None and len(labels) not in (len(elems), elems.d**2):
         raise ValueError(f'Got {len(labels)} labels but expected {len(elems)} or {elems.d**2}')
@@ -566,12 +573,13 @@ def _full_from_partial(elems: Sequence, traceless: bool, labels: Sequence[str]) 
     # properties hermiticity and orthonormality, and therefore also linear
     # combinations, ie basis expansions, of it will). Split off the identity so
     # that for traceless bases we can put it in the front.
-    if traceless:
-        Id, ggm = np.split(Basis.ggm(elems.d), [1])
-    else:
-        ggm = Basis.ggm(elems.d)
+    ggm = Basis.ggm(elems.d)
+    coeffs = ggm.expand(elems, traceless=traceless, hermitian=elems.isherm, tidyup=True)
 
-    coeffs = expand(elems, ggm, hermitian=elems.isherm, tidyup=True)
+    if traceless:
+        Id, ggm = np.split(ggm, [1])
+        coeffs = coeffs[..., 1:]
+
     # Throw out coefficient vectors that are all zero (should only happen for
     # the identity)
     coeffs = coeffs[(coeffs != 0).any(axis=-1)]
@@ -636,7 +644,7 @@ def normalize(b: Basis) -> Basis:
         Baltimore, MD, Johns Hopkins University Press, 1985, pg. 15
 
     """
-    return (b/_norm(b)).squeeze().view(Basis)
+    return (b/_norm(b)).squeeze().reshape(b.shape).view(Basis)
 
 
 def expand(M: Union[np.ndarray, Basis], basis: Union[np.ndarray, Basis],
@@ -691,7 +699,7 @@ def expand(M: Union[np.ndarray, Basis], basis: Union[np.ndarray, Basis],
 
 
 def ggm_expand(M: Union[np.ndarray, Basis], traceless: bool = False,
-               hermitian: bool = False) -> np.ndarray:
+               hermitian: bool = False, tidyup: bool = False) -> np.ndarray:
     r"""
     Expand the matrix *M* in a Generalized Gell-Mann basis [Bert08]_.
     This function makes use of the explicit construction prescription of
@@ -712,6 +720,8 @@ def ggm_expand(M: Union[np.ndarray, Basis], traceless: bool = False,
     hermitian: bool (default: False)
         If M is hermitian along its last two axes, the result will be
         real.
+    tidyup: bool {False}
+        Whether to set values below the floating point eps to zero.
 
     Returns
     -------
@@ -759,7 +769,7 @@ def ggm_expand(M: Union[np.ndarray, Basis], traceless: bool = False,
     coeffs = np.zeros((*M.shape[:-2], d**2), dtype=float if hermitian else complex)
     if not traceless:
         # First element is proportional to the trace of M
-        coeffs[..., 0] = cast(np.einsum('...jj', M))/np.sqrt(d)
+        coeffs[..., 0] = cast(M.trace(0, -1, -2))/np.sqrt(d)
 
     # Elements proportional to the symmetric GGMs
     coeffs[..., sym_rng] = cast(M[triu_idx] + M[tril_idx])/np.sqrt(2)
@@ -770,7 +780,11 @@ def ggm_expand(M: Union[np.ndarray, Basis], traceless: bool = False,
                                            - diag_rng*M[diag_idx_shifted])
     coeffs[..., diag_rng + 2*n_sym] /= cast(np.sqrt(diag_rng*(diag_rng + 1)))
 
-    return coeffs.squeeze() if square else coeffs
+    if square:
+        coeffs = coeffs.squeeze()
+    if tidyup:
+        coeffs = util.remove_float_errors(coeffs)
+    return coeffs
 
 
 def equivalent_pauli_basis_elements(idx: Union[Sequence[int], int], N: int) -> np.ndarray:
