@@ -86,7 +86,7 @@ build = [
 
 [tool.pytest.ini_options]
 minversion = "4.6"
-addopts = "-ra --verbose --cov=filter_functions --cov-report=xml"
+addopts = "-ra --verbose --cov=filter_functions --cov-report=xml --junitxml=junit.xml -o junit_family=legacy"
 testpaths = [
     "tests"
 ]

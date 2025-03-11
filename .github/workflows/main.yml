@@ -42,6 +42,13 @@ jobs:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }} # required
         verbose: true
+    - name: Upload test results to Codecov
+      if: ${{ !cancelled() }}
+      uses: codecov/test-results-action@v1
+      with:
+        name: ${{ matrix.python }} - ${{ matrix.install_extras }}
+        token: ${{ secrets.CODECOV_TOKEN }}
+
 
   release:
     name: Publish to PyPi
