@@ -7,11 +7,11 @@ name = "filter_functions"
 description = "Package for efficient calculation of generalized filter functions"
 readme = "README.md"
 requires_python = ">= 3.9"
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 dynamic = ["version"]
 authors = [
-    {name = "Tobias Hangleiter", email = "tobias.hangleiter@rwth-aachen.de"},
-    {name = "Quantum Technology Group, RWTH Aachen University"},
+    { name = "Tobias Hangleiter", email = "tobias.hangleiter@rwth-aachen.de" },
+    { name = "Quantum Technology Group, RWTH Aachen University" },
 ]
 classifiers = [
     "Programming Language :: Python :: 3 :: Only",
@@ -86,13 +86,17 @@ build = [
 
 [tool.pytest.ini_options]
 minversion = "4.6"
-addopts = "-ra --verbose --cov=filter_functions --cov-report=xml --junitxml=junit.xml -o junit_family=legacy"
+addopts = """
+-ra --verbose \
+--cov=filter_functions --cov-report=xml --cov-append \
+--junitxml=junit.xml -o junit_family=legacy"""
 testpaths = [
     "tests"
 ]
 
 [tool.coverage.run]
 branch = true
+parallel = true  # each job creates a unique .coverage file, all of which are then combined by --cov-append
 omit = ["tests/*", "*/__init__.py"]
 
 [tool.pylint.'MESSAGES CONTROL']
