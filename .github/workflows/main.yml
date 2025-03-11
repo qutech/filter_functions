@@ -34,7 +34,7 @@ jobs:
         python -m hatch run tests:run
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         file: ./coverage.xml
         name: ${{ matrix.python }} - ${{ matrix.install_extras }}
