@@ -70,11 +70,6 @@ Homepage = "https://www.quantuminfo.physik.rwth-aachen.de/cms/Quantuminfo/Forsch
 [tool.hatch.version]
 path = "filter_functions/__init__.py"
 
-[tool.hatch.envs.tests]
-features = ["tests"]
-[tool.hatch.envs.tests.scripts]
-run = ["python -m pytest"]
-
 [tool.hatch.envs.doc]
 features = [
     "doc",
@@ -86,17 +81,13 @@ build = [
 
 [tool.pytest.ini_options]
 minversion = "4.6"
-addopts = """
--ra --verbose \
---cov=filter_functions --cov-report=xml --cov-append \
---junitxml=junit.xml -o junit_family=legacy"""
+addopts = "-ra --verbose --cov=filter_functions --cov-report=xml --junitxml=junit.xml -o junit_family=legacy"
 testpaths = [
     "tests"
 ]
 
 [tool.coverage.run]
 branch = true
-parallel = true  # each job creates a unique .coverage file, all of which are then combined by --cov-append
 omit = ["tests/*", "*/__init__.py"]
 
 [tool.pylint.'MESSAGES CONTROL']
