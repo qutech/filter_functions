@@ -7,11 +7,11 @@ name = "filter_functions"
 description = "Package for efficient calculation of generalized filter functions"
 readme = "README.md"
 requires_python = ">= 3.9"
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 dynamic = ["version"]
 authors = [
-    {name = "Tobias Hangleiter", email = "tobias.hangleiter@rwth-aachen.de"},
-    {name = "Quantum Technology Group, RWTH Aachen University"},
+    { name = "Tobias Hangleiter", email = "tobias.hangleiter@rwth-aachen.de" },
+    { name = "Quantum Technology Group, RWTH Aachen University" },
 ]
 classifiers = [
     "Programming Language :: Python :: 3 :: Only",
@@ -70,11 +70,6 @@ Homepage = "https://www.quantuminfo.physik.rwth-aachen.de/cms/Quantuminfo/Forsch
 [tool.hatch.version]
 path = "filter_functions/__init__.py"
 
-[tool.hatch.envs.tests]
-features = ["tests"]
-[tool.hatch.envs.tests.scripts]
-run = ["python -m pytest"]
-
 [tool.hatch.envs.doc]
 features = [
     "doc",
@@ -86,7 +81,7 @@ build = [
 
 [tool.pytest.ini_options]
 minversion = "4.6"
-addopts = "-ra --verbose --cov=filter_functions --cov-report=xml"
+addopts = "-ra --verbose --cov=filter_functions --cov-report=xml --junitxml=junit.xml -o junit_family=legacy"
 testpaths = [
     "tests"
 ]

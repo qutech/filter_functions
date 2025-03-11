@@ -39,7 +39,7 @@ plotting = pytest.importorskip('filter_functions.plotting',
                                reason='Skipping plotting tests for build without matplotlib')
 if plotting is not None:
     import matplotlib.pyplot as plt
-    from matplotlib import cycler
+    from cycler import cycler
 
 simple_pulse = testutil.rand_pulse_sequence(2, 1, 1, 1, btype='Pauli')
 complicated_pulse = testutil.rand_pulse_sequence(2, 100, 3, 3)
