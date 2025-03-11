@@ -42,6 +42,7 @@ from typing import Optional, Tuple, Union
 import numpy as np
 from numpy import linalg as nla
 from numpy import ndarray
+from scipy import linalg as sla
 
 from . import basis as _b
 
@@ -181,7 +182,7 @@ def liouville_is_CP(
     """
 
     choi = liouville_to_choi(superoperator, basis)
-    D, V = nla.eigh(choi)
+    D, V = _robust_eigh(choi)
 
     CP = (D >= -(atol or basis._atol)).all(axis=-1)
 
@@ -254,7 +255,7 @@ def liouville_is_cCP(
     Q = np.eye(Omega.shape[-1]) - Omega
 
     choi = liouville_to_choi(superoperator, basis)
-    D, V = nla.eigh(Q @ choi @ Q)
+    D, V = _robust_eigh(Q @ choi @ Q)
 
     cCP = (D >= -(atol or basis._atol)).all(axis=-1)
 
@@ -262,3 +263,23 @@ def liouville_is_cCP(
         return cCP, (D, V)
 
     return cCP
+
+
+def _robust_eigh(a: ndarray) -> Tuple[ndarray, ndarray]:
+    """Try computing the eigenvalue decomposition using numpy's
+    vectorized but less robust (uses heevd driver) function and if it
+    fails resort to scipy's using the heevr driver."""
+    try:
+        D, V = nla.eigh(a)
+    except nla.LinAlgError:
+        shp = a.shape[:-2]
+        if a.ndim == 2:
+            a.shape = (1,) + a.shape
+        elif a.ndim > 3:
+            a.shape = (-1,) + a.shape[-2:]
+
+        D, V = map(np.array, zip(*(sla.eigh(c, driver='evr') for c in a)))
+        D.shape = shp + D.shape[-1:]
+        V.shape = shp + V.shape[-2:]
+
+    return D, V
