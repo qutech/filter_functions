@@ -48,8 +48,8 @@ doc = [
     "sphinxcontrib-apidoc",
     "ipympl",
     "qutip-qip",
-    "qutip-qtrl",
-    "numpy<2"
+    "qutip-qtrl>=0.1.4",
+    "numpy"
 ]
 tests = [
     "pytest >= 4.6",
