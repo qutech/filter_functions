@@ -270,7 +270,7 @@ class Basis(np.ndarray):
         mask = np.identity(dim, dtype=bool)
         return np.allclose(actual[..., ~mask].view(np.ndarray), 0, atol=atol, rtol=self._rtol)
 
-    @property
+    @cached_property
     def isorthonorm(self) -> bool:
         """Returns True if basis is orthonormal."""
         return self.isorthogonal and self.isnorm

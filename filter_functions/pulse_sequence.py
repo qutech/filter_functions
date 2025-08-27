@@ -42,6 +42,7 @@ Functions
 import bisect
 import copy
 from itertools import accumulate, compress, zip_longest
+from types import MappingProxyType
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 from warnings import warn
 
@@ -407,6 +408,29 @@ class PulseSequence:
             d=self.d,
             basis=self.basis
         )
+
+        # An edge use case: key is a slice of the form slice(n), e.g.,
+        # pulse[:n], in which case the control matrix might already have
+        # been cached in the form of an intermediate
+        is_valid_slice = (
+                isinstance(key, slice)
+                and key.start in (None, 0)
+                and key.step in (None, 1)
+        )
+        if is_valid_slice:
+            if 'control_matrix_step_cumulative' in self._intermediates:
+                new.cache_control_matrix(
+                    self.omega,
+                    self._intermediates['control_matrix_step_cumulative'][key.stop-1]
+                )
+            if 'filter_function_2_step_cumulative' in self._intermediates:
+                new.cache_filter_function(
+                    self.omega,
+                    None,
+                    self._intermediates['filter_function_2_step_cumulative'][key.stop-1],
+                    order=2
+                )
+
         return new
 
     def __copy__(self) -> 'PulseSequence':
@@ -496,6 +520,10 @@ class PulseSequence:
         """The duration of the pulse. Alias of tau."""
         return self.tau
 
+    @property
+    def intermediates(self) -> MappingProxyType[str, ndarray]:
+        return MappingProxyType(self._intermediates)
+
     def diagonalize(self) -> None:
         r"""Diagonalize the Hamiltonian defining the pulse sequence."""
         # Only calculate if not done so before
@@ -554,7 +582,7 @@ class PulseSequence:
 
         if cache_intermediates:
             control_matrix, intermediates = control_matrix
-            self._intermediates.update(**intermediates)
+            self._intermediates.update(intermediates)
 
         self.cache_control_matrix(omega, control_matrix)
 
@@ -617,7 +645,8 @@ class PulseSequence:
             which: str = 'fidelity',
             order: int = 1,
             show_progressbar: bool = False,
-            cache_intermediates: bool = False
+            cache_intermediates: bool = False,
+            cache_second_order_cumulative: bool = False
     ) -> ndarray:
         r"""Get the first or second order filter function.
 
@@ -640,6 +669,9 @@ class PulseSequence:
         cache_intermediates: bool, optional
             Keep intermediate terms of the calculation that are also
             required by other computations.
+        cache_second_order_cumulative: bool, optional
+            Also cache the accumulated filter function for each time
+            step. Only if order is 2.
 
         Returns
         -------
@@ -699,7 +731,8 @@ class PulseSequence:
 
         self.cache_filter_function(omega, control_matrix=control_matrix, which=which,
                                    order=order, show_progressbar=show_progressbar,
-                                   cache_intermediates=cache_intermediates)
+                                   cache_intermediates=cache_intermediates,
+                                   cache_second_order_cumulative=cache_second_order_cumulative)
 
         if order == 1:
             if which == 'fidelity':
@@ -719,7 +752,8 @@ class PulseSequence:
             which: str = 'fidelity',
             order: int = 1,
             show_progressbar: bool = False,
-            cache_intermediates: bool = False
+            cache_intermediates: bool = False,
+            cache_second_order_cumulative: bool = False
     ) -> None:
         r"""
         Cache the filter function. If control_matrix.ndim == 4, it is
@@ -751,6 +785,9 @@ class PulseSequence:
         cache_intermediates: bool, optional
             Keep intermediate terms of the calculation that are also
             required by other computations.
+        cache_second_order_cumulative: bool, optional
+            Also cache the accumulated filter function for each time
+            step. Only if order is 2.
 
         See Also
         --------
@@ -784,8 +821,12 @@ class PulseSequence:
                 # order == 2
                 filter_function = numeric.calculate_second_order_filter_function(
                     self.eigvals, self.eigvecs, self.propagators, omega, self.basis,
-                    self.n_opers, self.n_coeffs, self.dt, self._intermediates, show_progressbar
+                    self.n_opers, self.n_coeffs, self.dt, self._intermediates, show_progressbar,
+                    cache_intermediates, cache_second_order_cumulative
                 )
+                if cache_intermediates:
+                    filter_function, intermediates = filter_function
+                    self._intermediates.update(intermediates)
 
         self.omega = omega
         if order == 1:
@@ -1070,6 +1111,8 @@ class PulseSequence:
             except AttributeError:
                 pass
 
+        _nbytes.extend(val.nbytes for val in self._intermediates.values())
+
         return sum(_nbytes)
 
     @util.parse_optional_parameters(method=('conservative', 'greedy',
@@ -1108,7 +1151,11 @@ class PulseSequence:
                 - _filter_function_pc
                 - _filter_function_pc_gen
                 - _filter_function_2
+                - _intermediates['phase_factors']
+                - _intermediates['first_order_integral']
+                - _intermediates['second_order_integral']
                 - _intermediates['control_matrix_step']
+                - _intermediates['control_matrix_step_cumulative']
 
             If set to 'frequency dependent' only attributes that are
             functions of frequency are initalized to ``None``.
@@ -1133,8 +1180,10 @@ class PulseSequence:
                                                  '_total_phases'})
             # Remove frequency dependent terms from intermediates
             self._intermediates.pop('control_matrix_step', None)
+            self._intermediates.pop('control_matrix_step_cumulative', None)
             self._intermediates.pop('phase_factors', None)
             self._intermediates.pop('first_order_integral', None)
+            self._intermediates.pop('second_order_integral', None)
         else:
             # method == all
             attrs = filter_function_attrs.union(default_attrs, concatenation_attrs)
@@ -1614,8 +1663,8 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     dt = np.concatenate(tuple(pulse.dt for pulse in pulses))
 
     attributes = {'dt': dt, 'd': pulses[0].d, 'basis': basis}
-    attributes.update(**{key: value for key, value in zip(control_keys, control_values)})
-    attributes.update(**{key: value for key, value in zip(noise_keys, noise_values)})
+    attributes.update({key: value for key, value in zip(control_keys, control_values)})
+    attributes.update({key: value for key, value in zip(noise_keys, noise_values)})
 
     newpulse = PulseSequence(**attributes)
     # Only cache total duration (whole array of times might be large
@@ -1765,23 +1814,18 @@ def concatenate(
 
     # Get the phase factors at the correct times (the individual gate
     # durations) which are just the total phase factors of the pulses cumprod'd
-    phases = np.array(
-        [np.ones_like(omega)]
-        + [pls.get_total_phases(omega) for pls in pulses[:-1]]
-    ).cumprod(axis=0)
+    phases = np.array([pls.get_total_phases(omega) for pls in pulses[:-1]]).cumprod(axis=0)
 
     # Get the transfer matrices for the individual gates
-    N = len(newpulse.basis)
-    L = np.empty((len(pulses), N, N))
-    L[0] = np.identity(N)
-    for i in range(1, len(pulses)):
-        L[i] = pulses[i-1].total_propagator_liouville @ L[i-1]
+    propagators_liouville = util.adot([pulse.total_propagator_liouville for pulse in pulses[:-1]])
 
     # Get the control matrices for each pulse (agnostic of if it was cached or
     # not). Those are the 'new' pulse control matrices. Sort them along the
     # axis belonging to the noise operators
-    control_matrix_atomic = np.empty((len(pulses), len(newpulse.n_opers), N, len(omega)),
-                                     dtype=complex)
+    control_matrix_atomic = np.empty(
+        (len(pulses), len(newpulse.n_opers), len(newpulse.basis), len(omega)),
+        dtype=complex
+    )
     n_dt_segs = [len(pulse.dt) for pulse in pulses]
     seg_idx = [0] + list(accumulate(n_dt_segs))
     for i, (pulse, idx) in enumerate(zip(pulses, n_opers_present)):
@@ -1804,8 +1848,8 @@ def concatenate(
     newpulse.total_propagator_liouville = liouville_representation(newpulse.total_propagator,
                                                                    newpulse.basis)
     control_matrix = numeric.calculate_control_matrix_from_atomic(
-        phases, control_matrix_atomic, L, show_progressbar,
-        'correlations' if calc_pulse_correlation_FF else 'total'
+        phases, control_matrix_atomic, propagators_liouville, show_progressbar,
+        which='correlations' if calc_pulse_correlation_FF else 'total',
     )
 
     # Set the attribute and calculate filter function (if the pulse correlation

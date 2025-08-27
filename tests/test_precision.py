@@ -51,11 +51,10 @@ def _get_integrals_second_order(d, E, eigval, dt, t0):
     dE_bufs = (np.empty((d, d, d, d), dtype=float),
                np.empty((len(E), d, d), dtype=float),
                np.empty((len(E), d, d), dtype=float))
-    exp_buf = np.empty((len(E), d, d), dtype=complex)
     frc_bufs = (np.empty((len(E), d, d), dtype=complex),
                 np.empty((d, d, d, d), dtype=complex))
     int_buf = np.empty((len(E), d, d, d, d), dtype=complex)
-    msk_bufs = np.empty((2, len(E), d, d, d, d), dtype=bool)
+    msk_bufs = np.empty((4, len(E), d, d, d, d), dtype=bool)
     tspace = np.linspace(0, dt, 1001) + t0
     dE = np.subtract.outer(eigval, eigval)
 
@@ -67,8 +66,7 @@ def _get_integrals_second_order(d, E, eigval, dt, t0):
     integrand = util.cexp(ex)[:, :, :, None, None] * I1[:, None, None]
 
     integral_numeric = integrate.trapezoid(integrand, tspace)
-    integral = numeric._second_order_integral(E, eigval, dt, int_buf, frc_bufs, dE_bufs,
-                                              exp_buf, msk_bufs)
+    integral = numeric._second_order_integral(E, eigval, dt, int_buf, frc_bufs, dE_bufs, msk_bufs)
     return integral, integral_numeric
 
 
@@ -216,6 +214,62 @@ class PrecisionTest(testutil.TestCase):
                                       cnot_mat, eps=1e-9)
 
         self.assertTrue(phase_eq[0])
+
+    def test_FID_second_order(self):
+        def FF2(omega):
+            res = np.empty(np.shape(omega), complex)
+            mask = omega == 0
+            res[mask] = tau**2 / 2
+            res[~mask] = (util.cexpm1(-omega[~mask]*tau) / (1j*omega[~mask])
+                          + tau) / (1j*omega[~mask])
+            return res
+
+        ix = rng.integers(1, 4)
+        tau = rng.random()
+        pulse_piecewise = ff.PulseSequence(
+            [[util.paulis[1]/np.sqrt(2), np.zeros(21)]],
+            [[util.paulis[ix]/np.sqrt(2), np.ones(21)]],
+            [tau/21]*21
+        )
+        pulse_single = ff.PulseSequence(
+            [[util.paulis[1]/np.sqrt(2), np.zeros(1)]],
+            [[util.paulis[ix]/np.sqrt(2), np.ones(1)]],
+            [tau]
+        )
+
+        sigma = rng.random()
+
+        # white noise limit
+        # Use two-sided spectrum to test imaginary part
+        omega = util.get_sample_frequencies(pulse_piecewise, 501, include_quasistatic=False)
+        omega = np.concatenate([-omega[::-1], [0], omega])
+        spect = np.full_like(omega, sigma**2)
+        delta_piecewise = numeric.calculate_frequency_shifts(pulse_piecewise, spect, omega)
+        delta_single = numeric.calculate_frequency_shifts(pulse_single, spect, omega)
+        filter_function = pulse_single.get_filter_function(omega, order=2)
+        mask = np.zeros_like(delta_single, dtype=bool)
+        mask[0, ix, ix] = True
+
+        self.assertArrayAlmostEqual(delta_single, delta_piecewise, atol=1e-14)
+        self.assertArrayAlmostEqual(delta_single[mask], sigma**2 * tau / 2, rtol=1e-3)
+        self.assertArrayAlmostEqual(delta_single[~mask], 0, atol=1e-12)
+        self.assertArrayAlmostEqual(filter_function[0, 0, ix, ix, 502:], FF2(omega[502:]))
+        self.assertArrayAlmostEqual(util.integrate(filter_function.imag, omega), 0, atol=1e-14)
+
+        # quasistatic noise limit
+        omega = np.array([-1e-15, 0, 1e-15])/tau
+        spect = 2*np.pi*sigma**2*np.array([0, 1/omega[-1], 0])
+        delta_piecewise = numeric.calculate_frequency_shifts(pulse_piecewise, spect, omega)
+        delta_single = numeric.calculate_frequency_shifts(pulse_single, spect, omega)
+        filter_function = pulse_single.get_filter_function(omega, order=2)
+        mask = np.zeros_like(delta_single, dtype=bool)
+        mask[0, ix, ix] = True
+
+        self.assertArrayAlmostEqual(delta_single, delta_piecewise, atol=1e-14)
+        self.assertArrayAlmostEqual(delta_single[mask], sigma**2 * tau**2 / 2, rtol=1e-10)
+        self.assertArrayAlmostEqual(delta_single[~mask], 0, atol=1e-12)
+        self.assertArrayAlmostEqual(filter_function[0, 0, ix, ix, 2], FF2(omega[2]))
+        self.assertArrayAlmostEqual(util.integrate(filter_function.imag, omega), 0, atol=1e-14)
 
     def test_infidelity_cnot(self):
         """Compare infidelity to monte carlo results"""
@@ -428,8 +482,8 @@ class PrecisionTest(testutil.TestCase):
             integral, integral_numeric = _get_integrals_second_order(d, E, eigval, dt, t)
             self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
 
-        # excluding (most likely) zero
-        E = testutil.rng.standard_normal(51)
+        # excluding (most likely) zero but including a very small frequency
+        E = np.insert(testutil.rng.standard_normal(51), 0, 1e-10)
 
         for i, (eigval, dt, t) in enumerate(zip(pulse.eigvals, pulse.dt, pulse.t)):
             integral, integral_numeric = _get_integrals_first_order(d, E, eigval, dt, t)

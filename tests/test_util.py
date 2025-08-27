@@ -49,6 +49,22 @@ class UtilTest(testutil.TestCase):
         b = np.exp(-1j*x)
         self.assertArrayAlmostEqual(a, b)
 
+    def test_cexpm1(self):
+        x = rng.standard_normal((50, 100))
+        out = np.empty(x.shape, dtype=np.complex128)
+
+        a = util.cexpm1(x)
+        b = np.expm1(1j*x)
+        c = util.cexpm1(x, out=out)
+        self.assertArrayAlmostEqual(a, b)
+        self.assertArrayEqual(a, c)
+
+        a = util.cexpm1(-x)
+        b = np.expm1(-1j*x)
+        c = util.cexpm1(-x, out=out)
+        self.assertArrayAlmostEqual(a, b)
+        self.assertArrayEqual(a, c)
+
     def test_get_indices_from_identifiers(self):
         pulse = PulseSequence(
             [[util.paulis[3], [2], 'Z'],
@@ -412,6 +428,15 @@ class UtilTest(testutil.TestCase):
         arr = rng.standard_normal((3, 2, 4, 4))
         self.assertArrayEqual(util.mdot(arr, 0), arr[0] @ arr[1] @ arr[2])
         self.assertArrayEqual(util.mdot(arr, 1), arr[:, 0] @ arr[:, 1])
+
+    def test_adot(self):
+        arr = rng.standard_normal((3, 2, 4, 4))
+        dot = util.adot(arr, 0)
+        self.assertEqual(dot.shape, arr.shape)
+        self.assertArrayAlmostEqual(dot, [arr[0], arr[1] @ arr[0], arr[2] @ arr[1] @ arr[0]])
+        dot = util.adot(arr, 1)
+        self.assertEqual(dot.shape, arr.shape)
+        self.assertArrayAlmostEqual(dot, np.swapaxes([arr[:, 0], arr[:, 1] @ arr[:, 0]], 0, 1))
 
     def test_integrate(self):
         f = rng.standard_normal(32)

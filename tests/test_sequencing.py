@@ -108,6 +108,35 @@ class ConcatenationTest(testutil.TestCase):
         self.assertIs(array.dtype, np.dtype('O'))
         self.assertEqual(array.shape, (8,))
 
+    def test_caching(self):
+        pulse = testutil.rand_pulse_sequence(rng.integers(2, 6), rng.integers(5, 11),
+                                             rng.integers(1, 4), rng.integers(1, 4))
+
+        # getitem access caches control matrix
+        omega = util.get_sample_frequencies(pulse, 11)
+        pulse.cache_control_matrix(omega, cache_intermediates=True)
+        pulse.cache_filter_function(omega, order=2, cache_intermediates=True,
+                                    cache_second_order_cumulative=True)
+        for i in range(1, len(pulse)):
+            slc = pulse[:i]
+            self.assertTrue(slc.is_cached('control_matrix'))
+            self.assertTrue(slc.is_cached('filter_function_2'))
+            ctrlmat = slc.get_control_matrix(omega)
+            ff = slc.get_filter_function(omega, order=2)
+            slc.cleanup('all')
+            self.assertArrayEqual(ctrlmat, slc.get_control_matrix(omega))
+            self.assertArrayEqual(ff, slc.get_filter_function(omega, order=2))
+
+        _, ctrlmat_cumulative = numeric.calculate_control_matrix_from_atomic(
+            np.array([pulse[:i].get_total_phases(omega) for i in range(1, len(pulse))]),
+            np.array([p.get_control_matrix(omega) for p in pulse]),
+            np.array([pulse[:i].total_propagator_liouville for i in range(1, len(pulse))]),
+            return_accumulated=True
+        )
+        self.assertArrayAlmostEqual(ctrlmat_cumulative[:-1],
+                                    pulse.intermediates['control_matrix_step_cumulative'],
+                                    atol=1e-15)
+
     def test_concatenate_without_filter_function(self):
         """Concatenate two Spin Echos without filter functions."""
         tau = 10

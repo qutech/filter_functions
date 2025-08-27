@@ -21,12 +21,51 @@
 #     Contact email: j.teske@fz-juelich.de
 # =============================================================================
 import numpy as np
+from scipy import integrate
 
 import filter_functions as ff
 from tests import gradient_testutil, testutil
 
 
+def _get_derivative_integrals(d, E, eigval, dt, t0):
+    # first order
+    int_buf = np.zeros((len(E), d, d, d, d), complex)
+    tspace = np.linspace(0, dt, 1001) + t0
+    dE = np.subtract.outer(eigval, eigval)
+    EdE = np.add.outer(E, dE)
+
+    inner_integrand = np.exp(1j*np.multiply.outer(dE, tspace - t0))
+    inner_integral = integrate.cumulative_trapezoid(inner_integrand, tspace, initial=0)
+
+    outer_integrand = np.exp(1j*np.multiply.outer(EdE, tspace - t0))
+    integrand = np.einsum('omnt,pqt->omnpqt', outer_integrand, inner_integral)
+
+    integral_numeric = integrate.trapezoid(integrand, tspace)
+    integral = ff.gradient._derivative_integral(E, eigval, dt, int_buf)
+    return integral, integral_numeric.transpose(0, 3, 4, 1, 2)
+
+
 class GradientTest(testutil.TestCase):
+
+    def test_integration(self):
+        """Compare integrals to numerical results."""
+        d = 3
+        pulse = testutil.rand_pulse_sequence(d, 5)
+        # including zero
+        E = ff.util.get_sample_frequencies(pulse, 51, include_quasistatic=True,
+                                           omega_min=1e-2/pulse.dt.sum(),
+                                           omega_max=1e+2/pulse.dt.sum())
+
+        for i, (eigval, dt, t0) in enumerate(zip(pulse.eigvals, pulse.dt, pulse.t)):
+            integral, integral_numeric = _get_derivative_integrals(d, E, eigval, dt, t0)
+            self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
+
+        # excluding (most likely) zero
+        E = testutil.rng.standard_normal(51)
+
+        for i, (eigval, dt, t0) in enumerate(zip(pulse.eigvals, pulse.dt, pulse.t)):
+            integral, integral_numeric = _get_derivative_integrals(d, E, eigval, dt, t0)
+            self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
 
     def test_gradient_calculation_variable_noise_coefficients(self):
 
@@ -161,7 +200,7 @@ class GradientTest(testutil.TestCase):
             cm_cache = ff.gradient.calculate_derivative_of_control_matrix_from_scratch(
                 omega, pulse.propagators, pulse.eigvals, pulse.eigvecs, pulse.basis, pulse.t,
                 pulse.dt, pulse.n_opers, pulse.n_coeffs, pulse.c_opers,
-                intermediates=pulse._intermediates
+                intermediates=pulse.intermediates
             )
 
             self.assertArrayAlmostEqual(cm_nocache, cm_cache)
