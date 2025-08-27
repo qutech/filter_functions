@@ -244,7 +244,7 @@ def _second_order_integral(E: ndarray, eigvals: ndarray, dt: float,
     # Ω_ij != 0, Ω_mn == 0
     int_buf = np.divide((np.divide(util.cexpm1(dEt), dE, where=mask_dE)
                          - 1j*dt*util.cexp(dEt))[..., None, None],
-                         dE[..., None, None], where=mask_nE_dE_ndE, out=int_buf)
+                        dE[..., None, None], where=mask_nE_dE_ndE, out=int_buf)
     # Ω_ij != 0, Ω_mn != 0
     int_buf = np.subtract(np.divide(util.cexpm1(dEt), dE, where=mask_dE)[..., None, None],
                           frc_buf2, where=mask_nE_dE_dE, out=int_buf)
@@ -884,7 +884,7 @@ def calculate_control_matrix_from_scratch(
         phase_factors = util.cexp(omega*t[g], out=phase_factors)
         int_buf = _first_order_integral(omega, eigvals[g], dt[g], exp_buf, int_buf)
         step_buf = expr(phase_factors, n_opers_transformed[:, g], int_buf,
-                       basis_transformed, out=step_buf)
+                        basis_transformed, out=step_buf)
         out += step_buf
 
     if cache_intermediates:
@@ -959,7 +959,7 @@ def calculate_control_matrix_periodic(phases: ndarray, control_matrix: ndarray,
     T = np.multiply.outer(phases, total_propagator_liouville)
     M = eye - T
     if check_invertible:
-        invertible = ~np.isclose(nla.det(M), 0)
+        invertible = nla.cond(M) < 1e8
     else:
         invertible = np.array(True)
 
