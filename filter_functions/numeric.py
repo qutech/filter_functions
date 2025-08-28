@@ -1757,7 +1757,7 @@ def calculate_second_order_filter_function_from_atomic(
          - 'second_order_complete_steps'
         The first two are populated by
         :func:`calculate_control_matrix_from_scratch`, the last two by
-        :func:`calculate_second_order_filter_function`.
+        :func:`calculate_second_order_filter_function_from_scratch`.
     show_progressbar: bool, optional
         Show a progress bar for the calculation.
 
