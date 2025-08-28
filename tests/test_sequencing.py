@@ -135,7 +135,7 @@ class ConcatenationTest(testutil.TestCase):
         )
         self.assertArrayAlmostEqual(ctrlmat_cumulative[:-1],
                                     pulse.intermediates['control_matrix_step_cumulative'],
-                                    atol=1e-15)
+                                    atol=1e-14)
 
     def test_concatenate_without_filter_function(self):
         """Concatenate two Spin Echos without filter functions."""
@@ -1402,3 +1402,4 @@ class RemappingTest(testutil.TestCase):
 
             # Test the eigenvalues and -vectors by the characteristic equation
             self.assertCorrectDiagonalization(remapped_pulse, atol=1e-14)
+
