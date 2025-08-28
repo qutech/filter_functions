@@ -84,30 +84,22 @@ class CoreTest(testutil.TestCase):
             ff.PulseSequence(H_c, H_n, dt, basis.reshape(4, 1, 4))
 
         with self.assertRaises(TypeError):
-            # Control Hamiltonian not list or tuple
-            ff.PulseSequence(np.array(H_c, dtype=object), H_n, dt)
+            # Control Hamiltonian not sequence
+            ff.PulseSequence(15, H_n, dt)
 
         with self.assertRaises(TypeError):
-            # Noise Hamiltonian not list or tuple
-            ff.PulseSequence(H_c, np.array(H_n, dtype=object), dt)
-
-        with self.assertRaises(TypeError):
-            # Element of control Hamiltonian not list or tuple
-            ff.PulseSequence([np.array(H_c[0], dtype=object)], H_n, dt)
-
-        with self.assertRaises(TypeError):
-            # Element of noise Hamiltonian not list or tuple
-            ff.PulseSequence(H_c, [np.array(H_n[0], dtype=object)], dt)
+            # Noise Hamiltonian not sequence
+            ff.PulseSequence(H_c, 15, dt)
 
         idx = rng.integers(0, 3)
         with self.assertRaises(TypeError):
-            # Control Hamiltonian element not list or tuple
+            # Control Hamiltonian element not sequence
             H_c[idx] = dict(H_c[idx])
             ff.PulseSequence(H_c, H_n, dt)
 
         H_c[idx] = list(H_c[idx])
         with self.assertRaises(TypeError):
-            # Noise Hamiltonian element not list or tuple
+            # Noise Hamiltonian element not sequence
             H_n[idx] = dict(H_n[idx])
             ff.PulseSequence(H_c, H_n, dt)
 
@@ -214,8 +206,8 @@ class CoreTest(testutil.TestCase):
             H_n[i][1] = np.concatenate((H_n[i][1], c))
         pulse = ff.PulseSequence(H_c, H_n, dt)
         # Hit __str__ and __repr__ methods
-        pulse
-        print(pulse)
+        repr(pulse)
+        str(pulse)
 
         # Fewer identifiers than opers
         pulse_2 = ff.PulseSequence(
@@ -648,7 +640,6 @@ class CoreTest(testutil.TestCase):
         self.assertArrayAlmostEqual(pulse.intermediates['phase_factors'],
                                     util.cexp(omega*pulse.t[:-1, None]))
 
-
     def test_cache_filter_function(self):
         omega = rng.random(32)
         pulse = testutil.rand_pulse_sequence(2, 3, n_nops=2)
@@ -663,6 +654,29 @@ class CoreTest(testutil.TestCase):
 
         self.assertArrayEqual(pulse.get_filter_function(omega, which='generalized'), F_generalized)
         self.assertArrayEqual(pulse.get_filter_function(omega, which='fidelity'), F_fidelity)
+
+    def test_frequency_dependend_methods(self):
+        pulse = testutil.rand_pulse_sequence(2, 5, 2, 2)
+        omega_list = [1, 2, 3]
+        omega_array = np.array(omega_list)
+
+        control_matrix = pulse.get_control_matrix(omega_list)
+        self.assertArrayEqual(control_matrix, pulse.get_control_matrix(omega_array))
+        pulse.cleanup('all')
+        pulse.cache_control_matrix(omega_list, control_matrix)
+        self.assertArrayEqual(pulse._control_matrix, pulse.get_control_matrix(omega_array))
+
+        filter_function = pulse.get_filter_function(omega_list)
+        self.assertArrayEqual(filter_function, pulse.get_filter_function(omega_array))
+        pulse.cleanup('all')
+        pulse.cache_filter_function(omega_list, filter_function=filter_function)
+        self.assertArrayEqual(pulse._filter_function, pulse.get_filter_function(omega_array))
+
+        total_phases = pulse.get_total_phases(omega_list)
+        self.assertArrayEqual(total_phases, pulse.get_total_phases(omega_array))
+        pulse.cleanup('all')
+        pulse.cache_total_phases(omega_list, total_phases)
+        self.assertArrayEqual(pulse._total_phases, pulse.get_total_phases(omega_array))
 
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
@@ -937,10 +951,10 @@ class CoreTest(testutil.TestCase):
 
         spectrum = omega**0*1e-2
         with self.assertRaises(util.CalculationError):
-            infid_1 = ff.infidelity(pulse_1, spectrum, omega, which='correlations')
+            _ = ff.infidelity(pulse_1, spectrum, omega, which='correlations')
 
         with self.assertRaises(ValueError):
-            infid_1 = ff.infidelity(pulse_1, spectrum, omega, which='foobar')
+            _ = ff.infidelity(pulse_1, spectrum, omega, which='foobar')
 
         for _ in range(10):
             n_nops = rng.integers(1, 4)

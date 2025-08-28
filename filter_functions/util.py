@@ -227,7 +227,7 @@ def parse_spectrum(spectrum: Sequence, omega: Sequence, idx: Sequence) -> ndarra
     return spectrum
 
 
-def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
+def parse_operators(opers: Sequence[Operator], err_loc: str) -> ndarray:
     """Parse a sequence of operators and convert to ndarray.
 
     Parameters
@@ -279,6 +279,15 @@ def parse_operators(opers: Sequence[Operator], err_loc: str) -> List[ndarray]:
         raise ValueError(f'Expected operators in {err_loc} to be square!')
 
     return parsed_opers
+
+
+def is_sequence_like(obj) -> bool:
+    """Test if obj is a sequence-like type.
+
+    This function tests for __len__ and __getitem__ dunder methods since
+    the NumPy array is not a :class:`collections.abc.Sequence` subclass.
+    """
+    return hasattr(obj, '__len__') and hasattr(obj, '__getitem__')
 
 
 def _tensor_product_shape(shape_A: Sequence[int], shape_B: Sequence[int], rank: int):

@@ -216,7 +216,7 @@ def plot_bloch_vector_evolution(
         raise ValueError('Plotting Bloch sphere evolution only implemented for one-qubit case!')
 
     # Parse default arguments
-    figsize = bloch_kwargs.pop('figsize', [5, 5])
+    figsize = bloch_kwargs.pop('figsize', (5, 5))
     view = bloch_kwargs.pop('view', [-60, 30])
     if b is None:
         fig = plt.figure(figsize=figsize)

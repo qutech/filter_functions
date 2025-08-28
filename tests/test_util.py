@@ -682,9 +682,11 @@ class UtilTest(testutil.TestCase):
         class SupportedOper:
             def __init__(self, data):
                 self.data = data
+
             @property
             def ndim(self):
                 return self.data.ndim
+
             @property
             def shape(self):
                 return self.data.shape
@@ -721,6 +723,13 @@ class UtilTest(testutil.TestCase):
         # Not all same dimensions
         with self.assertRaises(ValueError):
             util.parse_operators([rng.random((3, 3)), rng.random((2, 2))], 'testing')
+
+    def test_is_sequence_like(self):
+        test = [1, 2, 3]
+        self.assertTrue(util.is_sequence_like(list(test)))
+        self.assertTrue(util.is_sequence_like(tuple(test)))
+        self.assertTrue(util.is_sequence_like(np.array(test)))
+        self.assertFalse(util.is_sequence_like(set(test)))
 
 
 @pytest.mark.skipif(

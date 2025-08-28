@@ -29,18 +29,15 @@ try:
     import cycler
     from matplotlib import axes, colors, figure, legend
     from mpl_toolkits import axes_grid1
-
-    Axes = axes.Axes
-    Colormap = Union[colors.Colormap, str]
-    Figure = figure.Figure
-    Grid = axes_grid1.ImageGrid
-    Legend = legend.Legend
-    Cycler = cycler.Cycler
-    FigureAxes = Tuple[Figure, Axes]
-    FigureAxesLegend = Tuple[Figure, Axes, Legend]
-    FigureGrid = Tuple[Figure, Grid]
 except ImportError:
-    pass
+    from unittest import mock
+
+    cycler = mock.Mock()
+    axes = mock.Mock()
+    colors = mock.Mock()
+    figure = mock.Mock()
+    legend = mock.Mock()
+    axes_grid1 = mock.Mock()
 
 try:
     from qutip import Qobj
@@ -50,6 +47,16 @@ try:
 except ImportError:
     State = ndarray
     Operator = ndarray
+
+Axes = axes.Axes
+Colormap = Union[colors.Colormap, str]
+Figure = figure.Figure
+Grid = axes_grid1.ImageGrid
+Legend = legend.Legend
+Cycler = cycler.Cycler
+FigureAxes = Tuple[Figure, Axes]
+FigureAxesLegend = Tuple[Figure, Axes, Legend]
+FigureGrid = Tuple[Figure, Grid]
 
 Coefficients = Sequence[float]
 Hamiltonian = Sequence[Sequence[Union[Operator, Coefficients]]]
