@@ -249,61 +249,120 @@ class PulseSequence:
     :meth:`__getitem__`), NumPy would otherwise try to create an
     ndarray of single-segment :class:`PulseSequence` s.
     """
+    c_opers: ndarray
+    n_opers: ndarray
+    c_oper_identifiers: ndarray
+    n_oper_identifiers: ndarray
+    c_coeffs: ndarray
+    n_coeffs: ndarray
+    dt: ndarray
+    d: int
+    basis: Basis
 
-    def __init__(self, *args, **kwargs) -> None:
-        """Initialize a PulseSequence instance."""
-        # Initialize attributes set by _parse_args to None to satisfy static
-        # code checker
-        self.c_opers = None
-        self.n_opers = None
-        self.c_oper_identifiers = None
-        self.n_oper_identifiers = None
-        self.c_coeffs = None
-        self.n_coeffs = None
-        self.dt = None
-        self.d = None
-        self.basis = None
+    # Initialize attributes that can be set by bound methods to None
+    _t = None
+    _tau = None
+    _omega = None
+    _eigvals = None
+    _eigvecs = None
+    _propagators = None
+    _total_phases = None
+    _total_propagator = None
+    _total_propagator_liouville = None
+    _control_matrix = None
+    _control_matrix_pc = None
+    _filter_function = None
+    _filter_function_gen = None
+    _filter_function_pc = None
+    _filter_function_pc_gen = None
+    _filter_function_2 = None
+    _intermediates = dict()
 
-        # Parse the input arguments and set attributes
-        # TODO: Jesus, this is in need of refactoring.
-        attributes = ('c_opers', 'c_oper_identifiers', 'c_coeffs',
-                      'n_opers', 'n_oper_identifiers', 'n_coeffs',
-                      'dt', 'd', 'basis')
-        if not args:
-            # Bypass args parsing and directly set necessary attributes
-            values = (kwargs[attr] for attr in attributes)
+    def __init__(self, H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
+                 basis: Optional[Basis] = None):
+        if not util.is_sequence_like(dt):
+            raise TypeError(f'Expected a sequence of time steps, not {type(dt)}')
+
+        self.dt = np.asarray(dt)
+        if not np.isreal(self.dt).all():
+            raise ValueError('Times dt are not (all) real!')
+        if (self.dt < 0).any():
+            raise ValueError('Time steps are not (all) positive!')
+
+        self.c_opers, self.c_oper_identifiers, self.c_coeffs = _parse_hamiltonian(
+            H_c, len(self.dt), 'H_c'
+        )
+        self.n_opers, self.n_oper_identifiers, self.n_coeffs = _parse_hamiltonian(
+            H_n, len(self.dt), 'H_n'
+        )
+
+        if self.c_opers.shape[-2:] != self.n_opers.shape[-2:]:
+            raise ValueError('Control and noise Hamiltonian not same dimension!')
+
+        # Dimension of the system
+        self.d = self.c_opers.shape[-1]
+
+        if basis is None:
+            # Use generalized Gell-Mann basis by default since we have a nice
+            # expression for a basis expansion
+            self.basis = Basis.ggm(self.d)
         else:
-            if len(args) == 4:
-                # basis given as arg, not kwarg
-                kwargs['basis'] = args[-1]
-            elif len(args) < 3:
-                posargs = ['H_c', 'H_n', 'dt']
-                raise TypeError(f'Missing {3 - len(args)} required positional argument(s): '
-                                + f'{posargs[len(args):]}')
+            if not isinstance(basis, Basis):
+                raise ValueError("Expected basis to be an instance of the "
+                                 + f"'filter_functions.basis.Basis' class, not {type(basis)}!")
+            if basis.shape[1:] != (self.d, self.d):
+                # Make sure the basis has the correct dimension (we allow an
+                # incomplete set)
+                raise ValueError("Expected basis elements to be of shape "
+                                 + f"({self.d}, {self.d}), not {basis.shape[1:]}!")
+            self.basis = basis
 
-            values = _parse_args(*args[:3], **kwargs)
+    @classmethod
+    def from_arrays(cls,
+                    c_opers: ndarray, c_oper_identifiers: ndarray, c_coeffs: ndarray,
+                    n_opers: ndarray, n_oper_identifiers: ndarray, n_coeffs: ndarray,
+                    dt: ndarray, basis: Optional[Basis] = None):
+        """Instantiate a :class:`PulseSequence` from NumPy arrays.
 
-        for attr, value in zip(attributes, values):
-            setattr(self, attr, value)
+        This is an alternative constructor to the nested list of lists
+        structure that is used for initialization. See the class
+        docstring for more information on the parameters.
 
-        # Initialize attributes that can be set by bound methods to None
-        self._t = None
-        self._tau = None
-        self._omega = None
-        self._eigvals = None
-        self._eigvecs = None
-        self._propagators = None
-        self._total_phases = None
-        self._total_propagator = None
-        self._total_propagator_liouville = None
-        self._control_matrix = None
-        self._control_matrix_pc = None
-        self._filter_function = None
-        self._filter_function_gen = None
-        self._filter_function_pc = None
-        self._filter_function_pc_gen = None
-        self._filter_function_2 = None
-        self._intermediates = dict()
+        Parameters
+        ----------
+        c_opers : ndarray, shape (n_cops, d, d)
+        c_oper_identifiers : ndarray, shape (n_cops,)
+        c_coeffs : ndarray, shape (n_cops, n_dt)
+        n_opers : ndarray, shape (n_nops, d, d)
+        n_oper_identifiers : ndarray, shape (n_nops,)
+        n_coeffs : ndarray, shape (n_nops, n_dt)
+        dt : ndarray, shape (n_dt,)
+        basis : Basis, optional
+
+        """
+        new = cls.__new__(cls)
+        new.c_opers = np.asanyarray(c_opers)
+        new.c_oper_identifiers = np.asanyarray(c_oper_identifiers)
+        new.c_coeffs = np.asanyarray(c_coeffs)
+        new.n_opers = np.asanyarray(n_opers)
+        new.n_oper_identifiers = np.asanyarray(n_oper_identifiers)
+        new.n_coeffs = np.asanyarray(n_coeffs)
+        new.dt = np.asanyarray(dt)
+        new.d = new.c_opers.shape[-1]
+        new.basis = np.asanyarray(basis).view(Basis) if basis is not None else Basis.ggm(new.d)
+
+        if not len(new.c_opers) == len(new.c_oper_identifiers) == len(new.c_coeffs):
+            raise ValueError('Control Hamiltonian not same length!')
+        if not len(new.n_opers) == len(new.n_oper_identifiers) == len(new.n_coeffs):
+            raise ValueError('Noise Hamiltonian not same length!')
+        if not len(set(new.c_opers.shape[1:] + new.n_opers.shape[1:])) == 1:
+            raise ValueError('Control and/or noise Hamiltonian not same, square dimension!')
+        if not new.dt.size == new.n_coeffs.shape[1] == new.c_coeffs.shape[1]:
+            raise ValueError('Time steps not same length!')
+        if not new.basis.d == new.d:
+            raise ValueError('Basis dimension not same as Hamiltonian dimension!')
+
+        return new
 
     def __str__(self):
         """String method."""
@@ -397,7 +456,7 @@ class PulseSequence:
         if not new_dt.size:
             raise IndexError('Cannot create empty PulseSequence')
 
-        new = self.__class__(
+        new = self.__class__.from_arrays(
             c_opers=self.c_opers,
             n_opers=self.n_opers,
             c_oper_identifiers=self.c_oper_identifiers,
@@ -405,7 +464,6 @@ class PulseSequence:
             c_coeffs=np.atleast_2d(self.c_coeffs.T[key]).T,
             n_coeffs=np.atleast_2d(self.n_coeffs.T[key]).T,
             dt=new_dt,
-            d=self.d,
             basis=self.basis
         )
 
@@ -1241,48 +1299,6 @@ def _join_equal_segments(pulse: PulseSequence) -> Sequence[Coefficients]:
     return c_coeffs, n_coeffs, dt
 
 
-def _parse_args(H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients, **kwargs) -> Any:
-    """
-    Function to parse the arguments given at instantiation of the
-    PulseSequence object.
-    """
-
-    if not util.is_sequence_like(dt):
-        raise TypeError(f'Expected a sequence of time steps, not {type(dt)}')
-
-    dt = np.asarray(dt)
-    if not np.isreal(dt).all():
-        raise ValueError('Times dt are not (all) real!')
-    if (dt < 0).any():
-        raise ValueError('Time steps are not (all) positive!')
-
-    control_args = _parse_hamiltonian(H_c, len(dt), 'H_c')
-    noise_args = _parse_hamiltonian(H_n, len(dt), 'H_n')
-
-    if control_args[0].shape[-2:] != noise_args[0].shape[-2:]:
-        raise ValueError('Control and noise Hamiltonian not same dimension!')
-
-    # Dimension of the system
-    d = control_args[0].shape[-1]
-
-    basis = kwargs.pop('basis', None)
-    if basis is None:
-        # Use generalized Gell-Mann basis by default since we have a nice
-        # expression for a basis expansion
-        basis = Basis.ggm(d)
-    else:
-        if not isinstance(basis, Basis):
-            raise ValueError("Expected basis to be an instance of the "
-                             + f"'filter_functions.basis.Basis' class, not {type(basis)}!")
-        if basis.shape[1:] != (d, d):
-            # Make sure the basis has the correct dimension (we allow an
-            # incomplete set)
-            raise ValueError("Expected basis elements to be of shape "
-                             + f"({d}, {d}), not {basis.shape[1:]}!")
-
-    return *control_args, *noise_args, dt, d, basis
-
-
 def _parse_hamiltonian(H: Hamiltonian, n_dt: int, H_str: str) -> Tuple[Sequence[Operator],
                                                                        Sequence[str],
                                                                        Sequence[Coefficients]]:
@@ -1639,28 +1655,26 @@ def concatenate_without_filter_function(pulses: Iterable[PulseSequence],
     if not util.all_array_equal((pulse.basis for pulse in pulses)):
         raise ValueError('Trying to concatenate PulseSequence instances with different bases!')
 
-    control_keys = ('c_opers', 'c_oper_identifiers', 'c_coeffs')
-    noise_keys = ('n_opers', 'n_oper_identifiers', 'n_coeffs')
+    *control_hamiltonian, control_mapping = _concatenate_hamiltonian(
+        *[[getattr(pulse, key) for pulse in pulses]
+          for key in ['c_opers', 'c_oper_identifiers', 'c_coeffs']],
+        kind='control'
+    )
+    *noise_hamiltonian, noise_mapping = _concatenate_hamiltonian(
+        *[[getattr(pulse, key) for pulse in pulses]
+          for key in ['n_opers', 'n_oper_identifiers', 'n_coeffs']],
+        kind='noise'
+    )
+    dt = np.concatenate(tuple(pulse.dt for pulse in pulses))
+    basis = pulses[0].basis
 
-    control_values = _concatenate_hamiltonian(*[[getattr(pulse, key) for pulse in pulses]
-                                                for key in control_keys],
-                                              kind='control')
-    noise_values = _concatenate_hamiltonian(*[[getattr(pulse, key) for pulse in pulses]
-                                              for key in noise_keys],
-                                            kind='noise')
-
-    attributes = {'dt': np.concatenate(tuple(pulse.dt for pulse in pulses)),
-                  'd': pulses[0].d, 'basis': pulses[0].basis}
-    attributes.update(zip(control_keys, control_values))
-    attributes.update(zip(noise_keys, noise_values))
-
-    newpulse = PulseSequence(**attributes)
+    newpulse = PulseSequence.from_arrays(*control_hamiltonian, *noise_hamiltonian, dt, basis)
     # Only cache total duration (whole array of times might be large
     # in case of concatenation)
     newpulse.tau = sum(pulse.tau for pulse in pulses)
 
     if return_identifier_mappings:
-        return newpulse, control_values[-1], noise_values[-1]
+        return newpulse, control_mapping, noise_mapping
 
     return newpulse
 
@@ -1905,15 +1919,14 @@ def concatenate_periodic(pulse: PulseSequence, repeats: int,
     # Initialize a new PulseSequence instance with the Hamiltonians sequenced
     # (this is much easier than in the general case, thus do it on the fly)
     dt = np.tile(pulse.dt, repeats)
-    newpulse = PulseSequence(
+    newpulse = PulseSequence.from_arrays(
         c_opers=pulse.c_opers,
-        n_opers=pulse.n_opers,
         c_oper_identifiers=pulse.c_oper_identifiers,
-        n_oper_identifiers=pulse.n_oper_identifiers,
         c_coeffs=np.tile(pulse.c_coeffs, (1, repeats)),
+        n_opers=pulse.n_opers,
+        n_oper_identifiers=pulse.n_oper_identifiers,
         n_coeffs=np.tile(pulse.n_coeffs, (1, repeats)),
         dt=dt,
-        d=pulse.d,
         basis=pulse.basis
     )
     newpulse.tau = repeats*pulse.tau
@@ -2011,7 +2024,7 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
     n_oper_identifiers, n_sort_idx = _map_identifiers(pulse.n_oper_identifiers,
                                                       oper_identifier_mapping)
 
-    remapped_pulse = PulseSequence(
+    remapped_pulse = PulseSequence.from_arrays(
         c_opers=c_opers[c_sort_idx],
         n_opers=n_opers[n_sort_idx],
         c_oper_identifiers=c_oper_identifiers[c_sort_idx],
@@ -2019,7 +2032,6 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
         c_coeffs=pulse.c_coeffs[c_sort_idx],
         n_coeffs=pulse.n_coeffs[n_sort_idx],
         dt=pulse.dt,
-        d=pulse.d,
         basis=pulse.basis
     )
     remapped_pulse.t = pulse._t
@@ -2429,7 +2441,7 @@ def extend(
     c_sort_idx = np.argsort(c_oper_identifiers)
     n_sort_idx = np.argsort(n_oper_identifiers)
 
-    newpulse = PulseSequence(
+    newpulse = PulseSequence.from_arrays(
         c_opers=np.asarray(c_opers)[c_sort_idx],
         n_opers=np.asarray(n_opers)[n_sort_idx],
         c_oper_identifiers=np.asarray(c_oper_identifiers)[c_sort_idx],
@@ -2437,7 +2449,6 @@ def extend(
         c_coeffs=np.asarray(c_coeffs)[c_sort_idx],
         n_coeffs=np.asarray(n_coeffs)[n_sort_idx],
         dt=pulses[0].dt,
-        d=d,
         basis=basis
     )
     newpulse.t = pulses[0]._t
