@@ -2038,8 +2038,10 @@ def remap(pulse: PulseSequence, order: Sequence[int], d_per_qubit: int = 2,
         dt=pulse.dt,
         basis=pulse.basis
     )
-    remapped_pulse.t = pulse._t
-    remapped_pulse.tau = pulse._tau
+    if 't' in pulse.data:
+        remapped_pulse.t = pulse.t
+    if 'tau' in pulse.data:
+        remapped_pulse.tau = pulse.tau
 
     if pulse.is_cached('eigvals'):
         remapped_pulse.eigvals = util.tensor_transpose(pulse.eigvals, order,
@@ -2455,8 +2457,10 @@ def extend(
         dt=pulses[0].dt,
         basis=basis
     )
-    newpulse.t = pulses[0]._t
-    newpulse.tau = pulses[0]._tau
+    if 't' in pulses[0].data:
+        newpulse.t = pulses[0].t
+    if 'tau' in pulses[0].data:
+        newpulse.tau = pulses[0].tau
 
     if newpulse.basis.btype != 'Pauli':
         # Cannot do any extensions
