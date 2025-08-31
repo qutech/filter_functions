@@ -276,7 +276,11 @@ class PulseSequence:
     _filter_function_pc = None
     _filter_function_pc_gen = None
     _filter_function_2 = None
-    _intermediates = dict()
+
+    def __new__(cls, *args, **kwargs):
+        new = super().__new__(cls)
+        new._intermediates = dict()
+        return new
 
     def __init__(self, H_c: Hamiltonian, H_n: Hamiltonian, dt: Coefficients,
                  basis: Optional[Basis] = None):
