@@ -51,8 +51,8 @@ class TestCase(unittest.TestCase):
 
         for i, H in enumerate(H):
             self.assertArrayAlmostEqual(
-                x._eigvecs[i].conj().T @ H @ x._eigvecs[i],
-                np.diag(x._eigvals[i]), err_msg=err_msg, atol=atol, rtol=rtol,
+                x.data['eigvecs'][i].conj().T @ H @ x.data['eigvecs'][i],
+                np.diag(x.data['eigvals'][i]), err_msg=err_msg, atol=atol, rtol=rtol,
                 verbose=verbose, equal_nan=equal_nan
             )
 

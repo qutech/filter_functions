@@ -319,7 +319,7 @@ class PrecisionTest(testutil.TestCase):
                 pulse.n_opers = pulses[0].n_opers
                 pulse.n_oper_identifiers = pulses[0].n_oper_identifiers
                 if rng.integers(0, 2):
-                    pulse._t = None
+                    pulse._data.pop('t', None)
 
             omega = rng.random(17)
             B_atomic = np.array([numeric.calculate_noise_operators_from_scratch(

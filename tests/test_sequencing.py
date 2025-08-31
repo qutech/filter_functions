@@ -122,10 +122,10 @@ class ConcatenationTest(testutil.TestCase):
             self.assertTrue(slc.is_cached('control_matrix'))
             self.assertTrue(slc.is_cached('filter_function_2'))
             ctrlmat = slc.get_control_matrix(omega)
-            ff = slc.get_filter_function(omega, order=2)
+            FF = slc.get_filter_function(omega, order=2)
             slc.cleanup('all')
             self.assertArrayEqual(ctrlmat, slc.get_control_matrix(omega))
-            self.assertArrayEqual(ff, slc.get_filter_function(omega, order=2))
+            self.assertArrayEqual(FF, slc.get_filter_function(omega, order=2))
 
         _, ctrlmat_cumulative = numeric.calculate_control_matrix_from_atomic(
             np.array([pulse[:i].get_total_phases(omega) for i in range(1, len(pulse))]),
@@ -161,14 +161,14 @@ class ConcatenationTest(testutil.TestCase):
         CPMG_concat = SE_1 @ SE_2
 
         self.assertEqual(CPMG_concat, CPMG)
-        # Should still be None
-        self.assertEqual(CPMG_concat._filter_function, CPMG._filter_function)
+        self.assertTrue('filter_function' not in CPMG.frequency_data)
+        self.assertTrue('filter_function' not in CPMG_concat.frequency_data)
 
         # Test if calculation of composite filter function can be enforced with
         # omega != None
         omega = util.get_sample_frequencies(SE_1)
         CPMG_concat = ff.concatenate((SE_1, SE_2), omega=omega)
-        self.assertIsNotNone(CPMG_concat._filter_function)
+        self.assertFalse('filter_function' not in CPMG_concat.frequency_data)
 
         pulse = testutil.rand_pulse_sequence(2, 1, 2, 3)
         # Concatenate pulses without filter functions
@@ -228,19 +228,19 @@ class ConcatenationTest(testutil.TestCase):
 
         CPMG_concat = SE_1 @ SE_2
 
-        self.assertIsNotNone(SE_1._total_phases)
-        self.assertIsNotNone(SE_1._total_propagator)
-        self.assertIsNotNone(SE_1._total_propagator_liouville)
-        self.assertIsNotNone(CPMG._total_phases)
-        self.assertIsNotNone(CPMG._total_propagator)
-        self.assertIsNotNone(CPMG._total_propagator_liouville)
-        self.assertIsNotNone(CPMG_concat._total_phases)
-        self.assertIsNotNone(CPMG_concat._total_propagator)
-        self.assertIsNotNone(CPMG_concat._total_propagator_liouville)
+        self.assertFalse('total_phases' not in SE_1.frequency_data)
+        self.assertFalse('total_propagator' not in SE_1.data)
+        self.assertFalse('total_propagator_liouville' not in SE_1.data)
+        self.assertFalse('total_phases' not in CPMG.frequency_data)
+        self.assertFalse('total_propagator' not in CPMG.data)
+        self.assertFalse('total_propagator_liouville' not in CPMG.data)
+        self.assertFalse('total_phases' not in CPMG_concat.frequency_data)
+        self.assertFalse('total_propagator' not in CPMG_concat.data)
+        self.assertFalse('total_propagator_liouville' not in CPMG_concat.data)
 
         self.assertEqual(CPMG_concat, CPMG)
-        self.assertArrayAlmostEqual(CPMG_concat._filter_function,
-                                    CPMG._filter_function, rtol=1e-11)
+        self.assertArrayAlmostEqual(CPMG_concat.frequency_data['filter_function'],
+                                    CPMG.frequency_data['filter_function'], rtol=1e-11)
 
     def test_concatenate_with_filter_function_SE2(self):
         """
@@ -271,19 +271,19 @@ class ConcatenationTest(testutil.TestCase):
 
         CPMG_concat = SE_1 @ SE_2
 
-        self.assertIsNotNone(SE_2._total_phases)
-        self.assertIsNotNone(SE_2._total_propagator)
-        self.assertIsNotNone(SE_2._total_propagator_liouville)
-        self.assertIsNotNone(CPMG._total_phases)
-        self.assertIsNotNone(CPMG._total_propagator)
-        self.assertIsNotNone(CPMG._total_propagator_liouville)
-        self.assertIsNotNone(CPMG_concat._total_phases)
-        self.assertIsNotNone(CPMG_concat._total_propagator)
-        self.assertIsNotNone(CPMG_concat._total_propagator_liouville)
+        self.assertFalse('total_phases' not in SE_2.frequency_data)
+        self.assertFalse('total_propagator' not in SE_2.data)
+        self.assertFalse('total_propagator_liouville' not in SE_2.data)
+        self.assertFalse('total_phases' not in CPMG.frequency_data)
+        self.assertFalse('total_propagator' not in CPMG.data)
+        self.assertFalse('total_propagator_liouville' not in CPMG.data)
+        self.assertFalse('total_phases' not in CPMG_concat.frequency_data)
+        self.assertFalse('total_propagator' not in CPMG_concat.data)
+        self.assertFalse('total_propagator_liouville' not in CPMG_concat.data)
 
         self.assertEqual(CPMG_concat, CPMG)
-        self.assertArrayAlmostEqual(CPMG_concat._filter_function,
-                                    CPMG._filter_function, rtol=1e-11)
+        self.assertArrayAlmostEqual(CPMG_concat.frequency_data['filter_function'],
+                                    CPMG.frequency_data['filter_function'], rtol=1e-11)
 
     def test_concatenate_with_filter_function_SE12(self):
         """Concatenate two Spin Echos with both having a filter function."""
@@ -313,22 +313,22 @@ class ConcatenationTest(testutil.TestCase):
 
         CPMG_concat = SE_1 @ SE_2
 
-        self.assertIsNotNone(SE_1._total_phases)
-        self.assertIsNotNone(SE_1._total_propagator)
-        self.assertIsNotNone(SE_1._total_propagator_liouville)
-        self.assertIsNotNone(SE_2._total_phases)
-        self.assertIsNotNone(SE_2._total_propagator)
-        self.assertIsNotNone(SE_2._total_propagator_liouville)
-        self.assertIsNotNone(CPMG._total_phases)
-        self.assertIsNotNone(CPMG._total_propagator)
-        self.assertIsNotNone(CPMG._total_propagator_liouville)
-        self.assertIsNotNone(CPMG_concat._total_phases)
-        self.assertIsNotNone(CPMG_concat._total_propagator)
-        self.assertIsNotNone(CPMG_concat._total_propagator_liouville)
+        self.assertFalse('total_phases' not in SE_1.frequency_data)
+        self.assertFalse('total_propagator' not in SE_1.data)
+        self.assertFalse('total_propagator_liouville' not in SE_1.data)
+        self.assertFalse('total_phases' not in SE_2.frequency_data)
+        self.assertFalse('total_propagator' not in SE_2.data)
+        self.assertFalse('total_propagator_liouville' not in SE_2.data)
+        self.assertFalse('total_phases' not in CPMG.frequency_data)
+        self.assertFalse('total_propagator' not in CPMG.data)
+        self.assertFalse('total_propagator_liouville' not in CPMG.data)
+        self.assertFalse('total_phases' not in CPMG_concat.frequency_data)
+        self.assertFalse('total_propagator' not in CPMG_concat.data)
+        self.assertFalse('total_propagator_liouville' not in CPMG_concat.data)
 
         self.assertEqual(CPMG_concat, CPMG)
-        self.assertArrayAlmostEqual(CPMG_concat._filter_function,
-                                    CPMG._filter_function, rtol=1e-11)
+        self.assertArrayAlmostEqual(CPMG_concat.frequency_data['filter_function'],
+                                    CPMG.frequency_data['filter_function'], rtol=1e-11)
 
     def test_concatenate_4_spin_echos(self):
         """Concatenate four Spin Echos with a random one having a filter
@@ -366,15 +366,14 @@ class ConcatenationTest(testutil.TestCase):
 
         self.assertEqual(CPMG, CPMG_concat_1)
         self.assertEqual(CPMG, CPMG_concat_2)
-        self.assertArrayAlmostEqual(CPMG_concat_1._filter_function,
-                                    CPMG._filter_function, rtol=1e-10)
-        self.assertArrayAlmostEqual(CPMG_concat_2._filter_function,
-                                    CPMG._filter_function, rtol=1e-10)
+        self.assertArrayAlmostEqual(CPMG_concat_1.frequency_data['filter_function'],
+                                    CPMG.frequency_data['filter_function'], rtol=1e-10)
+        self.assertArrayAlmostEqual(CPMG_concat_2.frequency_data['filter_function'],
+                                    CPMG.frequency_data['filter_function'], rtol=1e-10)
 
     def test_concatenate_split_cnot(self):
         """Split up cnot and concatenate the parts."""
-        c_opers, c_coeffs, dt = (testutil.subspace_opers, testutil.c_coeffs,
-                                 testutil.dt)
+        c_opers, c_coeffs, dt = testutil.subspace_opers, testutil.c_coeffs, testutil.dt
         n_opers = c_opers
         n_coeffs = testutil.n_coeffs
 
@@ -407,15 +406,13 @@ class ConcatenationTest(testutil.TestCase):
         cnot_concatenated = ff.concatenate(cnot_sliced)
 
         self.assertEqual(cnot_whole, cnot_concatenated)
-        self.assertEqual(cnot_whole._filter_function,
-                         cnot_concatenated._filter_function)
 
         cnot_concatenated.cache_filter_function(omega)
         cnot_whole.cache_filter_function(omega)
 
         self.assertEqual(cnot_whole, cnot_concatenated)
-        self.assertArrayAlmostEqual(cnot_whole._filter_function,
-                                    cnot_concatenated._filter_function)
+        self.assertArrayEqual(cnot_whole.frequency_data['filter_function'],
+                              cnot_concatenated.frequency_data['filter_function'])
 
         # Test concatenation if different child sequences have a filter
         # function already calculated
@@ -447,8 +444,8 @@ class ConcatenationTest(testutil.TestCase):
             cnot_concatenated = ff.concatenate(cnot_sliced)
 
             self.assertArrayEqual(cnot_whole.omega, cnot_concatenated.omega)
-            self.assertArrayAlmostEqual(cnot_whole._filter_function,
-                                        cnot_concatenated._filter_function,
+            self.assertArrayAlmostEqual(cnot_whole.frequency_data['filter_function'],
+                                        cnot_concatenated.frequency_data['filter_function'],
                                         rtol, atol)
 
     def test_different_n_opers(self):
@@ -529,10 +526,10 @@ class ConcatenationTest(testutil.TestCase):
             self.assertEqual(pulse_11, pulse_12)
             # Filter functions should be the same even though pulse_2 has
             # different n_oper ordering
-            self.assertArrayAlmostEqual(pulse_11._control_matrix,
-                                        pulse_12._control_matrix, atol=1e-12)
-            self.assertArrayAlmostEqual(pulse_11._filter_function,
-                                        pulse_12._filter_function, atol=1e-12)
+            self.assertArrayAlmostEqual(pulse_11.frequency_data['control_matrix'],
+                                        pulse_12.frequency_data['control_matrix'], atol=1e-12)
+            self.assertArrayAlmostEqual(pulse_11.frequency_data['filter_function'],
+                                        pulse_12.frequency_data['filter_function'], atol=1e-12)
 
             should_be_cached = False
             for i in n_idx:
@@ -593,13 +590,13 @@ class ConcatenationTest(testutil.TestCase):
                                         atol=1e-15, rtol=1e2)
 
         # Check if stuff is cached
-        self.assertIsNotNone(NOT_CC._total_phases)
-        self.assertIsNotNone(NOT_CC._total_propagator)
-        self.assertIsNotNone(NOT_CC._total_propagator_liouville)
+        self.assertFalse('total_phases' not in NOT_CC.frequency_data)
+        self.assertFalse('total_propagator' not in NOT_CC.data)
+        self.assertFalse('total_propagator_liouville' not in NOT_CC.data)
         # concatenate_periodic does not cache phase factors
-        self.assertIsNotNone(NOT_CC_PERIODIC._total_phases)
-        self.assertIsNotNone(NOT_CC_PERIODIC._total_propagator)
-        self.assertIsNotNone(NOT_CC_PERIODIC._total_propagator_liouville)
+        self.assertFalse('total_phases' not in NOT_CC_PERIODIC.frequency_data)
+        self.assertFalse('total_propagator' not in NOT_CC_PERIODIC.data)
+        self.assertFalse('total_propagator_liouville' not in NOT_CC_PERIODIC.data)
 
         self.assertArrayAlmostEqual(F_LAB, F_CC, atol=1e-13)
         self.assertArrayAlmostEqual(F_LAB, F_CC_PERIODIC, atol=1e-13)
@@ -611,8 +608,10 @@ class ConcatenationTest(testutil.TestCase):
             a = ff.concatenate(repeat(pulse, G))
             b = ff.concatenate_periodic(pulse, G)
             self.assertEqual(a, b)
-            self.assertArrayAlmostEqual(a._control_matrix, b._control_matrix)
-            self.assertArrayAlmostEqual(a._filter_function, b._filter_function)
+            self.assertArrayAlmostEqual(a.frequency_data['control_matrix'],
+                                        b.frequency_data['control_matrix'])
+            self.assertArrayAlmostEqual(a.frequency_data['filter_function'],
+                                        b.frequency_data['filter_function'])
 
             cm = ff.numeric.calculate_control_matrix_periodic(
                 pulse.get_total_phases(pulse.omega),
@@ -621,7 +620,8 @@ class ConcatenationTest(testutil.TestCase):
                 G, check_invertible=False
             )
             # Check mostly always equal
-            self.assertGreater(np.isclose(cm, a._control_matrix).sum()/cm.size, 0.9)
+            self.assertGreater(np.isclose(cm, a.frequency_data['control_matrix']).sum()/cm.size,
+                               0.9)
 
     def test_pulse_correlations(self):
         """Test calculating pulse correlation quantities."""
@@ -688,24 +688,20 @@ class ConcatenationTest(testutil.TestCase):
                     pulse._R = None
                     pulse._R_pc = None
 
-                    self.assertArrayAlmostEqual(correl.sum((0, 1)), total,
-                                                atol=1e-14)
+                    self.assertArrayAlmostEqual(correl.sum((0, 1)), total, atol=1e-14)
 
-                    pulse._filter_function = F
-                    pulse._filter_function_gen = F_gen
-                    pulse._filter_function_pc = F_pc
-                    pulse._filter_function_pc_gen = F_pc_gen
-                    correl = func(pulse, S, omega, identifiers,
-                                  which='correlations')
-                    total = func(pulse, S, omega, identifiers,
-                                 which='total')
-                    pulse._filter_function = None
-                    pulse._filter_function_gen = None
-                    pulse._filter_function_pc = None
-                    pulse._filter_function_pc_gen = None
+                    pulse._frequency_data['filter_function'] = F
+                    pulse._frequency_data['filter_function_gen'] = F_gen
+                    pulse._frequency_data['filter_function_pc'] = F_pc
+                    pulse._frequency_data['filter_function_pc_gen'] = F_pc_gen
+                    correl = func(pulse, S, omega, identifiers, which='correlations')
+                    total = func(pulse, S, omega, identifiers, which='total')
+                    del pulse._frequency_data['filter_function']
+                    del pulse._frequency_data['filter_function_gen']
+                    del pulse._frequency_data['filter_function_pc']
+                    del pulse._frequency_data['filter_function_pc_gen']
 
-                    self.assertArrayAlmostEqual(correl.sum((0, 1)), total,
-                                                atol=1e-14)
+                    self.assertArrayAlmostEqual(correl.sum((0, 1)), total, atol=1e-14)
 
                     if func != numeric.infidelity:
                         pulse._R = R
@@ -719,26 +715,24 @@ class ConcatenationTest(testutil.TestCase):
                         pulse._R = None
                         pulse._R_pc = None
 
-                        self.assertArrayAlmostEqual(correl.sum((0, 1)), total,
-                                                    atol=1e-14)
+                        self.assertArrayAlmostEqual(correl.sum((0, 1)), total, atol=1e-14)
 
-                        pulse._filter_function = F
-                        pulse._filter_function_gen = F_gen
-                        pulse._filter_function_pc = F_pc
-                        pulse._filter_function_pc_gen = F_pc_gen
+                        pulse._frequency_data['filter_function'] = F
+                        pulse._frequency_data['filter_function_gen'] = F_gen
+                        pulse._frequency_data['filter_function_pc'] = F_pc
+                        pulse._frequency_data['filter_function_pc_gen'] = F_pc_gen
                         correl = func(pulse, S, omega, identifiers,
                                       which='correlations',
                                       memory_parsimonious=True)
                         total = func(pulse, S, omega, identifiers,
                                      which='total',
                                      memory_parsimonious=True)
-                        pulse._filter_function = None
-                        pulse._filter_function_gen = None
-                        pulse._filter_function_pc = None
-                        pulse._filter_function_pc_gen = None
+                        del pulse._frequency_data['filter_function']
+                        del pulse._frequency_data['filter_function_gen']
+                        del pulse._frequency_data['filter_function_pc']
+                        del pulse._frequency_data['filter_function_pc_gen']
 
-                        self.assertArrayAlmostEqual(correl.sum((0, 1)), total,
-                                                    atol=1e-14)
+                        self.assertArrayAlmostEqual(correl.sum((0, 1)), total, atol=1e-14)
 
 
 class ExtensionTest(testutil.TestCase):
@@ -822,37 +816,37 @@ class ExtensionTest(testutil.TestCase):
                 if calc_filter_functionF:
                     self.assertCorrectDiagonalization(test_ext_pulse,
                                                       atol=1e-14)
-                    self.assertArrayAlmostEqual(test_ext_pulse._propagators,
-                                                ext_pulse._propagators, atol=1e-14)
+                    self.assertArrayAlmostEqual(test_ext_pulse.data['propagators'],
+                                                ext_pulse.data['propagators'], atol=1e-14)
                     self.assertArrayAlmostEqual(
-                        test_ext_pulse._total_propagator_liouville,
-                        ext_pulse._total_propagator_liouville,
+                        test_ext_pulse.data['total_propagator_liouville'],
+                        ext_pulse.data['total_propagator_liouville'],
                         atol=1e-14
                     )
                     self.assertArrayAlmostEqual(
-                        test_ext_pulse._total_propagator,
-                        ext_pulse._total_propagator,
+                        test_ext_pulse.data['total_propagator'],
+                        ext_pulse.data['total_propagator'],
                         atol=1e-14
                     )
-                    self.assertArrayAlmostEqual(test_ext_pulse._total_phases,
-                                                ext_pulse._total_phases)
-                    self.assertArrayAlmostEqual(test_ext_pulse._control_matrix,
-                                                ext_pulse._control_matrix, atol=1e-12)
+                    self.assertArrayAlmostEqual(test_ext_pulse.frequency_data['total_phases'],
+                                                ext_pulse.frequency_data['total_phases'])
+                    self.assertArrayAlmostEqual(test_ext_pulse.frequency_data['control_matrix'],
+                                                ext_pulse.frequency_data['control_matrix'],
+                                                atol=1e-12)
                     self.assertArrayAlmostEqual(
-                        test_ext_pulse._filter_function,
-                        ext_pulse._filter_function,
+                        test_ext_pulse.frequency_data['filter_function'],
+                        ext_pulse.frequency_data['filter_function'],
                         atol=1e-12
                     )
                 else:
-                    self.assertIsNone(test_ext_pulse._eigvals)
-                    self.assertIsNone(test_ext_pulse._eigvecs)
-                    self.assertIsNone(test_ext_pulse._propagators)
-                    self.assertIsNone(
-                        test_ext_pulse._total_propagator_liouville)
-                    self.assertIsNone(test_ext_pulse._total_propagator)
-                    self.assertIsNone(test_ext_pulse._total_phases)
-                    self.assertIsNone(test_ext_pulse._control_matrix)
-                    self.assertIsNone(test_ext_pulse._filter_function)
+                    self.assertTrue('eigvals' not in test_ext_pulse.data)
+                    self.assertTrue('eigvecs' not in test_ext_pulse.data)
+                    self.assertTrue('propagators' not in test_ext_pulse.data)
+                    self.assertTrue('total_propagator_liouville' not in test_ext_pulse.data)
+                    self.assertTrue('total_propagator' not in test_ext_pulse.data)
+                    self.assertTrue('total_phases' not in test_ext_pulse.frequency_data)
+                    self.assertTrue('control_matrix' not in test_ext_pulse.frequency_data)
+                    self.assertTrue('filter_function' not in test_ext_pulse.frequency_data)
 
                 pulse.cleanup('all')
                 ext_pulse.cleanup('all')
@@ -863,104 +857,100 @@ class ExtensionTest(testutil.TestCase):
         pulse_2 = testutil.rand_pulse_sequence(2, 10, btype='Pauli')
         pulse_3 = testutil.rand_pulse_sequence(2, 10, btype='GGM')
         pulse_2.dt = pulse_1.dt
-        pulse_2._tau = pulse_1._tau
+        pulse_2.tau = pulse_1.tau
         omega = util.get_sample_frequencies(pulse_1, 50)
 
         # diagonalize one pulse
         pulse_1.diagonalize()
         extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)])
-        self.assertIsNone(extended_pulse._eigvals)
-        self.assertIsNone(extended_pulse._eigvecs)
-        self.assertIsNone(extended_pulse._propagators)
-        self.assertIsNone(extended_pulse._total_propagator)
-        self.assertIsNone(extended_pulse._total_propagator_liouville)
-        self.assertIsNone(extended_pulse._total_phases)
-        self.assertIsNone(extended_pulse._control_matrix)
-        self.assertIsNone(extended_pulse._filter_function)
+        self.assertTrue('eigvals' not in extended_pulse.data)
+        self.assertTrue('eigvecs' not in extended_pulse.data)
+        self.assertTrue('propagators' not in extended_pulse.data)
+        self.assertTrue('total_propagator' not in extended_pulse.data)
+        self.assertTrue('total_propagator_liouville' not in extended_pulse.data)
+        self.assertTrue('total_phases' not in extended_pulse.frequency_data)
+        self.assertTrue('control_matrix' not in extended_pulse.frequency_data)
+        self.assertTrue('filter_function' not in extended_pulse.frequency_data)
 
         # override
-        extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)],
-                                   cache_diagonalization=True)
-        self.assertIsNotNone(extended_pulse._eigvals)
-        self.assertIsNotNone(extended_pulse._eigvecs)
-        self.assertIsNotNone(extended_pulse._propagators)
-        self.assertIsNotNone(extended_pulse._total_propagator)
-        self.assertIsNone(extended_pulse._total_propagator_liouville)
-        self.assertIsNone(extended_pulse._total_phases)
-        self.assertIsNone(extended_pulse._control_matrix)
-        self.assertIsNone(extended_pulse._filter_function)
+        extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)], cache_diagonalization=True)
+        self.assertFalse('eigvals' not in extended_pulse.data)
+        self.assertFalse('eigvecs' not in extended_pulse.data)
+        self.assertFalse('propagators' not in extended_pulse.data)
+        self.assertFalse('total_propagator' not in extended_pulse.data)
+        self.assertTrue('total_propagator_liouville' not in extended_pulse.data)
+        self.assertTrue('total_phases' not in extended_pulse.frequency_data)
+        self.assertTrue('control_matrix' not in extended_pulse.frequency_data)
+        self.assertTrue('filter_function' not in extended_pulse.frequency_data)
 
         # diagonalize both
         pulse_2.diagonalize()
         extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)])
-        self.assertIsNotNone(extended_pulse._eigvals)
-        self.assertIsNotNone(extended_pulse._eigvecs)
-        self.assertIsNotNone(extended_pulse._propagators)
-        self.assertIsNotNone(extended_pulse._total_propagator)
-        self.assertIsNone(extended_pulse._total_propagator_liouville)
-        self.assertIsNone(extended_pulse._total_phases)
-        self.assertIsNone(extended_pulse._control_matrix)
-        self.assertIsNone(extended_pulse._filter_function)
+        self.assertFalse('eigvals' not in extended_pulse.data)
+        self.assertFalse('eigvecs' not in extended_pulse.data)
+        self.assertFalse('propagators' not in extended_pulse.data)
+        self.assertFalse('total_propagator' not in extended_pulse.data)
+        self.assertTrue('total_propagator_liouville' not in extended_pulse.data)
+        self.assertTrue('total_phases' not in extended_pulse.frequency_data)
+        self.assertTrue('control_matrix' not in extended_pulse.frequency_data)
+        self.assertTrue('filter_function' not in extended_pulse.frequency_data)
 
         # override
-        extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)],
-                                   cache_diagonalization=False)
-        self.assertIsNone(extended_pulse._eigvals)
-        self.assertIsNone(extended_pulse._eigvecs)
-        self.assertIsNone(extended_pulse._propagators)
+        extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)], cache_diagonalization=False)
+        self.assertTrue('eigvals' not in extended_pulse.data)
+        self.assertTrue('eigvecs' not in extended_pulse.data)
+        self.assertTrue('propagators' not in extended_pulse.data)
         # Total_propagators is still cached
-        self.assertIsNotNone(extended_pulse._total_propagator)
-        self.assertIsNone(extended_pulse._total_propagator_liouville)
-        self.assertIsNone(extended_pulse._total_phases)
-        self.assertIsNone(extended_pulse._control_matrix)
-        self.assertIsNone(extended_pulse._filter_function)
+        self.assertFalse('total_propagator' not in extended_pulse.data)
+        self.assertTrue('total_propagator_liouville' not in extended_pulse.data)
+        self.assertTrue('total_phases' not in extended_pulse.frequency_data)
+        self.assertTrue('control_matrix' not in extended_pulse.frequency_data)
+        self.assertTrue('filter_function' not in extended_pulse.frequency_data)
 
         # Get filter function for one pulse
         pulse_1.cache_filter_function(omega)
         extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)])
-        self.assertIsNone(extended_pulse._total_propagator_liouville)
-        self.assertIsNone(extended_pulse._total_phases)
-        self.assertIsNone(extended_pulse._control_matrix)
-        self.assertIsNone(extended_pulse._filter_function)
+        self.assertTrue('total_propagator_liouville' not in extended_pulse.data)
+        self.assertTrue('total_phases' not in extended_pulse.frequency_data)
+        self.assertTrue('control_matrix' not in extended_pulse.frequency_data)
+        self.assertTrue('filter_function' not in extended_pulse.frequency_data)
 
         # override
-        extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)],
-                                   cache_filter_function=True,
+        extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)], cache_filter_function=True,
                                    omega=omega)
-        self.assertIsNotNone(extended_pulse._total_propagator_liouville)
-        self.assertIsNotNone(extended_pulse._total_phases)
-        self.assertIsNotNone(extended_pulse._control_matrix)
-        self.assertIsNotNone(extended_pulse._filter_function)
+        self.assertFalse('total_propagator_liouville' not in extended_pulse.data)
+        self.assertFalse('total_phases' not in extended_pulse.frequency_data)
+        self.assertFalse('control_matrix' not in extended_pulse.frequency_data)
+        self.assertFalse('filter_function' not in extended_pulse.frequency_data)
 
         # Get filter function for both
         pulse_2.cache_filter_function(omega)
         extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)])
-        self.assertIsNotNone(extended_pulse._total_propagator_liouville)
-        self.assertIsNotNone(extended_pulse._total_phases)
-        self.assertIsNotNone(extended_pulse._control_matrix)
-        self.assertIsNotNone(extended_pulse._filter_function)
+        self.assertFalse('total_propagator_liouville' not in extended_pulse.data)
+        self.assertFalse('total_phases' not in extended_pulse.frequency_data)
+        self.assertFalse('control_matrix' not in extended_pulse.frequency_data)
+        self.assertFalse('filter_function' not in extended_pulse.frequency_data)
 
         # override
-        extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)],
-                                   cache_filter_function=False)
-        self.assertIsNone(extended_pulse._total_propagator_liouville)
-        self.assertIsNone(extended_pulse._total_phases)
-        self.assertIsNone(extended_pulse._control_matrix)
-        self.assertIsNone(extended_pulse._filter_function)
+        extended_pulse = ff.extend([(pulse_1, 0), (pulse_2, 1)], cache_filter_function=False)
+        self.assertTrue('total_propagator_liouville' not in extended_pulse.data)
+        self.assertTrue('total_phases' not in extended_pulse.frequency_data)
+        self.assertTrue('control_matrix' not in extended_pulse.frequency_data)
+        self.assertTrue('filter_function' not in extended_pulse.frequency_data)
 
         # Cannot extend with basis other than Pauli, if caching is forced it
         # should still work
         with self.assertWarns(UserWarning):
             extended_pulse = ff.extend([(pulse_3, 0), (pulse_3, 1)], omega=omega,
                                        cache_diagonalization=True, cache_filter_function=True)
-            self.assertIsNotNone(extended_pulse._eigvals)
-            self.assertIsNotNone(extended_pulse._eigvecs)
-            self.assertIsNotNone(extended_pulse._propagators)
-            self.assertIsNotNone(extended_pulse._total_propagator)
-            self.assertIsNotNone(extended_pulse._total_propagator_liouville)
-            self.assertIsNotNone(extended_pulse._total_phases)
-            self.assertIsNotNone(extended_pulse._control_matrix)
-            self.assertIsNotNone(extended_pulse._filter_function)
+            self.assertFalse('eigvals' not in extended_pulse.data)
+            self.assertFalse('eigvecs' not in extended_pulse.data)
+            self.assertFalse('propagators' not in extended_pulse.data)
+            self.assertFalse('total_propagator' not in extended_pulse.data)
+            self.assertFalse('total_propagator_liouville' not in extended_pulse.data)
+            self.assertFalse('total_phases' not in extended_pulse.frequency_data)
+            self.assertFalse('control_matrix' not in extended_pulse.frequency_data)
+            self.assertFalse('filter_function' not in extended_pulse.frequency_data)
 
     def test_accuracy(self):
         ID, X, Y, Z = util.paulis
@@ -1100,12 +1090,12 @@ class ExtensionTest(testutil.TestCase):
 
         self.assertEqual(XZ_pulse, XZ_pulse_ext)
         self.assertCorrectDiagonalization(XZ_pulse_ext, atol=1e-14)
-        self.assertArrayAlmostEqual(XZ_pulse._propagators,
-                                    XZ_pulse_ext._propagators, atol=1e-10)
-        self.assertArrayAlmostEqual(XZ_pulse._control_matrix,
-                                    XZ_pulse_ext._control_matrix, atol=1e-9)
-        self.assertArrayAlmostEqual(XZ_pulse._filter_function,
-                                    XZ_pulse_ext._filter_function, atol=1e-9)
+        self.assertArrayAlmostEqual(XZ_pulse.data['propagators'],
+                                    XZ_pulse_ext.data['propagators'], atol=1e-10)
+        self.assertArrayAlmostEqual(XZ_pulse.frequency_data['control_matrix'],
+                                    XZ_pulse_ext.frequency_data['control_matrix'], atol=1e-9)
+        self.assertArrayAlmostEqual(XZ_pulse.frequency_data['filter_function'],
+                                    XZ_pulse_ext.frequency_data['filter_function'], atol=1e-9)
 
         # Test additional noise Hamiltonian
         add_H_n = list(zip((XXX,), np.ones((1, n_dt)), ['XXX']))
@@ -1119,12 +1109,12 @@ class ExtensionTest(testutil.TestCase):
 
         self.assertEqual(XYZ_pulse, XYZ_pulse_ext)
         self.assertCorrectDiagonalization(XYZ_pulse_ext, atol=1e-14)
-        self.assertArrayAlmostEqual(XYZ_pulse._propagators,
-                                    XYZ_pulse_ext._propagators, atol=1e-10)
-        self.assertArrayAlmostEqual(XYZ_pulse._control_matrix,
-                                    XYZ_pulse_ext._control_matrix, atol=1e-9)
-        self.assertArrayAlmostEqual(XYZ_pulse._filter_function,
-                                    XYZ_pulse_ext._filter_function, atol=1e-9)
+        self.assertArrayAlmostEqual(XYZ_pulse.data['propagators'],
+                                    XYZ_pulse_ext.data['propagators'], atol=1e-10)
+        self.assertArrayAlmostEqual(XYZ_pulse.frequency_data['control_matrix'],
+                                    XYZ_pulse_ext.frequency_data['control_matrix'], atol=1e-9)
+        self.assertArrayAlmostEqual(XYZ_pulse.frequency_data['filter_function'],
+                                    XYZ_pulse_ext.frequency_data['filter_function'], atol=1e-9)
 
         # Test remapping a two-qubit pulse
         ZYX_pulse_ext = ff.extend(
@@ -1136,12 +1126,12 @@ class ExtensionTest(testutil.TestCase):
 
         self.assertEqual(ZYX_pulse, ZYX_pulse_ext)
         self.assertCorrectDiagonalization(ZYX_pulse_ext, atol=1e-14)
-        self.assertArrayAlmostEqual(ZYX_pulse._propagators,
-                                    ZYX_pulse_ext._propagators, atol=1e-10)
-        self.assertArrayAlmostEqual(ZYX_pulse._control_matrix,
-                                    ZYX_pulse_ext._control_matrix, atol=1e-9)
-        self.assertArrayAlmostEqual(ZYX_pulse._filter_function,
-                                    ZYX_pulse_ext._filter_function, atol=1e-9)
+        self.assertArrayAlmostEqual(ZYX_pulse.data['propagators'],
+                                    ZYX_pulse_ext.data['propagators'], atol=1e-10)
+        self.assertArrayAlmostEqual(ZYX_pulse.frequency_data['control_matrix'],
+                                    ZYX_pulse_ext.frequency_data['control_matrix'], atol=1e-9)
+        self.assertArrayAlmostEqual(ZYX_pulse.frequency_data['filter_function'],
+                                    ZYX_pulse_ext.frequency_data['filter_function'], atol=1e-9)
 
         XZXZ_pulse_ext = ff.extend([
             (XZ_pulse, (0, 1),
@@ -1151,12 +1141,12 @@ class ExtensionTest(testutil.TestCase):
         ], cache_diagonalization=True)
         self.assertEqual(XZXZ_pulse, XZXZ_pulse_ext)
         self.assertCorrectDiagonalization(XZXZ_pulse_ext, atol=1e-14)
-        self.assertArrayAlmostEqual(XZXZ_pulse._propagators,
-                                    XZXZ_pulse_ext._propagators, atol=1e-10)
-        self.assertArrayAlmostEqual(XZXZ_pulse._control_matrix,
-                                    XZXZ_pulse_ext._control_matrix, atol=1e-9)
-        self.assertArrayAlmostEqual(XZXZ_pulse._filter_function,
-                                    XZXZ_pulse_ext._filter_function, atol=1e-8)
+        self.assertArrayAlmostEqual(XZXZ_pulse.data['propagators'],
+                                    XZXZ_pulse_ext.data['propagators'], atol=1e-10)
+        self.assertArrayAlmostEqual(XZXZ_pulse.frequency_data['control_matrix'],
+                                    XZXZ_pulse_ext.frequency_data['control_matrix'], atol=1e-9)
+        self.assertArrayAlmostEqual(XZXZ_pulse.frequency_data['filter_function'],
+                                    XZXZ_pulse_ext.frequency_data['filter_function'], atol=1e-8)
 
         XZXZ_pulse_ext = ff.extend([
             (XZ_pulse, (0, 1),
@@ -1165,8 +1155,8 @@ class ExtensionTest(testutil.TestCase):
              {i: 'II' + i for i in XZ_pulse.n_oper_identifiers})
         ], cache_diagonalization=False)
         self.assertEqual(XZXZ_pulse, XZXZ_pulse_ext)
-        self.assertArrayAlmostEqual(XZXZ_pulse._total_propagator,
-                                    XZXZ_pulse_ext._total_propagator,
+        self.assertArrayAlmostEqual(XZXZ_pulse.data['total_propagator'],
+                                    XZXZ_pulse_ext.data['total_propagator'],
                                     atol=1e-10)
 
         # Test merging with overlapping qubit ranges
@@ -1180,12 +1170,12 @@ class ExtensionTest(testutil.TestCase):
         ])
         self.assertEqual(XXZZ_pulse, XXZZ_pulse_ext)
         self.assertCorrectDiagonalization(XXZZ_pulse_ext, atol=1e-14)
-        self.assertArrayAlmostEqual(XXZZ_pulse._propagators,
-                                    XXZZ_pulse_ext._propagators, atol=1e-10)
-        self.assertArrayAlmostEqual(XXZZ_pulse._control_matrix,
-                                    XXZZ_pulse_ext._control_matrix, atol=1e-10)
-        self.assertArrayAlmostEqual(XXZZ_pulse._filter_function,
-                                    XXZZ_pulse_ext._filter_function, atol=1e-8)
+        self.assertArrayAlmostEqual(XXZZ_pulse.data['propagators'],
+                                    XXZZ_pulse_ext.data['propagators'], atol=1e-10)
+        self.assertArrayAlmostEqual(XXZZ_pulse.frequency_data['control_matrix'],
+                                    XXZZ_pulse_ext.frequency_data['control_matrix'], atol=1e-10)
+        self.assertArrayAlmostEqual(XXZZ_pulse.frequency_data['filter_function'],
+                                    XXZZ_pulse_ext.frequency_data['filter_function'], atol=1e-8)
 
     def test_exceptions(self):
         X = util.paulis[1]
@@ -1367,26 +1357,26 @@ class RemappingTest(testutil.TestCase):
             self.assertArrayAlmostEqual(reordered_pulse.t, remapped_pulse.t)
             self.assertEqual(reordered_pulse.d, remapped_pulse.d)
             self.assertEqual(reordered_pulse.basis, remapped_pulse.basis)
-            self.assertArrayAlmostEqual(reordered_pulse._omega,
+            self.assertArrayAlmostEqual(reordered_pulse.frequency_data['omega'],
                                         remapped_pulse.omega)
-            self.assertArrayAlmostEqual(reordered_pulse._propagators,
-                                        remapped_pulse._propagators,
+            self.assertArrayAlmostEqual(reordered_pulse.data['propagators'],
+                                        remapped_pulse.data['propagators'],
                                         atol=1e-14)
-            self.assertArrayAlmostEqual(reordered_pulse._total_propagator,
-                                        remapped_pulse._total_propagator,
+            self.assertArrayAlmostEqual(reordered_pulse.data['total_propagator'],
+                                        remapped_pulse.data['total_propagator'],
                                         atol=1e-14)
             self.assertArrayAlmostEqual(
-                reordered_pulse._total_propagator_liouville,
-                remapped_pulse._total_propagator_liouville,
+                reordered_pulse.data['total_propagator_liouville'],
+                remapped_pulse.data['total_propagator_liouville'],
                 atol=1e-14
             )
-            self.assertArrayAlmostEqual(reordered_pulse._total_phases,
-                                        remapped_pulse._total_phases)
-            self.assertArrayAlmostEqual(reordered_pulse._control_matrix,
-                                        remapped_pulse._control_matrix,
+            self.assertArrayAlmostEqual(reordered_pulse.frequency_data['total_phases'],
+                                        remapped_pulse.frequency_data['total_phases'])
+            self.assertArrayAlmostEqual(reordered_pulse.frequency_data['control_matrix'],
+                                        remapped_pulse.frequency_data['control_matrix'],
                                         atol=1e-12)
-            self.assertArrayAlmostEqual(reordered_pulse._filter_function,
-                                        remapped_pulse._filter_function,
+            self.assertArrayAlmostEqual(reordered_pulse.frequency_data['filter_function'],
+                                        remapped_pulse.frequency_data['filter_function'],
                                         atol=1e-12)
 
             # Test the eigenvalues and -vectors by the characteristic equation
