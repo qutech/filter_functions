@@ -41,7 +41,7 @@ Functions
 
 import bisect
 import copy
-from itertools import accumulate, compress, zip_longest
+from itertools import accumulate, chain, compress, zip_longest
 from types import MappingProxyType
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 from warnings import warn
@@ -259,26 +259,14 @@ class PulseSequence:
     d: int
     basis: Basis
 
-    # Initialize attributes that can be set by bound methods to None
-    _t = None
-    _tau = None
-    _omega = None
-    _eigvals = None
-    _eigvecs = None
-    _propagators = None
-    _total_phases = None
-    _total_propagator = None
-    _total_propagator_liouville = None
-    _control_matrix = None
-    _control_matrix_pc = None
-    _filter_function = None
-    _filter_function_gen = None
-    _filter_function_pc = None
-    _filter_function_pc_gen = None
-    _filter_function_2 = None
+    _data: dict[str, ndarray]
+    _frequency_data: dict[str, ndarray]
+    _intermediates: dict[str, ndarray]
 
     def __new__(cls, *args, **kwargs):
         new = super().__new__(cls)
+        new._data = dict()
+        new._frequency_data = dict()
         new._intermediates = dict()
         return new
 
@@ -500,12 +488,10 @@ class PulseSequence:
         cls = self.__class__
         copied = cls.__new__(cls)
         copied.__dict__.update(self.__dict__)
-        return copied
-
-    def __deepcopy__(self, memo=None) -> 'PulseSequence':
-        cls = self.__class__
-        copied = cls.__new__(cls)
-        copied.__dict__.update({key: copy.deepcopy(val) for key, val in self.__dict__.items()})
+        # Need to explicitly copy the dicts, otherwise they're references
+        copied._data = copy.copy(self._data)
+        copied._frequency_data = copy.copy(self._frequency_data)
+        copied._intermediates = copy.copy(self._intermediates)
         return copied
 
     def __matmul__(self, other: 'PulseSequence') -> 'PulseSequence':
@@ -522,60 +508,54 @@ class PulseSequence:
     def is_cached(self, attr: str) -> bool:
         """Returns True if the attribute is cached"""
         # Define some aliases so that this method can be used by humans
-        aliases = {
-            'eigenvalues': '_eigvals',
-            'eigenvectors': '_eigvecs',
-            'total propagator': '_total_propagator',
-            'total propagator liouville': '_total_propagator_liouville',
-            'frequencies': '_omega',
-            'total phases': '_total_phases',
-            'filter function': '_filter_function',
-            'fidelity filter function': '_filter_function',
-            'generalized filter function': '_filter_function_gen',
-            'pulse correlation filter function': '_filter_function_pc',
-            'fidelity pulse correlation filter function': '_filter_function_pc',
-            'generalized pulse correlation filter function': '_filter_function_pc_gen',
-            'second order filter function': '_filter_function_2',
-            'control matrix': '_control_matrix',
-            'pulse correlation control matrix': '_control_matrix_pc'
+        data_aliases = {
+            'eigenvalues': 'eigvals',
+            'eigenvectors': 'eigvecs',
+            'propagators': 'propagators',
+            'total propagator': 'total_propagator',
+            'total propagator liouville': 'total_propagator_liouville',
+        }
+        frequency_data_aliases = {
+            'frequencies': 'omega',
+            'total phases': 'total_phases',
+            'filter function': 'filter_function',
+            'fidelity filter function': 'filter_function',
+            'generalized filter function': 'filter_function_gen',
+            'pulse correlation filter function': 'filter_function_pc',
+            'fidelity pulse correlation filter function': 'filter_function_pc',
+            'generalized pulse correlation filter function': 'filter_function_pc_gen',
+            'second order filter function': 'filter_function_2',
+            'control matrix': 'control_matrix',
+            'pulse correlation control matrix': 'control_matrix_pc'
         }
 
         alias = attr.lower().replace('_', ' ')
-        if alias in aliases:
-            attr = aliases[alias]
+        if alias in data_aliases:
+            return data_aliases[alias] in self.data
+        elif alias in frequency_data_aliases:
+            return frequency_data_aliases[alias] in self.frequency_data
         else:
-            if not attr.startswith('_'):
-                attr = '_' + attr
-
-        return getattr(self, attr) is not None
+            return attr in self.intermediates or attr in self.frequency_data or attr in self.data
 
     @property
     def t(self) -> ndarray:
         """The times of the pulse."""
-        if self._t is None:
-            self._t = np.concatenate(([0], self.dt.cumsum()))
-
-        return self._t
+        return self._data.setdefault('t', np.concatenate(([0], self.dt.cumsum())))
 
     @t.setter
     def t(self, val: ndarray):
         """Set the times of the pulse."""
-        self._t = val
+        self._data['t'] = val
 
     @property
     def tau(self) -> Union[float, int]:
         """The duration of the pulse."""
-        if self._t is not None:
-            self._tau = self.t[-1]
-        else:
-            self._tau = self.dt.sum()
-
-        return self._tau
+        return self._data.setdefault('tau', self.t[-1] if 't' in self.data else self.dt.sum())
 
     @tau.setter
     def tau(self, val: Union[float, int]):
         """Set the total duration of the pulse."""
-        self._tau = val
+        self._data['tau'] = val
 
     @property
     def duration(self) -> float:
@@ -583,11 +563,19 @@ class PulseSequence:
         return self.tau
 
     @property
+    def data(self) -> MappingProxyType[str, ndarray]:
+        return MappingProxyType(self._data)
+
+    @property
+    def frequency_data(self) -> MappingProxyType[str, ndarray]:
+        return MappingProxyType(self._frequency_data)
+
+    @property
     def intermediates(self) -> MappingProxyType[str, ndarray]:
         return MappingProxyType(self._intermediates)
 
     def diagonalize(self) -> None:
-        r"""Diagonalize the Hamiltonian defining the pulse sequence."""
+        """Diagonalize the Hamiltonian defining the pulse sequence."""
         # Only calculate if not done so before
         if not all(self.is_cached(attr) for attr in ('eigvals', 'eigvecs', 'propagators')):
             # Control Hamiltonian as a (n_dt, d, d) array
@@ -620,22 +608,19 @@ class PulseSequence:
         control_matrix: ndarray, shape (n_nops, d**2, n_omega)
             The control matrix for the noise operators.
         """
+        self.omega = omega
+
         # Only calculate if not calculated before for the same frequencies
-        if np.array_equal(self.omega, omega):
-            if self.is_cached('control_matrix'):
-                return self._control_matrix
-            else:
-                if self.is_cached('control_matrix_pc'):
-                    self._control_matrix = self._control_matrix_pc.sum(axis=0)
-                    return self._control_matrix
-        else:
-            # Getting with different frequencies. Remove all cached attributes
-            # that are frequency-dependent
-            self.cleanup('frequency dependent')
+        if self.is_cached('control_matrix'):
+            return self._frequency_data['control_matrix']
+        elif self.is_cached('control_matrix_pc'):
+            self._frequency_data['control_matrix'] = np.sum(
+                self._frequency_data['control_matrix_pc'], axis=0
+            )
+            return self._frequency_data['control_matrix']
 
         # Make sure the Hamiltonian has been diagonalized
         self.diagonalize()
-        self.omega = omega
 
         control_matrix = numeric.calculate_control_matrix_from_scratch(
             self.eigvals, self.eigvecs, self.propagators, self.omega, self.basis, self.n_opers,
@@ -648,8 +633,7 @@ class PulseSequence:
             self._intermediates.update(intermediates)
 
         self.cache_control_matrix(self.omega, control_matrix)
-
-        return self._control_matrix
+        return self._frequency_data['control_matrix']
 
     def cache_control_matrix(self, omega: Coefficients,
                              control_matrix: Optional[ndarray] = None,
@@ -674,17 +658,20 @@ class PulseSequence:
             required by other computations. Only applies if
             control_matrix is not supplied.
         """
+        self.omega = omega
+
         if control_matrix is None:
-            control_matrix = self.get_control_matrix(omega, show_progressbar, cache_intermediates)
+            control_matrix = self.get_control_matrix(self.omega, show_progressbar,
+                                                     cache_intermediates)
 
         if control_matrix.ndim == 4:
             # Pulse correlation control matrix
-            self._control_matrix_pc = control_matrix
+            self._frequency_data['control_matrix_pc'] = control_matrix
         else:
-            self._control_matrix = control_matrix
+            self._frequency_data['control_matrix'] = control_matrix
 
         # Cache total phase and total transfer matrices as well
-        self.cache_total_phases(omega)
+        self.cache_total_phases(self.omega)
         if not self.is_cached('total_propagator_liouville'):
             self.total_propagator_liouville = liouville_representation(self.total_propagator,
                                                                        self.basis)
@@ -692,7 +679,7 @@ class PulseSequence:
     def get_pulse_correlation_control_matrix(self) -> ndarray:
         """Get the pulse correlation control matrix if it was cached."""
         if self.is_cached('control_matrix_pc'):
-            return self._control_matrix_pc
+            return self._frequency_data['control_matrix_pc']
 
         raise util.CalculationError(
             "Could not get the pulse correlation control matrix since it "
@@ -766,26 +753,21 @@ class PulseSequence:
                 \sum_{k} F_{\alpha\beta,kk}(\omega).
 
         """
-        # Only calculate if not calculated before for the same frequencies
-        if np.array_equal(self.omega, omega):
-            if order == 1:
-                if which == 'fidelity':
-                    if self.is_cached('filter function'):
-                        return self._filter_function
-                else:
-                    # which == 'generalized'
-                    if self.is_cached('filter_function_gen'):
-                        return self._filter_function_gen
-            else:
-                # order == 2
-                if self.is_cached('filter_function_2'):
-                    return self._filter_function_2
-        else:
-            # Getting with different frequencies. Remove all cached attributes
-            # that are frequency-dependent
-            self.cleanup('frequency dependent')
-
         self.omega = omega
+
+        # Only calculate if not calculated before for the same frequencies
+        if order == 1:
+            if which == 'fidelity':
+                if self.is_cached('filter function'):
+                    return self._frequency_data['filter_function']
+            else:
+                # which == 'generalized'
+                if self.is_cached('filter_function_gen'):
+                    return self._frequency_data['filter_function_gen']
+        else:
+            # order == 2
+            if self.is_cached('filter_function_2'):
+                return self._frequency_data['filter_function_2']
 
         if order == 1:
             control_matrix = self.get_control_matrix(self.omega, show_progressbar,
@@ -801,13 +783,13 @@ class PulseSequence:
 
         if order == 1:
             if which == 'fidelity':
-                return self._filter_function
+                return self._frequency_data['filter_function']
             else:
                 # which == 'generalized'
-                return self._filter_function_gen
+                return self._frequency_data['filter_function_gen']
         else:
             # order == 2
-            return self._filter_function_2
+            return self._frequency_data['filter_function_2']
 
     @util.parse_optional_parameters(which=('fidelity', 'generalized'), order=(1, 2))
     def cache_filter_function(
@@ -874,11 +856,11 @@ class PulseSequence:
                                                                                which)
 
                     if which == 'fidelity':
-                        self._filter_function_pc = F_pc
+                        self._frequency_data['filter_function_pc'] = F_pc
                     else:
                         # which == 'generalized'
-                        self._filter_function_pc = F_pc.trace(axis1=4, axis2=5)
-                        self._filter_function_pc_gen = F_pc
+                        self._frequency_data['filter_function_pc'] = F_pc.trace(axis1=4, axis2=5)
+                        self._frequency_data['filter_function_pc_gen'] = F_pc
 
                     filter_function = F_pc.sum(axis=(0, 1))
                 else:
@@ -887,7 +869,7 @@ class PulseSequence:
             else:
                 # order == 2
                 filter_function = numeric.calculate_second_order_filter_function(
-                    self.eigvals, self.eigvecs, self.propagators, omega, self.basis,
+                    self.eigvals, self.eigvecs, self.propagators, self.omega, self.basis,
                     self.n_opers, self.n_coeffs, self.dt, self._intermediates, show_progressbar,
                     cache_intermediates, cache_second_order_cumulative
                 )
@@ -897,14 +879,14 @@ class PulseSequence:
 
         if order == 1:
             if which == 'fidelity':
-                self._filter_function = filter_function
+                self._frequency_data['filter_function'] = filter_function
             else:
                 # which == 'generalized'
-                self._filter_function = filter_function.trace(axis1=2, axis2=3)
-                self._filter_function_gen = filter_function
+                self._frequency_data['filter_function'] = filter_function.trace(axis1=2, axis2=3)
+                self._frequency_data['filter_function_gen'] = filter_function
         else:
             # order == 2
-            self._filter_function_2 = filter_function
+            self._frequency_data['filter_function_2'] = filter_function
 
     @util.parse_optional_parameters(which=('fidelity', 'generalized'))
     def get_pulse_correlation_filter_function(self, which: str = 'fidelity') -> ndarray:
@@ -953,21 +935,23 @@ class PulseSequence:
         """
         if which == 'fidelity':
             if self.is_cached('filter_function_pc'):
-                return self._filter_function_pc
+                return self._frequency_data['filter_function_pc']
         else:
             # which == 'generalized'
             if self.is_cached('filter_function_pc_gen'):
-                return self._filter_function_pc_gen
+                return self._frequency_data['filter_function_pc_gen']
 
         if self.is_cached('control_matrix_pc'):
-            F_pc = numeric.calculate_pulse_correlation_filter_function(self._control_matrix_pc,
-                                                                       which=which)
+            F_pc = numeric.calculate_pulse_correlation_filter_function(
+                self._frequency_data['control_matrix_pc'],
+                which=which
+            )
 
             if which == 'fidelity':
-                self._filter_function_pc = F_pc
+                self._frequency_data['filter_function_pc'] = F_pc
             else:
                 # which == 'generalized'
-                self._filter_function_pc_gen = F_pc
+                self._frequency_data['filter_function_pc_gen'] = F_pc
 
             return F_pc
 
@@ -1039,6 +1023,8 @@ class PulseSequence:
                 # expected to be sorted in accordance with the opers and coeffs.
                 pass
 
+        self.omega = omega
+
         # Check if we can pass on intermediates.
         intermediates = dict()
         if (n_opers_transformed := self._intermediates.get('n_opers_transformed')) is not None:
@@ -1046,7 +1032,6 @@ class PulseSequence:
         if (first_order_integral := self._intermediates.get('first_order_integral')) is not None:
             intermediates['first_order_integral'] = first_order_integral
 
-        self.omega = omega
         control_matrix = self.get_control_matrix(self.omega, cache_intermediates=True)[n_idx]
         control_matrix_deriv = gradient.calculate_derivative_of_control_matrix_from_scratch(
             self.omega, self.propagators, self.eigvals, self.eigvecs, self.basis, self.t, self.dt,
@@ -1057,17 +1042,13 @@ class PulseSequence:
 
     def get_total_phases(self, omega: Coefficients) -> ndarray:
         """Get the (cached) total phase factors for this pulse and omega."""
+        self.omega = omega
         # Only calculate if not calculated before for the same frequencies
-        if np.array_equal(self.omega, omega):
-            if self.is_cached('total_phases'):
-                return self._total_phases
-        else:
-            # Getting with different frequencies. Remove all cached attributes
-            # that are frequency-dependent
-            self.cleanup('frequency dependent')
+        if self.is_cached('total_phases'):
+            return self._frequency_data['total_phases']
 
-        self.cache_total_phases(omega)
-        return self._total_phases
+        self.cache_total_phases(self.omega, util.cexp(self.omega*self.tau))
+        return self._frequency_data['total_phases']
 
     def cache_total_phases(self, omega: Coefficients,
                            total_phases: Optional[ndarray] = None) -> None:
@@ -1085,9 +1066,9 @@ class PulseSequence:
         self.omega = omega
 
         if total_phases is None:
-            total_phases = util.cexp(self.omega*self.tau)
+            total_phases = self.get_total_phases(self.omega)
 
-        self._total_phases = total_phases
+        self._frequency_data['total_phases'] = total_phases
 
     @property
     def eigvals(self) -> ndarray:
@@ -1095,12 +1076,12 @@ class PulseSequence:
         if not self.is_cached('eigvals'):
             self.diagonalize()
 
-        return self._eigvals
+        return self._data['eigvals']
 
     @eigvals.setter
     def eigvals(self, value) -> None:
         """Set the eigenvalues of the pulse's Hamiltonian."""
-        self._eigvals = value
+        self._data['eigvals'] = value
 
     @property
     def eigvecs(self) -> ndarray:
@@ -1108,12 +1089,12 @@ class PulseSequence:
         if not self.is_cached('eigvecs'):
             self.diagonalize()
 
-        return self._eigvecs
+        return self._data['eigvecs']
 
     @eigvecs.setter
     def eigvecs(self, value) -> None:
         """Set the eigenvalues of the pulse's Hamiltonian."""
-        self._eigvecs = value
+        self._data['eigvecs'] = value
 
     @property
     def propagators(self) -> ndarray:
@@ -1121,12 +1102,12 @@ class PulseSequence:
         if not self.is_cached('propagators'):
             self.diagonalize()
 
-        return self._propagators
+        return self._data['propagators']
 
     @propagators.setter
     def propagators(self, value) -> None:
         """Set the eigenvalues of the pulse's Hamiltonian."""
-        self._propagators = value
+        self._data['propagators'] = value
 
     @property
     def total_propagator(self) -> ndarray:
@@ -1134,36 +1115,45 @@ class PulseSequence:
         if not self.is_cached('total_propagator'):
             self.diagonalize()
 
-        return self._total_propagator
+        return self._data['total_propagator']
 
     @total_propagator.setter
     def total_propagator(self, value: ndarray) -> None:
         """Set total propagator of the pulse."""
-        self._total_propagator = value
+        self._data['total_propagator'] = value
 
     @property
     def total_propagator_liouville(self) -> ndarray:
         """Get the transfer matrix for the total propagator of the pulse."""
         if not self.is_cached('total_propagator_liouville'):
-            self._total_propagator_liouville = liouville_representation(self.total_propagator,
-                                                                        self.basis)
+            self._data['total_propagator_liouville'] = liouville_representation(
+                self.total_propagator, self.basis
+            )
 
-        return self._total_propagator_liouville
+        return self._data['total_propagator_liouville']
 
     @total_propagator_liouville.setter
     def total_propagator_liouville(self, value: ndarray) -> None:
         """Set the transfer matrix of the total cumulative propagator."""
-        self._total_propagator_liouville = value
+        self._data['total_propagator_liouville'] = value
 
     @property
     def omega(self) -> ndarray:
         """Cached frequencies"""
-        return self._omega
+        return self._frequency_data.get('omega', None)
 
     @omega.setter
     def omega(self, value: Coefficients) -> None:
-        """Cache frequencies"""
-        self._omega = np.asarray(value) if value is not None else value
+        """Cache frequencies.
+
+        Deletes all frequency-dependent attributes if not the same as
+        cached.
+        """
+        old = self._frequency_data.get('omega', None)
+        new = np.array(value, copy=True)
+        if not np.array_equal(old, new):
+            self.cleanup('frequency dependent')
+        self._frequency_data['omega'] = new
 
     @property
     def nbytes(self) -> int:
@@ -1173,13 +1163,12 @@ class PulseSequence:
         object).
         """
         _nbytes = []
-        for val in self.__dict__.values():
+        for val in chain(self.data.values(), self.frequency_data.values(),
+                         self.intermediates.values()):
             try:
                 _nbytes.append(val.nbytes)
             except AttributeError:
                 pass
-
-        _nbytes.extend(val.nbytes for val in self._intermediates.values())
 
         return sum(_nbytes)
 
@@ -1193,37 +1182,24 @@ class PulseSequence:
 
         Parameters
         ----------
-        method: optional
+        method :
             If set to 'conservative' (the default), only the following
             attributes are deleted:
 
-                - _eigvals
-                - _eigvecs
-                - _propagators
+                - data['eigvals']
+                - data['eigvecs']
+                - data['propagators']
 
             If set to 'greedy', all of the above as well as the
             following attributes are deleted:
 
-                - _total_propagator
-                - _total_propagator_liouville
-                - _total_phases
-                - _control_matrix
-                - _control_matrix_pc
+                - data['total_propagator']
+                - data['total_propagator_liouville']
+                - frequency_data['total_phases']
+                - frequency_data['control_matrix']
+                - frequency_data['control_matrix_pc']
 
-            If set to 'all', all of the above as well as the following
-            attributes are deleted:
-
-                - omega
-                - _filter_function
-                - _filter_function_gen
-                - _filter_function_pc
-                - _filter_function_pc_gen
-                - _filter_function_2
-                - _intermediates['phase_factors']
-                - _intermediates['first_order_integral']
-                - _intermediates['second_order_integral']
-                - _intermediates['control_matrix_step']
-                - _intermediates['control_matrix_step_cumulative']
+            If set to 'all', all cached data is deleted.
 
             If set to 'frequency dependent' only attributes that are
             functions of frequency are initalized to ``None``.
@@ -1233,34 +1209,27 @@ class PulseSequence:
             calculated again, resulting in slower execution of the
             concatenation.
         """
-        default_attrs = {'_eigvals', '_eigvecs', '_propagators'}
-        concatenation_attrs = {'_total_propagator', '_total_phases', '_total_propagator_liouville',
-                               '_control_matrix', '_control_matrix_pc', '_intermediates'}
-        filter_function_attrs = {'_filter_function', '_filter_function_2', '_filter_function_gen',
-                                 '_filter_function_pc', '_filter_function_pc_gen', 'omega'}
-
-        if method == 'conservative':
-            attrs = default_attrs
-        elif method == 'greedy':
-            attrs = default_attrs.union(concatenation_attrs)
+        if method == 'all':
+            self._data.clear()
+            self._frequency_data.clear()
+            self._intermediates.clear()
         elif method == 'frequency dependent':
-            attrs = filter_function_attrs.union({'_control_matrix', '_control_matrix_pc',
-                                                 '_total_phases'})
-            # Remove frequency dependent terms from intermediates
-            self._intermediates.pop('control_matrix_step', None)
-            self._intermediates.pop('control_matrix_step_cumulative', None)
-            self._intermediates.pop('phase_factors', None)
-            self._intermediates.pop('first_order_integral', None)
-            self._intermediates.pop('second_order_integral', None)
+            self._frequency_data.clear()
+            self._intermediates.clear()
+        elif method == 'greedy':
+            self._intermediates.clear()
+            self._data.pop('eigvals', None)
+            self._data.pop('eigvecs', None)
+            self._data.pop('propagators', None)
+            self._data.pop('total_propagator', None)
+            self._data.pop('total_propagator_liouville', None)
+            self._frequency_data.pop('total_phases', None)
+            self._frequency_data.pop('control_matrix', None)
+            self._frequency_data.pop('control_matrix_pc', None)
         else:
-            # method == all
-            attrs = filter_function_attrs.union(default_attrs, concatenation_attrs)
-
-        for attr in attrs:
-            if attr != '_intermediates':
-                setattr(self, attr, None)
-            else:
-                setattr(self, attr, dict())
+            self._data.pop('eigvals', None)
+            self._data.pop('eigvecs', None)
+            self._data.pop('propagators', None)
 
     def propagator_at_arb_t(self, t: Coefficients) -> ndarray:
         """
