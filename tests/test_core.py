@@ -1115,6 +1115,117 @@ class CoreTest(testutil.TestCase):
                                   n_oper_identifiers=identifiers)
 
 
+class TestAlternativeConstructor(testutil.TestCase):
+    """Tests the classmethod alternative constructor."""
+
+    def setUp(self):
+        self.c_opers = np.random.randn(3, 4, 4) + 1j * np.random.randn(3, 4, 4)
+        self.c_oper_identifiers = np.array(["c1", "c2", "c3"])
+        self.c_coeffs = np.random.rand(3, 100)
+        self.n_opers = np.random.randn(2, 4, 4) + 1j * np.random.randn(2, 4, 4)
+        self.n_oper_identifiers = np.array(["n1", "n2"])
+        self.n_coeffs = np.random.rand(2, 100)
+        self.dt = np.linspace(0, 10, 100)
+
+    def test_from_arrays_success(self):
+        instance = ff.PulseSequence.from_arrays(
+            self.c_opers,
+            self.c_oper_identifiers,
+            self.c_coeffs,
+            self.n_opers,
+            self.n_oper_identifiers,
+            self.n_coeffs,
+            self.dt
+        )
+        self.assertArrayEqual(instance.c_opers, self.c_opers)
+        self.assertArrayEqual(instance.c_oper_identifiers, self.c_oper_identifiers)
+        self.assertArrayEqual(instance.c_coeffs, self.c_coeffs)
+        self.assertArrayEqual(instance.n_opers, self.n_opers)
+        self.assertArrayEqual(instance.n_oper_identifiers, self.n_oper_identifiers)
+        self.assertArrayEqual(instance.n_coeffs, self.n_coeffs)
+        self.assertArrayEqual(instance.dt, self.dt)
+
+    def test_from_arrays_invalid_dimensions(self):
+        c_opers = self.c_opers[:, :, :3]  # Incorrect dimensions
+        with self.assertRaises(ValueError,
+                               msg="Control and/or noise Hamiltonian not same, square dimension!"):
+            ff.PulseSequence.from_arrays(
+                c_opers,
+                self.c_oper_identifiers,
+                self.c_coeffs,
+                self.n_opers,
+                self.n_oper_identifiers,
+                self.n_coeffs,
+                self.dt
+            )
+
+        n_opers = self.n_opers[:, :, :3]  # Incorrect dimensions
+        with self.assertRaises(ValueError,
+                               msg="Control and/or noise Hamiltonian not same, square dimension!"):
+            ff.PulseSequence.from_arrays(
+                self.c_opers,
+                self.c_oper_identifiers,
+                self.c_coeffs,
+                n_opers,
+                self.n_oper_identifiers,
+                self.n_coeffs,
+                self.dt
+            )
+
+    def test_from_arrays_mismatched_lengths(self):
+        c_oper_identifiers = self.c_oper_identifiers[:-1]  # Mismatch in lengths
+        with self.assertRaises(ValueError, msg="Control Hamiltonian not same length!"):
+            ff.PulseSequence.from_arrays(
+                self.c_opers,
+                c_oper_identifiers,
+                self.c_coeffs,
+                self.n_opers,
+                self.n_oper_identifiers,
+                self.n_coeffs,
+                self.dt
+            )
+
+        n_oper_identifiers = self.n_oper_identifiers[:-1]  # Mismatch in lengths
+        with self.assertRaises(ValueError, msg="Noise Hamiltonian not same length!"):
+            ff.PulseSequence.from_arrays(
+                self.c_opers,
+                self.c_oper_identifiers,
+                self.c_coeffs,
+                self.n_opers,
+                n_oper_identifiers,
+                self.n_coeffs,
+                self.dt
+            )
+
+    def test_from_arrays_mismatched_time_steps(self):
+        dt = self.dt[:-1]  # Mismatch in time steps
+        with self.assertRaises(ValueError, msg="Time steps not same length!"):
+            ff.PulseSequence.from_arrays(
+                self.c_opers,
+                self.c_oper_identifiers,
+                self.c_coeffs,
+                self.n_opers,
+                self.n_oper_identifiers,
+                self.n_coeffs,
+                dt
+            )
+
+    def test_from_arrays_invalid_basis_dimension(self):
+        invalid_basis = ff.Basis.ggm(5)  # Basis dimension does not match Hamiltonian dimension
+        with self.assertRaises(ValueError,
+                               msg="Basis dimension not same as Hamiltonian dimension!"):
+            ff.PulseSequence.from_arrays(
+                self.c_opers,
+                self.c_oper_identifiers,
+                self.c_coeffs,
+                self.n_opers,
+                self.n_oper_identifiers,
+                self.n_coeffs,
+                self.dt,
+                basis=invalid_basis
+            )
+
+
 @pytest.mark.skipif(
     qutip is None,
     reason='Skipping qutip compatibility tests for build without qutip')
