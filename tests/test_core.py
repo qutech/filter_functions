@@ -342,23 +342,6 @@ class CoreTest(testutil.TestCase):
                              [3])
         self.assertEqual(A, B)
 
-        # Test for attributes
-        for attr in A.__dict__.keys():
-            if not (attr.startswith('_') or '_' + attr in A.__dict__.keys()):
-                # not a cached attribute
-                with self.assertRaises(AttributeError):
-                    _ = A.is_cached(attr)
-            else:
-                # set mock attribute at random
-                if rng.integers(0, 2):
-                    setattr(A, attr, 'foo')
-                    assertion = self.assertTrue
-                else:
-                    setattr(A, attr, None)
-                    assertion = self.assertFalse
-
-                assertion(A.is_cached(attr))
-
         # Diagonalization attributes
         A.diagonalize()
         self.assertIsNotNone(A.eigvals)
@@ -372,95 +355,116 @@ class CoreTest(testutil.TestCase):
         A.cleanup('conservative')
         self.assertIsNotNone(A.propagators)
 
-        aliases = {'eigenvalues': '_eigvals',
-                   'eigenvectors': '_eigvecs',
-                   'total propagator': '_total_propagator',
-                   'total propagator liouville': '_total_propagator_liouville',
-                   'frequencies': '_omega',
-                   'total phases': '_total_phases',
-                   'filter function': '_filter_function',
-                   'fidelity filter function': '_filter_function',
-                   'generalized filter function': '_filter_function_gen',
-                   'pulse correlation filter function': '_filter_function_pc',
-                   'fidelity pulse correlation filter function': '_filter_function_pc',
-                   'generalized pulse correlation filter function': '_filter_function_pc_gen',
-                   'control matrix': '_control_matrix',
-                   'pulse correlation control matrix': '_control_matrix_pc'}
+        aliases = {'eigenvalues': 'eigvals',
+                   'eigenvectors': 'eigvecs',
+                   'propagators': 'propagators',
+                   'total propagator': 'total_propagator',
+                   'total propagator liouville': 'total_propagator_liouville'}
+        frequency_aliases = {
+            'frequencies': 'omega',
+            'total phases': 'total_phases',
+            'filter function': 'filter_function',
+            'fidelity filter function': 'filter_function',
+            'generalized filter function': 'filter_function_gen',
+            'pulse correlation filter function': 'filter_function_pc',
+            'fidelity pulse correlation filter function': 'filter_function_pc',
+            'generalized pulse correlation filter function': 'filter_function_pc_gen',
+            'control matrix': 'control_matrix',
+            'pulse correlation control matrix': 'control_matrix_pc'
+        }
 
-        for alias, attr in aliases.items():
+        for alias, attr in {**aliases, **frequency_aliases}.items():
             # set mock attribute at random
             if rng.integers(0, 2):
-                setattr(A, attr, 'foo')
                 assertion = self.assertTrue
+                if alias in aliases:
+                    A._data[attr] = 'foo'
+                else:
+                    A._frequency_data[attr] = 'foo'
             else:
-                setattr(A, attr, None)
                 assertion = self.assertFalse
+                if alias in aliases:
+                    A._data.pop(attr, None)
+                else:
+                    A._frequency_data.pop(attr, None)
 
             assertion(A.is_cached(alias))
             assertion(A.is_cached(alias.upper()))
             assertion(A.is_cached(alias.replace(' ', '_')))
 
         A.cleanup('all')
-        A._t = None
-        A._tau = None
+
+        # Test nbytes property
+        a = A.nbytes
+        A.diagonalize()
+        b = A.nbytes
+        A.cache_control_matrix([1])
+        c = A.nbytes
+        A.cleanup('frequency dependent')
+        A.cache_control_matrix([1], cache_intermediates=True)
+        d = A.nbytes
+        self.assertNotEqual(a, b)
+        self.assertNotEqual(b, c)
+        self.assertNotEqual(c, d)
+
+        A.cleanup('all')
 
         # Test cleanup
         C = ff.concatenate((A, A), calc_pulse_correlation_FF=True,
                            which='generalized',
                            omega=util.get_sample_frequencies(A))
         C.diagonalize()
-        attrs = ['_eigvals', '_eigvecs', '_propagators']
+        attrs = ['eigvals', 'eigvecs', 'propagators']
         for attr in attrs:
-            self.assertIsNotNone(getattr(C, attr))
+            self.assertTrue(C.is_cached(attr))
 
         C.cleanup()
         for attr in attrs:
-            self.assertIsNone(getattr(C, attr))
+            self.assertFalse(C.is_cached(attr))
 
         C.diagonalize()
         C.cache_control_matrix(A.omega)
-        attrs.extend(['_control_matrix', '_total_phases', '_total_propagator',
-                      '_total_propagator_liouville'])
+        attrs.extend(['control_matrix', 'total_phases', 'total_propagator',
+                      'total_propagator_liouville'])
         for attr in attrs:
-            self.assertIsNotNone(getattr(C, attr))
+            self.assertTrue(C.is_cached(attr))
 
         C.cleanup('greedy')
         for attr in attrs:
-            self.assertIsNone(getattr(C, attr))
+            self.assertFalse(C.is_cached(attr))
 
         C.cache_filter_function(A.omega, which='generalized')
-        for attr in attrs + ['omega', '_filter_function_gen',
-                             '_filter_function_pc_gen']:
-            self.assertIsNotNone(getattr(C, attr))
+        for attr in attrs + ['omega', 'filter_function_gen',
+                             'filter_function_pc_gen']:
+            self.assertTrue(C.is_cached(attr))
 
         C = ff.concatenate((A, A), calc_pulse_correlation_FF=True,
                            which='fidelity', omega=A.omega)
         C.diagonalize()
         C.cache_filter_function(A.omega, which='fidelity')
-        attrs.extend(['omega', '_filter_function', '_filter_function_pc'])
+        attrs.extend(['omega', 'filter_function', 'filter_function_pc'])
         for attr in attrs:
-            self.assertIsNotNone(getattr(C, attr))
+            self.assertTrue(C.is_cached(attr))
 
         C.cleanup('all')
-        for attr in attrs + ['_filter_function_gen',
-                             '_filter_function_pc_gen']:
-            self.assertIsNone(getattr(C, attr))
+        for attr in attrs + ['filter_function_gen', 'filter_function_pc_gen']:
+            self.assertFalse(C.is_cached(attr))
 
         C.cache_filter_function(A.omega, which='fidelity')
         C.cleanup('frequency dependent')
-        freq_attrs = {'omega', '_control_matrix', '_filter_function',
-                      '_filter_function_gen', '_filter_function_pc',
-                      '_filter_function_pc_gen', '_total_phases'}
+        freq_attrs = {'omega', 'control_matrix', 'filter_function',
+                      'filter_function_gen', 'filter_function_pc',
+                      'filter_function_pc_gen', 'total_phases'}
         for attr in freq_attrs:
-            self.assertIsNone(getattr(C, attr))
+            self.assertFalse(C.is_cached(attr))
 
         for attr in set(attrs).difference(freq_attrs):
-            self.assertIsNotNone(getattr(C, attr))
+            self.assertTrue(C.is_cached(attr))
 
         # Test t, tau, and duration properties
         pulse = testutil.rand_pulse_sequence(2, 3, 1, 1)
-        self.assertIs(pulse._t, None)
-        self.assertIs(pulse._tau, None)
+        self.assertTrue('t' not in pulse.data)
+        self.assertTrue('tau' not in pulse.data)
         self.assertArrayEqual(pulse.t, [0, *pulse.dt.cumsum()])
         self.assertEqual(pulse.tau, pulse.t[-1])
         self.assertEqual(pulse.duration, pulse.tau)
@@ -508,9 +512,6 @@ class CoreTest(testutil.TestCase):
         with self.assertRaises(ValueError):
             pulse_1 @ pulse_3
 
-        # Test nbytes property
-        _ = pulse_1.nbytes
-
         pulse_12 = pulse_1 @ pulse_2
         pulse_21 = pulse_2 @ pulse_1
         pulse_45 = pulse_4 @ pulse_5
@@ -518,11 +519,11 @@ class CoreTest(testutil.TestCase):
         self.assertArrayEqual(pulse_12.dt, [*dt_1, *dt_2])
         self.assertArrayEqual(pulse_21.dt, [*dt_2, *dt_1])
 
-        self.assertIs(pulse_12._t, None)
-        self.assertIs(pulse_21._t, None)
+        self.assertTrue('t' not in pulse_12.data)
+        self.assertTrue('t' not in pulse_21.data)
 
-        self.assertEqual(pulse_12._tau, pulse_1.tau + pulse_2.tau)
-        self.assertEqual(pulse_21._tau, pulse_1.tau + pulse_2.tau)
+        self.assertEqual(pulse_12.data['tau'], pulse_1.tau + pulse_2.tau)
+        self.assertEqual(pulse_21.data['tau'], pulse_1.tau + pulse_2.tau)
 
         self.assertAlmostEqual(pulse_12.duration, pulse_1.duration + pulse_2.duration)
         self.assertAlmostEqual(pulse_21.duration, pulse_2.duration + pulse_1.duration)
@@ -566,18 +567,18 @@ class CoreTest(testutil.TestCase):
         omega = np.linspace(-100, 100, 101)
         pulses = (pulse_1, pulse_2, pulse_12, pulse_21)
         for pulse in pulses:
-            self.assertIsNone(pulse._total_phases)
-            self.assertIsNone(pulse._total_propagator)
-            self.assertIsNone(pulse._total_propagator_liouville)
+            self.assertTrue('total_phases' not in pulse.frequency_data)
+            self.assertTrue('total_propagator' not in pulse.data)
+            self.assertTrue('total_propagator_liouville' not in pulse.data)
 
             total_phases = pulse.get_total_phases(omega)
             total_propagator = pulse.total_propagator
             total_propagator_liouville = pulse.total_propagator_liouville
 
-            self.assertArrayEqual(total_phases, pulse._total_phases)
-            self.assertArrayEqual(total_propagator, pulse._total_propagator)
+            self.assertArrayEqual(total_phases, pulse.frequency_data['total_phases'])
+            self.assertArrayEqual(total_propagator, pulse.data['total_propagator'])
             self.assertArrayEqual(total_propagator_liouville,
-                                  pulse._total_propagator_liouville)
+                                  pulse.data['total_propagator_liouville'])
 
         # Test custom identifiers
         letters = rng.choice(list(string.ascii_letters), size=(6, 5),
@@ -596,8 +597,8 @@ class CoreTest(testutil.TestCase):
         pulse = testutil.rand_pulse_sequence(2, 7, 1, 2)
         periodic_pulse = ff.concatenate_periodic(pulse, 7)
 
-        self.assertIs(periodic_pulse._t, None)
-        self.assertEqual(periodic_pulse._tau, pulse.tau * 7)
+        self.assertTrue('t' not in periodic_pulse.data)
+        self.assertEqual(periodic_pulse.data['tau'], pulse.tau * 7)
         self.assertArrayAlmostEqual(periodic_pulse.t, [0, *periodic_pulse.dt.cumsum()])
 
     def test_cache_intermediates_liouville(self):
@@ -655,7 +656,7 @@ class CoreTest(testutil.TestCase):
         self.assertArrayEqual(pulse.get_filter_function(omega, which='generalized'), F_generalized)
         self.assertArrayEqual(pulse.get_filter_function(omega, which='fidelity'), F_fidelity)
 
-    def test_frequency_dependend_methods(self):
+    def test_frequency_dependent_methods(self):
         pulse = testutil.rand_pulse_sequence(2, 5, 2, 2)
         omega_list = [1, 2, 3]
         omega_array = np.array(omega_list)
@@ -664,19 +665,22 @@ class CoreTest(testutil.TestCase):
         self.assertArrayEqual(control_matrix, pulse.get_control_matrix(omega_array))
         pulse.cleanup('all')
         pulse.cache_control_matrix(omega_list, control_matrix)
-        self.assertArrayEqual(pulse._control_matrix, pulse.get_control_matrix(omega_array))
+        self.assertArrayEqual(pulse.frequency_data['control_matrix'],
+                              pulse.get_control_matrix(omega_array))
 
         filter_function = pulse.get_filter_function(omega_list)
         self.assertArrayEqual(filter_function, pulse.get_filter_function(omega_array))
         pulse.cleanup('all')
         pulse.cache_filter_function(omega_list, filter_function=filter_function)
-        self.assertArrayEqual(pulse._filter_function, pulse.get_filter_function(omega_array))
+        self.assertArrayEqual(pulse.frequency_data['filter_function'],
+                              pulse.get_filter_function(omega_array))
 
         total_phases = pulse.get_total_phases(omega_list)
         self.assertArrayEqual(total_phases, pulse.get_total_phases(omega_array))
         pulse.cleanup('all')
         pulse.cache_total_phases(omega_list, total_phases)
-        self.assertArrayEqual(pulse._total_phases, pulse.get_total_phases(omega_array))
+        self.assertArrayEqual(pulse.frequency_data['total_phases'],
+                              pulse.get_total_phases(omega_array))
 
     def test_filter_function(self):
         """Test the filter function calculation and related methods"""
@@ -696,9 +700,9 @@ class CoreTest(testutil.TestCase):
                 omega, show_progressbar=True)
 
             # Check that some attributes are cached
-            self.assertIsNotNone(total_pulse._total_phases)
-            self.assertIsNotNone(total_pulse._total_propagator)
-            self.assertIsNotNone(total_pulse._total_propagator_liouville)
+            self.assertTrue(total_pulse.is_cached('total_phases'))
+            self.assertTrue(total_pulse.is_cached('total_propagator'))
+            self.assertTrue(total_pulse.is_cached('total_propagator_liouville'))
 
             # Calculate everything 'on foot'
             pulses = [ff.PulseSequence(list(zip(c_opers, c_coeffs[:, i:i+1])),
@@ -861,12 +865,15 @@ class CoreTest(testutil.TestCase):
                          (2, 2, n_nops, n_nops, len(omega)))
         self.assertArrayAlmostEqual(pulse_1.get_filter_function(omega),
                                     pulse_2.get_pulse_correlation_filter_function().sum((0, 1)))
-        self.assertArrayAlmostEqual(pulse_1.get_filter_function(omega), pulse_2._filter_function)
+        self.assertArrayAlmostEqual(pulse_1.get_filter_function(omega),
+                                    pulse_2.frequency_data['filter_function'])
 
         # Test the behavior of the pulse correlation control matrix
         with self.assertRaises(ValueError):
             # R wrong dimension
-            numeric.calculate_pulse_correlation_filter_function(pulse_1._control_matrix)
+            numeric.calculate_pulse_correlation_filter_function(
+                pulse_1.frequency_data['control_matrix']
+            )
 
         with self.assertRaises(util.CalculationError):
             # not calculated
@@ -929,8 +936,7 @@ class CoreTest(testutil.TestCase):
 
         # If for some reason filter_function_pc_xy is removed, check if
         # recovered from control_matrix_pc
-        pulse_2._filter_function_pc = None
-        pulse_3._filter_function_pc_gen = None
+        pulse_2._frequency_data.pop('filter_function_pc')
 
         control_matrix_pc = pulse_3.get_pulse_correlation_control_matrix()
         filter_function = pulse_3.get_pulse_correlation_filter_function(which='fidelity')
