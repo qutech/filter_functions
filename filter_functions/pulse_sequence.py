@@ -1243,8 +1243,8 @@ class PulseSequence:
         # propagated with a time-delta t - t_{l-1} and H_{l}
         self.diagonalize()
         idx = np.searchsorted(self.t, t) - 1
-        # Manually set possible negative idx's to zero (happens for t = 0)
-        idx[idx < 0] = 0
+        # Clip to valid indices
+        idx = np.minimum(len(self.dt) - 1, np.maximum(0, idx))
         Q_prev = self.propagators[idx]
         U_curr = np.einsum('lij,jl,lkj->lik',
                            self.eigvecs[idx],
