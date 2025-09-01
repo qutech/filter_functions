@@ -394,6 +394,21 @@ class CoreTest(testutil.TestCase):
 
         A.cleanup('all')
 
+        # Test nbytes property
+        a = A.nbytes
+        A.diagonalize()
+        b = A.nbytes
+        A.cache_control_matrix([1])
+        c = A.nbytes
+        A.cleanup('frequency dependent')
+        A.cache_control_matrix([1], cache_intermediates=True)
+        d = A.nbytes
+        self.assertNotEqual(a, b)
+        self.assertNotEqual(b, c)
+        self.assertNotEqual(c, d)
+
+        A.cleanup('all')
+
         # Test cleanup
         C = ff.concatenate((A, A), calc_pulse_correlation_FF=True,
                            which='generalized',
@@ -496,9 +511,6 @@ class CoreTest(testutil.TestCase):
         # Concatenate pulses with same operators but different labels
         with self.assertRaises(ValueError):
             pulse_1 @ pulse_3
-
-        # Test nbytes property
-        _ = pulse_1.nbytes
 
         pulse_12 = pulse_1 @ pulse_2
         pulse_21 = pulse_2 @ pulse_1
