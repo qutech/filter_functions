@@ -1151,7 +1151,7 @@ class TestAlternativeConstructor(testutil.TestCase):
         self.assertArrayEqual(instance.n_coeffs, self.n_coeffs)
         self.assertArrayEqual(instance.dt, self.dt)
 
-    def test_from_arrays_invalid_control_dimensions(self):
+    def test_from_arrays_invalid_dimensions(self):
         c_opers = self.c_opers[:, :, :3]  # Incorrect dimensions
         with self.assertRaises(ValueError,
                                msg="Control and/or noise Hamiltonian not same, square dimension!"):
@@ -1160,6 +1160,19 @@ class TestAlternativeConstructor(testutil.TestCase):
                 self.c_oper_identifiers,
                 self.c_coeffs,
                 self.n_opers,
+                self.n_oper_identifiers,
+                self.n_coeffs,
+                self.dt
+            )
+
+        n_opers = self.n_opers[:, :, :3]  # Incorrect dimensions
+        with self.assertRaises(ValueError,
+                               msg="Control and/or noise Hamiltonian not same, square dimension!"):
+            ff.PulseSequence.from_arrays(
+                self.c_opers,
+                self.c_oper_identifiers,
+                self.c_coeffs,
+                n_opers,
                 self.n_oper_identifiers,
                 self.n_coeffs,
                 self.dt
@@ -1178,17 +1191,29 @@ class TestAlternativeConstructor(testutil.TestCase):
                 self.dt
             )
 
+        n_oper_identifiers = self.n_oper_identifiers[:-1]  # Mismatch in lengths
+        with self.assertRaises(ValueError, msg="Noise Hamiltonian not same length!"):
+            ff.PulseSequence.from_arrays(
+                self.c_opers,
+                self.c_oper_identifiers,
+                self.c_coeffs,
+                self.n_opers,
+                n_oper_identifiers,
+                self.n_coeffs,
+                self.dt
+            )
+
     def test_from_arrays_mismatched_time_steps(self):
-        c_coeffs = self.c_coeffs[:, :-1]  # Mismatch in time steps
+        dt = self.dt[:-1]  # Mismatch in time steps
         with self.assertRaises(ValueError, msg="Time steps not same length!"):
             ff.PulseSequence.from_arrays(
                 self.c_opers,
                 self.c_oper_identifiers,
-                c_coeffs,
+                self.c_coeffs,
                 self.n_opers,
                 self.n_oper_identifiers,
                 self.n_coeffs,
-                self.dt
+                dt
             )
 
     def test_from_arrays_invalid_basis_dimension(self):
