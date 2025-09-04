@@ -1851,7 +1851,7 @@ def concatenate(
         # control_matrix is the step-wise one.
         control_matrix_atomic_step = control_matrix
         control_matrix_atomic_cumulative = control_matrix_atomic_step.cumsum(axis=0)
-        if which == 'total':
+        if not calc_pulse_correlation_FF:
             # restore the total control matrix for below
             control_matrix = control_matrix_atomic_cumulative[-1]
 

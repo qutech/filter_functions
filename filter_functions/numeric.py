@@ -678,11 +678,12 @@ def calculate_control_matrix_from_atomic(
     # It is quite a bit faster to work with frequencies on the second-to-last axis
     control_matrix_atomic = np.ascontiguousarray(control_matrix_atomic.swapaxes(-1, -2))
 
+    # First time step is simply the first atomic control matrix
     if which == 'correlations':
         control_matrix = np.empty_like(control_matrix_atomic)
         control_matrix[0] = control_matrix_atomic[0]
-    elif which == 'total':
-        # First time step is simply the first atomic control matrix
+    else:
+        # which == 'total'
         control_matrix = control_matrix_atomic[0].copy()
         # A buffer for intermediate terms in the calculation.
         step = np.empty_like(control_matrix)
