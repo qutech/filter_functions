@@ -670,7 +670,7 @@ def calculate_control_matrix_from_atomic(
     G = len(control_matrix_atomic)
     if control_matrix_atomic.flags.c_contiguous:
         def restore_memory_layout(x): return np.ascontiguousarray(x.swapaxes(-1, -2))
-    elif control_matrix_atomic.flags.f_contigous:
+    elif control_matrix_atomic.flags.f_contiguous:
         def restore_memory_layout(x): return np.asfortranarray(x.swapaxes(-1, -2))
     else:
         def restore_memory_layout(x): return x.swapaxes(-1, -2)
