@@ -627,8 +627,7 @@ def calculate_control_matrix_from_atomic(
         control_matrix_atomic: ndarray,
         propagators_liouville: ndarray,
         show_progressbar: bool = False,
-        which: str = 'total',
-        return_cumulative: bool = False
+        which: str = 'total'
 ) -> Union[ndarray, Tuple[ndarray, ndarray]]:
     r"""
     Calculate the control matrix from the control matrices of atomic
@@ -651,15 +650,6 @@ def calculate_control_matrix_from_atomic(
         Compute the total control matrix (the sum of all time steps) or
         the correlation control matrix (first axis holds each pulses'
         contribution)
-    return_cumulative: bool, optional
-        Also return the accumulated sum, that is, an array that holds
-        the control matrix of the sequence up to position *g* in element
-        *g* of its first axis. If each atomic unit is a single segment,
-        corresponds to the intermediate 'control_matrix_step_cumulative'
-        returned by :func:`calculate_control_matrix_from_scratch` if
-        *cache_intermediates* is True.
-        Only if *which* is 'total' (otherwise corresponds to
-        ``control_matrix.cumsum(axis=0)``).
 
     Returns
     -------
@@ -681,48 +671,39 @@ def calculate_control_matrix_from_atomic(
     liouville_representation: Liouville representation for a given basis.
     """
     G = len(control_matrix_atomic)
-    # Set up a reusable contraction expression. In some cases it is faster to
-    # also contract the time dimension in the same expression instead of
-    # looping over it, but we don't distinguish here for readability.
-    expr = oe.contract_expression('ijo,jk->iko',
-                                  control_matrix_atomic.shape[1:],
-                                  propagators_liouville.shape[1:])
+    if control_matrix_atomic.flags.c_contiguous:
+        def restore_memory_layout(x): return np.ascontiguousarray(x.swapaxes(-1, -2))
+    elif control_matrix_atomic.flags.f_contigous:
+        def restore_memory_layout(x): return np.asfortranarray(x.swapaxes(-1, -2))
+    else:
+        def restore_memory_layout(x): return x.swapaxes(-1, -2)
+
+    # It is quite a bit faster to work with frequencies on the second-to-last axis
+    control_matrix_atomic = np.ascontiguousarray(control_matrix_atomic.swapaxes(-1, -2))
 
     if which == 'correlations':
         control_matrix = np.empty_like(control_matrix_atomic)
-    else:
-        # which == 'total'
-        control_matrix = np.zeros(control_matrix_atomic.shape[1:], dtype=complex)
-        if return_cumulative:
-            control_matrix_atomic_cumulative = np.empty_like(control_matrix_atomic)
-        else:
-            # A buffer for intermediate terms in the calculation.
-            tmp = np.empty_like(control_matrix)
+        control_matrix[0] = control_matrix_atomic[0]
+    elif which == 'total':
+        # First time step is simply the first atomic control matrix
+        control_matrix = control_matrix_atomic[0].copy()
+        # A buffer for intermediate terms in the calculation.
+        step = np.empty_like(control_matrix)
 
-    for g in util.progressbar_range(G, show_progressbar=show_progressbar,
+    for g in util.progressbar_range(1, G, show_progressbar=show_progressbar,
                                     desc='Calculating control matrix'):
         if which == 'correlations':
-            tmp = control_matrix[g]
-        elif return_cumulative:
-            tmp = control_matrix_atomic_cumulative[g]
+            step = control_matrix[g]
         # else: defined outside the loop
 
-        if g > 0:
-            # For the first time step phases and propagators are 1
-            tmp = np.multiply(phases[g-1], control_matrix_atomic[g], out=tmp)
-            tmp = expr(tmp, propagators_liouville[g-1], out=tmp)
-        else:
-            tmp[:] = control_matrix_atomic[g]
+        step = np.multiply(phases[g-1, :, None], control_matrix_atomic[g], out=step)
+        step @= propagators_liouville[g-1]
 
         if which == 'total':
-            control_matrix += tmp
-            if return_cumulative:
-                control_matrix_atomic_cumulative[g] = control_matrix
+            control_matrix += step
 
-    if return_cumulative:
-        return control_matrix, control_matrix_atomic_cumulative
-
-    return control_matrix
+    # Make sure we give back copies just the way they were before
+    return restore_memory_layout(control_matrix)
 
 
 def calculate_control_matrix_from_scratch(

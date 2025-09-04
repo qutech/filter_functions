@@ -1824,22 +1824,28 @@ def concatenate(
                 pulse.dt, t=pulse.t, show_progressbar=show_progressbar, cache_intermediates=False
             )
 
-    # Set the total propagator for possible future concatenations (if not done
-    # so above)
+    # Set the total propagator for possible future concatenations (if not done so above)
     if not newpulse.is_cached('total_propagator'):
         newpulse.total_propagator = util.mdot([pls.total_propagator for pls in pulses][::-1])
 
     newpulse.cache_total_phases(omega)
     newpulse.total_propagator_liouville = liouville_representation(newpulse.total_propagator,
                                                                    newpulse.basis)
+    # 'correlations' corresponds to returning each summand of the sum over g, which is exactly what
+    # is also needed for the second-order filter function.
     control_matrix = numeric.calculate_control_matrix_from_atomic(
         phases, control_matrix_atomic, propagators_liouville, show_progressbar,
-        which='correlations' if calc_pulse_correlation_FF else 'total',
-        return_cumulative=calc_second_order_FF
+        which='correlations' if calc_pulse_correlation_FF or calc_second_order_FF else 'total',
     )
 
     if calc_second_order_FF:
-        control_matrix, control_matrix_atomic_cumulative = control_matrix
+        # control_matrix is the step-wise one.
+        control_matrix_atomic_step = control_matrix
+        control_matrix_atomic_cumulative = control_matrix_atomic_step.cumsum(axis=0)
+        if which == 'total':
+            # restore the total control matrix for below
+            control_matrix = control_matrix_atomic_cumulative[-1]
+
         filter_function = numeric.calculate_second_order_filter_function_from_atomic(
             basis=newpulse.basis,
             filter_function_atomic=pulses[0].get_filter_function(omega, order=2),
