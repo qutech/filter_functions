@@ -1588,8 +1588,8 @@ def calculate_second_order_filter_function_from_scratch(
     frc_bufs = (np.empty((n_omega, d, d), dtype=complex), np.empty((d, d, d, d), dtype=complex))
     msk_bufs = np.empty((4, n_omega, d, d, d, d), dtype=bool)
     n_opers_basis_buf = np.empty((n_nops, n_basis, d, d), dtype=complex)
-    complete_step_buf = np.zeros((n_nops, n_nops, n_basis, n_basis, n_omega), dtype=complex)
-    result = np.zeros_like(complete_step_buf)
+    complete_steps = np.zeros((n_nops, n_nops, n_basis, n_basis, n_omega), dtype=complex)
+    incomplete_steps = np.zeros_like(complete_steps)
 
     # intermediate results from calculation of control matrix
     if intermediates is None:
@@ -1600,7 +1600,6 @@ def calculate_second_order_filter_function_from_scratch(
         basis_transformed_cache = intermediates['basis_transformed']
         ctrlmat_step_cache = intermediates['control_matrix_step']
         ctrlmat_step_cumulative_cache = intermediates['control_matrix_step_cumulative']
-        have_intermediates = True
     except KeyError:
         have_intermediates = False
         # No cache. Precompute some things and perform the costly computations
@@ -1611,25 +1610,26 @@ def calculate_second_order_filter_function_from_scratch(
         basis_transformed = np.empty(basis.shape, dtype=complex)
         ctrlmat_step = np.zeros((n_nops, n_basis, n_omega), dtype=complex)
         ctrlmat_step_cumulative = np.zeros((n_nops, n_basis, n_omega), dtype=complex)
+    else:
+        have_intermediates = True
     if cache_intermediates:
         int_cache = np.empty((G, n_omega, d, d, d, d), dtype=complex)
     else:
         int_buf = np.empty((n_omega, d, d, d, d), dtype=complex)
 
     if cache_cumulative := cache_intermediates and cache_cumulative:
-        filter_function_step_cumulative = np.empty((G,) + (n_nops,)*2 + (n_basis,)*2 + (n_omega,),
-                                                   dtype=complex)
+        cumulative_cache = np.empty((G,) + (n_nops,)*2 + (n_basis,)*2 + (n_omega,), dtype=complex)
     else:
-        step_buf = np.empty_like(complete_step_buf)
+        step_buf = np.empty_like(complete_steps)
 
     step_expr = oe.contract_expression('oijmn,akij,blmn->abklo',
                                        (n_omega, d, d, d, d), *[(n_nops, n_basis, d, d)]*2,
                                        optimize=[(0, 1), (0, 1)])
 
-    def _incomplete_time_step(g, out):
-        _second_order_integral(omega, eigvals[g], dt[g], int_buf, frc_bufs, dE_bufs, msk_bufs)
+    def _incomplete_time_step(h, out):
+        _second_order_integral(omega, eigvals[h], dt[h], int_buf, frc_bufs, dE_bufs, msk_bufs)
         # αij,kji->αkij
-        np.multiply(n_opers_transformed[:, g, None], basis_transformed.swapaxes(-1, -2),
+        np.multiply(n_opers_transformed[:, h, None], basis_transformed.swapaxes(-1, -2),
                     out=n_opers_basis_buf)
         return step_expr(int_buf, n_opers_basis_buf, n_opers_basis_buf, out=out)
 
@@ -1661,34 +1661,39 @@ def calculate_second_order_filter_function_from_scratch(
         if cache_intermediates:
             int_buf = int_cache[g]
         if cache_cumulative:
-            step_buf = filter_function_step_cumulative[g]
+            step_buf = cumulative_cache[g]
         # else: defined outside the loop
 
         # We use step_buf as a buffer for the last interval (with nested time
         # dependence) and afterwards the intervals up to the last (where the
         # time dependence separates and we can use previous result for the
         # control matrix).
-        if g > 0:
-            # all (complete) intervals up to last
-            # αko,βlo->αβklo
-            complete_step_buf += np.multiply(ctrlmat_step[:, None, :, None].conj(),
-                                             ctrlmat_step_cumulative[None, :, None],
-                                             out=step_buf)
+
         # last (incomplete) interval
-        result += _incomplete_time_step(g, out=step_buf)
+        incomplete_steps += _incomplete_time_step(g, out=step_buf)
+        # if cache_cumulative, cumulative_cache[g] holds the gth incomplete step
 
-        if cache_cumulative:
-            filter_function_step_cumulative[g] = result + complete_step_buf
+        if g > 0:
+            # all (complete) intervals up to last. For g=0, this is zero.
+            # αko,βlo->αβklo
+            complete_steps += np.multiply(ctrlmat_step[:, None, :, None].conj(),
+                                          ctrlmat_step_cumulative[None, :, None],
+                                          out=step_buf)
+            if cache_cumulative:
+                # cumulative_cache[g] holds the gth complete step, so we add
+                # incomplete_steps, which holds everything else up to g.
+                cumulative_cache[g] = incomplete_steps + complete_steps
 
-    if not cache_cumulative:
-        # if True, already done above
-        result += complete_step_buf
+    if cache_cumulative:
+        result = cumulative_cache[-1]
+    else:
+        result = incomplete_steps + complete_steps
 
     if cache_intermediates:
         intermediates['second_order_integral'] = int_cache
-        intermediates['second_order_complete_steps'] = complete_step_buf
+        intermediates['second_order_complete_steps'] = complete_steps
         if cache_cumulative:
-            intermediates['filter_function_2_step_cumulative'] = filter_function_step_cumulative
+            intermediates['filter_function_2_step_cumulative'] = cumulative_cache
         return result, intermediates
 
     return result
