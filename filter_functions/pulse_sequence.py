@@ -1844,13 +1844,12 @@ def concatenate(
             basis=newpulse.basis,
             filter_function_atomic=pulses[0].get_filter_function(omega, order=2),
             control_matrix_atomic=control_matrix_atomic,
-            control_matrix_atomic_cumulative=control_matrix_atomic_cumulative[:-1],
-            phases=phases,
+            control_matrix_atomic_step=control_matrix_atomic_step,
+            control_matrix_atomic_cumulative=control_matrix_atomic_cumulative,
             propagators=util.adot([pulse.total_propagator for pulse in pulses[:-1]]),
             propagators_liouville=propagators_liouville,
             intermediates=[pulse.intermediates for pulse in pulses]
         )
-
         newpulse.cache_filter_function(omega, filter_function=filter_function, order=2)
 
     # Set the attribute and calculate filter function (if the pulse correlation

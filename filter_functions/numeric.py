@@ -1677,15 +1677,18 @@ def calculate_second_order_filter_function_from_scratch(
             if g > 0:
                 ctrlmat_step = ctrlmat_step_cache[g]
                 ctrlmat_step_cumulative = ctrlmat_step_cumulative_cache[g-1]
+
+        # Assign references; writing to int_buf writes to int_cache[g]!
         if cache_intermediates:
             int_buf = int_cache[g]
         if cache_cumulative:
             step_buf = filter_function_step_cumulative[g]
+        # else: defined outside the loop
 
         # We use step_buf as a buffer for the last interval (with nested time
         # dependence) and afterwards the intervals up to the last (where the
         # time dependence separates and we can use previous result for the
-        # control matrix). opt_einsum seems to be faster than numpy here.
+        # control matrix).
         if g > 0:
             # all (complete) intervals up to last
             # αko,βlo->αβklo
@@ -1716,8 +1719,8 @@ def calculate_second_order_filter_function_from_atomic(
         basis: Basis,
         filter_function_atomic: ndarray,
         control_matrix_atomic: ndarray,
+        control_matrix_atomic_step: ndarray,
         control_matrix_atomic_cumulative: ndarray,
-        phases: ndarray,
         propagators: ndarray,
         propagators_liouville: ndarray,
         intermediates: Sequence[Mapping[str, ndarray]],
@@ -1730,19 +1733,18 @@ def calculate_second_order_filter_function_from_atomic(
     ----------
     basis: Basis, shape (d**2, d, d)
         The operator basis for the filter function.
-    filter_function_atomic: ndarray, shape (n_dt, n_nops, n_nops, d**2,  d**2, n_omega)
-        The filter functions for segments :math:`g\in\{1, 2, \dots, G\}`.
     control_matrix_atomic: ndarray, shape (n_dt, n_nops, d**2, n_omega)
+    filter_function_atomic: ndarray, shape (n_nops, n_nops, d**2,  d**2, n_omega)
+        The filter function for the first segment, :math:`g = 1`.
         The pulse control matrices for :math:`g\in\{1, 2, \dots, G\}`.
-    control_matrix_atomic_cumulative: ndarray, shape (n_dt, n_nops, d**2, n_omega)
-        The accumulated sum of atomic control matrices as returned by
-        :func:`calculate_control_matrix_from_atomic` with
-        ``return_cumulative=True``.
-    phases: ndarray, shape (n_dt-1, n_omega)
-        The phase factors for :math:`g\in\{1, 2, \dots, G-1\}`. For
-        :math:`g=0`, they are unity.
-    propagators: ndarray, shape (n_dt-1, d, d)
-    propagators_liouville: ndarray, shape (n_dt-1, d**2, d**2)
+    control_matrix_atomic_step: ndarray, shape (G-1, n_nops, d**2, n_omega)
+        The pulse correlation control matrix, i.e., the summands of the
+        first-order concatenated control matrix of the pulse sequence,
+        :math:`\mathcal{G}^{(g)}(\omega)`.
+    control_matrix_atomic_cumulative: ndarray, shape (G, n_nops, d**2, n_omega)
+    propagators: ndarray, shape (G-1, d, d)
+        The cumulative propagators of the *G* pulses.
+    propagators_liouville: ndarray, shape (G-1, d**2, d**2)
         The transfer matrices of the cumulative propagators for
         :math:`g\in\{1, 2, \dots, G-1\}`. For :math:`g=0` it is the
         identity.
@@ -1783,26 +1785,27 @@ def calculate_second_order_filter_function_from_atomic(
     G, n_nops, n_basis, n_omega = control_matrix_atomic.shape
     d = propagators.shape[-1]
 
-    tmp_1 = np.empty((n_nops, n_basis, n_omega), dtype=complex)
-    tmp_2 = np.empty((n_nops, n_nops, n_basis, n_basis, n_omega), dtype=complex)
+    # A temporary array to throw intermediate results into
+    tmp = np.empty((n_nops, n_nops, n_basis, n_basis, n_omega), dtype=complex)
     basis_transformed = np.empty((n_basis, d, d), dtype=complex)
     n_opers_basis = np.empty((n_nops, n_basis, d, d), dtype=complex)
 
-    expr_1 = oe.contract_expression('ajo,jk->ako', (n_nops, n_basis, n_omega), (n_basis, n_basis))
-    expr_2 = oe.contract_expression('abpqo,pk,ql->abklo',
+    expr_N = oe.contract_expression('pk,abpqo,ql->abklo',
+                                    (n_basis, n_basis),
                                     (n_nops, n_nops, n_basis, n_basis, n_omega),
-                                    (n_basis, n_basis), (n_basis, n_basis))
-    expr_3 = oe.contract_expression('oijmn,akij,blmn->abklo', (n_omega, d, d, d, d),
-                                    (n_nops, n_basis, d, d), (n_nops, n_basis, d, d))
+                                    (n_basis, n_basis))
+    expr_J = oe.contract_expression('akij,oijmn,blmn->abklo',
+                                    (n_nops, n_basis, d, d),
+                                    (n_omega, d, d, d, d),
+                                    (n_nops, n_basis, d, d))
 
     def _incomplete_time_step(h, out):
         _transform_by_unitary(eigvecs_propagated[h], basis, out=basis_transformed)
         np.multiply(n_opers_transformed[:, h, None], basis_transformed.swapaxes(-1, -2),
                     out=n_opers_basis)
-        return expr_3(second_order_integral[h], n_opers_basis, n_opers_basis, out=out)
+        return expr_J(n_opers_basis, second_order_integral[h], n_opers_basis, out=out)
 
     result = filter_function_atomic.copy()
-
     for g in util.progressbar_range(1, G, disable=not show_progressbar,
                                     desc='Calculating second order FF'):
         eigvecs_propagated = _propagate_eigenvectors(propagators[g-1:g],
@@ -1811,24 +1814,22 @@ def calculate_second_order_filter_function_from_atomic(
         second_order_integral = intermediates[g]['second_order_integral']
         second_order_complete_steps = intermediates[g]['second_order_complete_steps']
 
-        # B'_(g-1)(ω)
-        tmp_1[:] = control_matrix_atomic_cumulative[g-1]
-        tmp_1 *= phases[g-1].conj()
-        tmp_1 = expr_1(tmp_1, propagators_liouville[g-1].T, out=tmp_1)
+        # First, we compute N_(g|g-1..1)(ω), the term including all complete time steps:
+        # G*_(g)(ω) B_(g-1)(ω), just an outer product: abo,klo->abklo
+        result += np.multiply(control_matrix_atomic_step[g, :, None, :, None].conj(),
+                              control_matrix_atomic_cumulative[g-1, None, :, None],
+                              out=tmp)
 
-        # B^(g)*(ω) B'_(g-1)(ω)
-        tmp_2 = np.multiply(control_matrix_atomic[g, :, None, :, None].conj(),
-                            tmp_1[None, :, None, :], out=tmp_2)
+        # Q^T_(g-1..1) N_(g)(ω) Q_(g-1..1)
+        result += expr_N(propagators_liouville[g-1],
+                         second_order_complete_steps,
+                         propagators_liouville[g-1],
+                         out=tmp)
 
-        # N_(g)(ω)
-        tmp_2 += second_order_complete_steps
-
-        # Q^(g-1) N_(g)(ω) Q^(g-1)
-        result += expr_2(tmp_2, propagators_liouville[g-1], propagators_liouville[g-1], out=tmp_2)
-
+        # Lastly, all incomplete timesteps
         for h in range(len(eigvecs_propagated)):
-            # J'_(g)(ω)
-            result += _incomplete_time_step(h, out=tmp_2)
+            # J_(g|g-1..1)(ω)
+            result += _incomplete_time_step(h, out=tmp)
 
     return result
 
