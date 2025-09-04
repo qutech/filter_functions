@@ -720,7 +720,20 @@ class PulseSequence:
             required by other computations.
         cache_second_order_cumulative: bool, optional
             Also cache the accumulated filter function for each time
-            step. Only if order is 2.
+            step. Only if order is 2. This can take up a lot of memory,
+            but is useful when interested in the time evolution. In that
+            case, compute the filter function for the entire pulse and
+            slice it afterwards::
+
+                pulse.cache_filter_function(
+                    omega, order=2, cache_second_order_cumulative=True
+                )
+                pulses_t = []
+                for i in range(len(pulse)):
+                    pulses_t.append(pulse[:i])
+
+            ``pulses_t`` will contain the filter functions for each time
+            step.
 
         Returns
         -------
