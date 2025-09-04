@@ -62,6 +62,29 @@ class ConcatenationTest(testutil.TestCase):
             pulse_2.omega = [3, 4]
             ff.concatenate([pulse_1, pulse_2], calc_filter_function=True)
 
+        # Make sure memory layout is not changed
+        omega = np.arange(1, 10)
+        phases = np.stack([pulse_1.get_total_phases(omega),
+                           pulse_2.get_total_phases(omega)])
+        control_matrix = np.stack([pulse_1.get_control_matrix(omega),
+                                   pulse_2.get_control_matrix(omega)])
+        propagators = np.stack([pulse_1.total_propagator_liouville,
+                                pulse_2.total_propagator_liouville])
+
+        concatenated = ff.numeric.calculate_control_matrix_from_atomic(
+            phases,
+            np.asfortranarray(control_matrix),
+            propagators
+        )
+        self.assertTrue(concatenated.flags.f_contiguous)
+
+        concatenated = ff.numeric.calculate_control_matrix_from_atomic(
+            phases,
+            np.ascontiguousarray(control_matrix.swapaxes(-1, -2)).swapaxes(-1, -2),
+            propagators
+        )
+        self.assertFalse(concatenated.flags.contiguous)
+
     def test_slicing(self):
         """Tests _getitem__."""
         for d, n in zip(rng.integers(2, 5, 20), rng.integers(3, 51, 20)):
