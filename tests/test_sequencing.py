@@ -530,7 +530,10 @@ class ConcatenationTest(testutil.TestCase):
                                                 n_coeffs[permutation],
                                                 n_ids[permutation])),
                                        dt)
-            more_n_idx = sample(range(10), rng.integers(2, 5))
+
+            # draw more noise indices, but make sure they're not exactly the same
+            while sorted(more_n_idx := sample(range(10), rng.integers(2, 5))) == sorted(n_idx):
+                continue
             more_n_opers = opers[more_n_idx]
             more_n_coeffs = np.ones((more_n_opers.shape[0], n_dt))
             more_n_coeffs *= np.abs(rng.standard_normal(
