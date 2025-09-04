@@ -385,13 +385,13 @@ def calculate_noise_operators_from_atomic(
 
     Parameters
     ----------
-    phases: array_like, shape (n_dt-1, n_omega)
+    phases: array_like, shape (G-1, n_omega)
         The phase factors for :math:`g\in\{1, 2, \dots, G-1\}`. For
         :math:`g=0` they are unity.
-    noise_operators_atomic: array_like, shape (n_dt, n_nops, d, d, n_omega)
+    noise_operators_atomic: array_like, shape (G, n_nops, d, d, n_omega)
         The noise operators in the interaction picture of the g-th
         pulse, i.e. for :math:`g\in\{1, 2, \dots, G\}`.
-    propagators: array_like, shape (n_dt-1, d, d)
+    propagators: array_like, shape (G-1, d, d)
         The cumulative propagators of the pulses
         :math:`g\in\{1, 2, \dots, G-1\}`. For :math:`g=0` it is the
         identity.
@@ -489,10 +489,10 @@ def calculate_noise_operators_from_scratch(
     n_coeffs: array_like, shape (n_nops, n_dt)
         The sensitivities of the system to the noise operators given by
         *n_opers* at the given time step.
-    dt: array_like, shape (n_dt)
+    dt: array_like, shape (n_dt,)
         Sequence duration, i.e. for the :math:`g`-th pulse
         :math:`t_g - t_{g-1}`.
-    t: array_like, shape (n_dt+1), optional
+    t: array_like, shape (n_dt+1,), optional
         The absolute times of the different segments. Can also be
         computed from *dt*.
     show_progressbar: bool, optional
@@ -632,12 +632,12 @@ def calculate_control_matrix_from_atomic(
 
     Parameters
     ----------
-    phases: array_like, shape (n_dt-1, n_omega)
+    phases: array_like, shape (G-1, n_omega)
         The phase factors for :math:`g\in\{1, 2, \dots, G-1\}`. For
         :math:`g=0`, they are unity.
-    control_matrix_atomic: array_like, shape (n_dt, n_nops, d**2, n_omega)
+    control_matrix_atomic: array_like, shape (G, n_nops, d**2, n_omega)
         The pulse control matrices for :math:`g\in\{1, 2, \dots, G\}`.
-    propagators_liouville: array_like, shape (n_dt-1, d**2, d**2)
+    propagators_liouville: array_like, shape (G-1, d**2, d**2)
         The transfer matrices of the cumulative propagators for
         :math:`g\in\{1, 2, \dots, G-1\}`. For :math:`g=0` it is the
         identity.
@@ -650,7 +650,7 @@ def calculate_control_matrix_from_atomic(
 
     Returns
     -------
-    control_matrix: ndarray, shape ([n_pls,] n_nops, d**2, n_omega)
+    control_matrix: ndarray, shape ([G,] n_nops, d**2, n_omega)
         The control matrix :math:`\tilde{\mathcal{B}}(\omega)`.
 
     Notes
@@ -745,10 +745,10 @@ def calculate_control_matrix_from_scratch(
     n_coeffs: array_like, shape (n_nops, n_dt)
         The sensitivities of the system to the noise operators given by
         *n_opers* at the given time step.
-    dt: array_like, shape (n_dt)
+    dt: array_like, shape (n_dt,)
         Sequence duration, i.e. for the :math:`g`-th pulse
         :math:`t_g - t_{g-1}`.
-    t: array_like, shape (n_dt+1), optional
+    t: array_like, shape (n_dt+1,), optional
         The absolute times of the different segments. Can also be
         computed from *dt*.
     show_progressbar: bool, optional
@@ -1003,10 +1003,10 @@ def calculate_cumulant_function(
         Also take into account the frequency shifts :math:`\Delta` that
         correspond to second order Magnus expansion and constitute
         unitary terms. Default ``False``.
-    decay_amplitudes, array_like, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2), optional
+    decay_amplitudes, array_like, shape ([[G, G,] n_nops,] n_nops, d**2, d**2), optional
         A precomputed cumulant function. If given, *spectrum*, *omega*
         are not required.
-    frequency_shifts, array_like, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2), optional
+    frequency_shifts, array_like, shape ([[G, G,] n_nops,] n_nops, d**2, d**2), optional
         A precomputed frequency shift. If given, *spectrum*, *omega*
         are not required for second order terms.
     show_progressbar: bool, optional
@@ -1023,7 +1023,7 @@ def calculate_cumulant_function(
 
     Returns
     -------
-    cumulant_function: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
+    cumulant_function: ndarray, shape ([[G, G,] n_nops,] n_nops, d**2, d**2)
         The cumulant function. The individual noise operator
         contributions chosen by ``n_oper_identifiers`` are on the third
         to last axis / axes, depending on whether the noise is
@@ -1251,7 +1251,7 @@ def calculate_decay_amplitudes(
 
     Returns
     -------
-    decay_amplitudes: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
+    decay_amplitudes: ndarray, shape ([[G, G,] n_nops,] n_nops, d**2, d**2)
         The decay amplitudes.
 
     .. _notes:
@@ -1506,7 +1506,7 @@ def calculate_second_order_filter_function_from_scratch(
     n_coeffs: array_like, shape (n_nops, n_dt)
         The sensitivities of the system to the noise operators given by
         *n_opers* at the given time step.
-    dt: array_like, shape (n_dt)
+    dt: array_like, shape (n_dt,)
         Sequence duration, i.e. for the :math:`l`-th pulse
         :math:`t_l - t_{l-1}`.
     intermediates: Dict[str, ndarray], optional
@@ -1711,9 +1711,9 @@ def calculate_second_order_filter_function_from_atomic(
     ----------
     basis: Basis, shape (d**2, d, d)
         The operator basis for the filter function.
-    control_matrix_atomic: ndarray, shape (n_dt, n_nops, d**2, n_omega)
     filter_function_atomic: ndarray, shape (n_nops, n_nops, d**2,  d**2, n_omega)
         The filter function for the first segment, :math:`g = 1`.
+    control_matrix_atomic: ndarray, shape (G, n_nops, d**2, n_omega)
         The pulse control matrices for :math:`g\in\{1, 2, \dots, G\}`.
     control_matrix_atomic_step: ndarray, shape (G-1, n_nops, d**2, n_omega)
         The pulse correlation control matrix, i.e., the summands of the
@@ -1729,7 +1729,7 @@ def calculate_second_order_filter_function_from_atomic(
     intermediates: Sequence[Dict[str, ndarray]}
         Intermediate terms of the calculation of the control matrix and
         second-order filter function that can be reused here. Each entry
-        of the sequence of length `n_pls` should be a dictionary with
+        of the sequence of length `G` should be a dictionary with
         the following required keys:
          - 'eigvecs_propagated'
          - 'n_opers_transformed'
@@ -1827,7 +1827,7 @@ def calculate_pulse_correlation_filter_function(control_matrix: ndarray,
 
     Returns
     -------
-    filter_function_pc: ndarray, shape (n_pls, n_pls, n_nops, n_nops, [d**2, d**2,] n_omega)
+    filter_function_pc: ndarray, shape (G, G, n_nops, n_nops, [d**2, d**2,] n_omega)
         The pulse correlation filter functions for each pulse and noise
         operator correlations. The first two axes hold the pulse
         correlations, the second two the noise correlations.
@@ -1895,9 +1895,9 @@ def diagonalize(hamiltonian: ndarray, dt: Coefficients) -> Tuple[ndarray, ndarra
     ----------
     hamiltonian: array_like, shape (n_dt, d, d)
         Hamiltonian of shape (n_dt, d, d) with d the dimensionality of
-        the system
-    dt: array_like
-        The time differences
+        the system.
+    dt: array_like, shape (n_dt,)
+        The time differences.
 
     Returns
     -------
@@ -1970,7 +1970,7 @@ def error_transfer_matrix(
         Also take into account the frequency shifts :math:`\Delta` that
         correspond to second order Magnus expansion and constitute
         unitary terms. Default ``False``.
-    cumulant_function: ndarray, shape ([[n_pls, n_pls,] n_nops,] n_nops, d**2, d**2)
+    cumulant_function: ndarray, shape ([[G, G,] n_nops,] n_nops, d**2, d**2)
         A precomputed cumulant function. If given, *pulse*, *spectrum*,
         *omega* are not required.
     show_progressbar: bool, optional
@@ -2137,7 +2137,7 @@ def infidelity(
 
     Returns
     -------
-    infid: ndarray, shape ([[n_pls, n_pls,], n_nops,] n_nops)
+    infid: ndarray, shape ([[G, G,], n_nops,] n_nops)
         Array with the infidelity contributions for each spectrum
         *spectrum* on the last axis or axes, depending on the shape of
         *spectrum* and *which*. If ``which`` is ``correlations``, the

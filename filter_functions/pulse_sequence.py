@@ -647,7 +647,7 @@ class PulseSequence:
         ----------
         omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        control_matrix: array_like, shape ([n_nops,] n_nops, d**2, n_omega), optional
+        control_matrix: array_like, shape ([G,] n_nops, d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``,
             it is computed.
         show_progressbar: bool
@@ -814,7 +814,7 @@ class PulseSequence:
         ----------
         omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        control_matrix: array_like, shape ([n_nops,] n_nops, d**2, n_omega), optional
+        control_matrix: array_like, shape ([G,] n_nops, d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``,
             it is computed and the filter function derived from it.
         filter_function: array_like, shape (n_nops, n_nops, [d**2, d**2,] n_omega), optional
@@ -1695,6 +1695,15 @@ def concatenate(
         list of frequencies must be supplied as *omega*. Overridden if
         either *calc_pulse_correlation_FF* or *calc_second_order_FF* are
         true.
+    calc_second_order_FF : bool, optional
+        Compute the second-order filter function. Requires atomic pulses
+        to have retained `intermediates` during the calculation of the
+        control matrix.
+
+        .. warning::
+            This is an experimental feature and might have unexpected
+            bugs.
+
     which: str, optional
         Which filter function to compute. Either 'fidelity' (default) or
         'generalized' (see :meth:`PulseSequence.get_filter_function` and
