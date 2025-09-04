@@ -73,6 +73,13 @@ class ConcatenationTest(testutil.TestCase):
 
         concatenated = ff.numeric.calculate_control_matrix_from_atomic(
             phases,
+            np.ascontiguousarray(control_matrix),
+            propagators
+        )
+        self.assertTrue(concatenated.flags.c_contiguous)
+
+        concatenated = ff.numeric.calculate_control_matrix_from_atomic(
+            phases,
             np.asfortranarray(control_matrix),
             propagators
         )
