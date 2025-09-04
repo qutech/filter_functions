@@ -647,7 +647,7 @@ class PulseSequence:
         ----------
         omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        control_matrix: array_like, shape ([n_nops,] n_nops, d**2, n_omega), optional
+        control_matrix: array_like, shape ([G,] n_nops, d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``,
             it is computed.
         show_progressbar: bool
@@ -720,7 +720,20 @@ class PulseSequence:
             required by other computations.
         cache_second_order_cumulative: bool, optional
             Also cache the accumulated filter function for each time
-            step. Only if order is 2.
+            step. Only if order is 2. This can take up a lot of memory,
+            but is useful when interested in the time evolution. In that
+            case, compute the filter function for the entire pulse and
+            slice it afterwards::
+
+                pulse.cache_filter_function(
+                    omega, order=2, cache_second_order_cumulative=True
+                )
+                pulses_t = []
+                for i in range(len(pulse)):
+                    pulses_t.append(pulse[:i])
+
+            ``pulses_t`` will contain the filter functions for each time
+            step.
 
         Returns
         -------
@@ -814,7 +827,7 @@ class PulseSequence:
         ----------
         omega: array_like, shape (n_omega,)
             The frequencies for which to cache the filter function.
-        control_matrix: array_like, shape ([n_nops,] n_nops, d**2, n_omega), optional
+        control_matrix: array_like, shape ([G,] n_nops, d**2, n_omega), optional
             The control matrix for the frequencies *omega*. If ``None``,
             it is computed and the filter function derived from it.
         filter_function: array_like, shape (n_nops, n_nops, [d**2, d**2,] n_omega), optional
@@ -868,7 +881,7 @@ class PulseSequence:
                     filter_function = numeric.calculate_filter_function(control_matrix, which)
             else:
                 # order == 2
-                filter_function = numeric.calculate_second_order_filter_function(
+                filter_function = numeric.calculate_second_order_filter_function_from_scratch(
                     self.eigvals, self.eigvecs, self.propagators, self.omega, self.basis,
                     self.n_opers, self.n_coeffs, self.dt, self._intermediates, show_progressbar,
                     cache_intermediates, cache_second_order_cumulative
@@ -1657,6 +1670,7 @@ def concatenate(
         pulses: Iterable[PulseSequence],
         calc_pulse_correlation_FF: bool = False,
         calc_filter_function: Optional[bool] = None,
+        calc_second_order_FF: Optional[bool] = None,
         which: str = 'fidelity',
         omega: Optional[Coefficients] = None,
         show_progressbar: bool = False
@@ -1691,7 +1705,18 @@ def concatenate(
         carried out or not. Overrides the automatic behavior of
         calculating it if at least one pulse has a cached control
         matrix. If ``True`` and no pulse has a cached control matrix, a
-        list of frequencies must be supplied as *omega*.
+        list of frequencies must be supplied as *omega*. Overridden if
+        either *calc_pulse_correlation_FF* or *calc_second_order_FF* are
+        true.
+    calc_second_order_FF : bool, optional
+        Compute the second-order filter function. Requires atomic pulses
+        to have retained `intermediates` during the calculation of the
+        control matrix.
+
+        .. warning::
+            This is an experimental feature and might have unexpected
+            bugs.
+
     which: str, optional
         Which filter function to compute. Either 'fidelity' (default) or
         'generalized' (see :meth:`PulseSequence.get_filter_function` and
@@ -1720,7 +1745,10 @@ def concatenate(
     if all(pls.is_cached('total_propagator') for pls in pulses):
         newpulse.total_propagator = util.mdot([pls.total_propagator for pls in pulses][::-1])
 
-    if calc_filter_function is False and not calc_pulse_correlation_FF:
+    if calc_pulse_correlation_FF or calc_second_order_FF is True:
+        calc_filter_function = True
+
+    if calc_filter_function is False:
         return newpulse
 
     # If the pulses have different noise operators, we cannot reuse cached
@@ -1742,6 +1770,11 @@ def concatenate(
             if identifier in pulse_identifier:
                 n_opers_present[i, j] = True
 
+    if calc_second_order_FF and not n_opers_present.all():
+        warn('Second order FF requested but not all pulses have the same n_opers. '
+             'Not implemented.', UserWarning)
+        calc_second_order_FF = False
+
     # If at least two pulses have the same noise operators, we gain an
     # advantage when concatenating the filter functions over calculating them
     # from scratch at a later point
@@ -1758,7 +1791,7 @@ def concatenate(
 
         if not equal_omega:
             if calc_filter_function:
-                raise ValueError("Calculation of filter function forced  but not all pulses "
+                raise ValueError("Calculation of filter function forced but not all pulses "
                                  + "have the same frequencies cached and none were supplied!")
             if calc_pulse_correlation_FF:
                 raise ValueError("Cannot compute the pulse correlation filter functions; do not "
@@ -1813,18 +1846,39 @@ def concatenate(
                 pulse.dt, t=pulse.t, show_progressbar=show_progressbar, cache_intermediates=False
             )
 
-    # Set the total propagator for possible future concatenations (if not done
-    # so above)
+    # Set the total propagator for possible future concatenations (if not done so above)
     if not newpulse.is_cached('total_propagator'):
         newpulse.total_propagator = util.mdot([pls.total_propagator for pls in pulses][::-1])
 
     newpulse.cache_total_phases(omega)
     newpulse.total_propagator_liouville = liouville_representation(newpulse.total_propagator,
                                                                    newpulse.basis)
+    # 'correlations' corresponds to returning each summand of the sum over g, which is exactly what
+    # is also needed for the second-order filter function.
     control_matrix = numeric.calculate_control_matrix_from_atomic(
         phases, control_matrix_atomic, propagators_liouville, show_progressbar,
-        which='correlations' if calc_pulse_correlation_FF else 'total',
+        which='correlations' if calc_pulse_correlation_FF or calc_second_order_FF else 'total',
     )
+
+    if calc_second_order_FF:
+        # control_matrix is the step-wise one.
+        control_matrix_atomic_step = control_matrix
+        control_matrix_atomic_cumulative = control_matrix_atomic_step.cumsum(axis=0)
+        if not calc_pulse_correlation_FF:
+            # restore the total control matrix for below
+            control_matrix = control_matrix_atomic_cumulative[-1]
+
+        filter_function = numeric.calculate_second_order_filter_function_from_atomic(
+            basis=newpulse.basis,
+            filter_function_atomic=pulses[0].get_filter_function(omega, order=2),
+            control_matrix_atomic=control_matrix_atomic,
+            control_matrix_atomic_step=control_matrix_atomic_step,
+            control_matrix_atomic_cumulative=control_matrix_atomic_cumulative,
+            propagators=util.adot([pulse.total_propagator for pulse in pulses[:-1]]),
+            propagators_liouville=propagators_liouville,
+            intermediates=[pulse.intermediates for pulse in pulses]
+        )
+        newpulse.cache_filter_function(omega, filter_function=filter_function, order=2)
 
     # Set the attribute and calculate filter function (if the pulse correlation
     # FF has been calculated, this is a little overhead but negligible)

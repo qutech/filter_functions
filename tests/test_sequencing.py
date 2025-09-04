@@ -62,6 +62,36 @@ class ConcatenationTest(testutil.TestCase):
             pulse_2.omega = [3, 4]
             ff.concatenate([pulse_1, pulse_2], calc_filter_function=True)
 
+        # Make sure memory layout is not changed
+        omega = np.arange(1, 10)
+        phases = np.stack([pulse_1.get_total_phases(omega),
+                           pulse_2.get_total_phases(omega)])
+        control_matrix = np.stack([pulse_1.get_control_matrix(omega),
+                                   pulse_2.get_control_matrix(omega)])
+        propagators = np.stack([pulse_1.total_propagator_liouville,
+                                pulse_2.total_propagator_liouville])
+
+        concatenated = ff.numeric.calculate_control_matrix_from_atomic(
+            phases,
+            np.ascontiguousarray(control_matrix),
+            propagators
+        )
+        self.assertTrue(concatenated.flags.c_contiguous)
+
+        concatenated = ff.numeric.calculate_control_matrix_from_atomic(
+            phases,
+            np.asfortranarray(control_matrix),
+            propagators
+        )
+        self.assertTrue(concatenated.flags.f_contiguous)
+
+        concatenated = ff.numeric.calculate_control_matrix_from_atomic(
+            phases,
+            np.ascontiguousarray(control_matrix.swapaxes(-1, -2)).swapaxes(-1, -2),
+            propagators
+        )
+        self.assertFalse(concatenated.flags.contiguous)
+
     def test_slicing(self):
         """Tests _getitem__."""
         for d, n in zip(rng.integers(2, 5, 20), rng.integers(3, 51, 20)):
@@ -126,16 +156,6 @@ class ConcatenationTest(testutil.TestCase):
             slc.cleanup('all')
             self.assertArrayEqual(ctrlmat, slc.get_control_matrix(omega))
             self.assertArrayEqual(FF, slc.get_filter_function(omega, order=2))
-
-        _, ctrlmat_cumulative = numeric.calculate_control_matrix_from_atomic(
-            np.array([pulse[:i].get_total_phases(omega) for i in range(1, len(pulse))]),
-            np.array([p.get_control_matrix(omega) for p in pulse]),
-            np.array([pulse[:i].total_propagator_liouville for i in range(1, len(pulse))]),
-            return_accumulated=True
-        )
-        self.assertArrayAlmostEqual(ctrlmat_cumulative[:-1],
-                                    pulse.intermediates['control_matrix_step_cumulative'],
-                                    atol=1e-15)
 
     def test_concatenate_without_filter_function(self):
         """Concatenate two Spin Echos without filter functions."""
@@ -448,6 +468,42 @@ class ConcatenationTest(testutil.TestCase):
                                         cnot_concatenated.frequency_data['filter_function'],
                                         rtol, atol)
 
+    def test_second_order(self):
+        for d, n_dt in zip(rng.integers(2, 5, 10), rng.integers(3, 11, 10)):
+            pulse = testutil.rand_pulse_sequence(d, n_dt)
+            omega = util.get_sample_frequencies(pulse, 11)
+
+            # Split at random index
+            idx = rng.integers(1, n_dt-1)
+            pulses = pulse[:idx], pulse[idx:]
+            for pls in pulses:
+                pls.cleanup('frequency dependent')
+                pls.cache_filter_function(omega, order=1, cache_intermediates=True)
+                pls.cache_filter_function(omega, order=2, cache_intermediates=True)
+
+            concat_pulse = ff.concatenate(pulses, calc_second_order_FF=True)
+            self.assertArrayAlmostEqual(concat_pulse.get_filter_function(omega, order=2),
+                                        pulse.get_filter_function(omega, order=2),
+                                        atol=1e-13)
+
+            # Split into pulses with single time segments
+            pulses = list(pulse)
+            pulse.cache_filter_function(omega, order=1, cache_intermediates=True)
+            pulse.cache_filter_function(omega, order=2, cache_intermediates=True)
+            for pls in pulses:
+                pls.cache_filter_function(omega, order=1, cache_intermediates=True)
+                pls.cache_filter_function(omega, order=2, cache_intermediates=True)
+
+            concat_pulse = ff.concatenate(pulses, calc_second_order_FF=True)
+            self.assertArrayAlmostEqual(concat_pulse.get_filter_function(omega, order=2),
+                                        pulse.get_filter_function(omega, order=2),
+                                        atol=1e-13)
+
+        # Assert some assertions
+        pulses[rng.integers(0, len(pulses))]._intermediates.clear()
+        with self.assertRaises(ValueError):
+            ff.concatenate(pulses, calc_second_order_FF=True)
+
     def test_different_n_opers(self):
         """Test behavior when concatenating with different n_opers."""
         for d, n_dt in zip(rng.integers(2, 5, 20),
@@ -474,7 +530,10 @@ class ConcatenationTest(testutil.TestCase):
                                                 n_coeffs[permutation],
                                                 n_ids[permutation])),
                                        dt)
-            more_n_idx = sample(range(10), rng.integers(2, 5))
+
+            # draw more noise indices, but make sure they're not exactly the same
+            while sorted(more_n_idx := sample(range(10), rng.integers(2, 5))) == sorted(n_idx):
+                continue
             more_n_opers = opers[more_n_idx]
             more_n_coeffs = np.ones((more_n_opers.shape[0], n_dt))
             more_n_coeffs *= np.abs(rng.standard_normal(
@@ -540,6 +599,11 @@ class ConcatenationTest(testutil.TestCase):
 
             # Test forcibly caching
             self.assertTrue(pulse_13_2.is_cached('filter_function'))
+
+            with self.assertWarns(UserWarning):
+                # Issues a warning and disables second order calculation if unequal nopers
+                result = ff.concatenate([pulse_1, pulse_3], calc_second_order_FF=True)
+                self.assertFalse(result.is_cached('filter_function_2'))
 
     def test_concatenate_periodic(self):
         """Test concatenation for periodic Hamiltonians"""

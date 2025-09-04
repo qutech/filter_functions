@@ -40,6 +40,7 @@ Functions
 from typing import Optional, Tuple, Union
 
 import numpy as np
+import opt_einsum as oe
 from numpy import linalg as nla
 from numpy import ndarray
 from scipy import linalg as sla
@@ -78,8 +79,8 @@ def liouville_representation(U: ndarray, basis: _b.Basis) -> ndarray:
     Hilbert space.
     """
     U = np.asanyarray(U)
-    conjugated_basis = np.einsum('...ba,ibc,...cd->...iad', U.conj(), basis, U,
-                                 optimize=['einsum_path', (1, 2), (0, 1)])
+    conjugated_basis = oe.contract('...ba,ibc,...cd->...iad', U.conj(), basis, U,
+                                   optimize=[(0, 1), (0, 1)])
     return basis.expand(conjugated_basis, hermitian=basis.isherm)
 
 
