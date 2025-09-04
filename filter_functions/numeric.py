@@ -439,19 +439,16 @@ def calculate_noise_operators_from_atomic(
     calculate_control_matrix_from_atomic: Same calculation in Liouville space.
     """
     G = len(noise_operators_atomic)
-    noise_operators = np.zeros(noise_operators_atomic.shape[1:], dtype=complex)
+    noise_operators = noise_operators_atomic[0].copy()
     tmp = np.empty_like(noise_operators)
 
-    for g in util.progressbar_range(G, show_progressbar=show_progressbar,
+    for g in util.progressbar_range(1, G, show_progressbar=show_progressbar,
                                     desc='Calculating noise operators'):
-
-        if g > 0:
-            tmp = np.multiply(noise_operators_atomic[g], phases[g-1, :, None, None, None], out=tmp)
-            tmp = _transform_by_unitary(propagators[g-1], tmp, out=tmp)
-        else:
-            tmp = noise_operators_atomic[g]
-
-        noise_operators += tmp
+        noise_operators += _transform_by_unitary(
+            propagators[g-1],
+            np.multiply(noise_operators_atomic[g], phases[g-1, :, None, None, None], out=tmp),
+            out=tmp
+        )
 
     return noise_operators
 
