@@ -60,7 +60,7 @@ jobs:
 
     - uses: actions/setup-python@v5
       with:
-        python-version: '3.12'
+        python-version: '3.13'
         cache: pip
 
     - name: Install dependencies
@@ -74,7 +74,7 @@ jobs:
 
     - name: Publish package
       env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        HATCH_INDEX_USER: __token__
+        HATCH_INDEX_AUTH: ${{ secrets.PYPI_API_TOKEN }}
       run: |
-        twine upload dist/*
+        python -m hatch publish
