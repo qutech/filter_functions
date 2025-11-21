@@ -56,7 +56,7 @@
     "quantum control"
   ],
   "grants": [
-    {"id": "10.3030/679342"}
+     {"id": "10.13039/501100000780::679342"}
   ],
   "custom_fields": {
     "code:codeRepository": "https://github.com/qutech/filter_functions",
@@ -70,3 +70,4 @@
     ]
   }
 }
+
