@@ -1,0 +1,75 @@
+{
+  "creators": [
+    {
+      "name": "Hangleiter, Tobias",
+      "orcid": "0000-0002-5177-6162",
+      "affiliation": "JARA-FIT Institute for Quantum Information, Forschungszentrum Jülich GmbH and RWTH Aachen University, 52074 Aachen, Germany",
+    },
+    {
+      "name": "Cerfontaine, Pascal",
+      "orcid": "0000-0002-8227-4018",
+      "affiliation": "JARA-FIT Institute for Quantum Information, Forschungszentrum Jülich GmbH and RWTH Aachen University, 52074 Aachen, Germany",
+    },
+    {
+      "name": "Bluhm, Hendrik",
+      "orcid": "0000-0002-5224-7254",
+      "affiliation": "JARA-FIT Institute for Quantum Information, Forschungszentrum Jülich GmbH and RWTH Aachen University, 52074 Aachen, Germany",
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Nha Minh Le, Isabel",
+      "orcid": "0000-0001-6707-044X",
+      "affiliation": "JARA-FIT Institute for Quantum Information, Forschungszentrum Jülich GmbH and RWTH Aachen University, 52074 Aachen, Germany",
+    },
+    {
+      "name": "Teske, Julian",
+      "orcid": "0000-0002-7590-7876",
+      "affiliation": "JARA-FIT Institute for Quantum Information, Forschungszentrum Jülich GmbH and RWTH Aachen University, 52074 Aachen, Germany",
+    }
+  ],
+  "access_right": "open",
+  "related_identifiers": [
+    {
+      "scheme": "doi",
+      "identifier": "10.1103/PhysRevResearch.3.043047",
+      "relation": "isDescribedBy",
+      "resource_type": "publication-article"
+    },
+    {
+      "scheme": "doi",
+      "identifier": "10.1103/PhysRevLett.127.170403",
+      "relation": "isDescribedBy",
+      "resource_type": "publication-article"
+    },
+    {
+      "scheme": "doi",
+      "identifier": "10.1103/PhysRevApplied.17.024006",
+      "relation": "isDescribedBy",
+      "resource_type": "publication-article"
+    }
+  ],
+  "keywords": [
+    "quantum computing",
+    "quantum information",
+    "filter functions",
+    "quantum control"
+  ],
+  "license": "GPL-3.0",
+  "upload_type": "software",
+  "language": "en",
+  "grants": [
+    {"id": "10.3030/679342"}
+  ],
+  "custom_fields": {
+    "code:codeRepository": "https://github.com/qutech/filter_functions",
+    "code:programmingLanguage": [
+      {
+        "id": "python",
+        "title": {
+          "en": "Python"
+        }
+      }
+    ]
+  }
+}
