@@ -20,12 +20,14 @@
     {
       "name": "Nha Minh Le, Isabel",
       "orcid": "0000-0001-6707-044X",
-      "affiliation": "JARA-FIT Institute for Quantum Information, Forschungszentrum Jülich GmbH and RWTH Aachen University, 52074 Aachen, Germany"
+      "affiliation": "JARA-FIT Institute for Quantum Information, Forschungszentrum Jülich GmbH and RWTH Aachen University, 52074 Aachen, Germany",
+      "type": "Researcher"
     },
     {
       "name": "Teske, Julian",
       "orcid": "0000-0002-7590-7876",
-      "affiliation": "JARA-FIT Institute for Quantum Information, Forschungszentrum Jülich GmbH and RWTH Aachen University, 52074 Aachen, Germany"
+      "affiliation": "JARA-FIT Institute for Quantum Information, Forschungszentrum Jülich GmbH and RWTH Aachen University, 52074 Aachen, Germany",
+      "type": "Researcher"
     }
   ],
   "access_right": "open",
@@ -56,7 +58,7 @@
     "quantum control"
   ],
   "grants": [
-     {"id": "10.13039/501100000780::679342"}
+    {"id": "10.13039/501100000780::679342"}
   ],
   "custom_fields": {
     "code:codeRepository": "https://github.com/qutech/filter_functions",
@@ -70,4 +72,3 @@
     ]
   }
 }
-
