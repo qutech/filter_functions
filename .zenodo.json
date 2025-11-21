@@ -60,16 +60,6 @@
   "language": "en",
   "grants": [
     {"id": "10.3030/679342"}
-  ],
-  "custom_fields": {
-    "code:codeRepository": "https://github.com/qutech/filter_functions",
-    "code:programmingLanguage": [
-      {
-        "id": "python",
-        "title": {
-          "en": "Python"
-        }
-      }
-    ]
-  }
+  ]
 }
+
