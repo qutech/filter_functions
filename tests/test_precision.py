@@ -54,7 +54,7 @@ def _get_integrals_second_order(d, E, eigval, dt, t0):
     frc_bufs = (np.empty((len(E), d, d), dtype=complex),
                 np.empty((d, d, d, d), dtype=complex))
     int_buf = np.empty((len(E), d, d, d, d), dtype=complex)
-    msk_bufs = np.empty((4, len(E), d, d, d, d), dtype=bool)
+    msk_bufs = np.empty((2, len(E), d, d, d, d), dtype=bool)
     tspace = np.linspace(0, dt, 1001) + t0
     dE = np.subtract.outer(eigval, eigval)
 
