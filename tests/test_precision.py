@@ -54,7 +54,7 @@ def _get_integrals_second_order(d, E, eigval, dt, t0):
     frc_bufs = (np.empty((len(E), d, d), dtype=complex),
                 np.empty((d, d, d, d), dtype=complex))
     int_buf = np.empty((len(E), d, d, d, d), dtype=complex)
-    msk_bufs = np.empty((4, len(E), d, d, d, d), dtype=bool)
+    msk_bufs = np.empty((2, len(E), d, d, d, d), dtype=bool)
     tspace = np.linspace(0, dt, 1001) + t0
     dE = np.subtract.outer(eigval, eigval)
 
@@ -490,6 +490,22 @@ class PrecisionTest(testutil.TestCase):
             self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
 
             integral, integral_numeric = _get_integrals_second_order(d, E, eigval, dt, t)
+            self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
+
+    def test_integration_edge_cases(self):
+        pulse = testutil.rand_pulse_sequence(testutil.rng.integers(2, 10),
+                                             testutil.rng.integers(1, 5))
+        for i, (eigval, dt, t) in enumerate(zip(pulse.eigvals, pulse.dt, pulse.t)):
+            # \Omega_ij = \omega or \Omega_mn = -\omega
+            omega = np.repeat(testutil.rng.choice([-1, 1])
+                              * np.diff(testutil.rng.choice(eigval, 2, replace=False)),
+                              3)
+            omega[0] -= 1e-10
+            omega[2] += 1e-10
+            integral, integral_numeric = _get_integrals_first_order(pulse.d, omega, eigval, dt, t)
+            self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
+
+            integral, integral_numeric = _get_integrals_second_order(pulse.d, omega, eigval, dt, t)
             self.assertArrayAlmostEqual(integral, integral_numeric, atol=1e-4)
 
     def test_infidelity(self):
